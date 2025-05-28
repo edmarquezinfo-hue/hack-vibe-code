@@ -10,7 +10,7 @@ import { Loader, Check, ArrowRight } from 'react-feather';
 import { useParams, useSearchParams } from 'react-router';
 import { MonacoEditor } from '../../components/monaco-editor/monaco-editor';
 import { Header } from '../../components/header';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Expand } from 'lucide-react';
 import { Blueprint } from './components/blueprint';
 import { FileExplorer } from './components/file-explorer';
@@ -44,6 +44,7 @@ export default function Chat() {
 		sendUserMessage,
 		sendAiMessage,
 		edit,
+		clearEdit,
 	} = useChat({
 		agentId,
 		query: userQuery,
@@ -72,18 +73,20 @@ export default function Chat() {
 			enabled: isBootstrapping,
 		});
 
-	const handleFileClick = (file: FileType) => {
+	const handleFileClick = useCallback((file: FileType) => {
 		logger.debug('handleFileClick()', file);
+		clearEdit();
 		setActiveFilePath(file.file_path);
 		setView('editor');
 		if (!hasSwitchedFile.current) {
 			hasSwitchedFile.current = true;
 		}
-	};
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
 
-	const handleViewModeChange = (mode: 'preview' | 'editor') => {
+	const handleViewModeChange = useCallback((mode: 'preview' | 'editor') => {
 		setView(mode);
-	};
+	}, []);
 
 	const generatingCount = useMemo(
 		() =>
@@ -121,11 +124,12 @@ export default function Chat() {
 		isBootstrapping,
 	]);
 
-	const showMainView =
-		streamedBootstrapFiles.length > 0 || !!blueprint || files.length > 0;
+	const showMainView = useMemo(
+		() => streamedBootstrapFiles.length > 0 || !!blueprint || files.length > 0,
+		[streamedBootstrapFiles, blueprint, files.length],
+	);
 
-	const mainMessage = messages[0];
-	const otherMessages = messages.slice(1);
+	const [mainMessage, ...otherMessages] = useMemo(() => messages, [messages]);
 
 	useEffect(() => {
 		if (previewUrl && !hasSeenPreview.current) {
@@ -232,6 +236,7 @@ export default function Chat() {
 		}
 		const total = typeof totalFiles === 'number' ? totalFiles + 1 : 1;
 
+		// Add blueprint progress into progress
 		return [
 			Math.min(
 				files.length - generatingCount + (isGeneratingBlueprint ? 0 : 1),
@@ -239,13 +244,6 @@ export default function Chat() {
 			),
 			total,
 		];
-
-		// (files.length -
-		// 	generatingCount +
-		// 	(isGeneratingBlueprint ? 0 : 1)) /
-		// (typeof totalFiles === 'number'
-		// 	? totalFiles + 1
-		// 	: 1)
 	}, [totalFiles, isGeneratingBlueprint, generatingCount, files.length]);
 
 	return (
@@ -474,78 +472,17 @@ export default function Chat() {
 					</form>
 				</motion.div>
 
-				{showMainView && (
-					<motion.div
-						layout="position"
-						className="flex-1 flex shrink-0 basis-0 p-4 pl-0"
-					>
-						{view === 'preview' && previewUrl && (
-							<div className="flex-1 flex flex-col bg-bg-light rounded-xl overflow-hidden border border-white/10">
-								<div className="grid grid-cols-3 px-2 h-10 bg-bg-lighter/50">
-									<div className="flex items-center">
-										<ViewModeSwitch
-											view={view}
-											onChange={handleViewModeChange}
-											previewAvailable={!!previewUrl}
-											showTooltip={showTooltip}
-										/>
-									</div>
-
-									<div className="flex items-center justify-center">
-										<div className="flex items-center gap-2">
-											<span className="text-sm font-mono text-text-50/70">
-												{blueprint?.title ?? 'Preview'}
-											</span>
-											<Copy text={previewUrl} />
-										</div>
-									</div>
-
-									<div className="flex items-center justify-end gap-1.5">
-										<button
-											className="p-1"
-											onClick={() => {
-												previewRef.current?.requestFullscreen();
-											}}
-										>
-											<Expand className="size-4 text-white/50" />
-										</button>
-									</div>
-								</div>
-								<iframe
-									src={previewUrl}
-									ref={previewRef}
-									className="flex-1 w-full h-full border-0"
-									title="Preview"
-								/>
-							</div>
-						)}
-
-						{view === 'blueprint' && (
-							<div className="flex-1 flex flex-col bg-bg-light/30 rounded-xl overflow-hidden border border-white/10">
-								{/* Toolbar */}
-								<div className="flex items-center justify-center px-2 h-10 bg-bg-lighter">
-									<div className="flex items-center gap-2">
-										<span className="text-sm text-text-50/70 font-mono">
-											Blueprint.md
-										</span>
-										{previewUrl && <Copy text={previewUrl} />}
-									</div>
-								</div>
-								<div className="flex-1 overflow-y-auto">
-									<div className="py-12 mx-auto">
-										<Blueprint
-											// eslint-disable-next-line @typescript-eslint/no-explicit-any
-											blueprint={blueprint ?? ({} as any)}
-											className="w-full max-w-2xl mx-auto"
-										/>
-									</div>
-								</div>
-							</div>
-						)}
-
-						{view === 'editor' && (
-							<div className="flex-1 flex flex-col bg-bg-light rounded-xl overflow-hidden border border-white/10">
-								{activeFile && (
+				<AnimatePresence>
+					{showMainView && (
+						<motion.div
+							layout="position"
+							className="flex-1 flex shrink-0 basis-0 p-4 pl-0"
+							initial={{ opacity: 0, x: -360 }}
+							animate={{ opacity: 1, x: 0 }}
+							transition={{ duration: 0.3, ease: 'easeInOut' }}
+						>
+							{view === 'preview' && previewUrl && (
+								<div className="flex-1 flex flex-col bg-bg-light rounded-xl overflow-hidden border border-white/10">
 									<div className="grid grid-cols-3 px-2 h-10 bg-bg-lighter/50">
 										<div className="flex items-center">
 											<ViewModeSwitch
@@ -559,9 +496,9 @@ export default function Chat() {
 										<div className="flex items-center justify-center">
 											<div className="flex items-center gap-2">
 												<span className="text-sm font-mono text-text-50/70">
-													{activeFile.file_path}
+													{blueprint?.title ?? 'Preview'}
 												</span>
-												{previewUrl && <Copy text={previewUrl} />}
+												<Copy text={previewUrl} />
 											</div>
 										</div>
 
@@ -569,54 +506,120 @@ export default function Chat() {
 											<button
 												className="p-1"
 												onClick={() => {
-													editorRef.current?.requestFullscreen();
+													previewRef.current?.requestFullscreen();
 												}}
 											>
 												<Expand className="size-4 text-white/50" />
 											</button>
 										</div>
 									</div>
-								)}
-								<div className="flex-1 relative">
-									<div className="absolute inset-0 flex" ref={editorRef}>
-										<FileExplorer
-											files={files}
-											bootstrapFiles={streamedBootstrapFiles}
-											currentFile={activeFile}
-											onFileClick={handleFileClick}
-										/>
-										<div className="flex-1">
-											<MonacoEditor
-												className="h-full"
-												createOptions={{
-													value: activeFile?.file_contents || '',
-													language: activeFile?.language || 'plaintext',
-													readOnly: true,
-													minimap: { enabled: false },
-													lineNumbers: 'on',
-													scrollBeyondLastLine: false,
-													fontSize: 13,
-													theme: 'v1-dev',
-													automaticLayout: true,
-												}}
-												find={
-													edit && edit.filePath === activeFile?.file_path
-														? edit.search
-														: undefined
-												}
-												replace={
-													edit && edit.filePath === activeFile?.file_path
-														? edit.replacement
-														: undefined
-												}
+									<iframe
+										src={previewUrl}
+										ref={previewRef}
+										className="flex-1 w-full h-full border-0"
+										title="Preview"
+									/>
+								</div>
+							)}
+
+							{view === 'blueprint' && (
+								<div className="flex-1 flex flex-col bg-bg-light/30 rounded-xl overflow-hidden border border-white/10">
+									{/* Toolbar */}
+									<div className="flex items-center justify-center px-2 h-10 bg-bg-lighter">
+										<div className="flex items-center gap-2">
+											<span className="text-sm text-text-50/70 font-mono">
+												Blueprint.md
+											</span>
+											{previewUrl && <Copy text={previewUrl} />}
+										</div>
+									</div>
+									<div className="flex-1 overflow-y-auto">
+										<div className="py-12 mx-auto">
+											<Blueprint
+												// eslint-disable-next-line @typescript-eslint/no-explicit-any
+												blueprint={blueprint ?? ({} as any)}
+												className="w-full max-w-2xl mx-auto"
 											/>
 										</div>
 									</div>
 								</div>
-							</div>
-						)}
-					</motion.div>
-				)}
+							)}
+
+							{view === 'editor' && (
+								<div className="flex-1 flex flex-col bg-bg-light rounded-xl overflow-hidden border border-white/10">
+									{activeFile && (
+										<div className="grid grid-cols-3 px-2 h-10 bg-bg-lighter/50">
+											<div className="flex items-center">
+												<ViewModeSwitch
+													view={view}
+													onChange={handleViewModeChange}
+													previewAvailable={!!previewUrl}
+													showTooltip={showTooltip}
+												/>
+											</div>
+
+											<div className="flex items-center justify-center">
+												<div className="flex items-center gap-2">
+													<span className="text-sm font-mono text-text-50/70">
+														{activeFile.file_path}
+													</span>
+													{previewUrl && <Copy text={previewUrl} />}
+												</div>
+											</div>
+
+											<div className="flex items-center justify-end gap-1.5">
+												<button
+													className="p-1"
+													onClick={() => {
+														editorRef.current?.requestFullscreen();
+													}}
+												>
+													<Expand className="size-4 text-white/50" />
+												</button>
+											</div>
+										</div>
+									)}
+									<div className="flex-1 relative">
+										<div className="absolute inset-0 flex" ref={editorRef}>
+											<FileExplorer
+												files={files}
+												bootstrapFiles={streamedBootstrapFiles}
+												currentFile={activeFile}
+												onFileClick={handleFileClick}
+											/>
+											<div className="flex-1">
+												<MonacoEditor
+													className="h-full"
+													createOptions={{
+														value: activeFile?.file_contents || '',
+														language: activeFile?.language || 'plaintext',
+														readOnly: true,
+														minimap: { enabled: false },
+														lineNumbers: 'on',
+														scrollBeyondLastLine: false,
+														fontSize: 13,
+														theme: 'v1-dev',
+														automaticLayout: true,
+													}}
+													find={
+														edit && edit.filePath === activeFile?.file_path
+															? edit.search
+															: undefined
+													}
+													replace={
+														edit && edit.filePath === activeFile?.file_path
+															? edit.replacement
+															: undefined
+													}
+												/>
+											</div>
+										</div>
+									</div>
+								</div>
+							)}
+						</motion.div>
+					)}
+				</AnimatePresence>
 			</div>
 		</div>
 	);
