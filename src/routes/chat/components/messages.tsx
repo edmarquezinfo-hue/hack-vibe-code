@@ -48,7 +48,7 @@ interface MarkdownProps extends React.ComponentProps<'article'> {
 export function Markdown({ children, className, ...props }: MarkdownProps) {
 	return (
 		<article
-			className={clsx('prose prose-sm prose-invert', className)}
+			className={clsx('prose prose-sm prose-teal', className)}
 			{...props}
 		>
 			<ReactMarkdown
