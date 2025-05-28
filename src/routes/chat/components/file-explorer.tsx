@@ -1,0 +1,152 @@
+import { useState } from 'react';
+import { LucideNetwork, ChevronRight, File } from 'lucide-react';
+import type { FileType } from '../hooks/use-chat';
+import clsx from 'clsx';
+
+interface FileTreeItem {
+	name: string;
+	type: 'file' | 'folder';
+	file_path: string;
+	children?: { [key: string]: FileTreeItem };
+	file?: FileType;
+}
+
+export function FileTreeItem({
+	item,
+	level = 0,
+	currentFile,
+	onFileClick,
+}: {
+	item: FileTreeItem;
+	level?: number;
+	currentFile: FileType | undefined;
+	onFileClick: (file: FileType) => void;
+}) {
+	const [isExpanded, setIsExpanded] = useState(true);
+	const isCurrentFile = currentFile?.file_path === item.file_path;
+
+	if (item.type === 'file' && item.file) {
+		return (
+			<button
+				onClick={() => onFileClick(item.file!)}
+				className={`flex items-center w-full gap-2 py-1 px-3 transition-colors text-sm ${
+					isCurrentFile
+						? 'text-[#FFBA71] bg-white/5'
+						: 'text-white/80 hover:bg-white/5 hover:text-white'
+				}`}
+				style={{ paddingLeft: `${level * 12 + 12}px` }}
+			>
+				<File className="size-3" />
+				<span className="flex-1 text-left truncate">{item.name}</span>
+				{/* {item.file.isGenerating ? (
+					<Loader className="size-3 animate-spin" />
+				) : null}
+				{item.file.needsFixing && (
+					<span className="text-[9px] text-orange-400">fix</span>
+				)}
+				{item.file.hasRuntimeError && (
+					<span className="text-[9px] text-red-400">error</span>
+				)} */}
+			</button>
+		);
+	}
+
+	return (
+		<div>
+			<button
+				onClick={() => setIsExpanded(!isExpanded)}
+				className="flex items-center gap-2 py-1 px-3 transition-colors text-sm text-white/80 hover:bg-white/5 hover:text-white w-full"
+				style={{ paddingLeft: `${level * 12 + 12}px` }}
+			>
+				<ChevronRight
+					className={clsx(
+						'size-3 transition-transform duration-200 ease-in-out',
+						isExpanded && 'rotate-90',
+					)}
+				/>
+				<span className="flex-1 text-left truncate">{item.name}</span>
+			</button>
+			{isExpanded && item.children && (
+				<div>
+					{Object.values(item.children).map((child) => (
+						<FileTreeItem
+							key={child.file_path}
+							item={child}
+							level={level + 1}
+							currentFile={currentFile}
+							onFileClick={onFileClick}
+						/>
+					))}
+				</div>
+			)}
+		</div>
+	);
+}
+
+function buildFileTree(files: FileType[]): FileTreeItem[] {
+	const root: { [key: string]: FileTreeItem } = {};
+
+	files.forEach((file) => {
+		const parts = file.file_path.split('/');
+		let currentLevel: { [key: string]: FileTreeItem } = root;
+
+		for (let i = 0; i < parts.length - 1; i++) {
+			const part = parts[i];
+			if (!currentLevel[part]) {
+				currentLevel[part] = {
+					name: part,
+					type: 'folder',
+					file_path: parts.slice(0, i + 1).join('/'),
+					children: {},
+				};
+			}
+			if (!currentLevel[part].children) {
+				currentLevel[part].children = {};
+			}
+			currentLevel = currentLevel[part].children;
+		}
+
+		const fileName = parts[parts.length - 1];
+		currentLevel[fileName] = {
+			name: fileName,
+			type: 'file',
+			file_path: file.file_path,
+			file: file,
+		};
+	});
+
+	return Object.values(root);
+}
+
+export function FileExplorer({
+	files,
+	bootstrapFiles,
+	currentFile,
+	onFileClick,
+}: {
+	files: FileType[];
+	bootstrapFiles: FileType[];
+	currentFile: FileType | undefined;
+	onFileClick: (file: FileType) => void;
+}) {
+	const fileTree = buildFileTree([...bootstrapFiles, ...files]);
+
+	return (
+		<div className="w-full max-w-[200px] bg-bg-darkest border-r border-white/10 h-full overflow-y-auto">
+			<div className="p-2 px-3 text-sm flex items-center gap-1 text-text-50/70 font-medium">
+				<LucideNetwork className="size-4" />
+				Files
+			</div>
+			<div className="flex flex-col">
+				{fileTree.map((item) => (
+					<FileTreeItem
+						key={item.file_path}
+						item={item}
+						currentFile={currentFile}
+						onFileClick={onFileClick}
+					/>
+				))}
+			</div>
+		</div>
+	);
+}
