@@ -7,7 +7,10 @@ import type {
 	ApiResponse,
 	CodeFixEdits,
 } from '../api-types';
-import { createRepairingJSONParser, ndjsonStream } from '../../../utils/ndjson-parser/ndjson-parser';
+import {
+	createRepairingJSONParser,
+	ndjsonStream,
+} from '../../../utils/ndjson-parser/ndjson-parser';
 import { getFileType } from '../../../utils/string';
 import { logger } from '../../../utils/logger';
 
@@ -55,6 +58,10 @@ export function useChat({
 
 	const connectionStatus = useRef<'idle' | 'connecting' | 'connected'>('idle');
 	const [edit, setEdit] = useState<Omit<CodeFixEdits, 'type'>>();
+
+	const clearEdit = useCallback(() => {
+		setEdit(undefined);
+	}, []);
 
 	const sendMessage = useCallback((message: Omit<ChatMessage, 'type'>) => {
 		setMessages((prev) => {
@@ -288,6 +295,7 @@ export function useChat({
 			default:
 				console.warn('Unhandled message:', message);
 		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	const connect = useCallback(
@@ -481,6 +489,25 @@ export function useChat({
 		};
 	}, [websocket]);
 
+	useEffect(() => {
+		if (edit) {
+			// When edit is cleared, write the edit changes
+			return () => {
+				setFiles((prev) =>
+					prev.map((file) => {
+						if (file.file_path === edit.filePath) {
+							file.file_contents = file.file_contents.replace(
+								edit.search,
+								edit.replacement,
+							);
+						}
+						return file;
+					}),
+				);
+			};
+		}
+	}, [edit]);
+
 	return {
 		messages,
 		edit,
@@ -497,5 +524,6 @@ export function useChat({
 		websocket,
 		sendUserMessage,
 		sendAiMessage: sendMessage,
+		clearEdit,
 	};
 }

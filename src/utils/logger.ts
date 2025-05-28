@@ -75,6 +75,5 @@ export class Logger {
 }
 
 export const logger = new Logger({
-	enabled: true,
 	level: import.meta.env.DEV ? 'debug' : 'info',
 });

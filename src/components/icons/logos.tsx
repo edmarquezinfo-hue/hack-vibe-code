@@ -51,7 +51,7 @@ export const AIAvatar = (props: React.SVGProps<SVGSVGElement>) => (
 			height={23.5}
 			x={0.25}
 			y={0.25}
-			fill="#F6821F"
+			fill="var(--color-brand)"
 			rx={11.75}
 		/>
 		<rect
@@ -59,7 +59,7 @@ export const AIAvatar = (props: React.SVGProps<SVGSVGElement>) => (
 			height={23.5}
 			x={0.25}
 			y={0.25}
-			stroke="#424242"
+			stroke="var(--color-brand)"
 			strokeWidth={0.5}
 			rx={11.75}
 		/>

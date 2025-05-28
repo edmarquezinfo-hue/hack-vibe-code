@@ -35,7 +35,7 @@ self.MonacoEnvironment = {
 };
 
 // From GitHub Dark theme
-monaco.editor.defineTheme('v1-dev', {
+monaco.editor.defineTheme('v1-dev-dark', {
 	base: 'vs-dark',
 	inherit: true,
 	rules: [
@@ -73,6 +73,45 @@ monaco.editor.defineTheme('v1-dev', {
 		'editor.wordHighlightStrongBackground': '#ff7b7240',
 		'editor.findMatchBackground': '#ffd33d44',
 		'editor.findMatchHighlightBackground': '#ffd33d22',
+	},
+});
+
+monaco.editor.defineTheme('v1-dev', {
+	base: 'vs',
+	inherit: true,
+	rules: [
+		{ token: '', foreground: '000000', background: 'fbfbfc' },
+		{ token: 'comment', foreground: '6e7781', fontStyle: 'italic' },
+		{ token: 'keyword', foreground: '0092b8' },
+		{ token: 'number', foreground: '0550ae' },
+		{ token: 'string', foreground: '0a3069' },
+		{ token: 'type', foreground: '0092b8' },
+		{ token: 'class', foreground: '0092b8' },
+		{ token: 'interface', foreground: '0092b8' },
+		{ token: 'function', foreground: '953800' },
+		{ token: 'member', foreground: '0550ae' },
+		{ token: 'variable', foreground: '24292f' },
+		{ token: 'constant', foreground: '0550ae' },
+		{ token: 'operator', foreground: '0092b8' },
+		{ token: 'namespace', foreground: '0092b8' },
+		{ token: 'predefined', foreground: '0092b8' },
+		{ token: 'invalid', foreground: 'ff0000' },
+	],
+	colors: {
+		'editor.background': '#fbfbfc',
+		'editor.foreground': '#24292f',
+		'editorLineNumber.foreground': '#8c959f',
+		'editorLineNumber.activeForeground': '#24292f',
+		'editorCursor.foreground': '#0092b8',
+		'editorIndentGuide.background': '#d0d7de',
+		'editorIndentGuide.activeBackground': '#8c959f',
+		'editor.selectionBackground': '#0092b820',
+		'editor.inactiveSelectionBackground': '#0092b810',
+		'editor.lineHighlightBackground': '#0092b808',
+		'editor.wordHighlightBackground': '#0092b815',
+		'editor.wordHighlightStrongBackground': '#0092b820',
+		'editor.findMatchBackground': '#0092b830',
+		'editor.findMatchHighlightBackground': '#0092b815',
 	},
 });
 
