@@ -1,5 +1,9 @@
-import { useState } from "react";
-import { Check, Link2 } from "react-feather";
+import { AnimatePresence, motion } from 'framer-motion';
+import { useState } from 'react';
+import { Check, Link2 } from 'react-feather';
+
+const MotionCheck = motion(Check);
+const MotionLink = motion(Link2);
 
 export function Copy({ text }: { text: string }) {
 	const [copied, setCopied] = useState(false);
@@ -15,11 +19,23 @@ export function Copy({ text }: { text: string }) {
 				}, 2500);
 			}}
 		>
-			{copied ? (
-				<Check className="size-4 text-green-300/70" />
-			) : (
-				<Link2 className="size-4 text-white/60" />
-			)}
+			<AnimatePresence>
+				{copied ? (
+					<MotionCheck
+						initial={{ scale: 0.4 }}
+						animate={{ scale: 1 }}
+						exit={{ scale: 0.4 }}
+						className="size-4 text-green-300/70"
+					/>
+				) : (
+					<MotionLink
+						initial={{ scale: 0.4 }}
+						animate={{ scale: 1 }}
+						exit={{ scale: 0.4 }}
+						className="size-4 text-text/60"
+					/>
+				)}
+			</AnimatePresence>
 		</button>
 	);
 }

@@ -340,13 +340,16 @@ export default function Chat() {
 							)}
 
 							{(blueprint || files.length > 0) && (
-								<motion.div layout="position" className="mt-4 pl-9">
-									<div className="flex h-10 items-center border border-white/5 justify-between px-4 bg-bg-lighter rounded-t-xl">
+								<motion.div
+									layout="position"
+									className="mt-4 pl-9 drop-shadow"
+								>
+									<div className="flex h-10 items-center border border-text/5 justify-between px-4 bg-bg rounded-t-xl">
 										<div className="flex items-center gap-2">
-											<span className="text-sm text-white/80">Version 1</span>
+											<span className="text-sm text-text/80">Version 1</span>
 										</div>
 									</div>
-									<div className="bg-bg-light rounded-b-md border border-t-0 border-white/5 overflow-hidden">
+									<div className="bg-bg-light rounded-b-xl border border-t-0 border-text/5 overflow-hidden">
 										<div className="flex flex-col">
 											<button
 												onClick={() => {
@@ -355,16 +358,16 @@ export default function Chat() {
 												}}
 												className={`flex items-center gap-2 p-2 px-4 transition-colors font-mono ${
 													view === 'blueprint'
-														? 'text-[#FFBA71] underline decoration-dotted'
-														: 'text-white/80 hover:bg-bg-lighter/50 hover:text-white'
+														? 'text-brand underline decoration-dotted'
+														: 'text-text/80 hover:bg-bg-lighter/50 hover:text-text'
 												}`}
 											>
 												{isGeneratingBlueprint ? (
-													<span className="text-orange-400 whitespace-nowrap">
+													<span className="text-brand whitespace-nowrap">
 														<Loader className="size-4 animate-spin" />
 													</span>
 												) : (
-													<span className="text-[#7EDFA2] whitespace-nowrap">
+													<span className="text-green-600 whitespace-nowrap">
 														<Check className="size-4" />
 													</span>
 												)}
@@ -384,16 +387,16 @@ export default function Chat() {
 														className={`flex items-center gap-2 p-2 px-4 transition-colors font-mono ${
 															isFileActive
 																? // && viewState.mode === 'code'
-																	'text-[#FFBA71] underline decoration-dotted'
-																: 'text-white/80 hover:bg-bg-lighter/50 hover:text-white'
+																	'text-brand underline decoration-dotted'
+																: 'text-text/80 hover:bg-bg-lighter/50 hover:text-text'
 														}`}
 													>
 														{file.isGenerating ? (
-															<span className="text-orange-400 whitespace-nowrap">
+															<span className="text-brand/70 whitespace-nowrap">
 																<Loader className="size-4 animate-spin" />
 															</span>
 														) : (
-															<span className="text-[#7EDFA2] whitespace-nowrap">
+															<span className="text-green-600 whitespace-nowrap">
 																<Check className="size-4" />
 															</span>
 														)}
@@ -402,12 +405,12 @@ export default function Chat() {
 														</span>
 														<div className="flex items-center gap-2">
 															{file.needsFixing && (
-																<span className="text-[9px] text-white/60 font-mono">
+																<span className="text-[9px] text-text/60 font-mono">
 																	needs fix
 																</span>
 															)}
 															{file.hasErrors && (
-																<span className="text-[9px] text-white/60 font-mono">
+																<span className="text-[9px] text-text/60 font-mono">
 																	runtime error
 																</span>
 															)}
@@ -459,7 +462,7 @@ export default function Chat() {
 									setNewMessage(e.target.value);
 								}}
 								placeholder="Ask a follow up..."
-								className="w-full bg-bg-lighter border border-white/10 rounded-xl px-3 pr-10 py-2 text-sm outline-none focus:border-white/20 drop-shadow-2xl text-white placeholder:!text-white/50"
+								className="w-full bg-bg-lighter border border-white/10 rounded-xl px-3 pr-10 py-2 text-sm outline-none focus:border-white/20 drop-shadow-2xl text-text placeholder:!text-text/50"
 							/>
 							<button
 								type="submit"
@@ -482,8 +485,8 @@ export default function Chat() {
 							transition={{ duration: 0.3, ease: 'easeInOut' }}
 						>
 							{view === 'preview' && previewUrl && (
-								<div className="flex-1 flex flex-col bg-bg-light rounded-xl overflow-hidden border border-white/10">
-									<div className="grid grid-cols-3 px-2 h-10 bg-bg-lighter/50">
+								<div className="flex-1 flex flex-col bg-bg-light rounded-xl shadow-md overflow-hidden border border-text/10">
+									<div className="grid grid-cols-3 px-2 h-10 bg-bg border-b">
 										<div className="flex items-center">
 											<ViewModeSwitch
 												view={view}
@@ -509,7 +512,7 @@ export default function Chat() {
 													previewRef.current?.requestFullscreen();
 												}}
 											>
-												<Expand className="size-4 text-white/50" />
+												<Expand className="size-4 text-text/50" />
 											</button>
 										</div>
 									</div>
@@ -523,9 +526,9 @@ export default function Chat() {
 							)}
 
 							{view === 'blueprint' && (
-								<div className="flex-1 flex flex-col bg-bg-light/30 rounded-xl overflow-hidden border border-white/10">
+								<div className="flex-1 flex flex-col bg-bg-light rounded-xl shadow-md overflow-hidden border border-text/10">
 									{/* Toolbar */}
-									<div className="flex items-center justify-center px-2 h-10 bg-bg-lighter">
+									<div className="flex items-center justify-center px-2 h-10 bg-bg-lighter border-b">
 										<div className="flex items-center gap-2">
 											<span className="text-sm text-text-50/70 font-mono">
 												Blueprint.md
@@ -533,7 +536,7 @@ export default function Chat() {
 											{previewUrl && <Copy text={previewUrl} />}
 										</div>
 									</div>
-									<div className="flex-1 overflow-y-auto">
+									<div className="flex-1 overflow-y-auto bg-bg-light">
 										<div className="py-12 mx-auto">
 											<Blueprint
 												// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -546,9 +549,9 @@ export default function Chat() {
 							)}
 
 							{view === 'editor' && (
-								<div className="flex-1 flex flex-col bg-bg-light rounded-xl overflow-hidden border border-white/10">
+								<div className="flex-1 flex flex-col bg-bg-light rounded-xl shadow-md overflow-hidden border border-text/10">
 									{activeFile && (
-										<div className="grid grid-cols-3 px-2 h-10 bg-bg-lighter/50">
+										<div className="grid grid-cols-3 px-2 h-10 bg-bg border-b">
 											<div className="flex items-center">
 												<ViewModeSwitch
 													view={view}
@@ -574,7 +577,7 @@ export default function Chat() {
 														editorRef.current?.requestFullscreen();
 													}}
 												>
-													<Expand className="size-4 text-white/50" />
+													<Expand className="size-4 text-text/50" />
 												</button>
 											</div>
 										</div>

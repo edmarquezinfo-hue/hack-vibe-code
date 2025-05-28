@@ -18,14 +18,14 @@ export function ViewModeSwitch({
 	}
 
 	return (
-		<div className="flex items-center gap-1 bg-[#1A171199] rounded-md p-0.5 relative">
+		<div className="flex items-center gap-1 bg-zinc-100 rounded-md p-0.5 relative">
 			<AnimatePresence>
 				{showTooltip && (
 					<motion.div
 						initial={{ opacity: 0, scale: 0.4 }}
 						animate={{ opacity: 1, scale: 1 }}
 						exit={{ opacity: 0, scale: 0 }}
-						className="absolute z-50 top-10 left-0 bg-bg-lighter text-white text-xs px-2 py-1 rounded whitespace-nowrap animate-fade-in"
+						className="absolute z-50 top-10 left-0 bg-bg-lighter text-text text-xs px-2 py-1 rounded whitespace-nowrap animate-fade-in"
 					>
 						You can view code anytime from here
 					</motion.div>
@@ -37,8 +37,8 @@ export function ViewModeSwitch({
 				className={clsx(
 					'p-1 flex items-center justify-between h-full rounded-md transition-colors',
 					view === 'preview'
-						? 'bg-[#3E3324] text-white'
-						: 'text-text-50/70 hover:text-white hover:bg-white/5',
+						? 'bg-bg text-text'
+						: 'text-text-50/70 hover:text-text hover:bg-white/5',
 				)}
 			>
 				<Eye className="size-4" />
@@ -48,8 +48,8 @@ export function ViewModeSwitch({
 				className={clsx(
 					'p-1 flex items-center justify-between h-full rounded-md transition-colors',
 					view === 'editor'
-						? 'bg-[#3E3324] text-white'
-						: 'text-text-50/70 hover:text-white hover:bg-white/5',
+						? 'bg-bg text-text'
+						: 'text-text-50/70 hover:text-text hover:bg-white/5',
 				)}
 			>
 				<Code className="size-4" />

@@ -13,7 +13,7 @@ export default function Home() {
 
 			<div className="w-full max-w-2xl px-6 pt-40 lg:pt-56 flex flex-col items-center">
 				{/* Animate background gradient translating */}
-				<h2 className="text-5xl text-center mb-8 font-medium tracking-tight bg-clip-text bg-gradient-to-r text-transparent from-orange-50 to-orange-100">
+				<h2 className="text-5xl/18 text-center mb-8 font-medium tracking-tight bg-clip-text bg-gradient-to-r text-transparent from-brand/70 to-brand/90">
 					What shall I help you build?
 				</h2>
 
@@ -25,7 +25,7 @@ export default function Home() {
 							`chat/new?query=${encodeURIComponent(textareaRef.current!.value)}`,
 						);
 					}}
-					className="flex flex-col w-full min-h-[100px] bg-bg-lighter border border-white/10 rounded-2xl p-4"
+					className="flex group flex-col w-full min-h-[100px] bg-bg-lighter border border-text/5 shadow rounded-2xl p-4"
 				>
 					<textarea
 						className="font-sans text-sm flex-1 resize-none outline-none"
@@ -46,7 +46,10 @@ export default function Home() {
 						<div></div>
 
 						<div className="flex items-center justify-end">
-							<button type="submit" className="bg-gradient-to-br from-orange-300 to-orange-400 p-1 rounded-md *:size-5">
+							<button
+								type="submit"
+								className="bg-gradient-to-br from-brand/70 to-brand/90 text-text-on-brand p-1 rounded-md *:size-5"
+							>
 								<ArrowRight />
 							</button>
 						</div>
