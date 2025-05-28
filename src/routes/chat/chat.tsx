@@ -252,9 +252,9 @@ export default function Chat() {
 			<div className="flex-1 flex min-h-0 justify-center">
 				<motion.div
 					layout="position"
-					className="flex-1 shrink-0 flex flex-col basis-0 max-w-lg relative"
+					className="flex-1 shrink-0 flex flex-col basis-0 max-w-lg relative z-10"
 				>
-					<div className="flex-1 overflow-y-auto pb-20">
+					<div className="flex-1 overflow-y-auto">
 						<div className="pt-5 px-4 text-sm flex flex-col gap-5">
 							<UserMessage message={query ?? userQuery ?? ''} />
 
@@ -340,10 +340,7 @@ export default function Chat() {
 							)}
 
 							{(blueprint || files.length > 0) && (
-								<motion.div
-									layout="position"
-									className="mt-4 pl-9 drop-shadow"
-								>
+								<motion.div layout="position" className="mt-4 pl-9 drop-shadow">
 									<div className="flex h-10 items-center border border-text/5 justify-between px-4 bg-bg rounded-t-xl">
 										<div className="flex items-center gap-2">
 											<span className="text-sm text-text/80">Version 1</span>
@@ -450,6 +447,9 @@ export default function Chat() {
 							})}
 						</div>
 					</div>
+
+					<div className="h-20"></div>
+
 					<form
 						onSubmit={onNewMessage}
 						className="absolute bottom-0 left-0 right-0 p-4 pb-5 bg-transparent"
@@ -467,7 +467,7 @@ export default function Chat() {
 							<button
 								type="submit"
 								disabled={!newMessage.trim()}
-								className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md bg-bg-lighter/30 hover:bg-bg-lighter/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+								className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md bg-brand/90 hover:bg-bg-lighter/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-transparent text-text-on-brands disabled:text-text transition-colors"
 							>
 								<ArrowRight className="size-4" />
 							</button>
@@ -479,9 +479,9 @@ export default function Chat() {
 					{showMainView && (
 						<motion.div
 							layout="position"
-							className="flex-1 flex shrink-0 basis-0 p-4 pl-0"
-							initial={{ opacity: 0, x: -360 }}
-							animate={{ opacity: 1, x: 0 }}
+							className="flex-1 flex shrink-0 basis-0 p-4 pl-0 z-30"
+							initial={{ opacity: 0, scale: 0.84 }}
+							animate={{ opacity: 1, scale: 1 }}
 							transition={{ duration: 0.3, ease: 'easeInOut' }}
 						>
 							{view === 'preview' && previewUrl && (
