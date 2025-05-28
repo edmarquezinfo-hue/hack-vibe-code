@@ -10,7 +10,7 @@ export function Header({
 	return (
 		<header
 			className={clsx(
-				'h-16 shrink-0 w-full px-4 border-b flex items-center',
+				'h-13n shrink-0 w-full px-4 border-b flex items-center',
 				className,
 			)}
 		>
