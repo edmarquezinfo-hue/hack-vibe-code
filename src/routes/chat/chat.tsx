@@ -198,7 +198,7 @@ export default function Chat() {
 
 	const isRunning = useMemo(() => {
 		return (
-			isBootstrapping || isGeneratingBlueprint || codeGenState !== 'complete'
+			isBootstrapping || isGeneratingBlueprint || codeGenState === 'started'
 		);
 	}, [isBootstrapping, isGeneratingBlueprint, codeGenState]);
 
@@ -215,6 +215,19 @@ export default function Chat() {
 		},
 		[newMessage, websocket, sendUserMessage, isRunning],
 	);
+
+	const [progress, total] = useMemo((): [number, number] => {
+		const total = typeof totalFiles === 'number' ? totalFiles + 1 : 1;
+
+		// Add blueprint progress into progress
+		return [
+			Math.min(
+				files.length - generatingCount + (isGeneratingBlueprint ? 0 : 1),
+				total,
+			),
+			total,
+		];
+	}, [totalFiles, isGeneratingBlueprint, generatingCount, files.length]);
 
 	if (import.meta.env.DEV) {
 		logger.debug({
@@ -235,24 +248,12 @@ export default function Chat() {
 			generatingCount,
 			isBootstrapping,
 			activeFilePath,
+			progress,
+			total,
+			isRunning,
+			codeGenState,
 		});
 	}
-
-	const [progress, total] = useMemo((): [number, number] => {
-		if (generatingCount === 0 && !isGeneratingBlueprint) {
-			return [1, 1];
-		}
-		const total = typeof totalFiles === 'number' ? totalFiles + 1 : 1;
-
-		// Add blueprint progress into progress
-		return [
-			Math.min(
-				files.length - generatingCount + (isGeneratingBlueprint ? 0 : 1),
-				total,
-			),
-			total,
-		];
-	}, [totalFiles, isGeneratingBlueprint, generatingCount, files.length]);
 
 	return (
 		<div className="size-full flex flex-col">

@@ -166,7 +166,19 @@ export function useChat({
 					const file = prev.find(
 						(file) => file.file_path === message.file_path,
 					);
-					if (!file) return prev;
+					if (!file)
+						return [
+							...prev,
+							{
+								file_path: message.file_path,
+								file_contents: message.chunk,
+								explanation: '',
+								isGenerating: true,
+								needsFixing: false,
+								hasErrors: false,
+								language: getFileType(message.file_path),
+							},
+						];
 					file.file_contents += message.chunk;
 					return [...prev];
 				});
@@ -179,7 +191,19 @@ export function useChat({
 					const file = prev.find(
 						(file) => file.file_path === message.file.file_path,
 					);
-					if (!file) return prev;
+					if (!file)
+						return [
+							...prev,
+							{
+								file_path: message.file.file_path,
+								file_contents: message.file.file_contents,
+								explanation: message.file.explanation,
+								isGenerating: false,
+								needsFixing: false,
+								hasErrors: false,
+								language: getFileType(message.file.file_path),
+							},
+						];
 					file.isGenerating = false;
 					file.file_contents = message.file.file_contents;
 					file.explanation = message.file.explanation;
@@ -301,7 +325,12 @@ export function useChat({
 	}, []);
 
 	const connect = useCallback(
-		(wsUrl: string) => {
+		(
+			wsUrl: string,
+			{ disableGenerate = false }: { disableGenerate?: boolean } = {
+				disableGenerate: false,
+			},
+		) => {
 			logger.debug('connect() called with url:', wsUrl);
 			if (!wsUrl) return;
 			connectionStatus.current = 'connecting';
@@ -314,7 +343,10 @@ export function useChat({
 					logger.info('✅ WebSocket connection established!');
 					connectionStatus.current = 'connected';
 					// Request file generation
-					ws.send(JSON.stringify({ type: 'generate_all' }));
+
+					if (!disableGenerate) {
+						ws.send(JSON.stringify({ type: 'generate_all' }));
+					}
 				});
 
 				ws.addEventListener('message', (event) => {
@@ -474,7 +506,9 @@ export function useChat({
 					});
 
 					logger.debug('connecting from init for existing agentId');
-					connect(`${import.meta.env.VITE_WS_BASE}/codegen/ws/${agentId}`);
+					connect(`${import.meta.env.VITE_WS_BASE}/codegen/ws/${agentId}`, {
+						disableGenerate: true,
+					});
 				}
 			} catch (error) {
 				console.error('Error initializing code generation:', error);
