@@ -50,7 +50,9 @@ export function useChat({
 	const [isGeneratingBlueprint, setIsGeneratingBlueprint] = useState(false);
 	const [isBootstrapping, setIsBootstrapping] = useState(true);
 
-	const [generationStarted, setGenerationStarted] = useState(false);
+	const [codeGenState, setCodeGenState] = useState<
+		'idle' | 'started' | 'complete'
+	>('idle');
 
 	const [files, setFiles] = useState<FileType[]>([]);
 
@@ -201,7 +203,7 @@ export function useChat({
 			}
 
 			case 'generation_started': {
-				setGenerationStarted(true);
+				setCodeGenState('started');
 				setTotalFiles(message.totalFiles);
 				break;
 			}
@@ -216,7 +218,7 @@ export function useChat({
 						return file;
 					}),
 				);
-				setGenerationStarted(false);
+				setCodeGenState('complete');
 				sendMessage({
 					id: 'main',
 					message: 'Code generation has been completed.',
@@ -519,7 +521,7 @@ export function useChat({
 		previewUrl,
 		isGeneratingBlueprint,
 		isBootstrapping,
-		generationStarted,
+		codeGenState,
 		totalFiles,
 		websocket,
 		sendUserMessage,

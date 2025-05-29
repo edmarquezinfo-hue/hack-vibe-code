@@ -38,7 +38,7 @@ export default function Chat() {
 		files,
 		isGeneratingBlueprint,
 		isBootstrapping,
-		generationStarted,
+		codeGenState,
 		totalFiles,
 		websocket,
 		sendUserMessage,
@@ -95,13 +95,13 @@ export default function Chat() {
 	);
 
 	const generatingFile = useMemo(() => {
-		if (generationStarted) {
+		if (codeGenState === 'started') {
 			for (let i = files.length - 1; i >= 0; i--) {
 				if (files[i].isGenerating) return files[i];
 			}
 		}
 		return undefined;
-	}, [files, generationStarted]);
+	}, [files, codeGenState]);
 
 	const activeFile = useMemo(() => {
 		if (!hasSwitchedFile.current && generatingFile) {
@@ -196,16 +196,24 @@ export default function Chat() {
 		}
 	}, [doneStreaming, isGeneratingBlueprint, sendAiMessage, blueprint]);
 
+	const isRunning = useMemo(() => {
+		return (
+			isBootstrapping || isGeneratingBlueprint || codeGenState !== 'complete'
+		);
+	}, [isBootstrapping, isGeneratingBlueprint, codeGenState]);
+
 	const onNewMessage = useCallback(
 		(e: FormEvent) => {
 			e.preventDefault();
-			websocket?.send(
-				JSON.stringify({ type: 'update_query', query: newMessage }),
-			);
-			sendUserMessage(newMessage);
-			setNewMessage('');
+			if (!isRunning) {
+				websocket?.send(
+					JSON.stringify({ type: 'update_query', query: newMessage }),
+				);
+				sendUserMessage(newMessage);
+				setNewMessage('');
+			}
 		},
-		[newMessage, websocket, sendUserMessage],
+		[newMessage, websocket, sendUserMessage, isRunning],
 	);
 
 	if (import.meta.env.DEV) {
@@ -466,7 +474,7 @@ export default function Chat() {
 							/>
 							<button
 								type="submit"
-								disabled={!newMessage.trim()}
+								disabled={!newMessage.trim() || isRunning}
 								className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md bg-brand/90 hover:bg-bg-lighter/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-transparent text-text-on-brands disabled:text-text transition-colors"
 							>
 								<ArrowRight className="size-4" />
