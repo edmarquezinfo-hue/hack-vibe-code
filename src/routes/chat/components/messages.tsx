@@ -1,4 +1,3 @@
-import { User } from 'react-feather';
 import { AIAvatar } from '../../../components/icons/logos';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
@@ -9,7 +8,9 @@ export function UserMessage({ message }: { message: string }) {
 	return (
 		<div className="flex gap-3">
 			<div className="align-text-top pl-1">
-				<User className="size-5" />
+				<div className="size-6 flex items-center justify-center rounded-full bg-brand text-text-on-brand">
+					<span className="text-xs">U</span>
+				</div>
 			</div>
 			<div className="flex flex-col gap-2">
 				<div className="font-medium text-text-50">You</div>
