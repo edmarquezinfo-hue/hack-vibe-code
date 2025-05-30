@@ -69,7 +69,7 @@ export default function Chat() {
 	// Fake stream bootstrap files
 	const { streamedFiles: streamedBootstrapFiles, doneStreaming } =
 		useFileContentStream(bootstrapFiles, {
-			tps: 350,
+			tps: 600,
 			enabled: isBootstrapping,
 		});
 
