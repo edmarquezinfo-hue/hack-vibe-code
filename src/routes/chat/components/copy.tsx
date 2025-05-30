@@ -2,8 +2,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useState } from 'react';
 import { Check, Link2 } from 'react-feather';
 
-const MotionCheck = motion(Check);
-const MotionLink = motion(Link2);
+const MotionCheck = motion.create(Check);
+const MotionLink = motion.create(Link2);
 
 export function Copy({ text }: { text: string }) {
 	const [copied, setCopied] = useState(false);
