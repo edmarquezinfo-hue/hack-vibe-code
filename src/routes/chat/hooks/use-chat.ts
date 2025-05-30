@@ -24,6 +24,29 @@ export interface FileType {
 	language?: string;
 }
 
+export interface PhaseInfo {
+	id: string;
+	title: string;
+	status: 'pending' | 'active' | 'completed' | 'error';
+	metadata?: string;
+}
+
+const initialPhases: PhaseInfo[] = [
+	{
+		id: 'bootstrapping',
+		title: 'Bootstrapping project',
+		status: 'active',
+	},
+	{
+		id: 'generatingBlueprint',
+		title: 'Generating Blueprint',
+		status: 'pending',
+	},
+	{ id: 'generatingCode', title: 'Generating code', status: 'pending' },
+	// { id: 'validatingCode', title: 'Validating code', status: 'pending' },
+	// { id: 'fixingErrors', title: 'Fixing errors', status: 'pending' },
+];
+
 type ChatMessage = {
 	type: 'user' | 'ai';
 	id: string;
@@ -49,6 +72,8 @@ export function useChat({
 	const [query, setQuery] = useState<string>();
 	const [isGeneratingBlueprint, setIsGeneratingBlueprint] = useState(false);
 	const [isBootstrapping, setIsBootstrapping] = useState(true);
+	const [projectPhases, setProjectPhases] =
+		useState<PhaseInfo[]>(initialPhases);
 
 	const [codeGenState, setCodeGenState] = useState<
 		'idle' | 'started' | 'complete'
@@ -60,6 +85,23 @@ export function useChat({
 
 	const connectionStatus = useRef<'idle' | 'connecting' | 'connected'>('idle');
 	const [edit, setEdit] = useState<Omit<CodeFixEdits, 'type'>>();
+
+	const updatePhaseStatus = useCallback(
+		(phaseId: string, status: PhaseInfo['status'], metadata?: string) => {
+			setProjectPhases((prevPhases) =>
+				prevPhases.map((phase) =>
+					phase.id === phaseId
+						? { ...phase, status, ...(metadata !== undefined && { metadata }) }
+						: phase,
+				),
+			);
+		},
+		[],
+	);
+
+	const onCompleteBootstrap = useCallback(() => {
+		updatePhaseStatus('bootstrapping', 'completed');
+	}, []);
 
 	const clearEdit = useCallback(() => {
 		setEdit(undefined);
@@ -115,6 +157,8 @@ export function useChat({
 				const { state } = message;
 
 				setBlueprint(state.blueprint);
+				updatePhaseStatus('bootstrapping', 'completed');
+				updatePhaseStatus('generatingBlueprint', 'completed');
 				if (state.previewURL) {
 					setPreviewUrl(state.previewURL);
 					sendMessage({
@@ -142,6 +186,10 @@ export function useChat({
 							};
 						}),
 					);
+					if (Object.values(state.generatedFilesMap).length > 0) {
+						updatePhaseStatus('generatingCode', 'completed');
+						// updatePhaseStatus('validatingCode', 'completed');
+					}
 				}
 
 				break;
@@ -243,6 +291,7 @@ export function useChat({
 					}),
 				);
 				setCodeGenState('complete');
+				updatePhaseStatus('generatingCode', 'completed');
 				sendMessage({
 					id: 'main',
 					message: 'Code generation has been completed.',
@@ -283,13 +332,20 @@ export function useChat({
 			}
 
 			case 'generation_errors': {
-				sendMessage({
-					id: 'generation_errors',
-					message: `Found generation errors
-| Lint issues | Type Errors | Runtime Errors |
-| --- | --- | --- |
-| ${message.lintIssues} | ${message.typeErrors} | ${message.runtimeErrors.length}`,
-				});
+				const totalIssues =
+					message.lintIssues +
+					message.typeErrors +
+					message.runtimeErrors.length;
+
+				if (totalIssues > 0) {
+					sendMessage({
+						id: 'generation_errors',
+						message: `Found generation errors
+						| Lint issues | Type Errors | Runtime Errors |
+						| --- | --- | --- |
+						| ${message.lintIssues} | ${message.typeErrors} | ${message.runtimeErrors.length}`,
+					});
+				}
 				break;
 			}
 
@@ -301,7 +357,7 @@ export function useChat({
 				});
 				sendMessage({
 					id: 'code_fix_edits',
-					message: `Fixed code errors in \`${message.filePath}\``,
+					message: `Fixed errors in \`${message.filePath}\``,
 				});
 
 				setFiles((prev) =>
@@ -420,6 +476,7 @@ export function useChat({
 								setIsBootstrapping(false);
 								setIsGeneratingBlueprint(true);
 								startedBlueprintStream = true;
+								updatePhaseStatus('generatingBlueprint', 'active');
 							}
 							parser.feed(obj.chunk);
 							try {
@@ -442,6 +499,7 @@ export function useChat({
 						}
 					}
 
+					updatePhaseStatus('generatingBlueprint', 'completed');
 					setIsGeneratingBlueprint(false);
 					sendMessage({
 						id: 'main',
@@ -474,6 +532,26 @@ export function useChat({
 
 					const result: ApiResponse = await response.json();
 
+					logger.debug('Existing agentId API result', result);
+
+					if (result.data.blueprint) {
+						setBlueprint(result.data.blueprint);
+						updatePhaseStatus('bootstrapping', 'completed');
+						updatePhaseStatus('generatingBlueprint', 'completed');
+						// If blueprint exists, assume prior stages are done for an existing agent
+						setBlueprint(result.data.blueprint);
+					}
+
+					if (result.data.progress) {
+						setTotalFiles(result.data.progress.totalFiles);
+						if (
+							result.data.progress.completedFiles ===
+							result.data.progress.totalFiles
+						) {
+							updatePhaseStatus('generatingCode', 'completed');
+						}
+					}
+
 					let loadedFiles: FileType[] = [];
 
 					// Load existing files into state
@@ -493,10 +571,6 @@ export function useChat({
 						);
 
 						setFiles(loadedFiles);
-					}
-
-					if (result.data.blueprint) {
-						setBlueprint(result.data.blueprint);
 					}
 
 					sendMessage({
@@ -561,5 +635,7 @@ export function useChat({
 		sendUserMessage,
 		sendAiMessage: sendMessage,
 		clearEdit,
+		projectPhases,
+		onCompleteBootstrap,
 	};
 }

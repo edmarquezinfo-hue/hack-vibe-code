@@ -14,7 +14,7 @@ export function UserMessage({ message }: { message: string }) {
 			</div>
 			<div className="flex flex-col gap-2">
 				<div className="font-medium text-text-50">You</div>
-				<Markdown>{message}</Markdown>
+				<Markdown className="text-text/80">{message}</Markdown>
 			</div>
 		</div>
 	);

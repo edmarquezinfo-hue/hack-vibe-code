@@ -45,7 +45,7 @@ export function Blueprint({
 										blueprint.colorPalette?.map((color, index) => (
 											<div
 												key={`color-${index}`}
-												className="size-6 rounded-md border border-white/10 flex items-center justify-center"
+												className="size-6 rounded-md border border-text/10 flex items-center justify-center"
 												style={{ backgroundColor: color }}
 												title={color}
 											>
