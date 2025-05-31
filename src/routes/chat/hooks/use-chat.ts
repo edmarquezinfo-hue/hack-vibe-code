@@ -156,9 +156,11 @@ export function useChat({
 			case 'cf_agent_state': {
 				const { state } = message;
 
-				setBlueprint(state.blueprint);
-				updatePhaseStatus('bootstrapping', 'completed');
-				updatePhaseStatus('generatingBlueprint', 'completed');
+				if (state.blueprint) {
+					setBlueprint(state.blueprint);
+					updatePhaseStatus('generatingBlueprint', 'completed');
+				}
+
 				if (state.previewURL) {
 					setPreviewUrl(state.previewURL);
 					sendMessage({
@@ -170,6 +172,7 @@ export function useChat({
 
 				if (state.templateDetails?.files) {
 					loadBootstrapFiles(state.templateDetails.files);
+					// updatePhaseStatus('bootstrapping', 'completed');
 				}
 
 				if (state.generatedFilesMap) {
@@ -186,8 +189,9 @@ export function useChat({
 							};
 						}),
 					);
+
 					if (Object.values(state.generatedFilesMap).length > 0) {
-						updatePhaseStatus('generatingCode', 'completed');
+						updatePhaseStatus('generatingCode', 'active');
 						// updatePhaseStatus('validatingCode', 'completed');
 					}
 				}
@@ -276,6 +280,7 @@ export function useChat({
 
 			case 'generation_started': {
 				setCodeGenState('started');
+				updatePhaseStatus('generatingCode', 'active');
 				setTotalFiles(message.totalFiles);
 				break;
 			}
@@ -315,6 +320,7 @@ export function useChat({
 					id: 'code-review',
 					message: message.message,
 				});
+				updatePhaseStatus('codeReview', 'active');
 				break;
 			}
 
@@ -360,6 +366,7 @@ export function useChat({
 					message: `Fixed errors in \`${message.filePath}\``,
 				});
 
+				updatePhaseStatus('codeReview', 'completed');
 				setFiles((prev) =>
 					prev.map((file) => {
 						if (file.file_path === message.filePath) {
@@ -476,6 +483,7 @@ export function useChat({
 								setIsBootstrapping(false);
 								setIsGeneratingBlueprint(true);
 								startedBlueprintStream = true;
+								updatePhaseStatus('bootstrapping', 'completed');
 								updatePhaseStatus('generatingBlueprint', 'active');
 							}
 							parser.feed(obj.chunk);
