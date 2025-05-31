@@ -29,7 +29,7 @@ export class Logger {
 		return this.enabled && Logger.levels[level] >= Logger.levels[this.level];
 	}
 
-	private formatMessage(level: LogLevel, args: any[]): any[] {
+	private formatMessage(_level: LogLevel, args: any[]): any[] {
 		// const time = new Date().toISOString();
 		const prefix = this.prefix ? `[${this.prefix}]` : '';
 		// return [`[${time}] ${prefix} [${level.toUpperCase()}]`, ...args];
