@@ -39,7 +39,6 @@ export default function Chat() {
 		files,
 		isGeneratingBlueprint,
 		isBootstrapping,
-		codeGenState,
 		totalFiles,
 		websocket,
 		sendUserMessage,
@@ -97,8 +96,13 @@ export default function Chat() {
 		[files],
 	);
 
+	const codeGenState = useMemo(() => {
+		return projectPhases[2].status;
+	}, [projectPhases]);
+
 	const generatingFile = useMemo(() => {
-		if (codeGenState === 'started') {
+		// code gen status should be active
+		if (codeGenState === 'active') {
 			for (let i = files.length - 1; i >= 0; i--) {
 				if (files[i].isGenerating) return files[i];
 			}
@@ -198,11 +202,17 @@ export default function Chat() {
 				isThinking: true,
 			});
 		}
-	}, [doneStreaming, isGeneratingBlueprint, sendAiMessage, blueprint]);
+	}, [
+		doneStreaming,
+		isGeneratingBlueprint,
+		sendAiMessage,
+		blueprint,
+		onCompleteBootstrap,
+	]);
 
 	const isRunning = useMemo(() => {
 		return (
-			isBootstrapping || isGeneratingBlueprint || codeGenState === 'started'
+			isBootstrapping || isGeneratingBlueprint || codeGenState === 'active'
 		);
 	}, [isBootstrapping, isGeneratingBlueprint, codeGenState]);
 
@@ -249,7 +259,7 @@ export default function Chat() {
 			progress,
 			total,
 			isRunning,
-			codeGenState,
+			projectPhases,
 		});
 	}
 
@@ -303,12 +313,14 @@ export default function Chat() {
 														<span
 															className={clsx(
 																'font-medium',
-																status === 'pending' ? 'text-zinc-400' : 'text-zinc-700',
+																status === 'pending'
+																	? 'text-zinc-400'
+																	: 'text-zinc-700',
 															)}
 														>
 															{title}
 														</span>
-														{id === 'generatingCode' && (
+														{id === 'code' && status !== 'pending' && (
 															<>
 																<span className="text-zinc-300 mx-1">
 																	&bull;
@@ -320,7 +332,7 @@ export default function Chat() {
 														)}
 													</div>
 
-													{id === 'generatingBlueprint' && (
+													{id === 'blueprint' && (
 														<button
 															onClick={() => {
 																setView('blueprint');
@@ -338,7 +350,7 @@ export default function Chat() {
 														</button>
 													)}
 
-													{id === 'generatingCode' &&
+													{id === 'code' &&
 														files.map((file) => {
 															const isFileActive =
 																view === 'editor' &&
@@ -385,7 +397,7 @@ export default function Chat() {
 														})}
 
 													{metadata && (
-														<span className="font-mono text-sm text-zinc-700 tracking-tighter">
+														<span className="font-mono text-xs text-zinc-500 tracking-tighter">
 															{metadata}
 														</span>
 													)}

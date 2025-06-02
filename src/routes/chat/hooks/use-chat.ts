@@ -24,26 +24,26 @@ export interface FileType {
 	language?: string;
 }
 
-export interface PhaseInfo {
-	id: string;
+export interface Phase {
+	id: 'bootstrap' | 'blueprint' | 'code' | 'validate' | 'fix';
 	title: string;
 	status: 'pending' | 'active' | 'completed' | 'error';
 	metadata?: string;
 }
 
-const initialPhases: PhaseInfo[] = [
+const initialPhases: Phase[] = [
 	{
-		id: 'bootstrapping',
+		id: 'bootstrap',
 		title: 'Bootstrapping project',
 		status: 'active',
 	},
 	{
-		id: 'generatingBlueprint',
+		id: 'blueprint',
 		title: 'Generating Blueprint',
 		status: 'pending',
 	},
-	{ id: 'generatingCode', title: 'Generating code', status: 'pending' },
-	// { id: 'validatingCode', title: 'Validating code', status: 'pending' },
+	{ id: 'code', title: 'Generating code', status: 'pending' },
+	{ id: 'validate', title: 'Validating code', status: 'pending' },
 	// { id: 'fixingErrors', title: 'Fixing errors', status: 'pending' },
 ];
 
@@ -61,38 +61,36 @@ export function useChat({
 	agentId?: string;
 	query: string | null;
 }) {
-	const [bootstrapFiles, setBootstrapFiles] = useState<FileType[]>([]);
+	const connectionStatus = useRef<'idle' | 'connecting' | 'connected'>('idle');
+	const [chatId, setChatId] = useState<string>();
 	const [messages, setMessages] = useState<ChatMessage[]>([
 		{ type: 'ai', id: 'main', message: 'Thinking...', isThinking: true },
 	]);
-	const [chatId, setChatId] = useState<string>();
-	const [websocket, setWebsocket] = useState<WebSocket>();
+
+	const [bootstrapFiles, setBootstrapFiles] = useState<FileType[]>([]);
 	const [blueprint, setBlueprint] = useState<BlueprintType>();
 	const [previewUrl, setPreviewUrl] = useState<string>();
 	const [query, setQuery] = useState<string>();
+
+	const [websocket, setWebsocket] = useState<WebSocket>();
+
 	const [isGeneratingBlueprint, setIsGeneratingBlueprint] = useState(false);
 	const [isBootstrapping, setIsBootstrapping] = useState(true);
-	const [projectPhases, setProjectPhases] =
-		useState<PhaseInfo[]>(initialPhases);
 
-	const [codeGenState, setCodeGenState] = useState<
-		'idle' | 'started' | 'complete'
-	>('idle');
+	const [projectPhases, setProjectPhases] = useState<Phase[]>(initialPhases);
 
 	const [files, setFiles] = useState<FileType[]>([]);
 
 	const [totalFiles, setTotalFiles] = useState<number>();
 
-	const connectionStatus = useRef<'idle' | 'connecting' | 'connected'>('idle');
 	const [edit, setEdit] = useState<Omit<CodeFixEdits, 'type'>>();
 
-	const updatePhaseStatus = useCallback(
-		(phaseId: string, status: PhaseInfo['status'], metadata?: string) => {
+	const updatePhase = useCallback(
+		(phaseId: Phase['id'], data: Partial<Omit<Phase, 'id'>>) => {
+			logger.debug('updatePhase', { phaseId, ...data });
 			setProjectPhases((prevPhases) =>
 				prevPhases.map((phase) =>
-					phase.id === phaseId
-						? { ...phase, status, ...(metadata !== undefined && { metadata }) }
-						: phase,
+					phase.id === phaseId ? { ...phase, ...data } : phase,
 				),
 			);
 		},
@@ -100,8 +98,8 @@ export function useChat({
 	);
 
 	const onCompleteBootstrap = useCallback(() => {
-		updatePhaseStatus('bootstrapping', 'completed');
-	}, []);
+		updatePhase('bootstrap', { status: 'completed' });
+	}, [updatePhase]);
 
 	const clearEdit = useCallback(() => {
 		setEdit(undefined);
@@ -158,7 +156,7 @@ export function useChat({
 
 				if (state.blueprint) {
 					setBlueprint(state.blueprint);
-					updatePhaseStatus('generatingBlueprint', 'completed');
+					updatePhase('blueprint', { status: 'completed' });
 				}
 
 				if (state.previewURL) {
@@ -190,8 +188,11 @@ export function useChat({
 						}),
 					);
 
-					if (Object.values(state.generatedFilesMap).length > 0) {
-						updatePhaseStatus('generatingCode', 'active');
+					if (
+						agentId === 'new' &&
+						Object.values(state.generatedFilesMap).length > 0
+					) {
+						updatePhase('code', { status: 'active' });
 						// updatePhaseStatus('validatingCode', 'completed');
 					}
 				}
@@ -279,8 +280,7 @@ export function useChat({
 			}
 
 			case 'generation_started': {
-				setCodeGenState('started');
-				updatePhaseStatus('generatingCode', 'active');
+				updatePhase('code', { status: 'active' });
 				setTotalFiles(message.totalFiles);
 				break;
 			}
@@ -295,8 +295,17 @@ export function useChat({
 						return file;
 					}),
 				);
-				setCodeGenState('complete');
-				updatePhaseStatus('generatingCode', 'completed');
+				updatePhase('code', { status: 'completed' });
+				// update validate phase only if isn't completed
+				setProjectPhases((prev) => {
+					return prev.map((phase) => {
+						if (phase.id === 'validate' && phase.status !== 'completed') {
+							return { ...phase, status: 'active' };
+						}
+						return phase;
+					});
+				});
+
 				sendMessage({
 					id: 'main',
 					message: 'Code generation has been completed.',
@@ -316,11 +325,11 @@ export function useChat({
 			}
 
 			case 'code_review': {
-				sendMessage({
-					id: 'code-review',
-					message: message.message,
-				});
-				updatePhaseStatus('codeReview', 'active');
+				// sendMessage({
+				// 	id: 'code-review',
+				// 	message: message.message,
+				// });
+				// updatePhaseStatus('codeReview', 'active');
 				break;
 			}
 
@@ -343,14 +352,19 @@ export function useChat({
 					message.typeErrors +
 					message.runtimeErrors.length;
 
+				updatePhase('code', { status: 'completed' });
+				updatePhase('validate', { status: 'completed' });
+
 				if (totalIssues > 0) {
-					sendMessage({
-						id: 'generation_errors',
-						message: `Found generation errors
-						| Lint issues | Type Errors | Runtime Errors |
-						| --- | --- | --- |
-						| ${message.lintIssues} | ${message.typeErrors} | ${message.runtimeErrors.length}`,
-					});
+					setProjectPhases((list) => [
+						...list,
+						{
+							id: 'fix',
+							title: 'Fixing errors',
+							status: 'active',
+							metadata: `Fixing ${totalIssues} errors`,
+						},
+					]);
 				}
 				break;
 			}
@@ -366,7 +380,9 @@ export function useChat({
 					message: `Fixed errors in \`${message.filePath}\``,
 				});
 
-				updatePhaseStatus('codeReview', 'completed');
+				updatePhase('code', { status: 'completed' });
+				updatePhase('validate', { status: 'completed' });
+
 				setFiles((prev) =>
 					prev.map((file) => {
 						if (file.file_path === message.filePath) {
@@ -482,8 +498,8 @@ export function useChat({
 								setIsBootstrapping(false);
 								setIsGeneratingBlueprint(true);
 								startedBlueprintStream = true;
-								updatePhaseStatus('bootstrapping', 'completed');
-								updatePhaseStatus('generatingBlueprint', 'active');
+								updatePhase('bootstrap', { status: 'completed' });
+								updatePhase('blueprint', { status: 'active' });
 							}
 							parser.feed(obj.chunk);
 							try {
@@ -506,7 +522,7 @@ export function useChat({
 						}
 					}
 
-					updatePhaseStatus('generatingBlueprint', 'completed');
+					updatePhase('blueprint', { status: 'completed' });
 					setIsGeneratingBlueprint(false);
 					sendMessage({
 						id: 'main',
@@ -542,19 +558,23 @@ export function useChat({
 
 					if (result.data.blueprint) {
 						setBlueprint(result.data.blueprint);
-						updatePhaseStatus('bootstrapping', 'completed');
-						updatePhaseStatus('generatingBlueprint', 'completed');
+						updatePhase('bootstrap', { status: 'completed' });
+						updatePhase('blueprint', { status: 'completed' });
 						// If blueprint exists, assume prior stages are done for an existing agent
 						setBlueprint(result.data.blueprint);
 					}
 
 					if (result.data.progress) {
 						setTotalFiles(result.data.progress.totalFiles);
+						console.log(result.data.progress);
+
 						if (
 							result.data.progress.completedFiles ===
 							result.data.progress.totalFiles
 						) {
-							updatePhaseStatus('generatingCode', 'completed');
+							console.log('complete');
+							updatePhase('code', { status: 'completed' });
+							updatePhase('validate', { status: 'completed' });
 						}
 					}
 
@@ -635,7 +655,6 @@ export function useChat({
 		previewUrl,
 		isGeneratingBlueprint,
 		isBootstrapping,
-		codeGenState,
 		totalFiles,
 		websocket,
 		sendUserMessage,
