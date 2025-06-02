@@ -279,7 +279,7 @@ export default function Chat() {
 
 										return (
 											<div className="flex relative w-full gap-2 pb-2.5 last:pb-0">
-												<div className="translate-y-0.5 z-20">
+												<div className="translate-y-px z-20">
 													{status === 'pending' && (
 														<div className="size-5 flex items-center justify-center">
 															<div className="size-2 rounded-full bg-zinc-300" />
