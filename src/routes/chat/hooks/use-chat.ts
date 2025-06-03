@@ -450,8 +450,7 @@ export function useChat({
 					}
 
 					// Start new code generation
-					const response = await fetch(
-						import.meta.env.VITE_API_BASE + '/codegen/incremental',
+					const response = await fetch('/codegen/incremental',
 						{
 							method: 'POST',
 							headers: {
@@ -527,8 +526,7 @@ export function useChat({
 						id: 'main',
 						message: 'Fetching your previous chat...',
 					});
-					const response = await fetch(
-						import.meta.env.VITE_API_BASE + `/codegen/incremental/${agentId}`,
+					const response = await fetch(`/codegen/incremental/${agentId}`,
 						{
 							method: 'GET',
 						},
@@ -588,7 +586,7 @@ export function useChat({
 					});
 
 					logger.debug('connecting from init for existing agentId');
-					connect(`${import.meta.env.VITE_WS_BASE}/codegen/ws/${agentId}`, {
+					connect(`/codegen/ws/${agentId}`, {
 						disableGenerate: true,
 					});
 				}
