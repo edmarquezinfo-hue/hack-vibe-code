@@ -352,7 +352,7 @@ export default function Chat() {
 														)}
 													</div>
 
-													{id === 'blueprint' && (
+													{id === 'blueprint' && status !== 'pending' && (
 														<button
 															onClick={() => {
 																setView('blueprint');
