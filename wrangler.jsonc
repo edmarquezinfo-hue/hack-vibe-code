@@ -42,8 +42,10 @@
 		}
 	],
 	"vars": {
-		"RUNNER_SERVICE_URL": "http://127.0.0.1:3000",
+		"RUNNER_SERVICE_URL": "http://ec2-54-83-20-139.compute-1.amazonaws.com:13198",
 		"CF_ACCOUNT_ID": "7449da25f3a0ed58b1f500c4f1d5a0e4",
 		"CF_GATEWAY_ID": "c-coder",
 	},
+	"workers_dev": false,
+	"preview_urls": false,
 }
