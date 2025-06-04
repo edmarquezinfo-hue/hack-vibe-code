@@ -154,6 +154,10 @@ export type MonacoEditorProps = React.ComponentProps<'div'> & {
 	replace?: string;
 };
 
+/**
+ * TODO: Create a file map to properly manage multiple files in monaco
+ */
+
 export const MonacoEditor = memo<MonacoEditorProps>(function MonacoEditor({
 	createOptions = {},
 	find,

@@ -6,12 +6,12 @@ import {
 	useState,
 	type FormEvent,
 } from 'react';
-import { Loader, Check, ArrowRight } from 'react-feather';
+import { ArrowRight } from 'react-feather';
 import { useParams, useSearchParams } from 'react-router';
 import { MonacoEditor } from '../../components/monaco-editor/monaco-editor';
 import { Header } from '../../components/header';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Expand } from 'lucide-react';
+import { Check, Expand, Loader, LoaderCircle } from 'lucide-react';
 import { Blueprint } from './components/blueprint';
 import { FileExplorer } from './components/file-explorer';
 import { UserMessage, AIMessage } from './components/messages';
@@ -21,6 +21,7 @@ import { Copy } from './components/copy';
 import { useNavigate } from 'react-router';
 import { useFileContentStream } from './hooks/use-file-content-stream';
 import { logger } from '../../utils/logger';
+import clsx from 'clsx';
 
 export default function Chat() {
 	const { agentId } = useParams();
@@ -38,13 +39,14 @@ export default function Chat() {
 		files,
 		isGeneratingBlueprint,
 		isBootstrapping,
-		generationStarted,
 		totalFiles,
 		websocket,
 		sendUserMessage,
 		sendAiMessage,
 		edit,
 		clearEdit,
+		projectPhases,
+		onCompleteBootstrap,
 	} = useChat({
 		agentId,
 		query: userQuery,
@@ -69,7 +71,7 @@ export default function Chat() {
 	// Fake stream bootstrap files
 	const { streamedFiles: streamedBootstrapFiles, doneStreaming } =
 		useFileContentStream(bootstrapFiles, {
-			tps: 350,
+			tps: 600,
 			enabled: isBootstrapping,
 		});
 
@@ -94,14 +96,19 @@ export default function Chat() {
 		[files],
 	);
 
+	const codeGenState = useMemo(() => {
+		return projectPhases[2].status;
+	}, [projectPhases]);
+
 	const generatingFile = useMemo(() => {
-		if (generationStarted) {
+		// code gen status should be active
+		if (codeGenState === 'active') {
 			for (let i = files.length - 1; i >= 0; i--) {
 				if (files[i].isGenerating) return files[i];
 			}
 		}
 		return undefined;
-	}, [files, generationStarted]);
+	}, [files, codeGenState]);
 
 	const activeFile = useMemo(() => {
 		if (!hasSwitchedFile.current && generatingFile) {
@@ -188,25 +195,47 @@ export default function Chat() {
 
 	useEffect(() => {
 		if (doneStreaming && !isGeneratingBlueprint && !blueprint) {
+			onCompleteBootstrap();
 			sendAiMessage({
 				id: 'main',
 				message: 'Bootstrapping complete, now creating a blueprint for you...',
 				isThinking: true,
 			});
 		}
-	}, [doneStreaming, isGeneratingBlueprint, sendAiMessage, blueprint]);
+	}, [
+		doneStreaming,
+		isGeneratingBlueprint,
+		sendAiMessage,
+		blueprint,
+		onCompleteBootstrap,
+	]);
+
+	const isRunning = useMemo(() => {
+		return (
+			isBootstrapping || isGeneratingBlueprint || codeGenState === 'active'
+		);
+	}, [isBootstrapping, isGeneratingBlueprint, codeGenState]);
 
 	const onNewMessage = useCallback(
 		(e: FormEvent) => {
 			e.preventDefault();
-			websocket?.send(
-				JSON.stringify({ type: 'update_query', query: newMessage }),
-			);
-			sendUserMessage(newMessage);
-			setNewMessage('');
+			if (!isRunning) {
+				websocket?.send(
+					JSON.stringify({ type: 'update_query', query: newMessage }),
+				);
+				sendUserMessage(newMessage);
+				setNewMessage('');
+			}
 		},
-		[newMessage, websocket, sendUserMessage],
+		[newMessage, websocket, sendUserMessage, isRunning],
 	);
+
+	const [progress, total] = useMemo((): [number, number] => {
+		const total = typeof totalFiles === 'number' ? totalFiles : 1;
+
+		// Add blueprint progress into progress
+		return [Math.min(files.length - generatingCount, total), total];
+	}, [totalFiles, generatingCount, files.length]);
 
 	if (import.meta.env.DEV) {
 		logger.debug({
@@ -227,24 +256,12 @@ export default function Chat() {
 			generatingCount,
 			isBootstrapping,
 			activeFilePath,
+			progress,
+			total,
+			isRunning,
+			projectPhases,
 		});
 	}
-
-	const [progress, total] = useMemo((): [number, number] => {
-		if (generatingCount === 0 && !isGeneratingBlueprint) {
-			return [1, 1];
-		}
-		const total = typeof totalFiles === 'number' ? totalFiles + 1 : 1;
-
-		// Add blueprint progress into progress
-		return [
-			Math.min(
-				files.length - generatingCount + (isGeneratingBlueprint ? 0 : 1),
-				total,
-			),
-			total,
-		];
-	}, [totalFiles, isGeneratingBlueprint, generatingCount, files.length]);
 
 	return (
 		<div className="size-full flex flex-col">
@@ -265,172 +282,162 @@ export default function Chat() {
 								/>
 							)}
 
-							{(files.length > 0 || blueprint) && (
-								<div className="pl-9 -my-2 -mb-4">
-									{/* <h3 className="font-medium mb-2">Progress</h3> */}
-									<div className="flex items-center gap-2.5">
-										<div className="relative w-8 h-8">
-											<svg className="w-full h-full" viewBox="0 0 36 36">
-												{/* Background circle */}
-												<circle
-													cx="18"
-													cy="18"
-													r="16"
-													fill="none"
-													className="stroke-bg-lighter/50"
-													strokeWidth="2"
-												/>
-												{/* Progress circle */}
-												<motion.circle
-													cx="18"
-													cy="18"
-													r="16"
-													fill="none"
-													className="stroke-bg-bright"
-													strokeWidth="2"
-													strokeLinecap="round"
-													transform="rotate(-90 18 18)"
-													initial={{ pathLength: 0 }}
-													animate={{
-														pathLength: progress / total,
-													}}
-													transition={{
-														duration: 0.5,
-														ease: 'easeInOut',
-													}}
-												/>
-											</svg>
+							<motion.div layout="position" className="pl-9 drop-shadow mb-2">
+								<div className="px-2 pr-3.5 py-3 flex-1 rounded-xl border border-black/12 bg-bg">
+									{projectPhases.map((phase, index) => {
+										const { id, status, title, metadata } = phase;
 
-											{/* Checkmark, when complete */}
-											{generatingCount === 0 &&
-												files.length > 0 &&
-												blueprint && (
-													<motion.div
-														className="absolute inset-0 flex items-center justify-center"
-														initial={{ scale: 0, opacity: 0 }}
-														animate={{ scale: 1, opacity: 1 }}
-														transition={{
-															duration: 0.3,
-															delay: 0.2,
-														}}
-													>
-														<svg
-															className="w-4 h-4 text-bg-bright"
-															viewBox="0 0 24 24"
-															fill="none"
-															stroke="currentColor"
-															strokeWidth="2"
-															strokeLinecap="round"
-															strokeLinejoin="round"
-														>
-															<polyline points="20 6 9 17 4 12" />
-														</svg>
-													</motion.div>
-												)}
-										</div>
-										<div className="flex flex-col">
-											<div className="text-xs">
-												{progress === total
-													? `Your project is ready`
-													: `${progress}/${total} files generated`}
-											</div>
-										</div>
-									</div>
-								</div>
-							)}
-
-							{(blueprint || files.length > 0) && (
-								<motion.div layout="position" className="mt-4 pl-9 drop-shadow">
-									<div className="flex h-10 items-center border border-text/5 justify-between px-4 bg-bg rounded-t-xl">
-										<div className="flex items-center gap-2">
-											<span className="text-sm text-text/80">Version 1</span>
-										</div>
-									</div>
-									<div className="bg-bg-light rounded-b-xl border border-t-0 border-text/5 overflow-hidden">
-										<div className="flex flex-col">
-											<button
-												onClick={() => {
-													setView('blueprint');
-													hasSwitchedFile.current = true;
-												}}
-												className={`flex items-center gap-2 p-2 px-4 transition-colors font-mono ${
-													view === 'blueprint'
-														? 'text-brand underline decoration-dotted'
-														: 'text-text/80 hover:bg-bg-lighter/50 hover:text-text'
-												}`}
-											>
-												{isGeneratingBlueprint ? (
-													<span className="text-brand whitespace-nowrap">
-														<Loader className="size-4 animate-spin" />
-													</span>
-												) : (
-													<span className="text-green-600 whitespace-nowrap">
-														<Check className="size-4" />
-													</span>
-												)}
-												<span className="text-xs flex-1 text-left truncate">
-													Blueprint.md
-												</span>
-											</button>
-											{files.map((file) => {
-												const isFileActive =
-													view === 'editor' &&
-													activeFile?.file_path === file.file_path;
-
-												return (
-													<button
-														key={file.file_path}
-														onClick={() => handleFileClick(file)}
-														className={`flex items-center gap-2 p-2 px-4 transition-colors font-mono ${
-															isFileActive
-																? // && viewState.mode === 'code'
-																	'text-brand underline decoration-dotted'
-																: 'text-text/80 hover:bg-bg-lighter/50 hover:text-text'
-														}`}
-													>
-														{file.isGenerating ? (
-															<span className="text-brand/70 whitespace-nowrap">
-																<Loader className="size-4 animate-spin" />
-															</span>
-														) : (
-															<span className="text-green-600 whitespace-nowrap">
-																<Check className="size-4" />
-															</span>
+										return (
+											<div className="flex relative w-full gap-2 pb-2.5 last:pb-0">
+												<div className="translate-y-px z-20">
+													<AnimatePresence>
+														{status === 'pending' && (
+															<motion.div
+																initial={{ scale: 0.2, opacity: 0.4 }}
+																animate={{ scale: 1, opacity: 1 }}
+																exit={{ scale: 0.2, opacity: 0.4 }}
+																className="size-5 flex items-center justify-center"
+															>
+																<div className="size-2 rounded-full bg-zinc-300" />
+															</motion.div>
 														)}
-														<span className="text-xs flex-1 text-left truncate">
-															{file.file_path}
+
+														{status === 'active' && (
+															<motion.div
+																initial={{ scale: 0.2, opacity: 0.4 }}
+																animate={{ scale: 1, opacity: 1 }}
+																exit={{ scale: 0.2, opacity: 0.4 }}
+																className="size-5 bg-bg flex items-center justify-center"
+															>
+																<LoaderCircle className="size-3 text-orange-400 animate-spin" />
+															</motion.div>
+														)}
+
+														{status === 'completed' && (
+															<motion.div
+																initial={{ scale: 0.2, opacity: 0.4 }}
+																animate={{ scale: 1, opacity: 1 }}
+																exit={{ scale: 0.2, opacity: 0.4 }}
+																className="size-5 flex items-center justify-center"
+															>
+																<div className="size-2 rounded-full bg-orange-400" />
+															</motion.div>
+														)}
+													</AnimatePresence>
+												</div>
+												<div className="flex flex-col gap-2 flex-1">
+													<div className="flex">
+														<span
+															className={clsx(
+																'font-medium',
+																status === 'pending'
+																	? 'text-zinc-400'
+																	: 'text-zinc-700',
+															)}
+														>
+															{title}
 														</span>
-														<div className="flex items-center gap-2">
-															{file.needsFixing && (
-																<span className="text-[9px] text-text/60 font-mono">
-																	needs fix
+														{id === 'code' && status !== 'pending' && (
+															<motion.div
+																initial={{ x: -120 }}
+																animate={{ x: 0 }}
+															>
+																<span className="text-zinc-300 mx-1">
+																	&bull;
 																</span>
-															)}
-															{file.hasErrors && (
-																<span className="text-[9px] text-text/60 font-mono">
-																	runtime error
+																<span className="text-zinc-400">
+																	{progress}/{total} files
 																</span>
-															)}
-															{/* {file.metadata?.lastModified && (
-																	<span className="text-[9px] text-text-50/50">
-																		{new Date(
-																			file.metadata.lastModified,
-																		).toLocaleTimeString()}
+															</motion.div>
+														)}
+													</div>
+
+													{id === 'blueprint' && status !== 'pending' && (
+														<button
+															onClick={() => {
+																setView('blueprint');
+																hasSwitchedFile.current = true;
+															}}
+															className={`flex items-start ml-0.5 transition-colors font-mono ${
+																view === 'blueprint'
+																	? 'text-brand underline decoration-dotted'
+																	: 'text-text/80 hover:bg-bg-lighter/50 hover:text-text'
+															}`}
+														>
+															<span className="text-xs text-left truncate">
+																Blueprint.md
+															</span>
+														</button>
+													)}
+
+													{id === 'code' &&
+														files.map((file) => {
+															const isFileActive =
+																view === 'editor' &&
+																activeFile?.file_path === file.file_path;
+
+															return (
+																<button
+																	key={file.file_path}
+																	onClick={() => handleFileClick(file)}
+																	className="flex items-center gap-2 py-0.5 transition-colors font-mono"
+																	aria-selected={isFileActive}
+																>
+																	{file.isGenerating ? (
+																		<span className="text-brand/70 whitespace-nowrap">
+																			<Loader className="size-4 animate-spin" />
+																		</span>
+																	) : (
+																		<span className="text-green-600 whitespace-nowrap">
+																			<Check className="size-4" />
+																		</span>
+																	)}
+																	<span
+																		className={clsx(
+																			'text-xs flex-1 text-left truncate',
+
+																			isFileActive
+																				? // && viewState.mode === 'code'
+																					'text-brand underline decoration-dotted'
+																				: 'text-text/80 hover:bg-bg-lighter/50 hover:text-text',
+																		)}
+																	>
+																		{file.file_path}
 																	</span>
-																)}
-																{file.metadata?.size && (
-																	<span className="text-[9px] text-text-50/50">
-																		{formatFileSize(file.metadata.size)}
-																	</span>
-																)} */}
-														</div>
-													</button>
-												);
-											})}
-										</div>
-									</div>
-								</motion.div>
-							)}
+
+																	<div>
+																		<span className="text-green-600 text-xs font-mono tracking-tight">
+																			+
+																			{file.file_contents.split('\n').length +
+																				1}
+																		</span>
+																	</div>
+																</button>
+															);
+														})}
+
+													{metadata && (
+														<span className="font-mono text-xs text-zinc-500 tracking-tighter">
+															{metadata}
+														</span>
+													)}
+												</div>
+
+												{index !== projectPhases.length - 1 && (
+													<div
+														className={clsx(
+															'absolute left-[9.25px] w-px h-full top-2.5 z-10',
+															status === 'completed'
+																? 'bg-orange-400'
+																: 'bg-text/5',
+														)}
+													/>
+												)}
+											</div>
+										);
+									})}
+								</div>
+							</motion.div>
 
 							{otherMessages.map((message) => {
 								if (message.type === 'ai')
@@ -466,7 +473,7 @@ export default function Chat() {
 							/>
 							<button
 								type="submit"
-								disabled={!newMessage.trim()}
+								disabled={!newMessage.trim() || isRunning}
 								className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md bg-brand/90 hover:bg-bg-lighter/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-transparent text-text-on-brands disabled:text-text transition-colors"
 							>
 								<ArrowRight className="size-4" />

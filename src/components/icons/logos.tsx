@@ -51,7 +51,7 @@ export const AIAvatar = (props: React.SVGProps<SVGSVGElement>) => (
 			height={23.5}
 			x={0.25}
 			y={0.25}
-			fill="var(--color-brand)"
+			fill="black"
 			rx={11.75}
 		/>
 		<rect
@@ -59,12 +59,12 @@ export const AIAvatar = (props: React.SVGProps<SVGSVGElement>) => (
 			height={23.5}
 			x={0.25}
 			y={0.25}
-			stroke="var(--color-brand)"
+			stroke="black"
 			strokeWidth={0.5}
 			rx={11.75}
 		/>
 		<path
-			fill="#fff"
+			fill="white"
 			fillRule="evenodd"
 			d="m.504 11.814 9.734-.123c1.765-.081 3.675-1.514 4.344-3.26l.849-2.217c.298-.46.918-.1.738.343l-.58 2.002c-.249.86-.156 1.655.262 2.24.384.539 1.025.855 1.803.892l3.143.188a.286.286 0 0 1 .257.39.394.394 0 0 1-.342.26l-3.265.19c-1.773.081-3.684 1.513-4.353 3.259l-.236.616c-.137.492-1.006.596-.98-.02l.21-.724c.248-.86.156-1.655-.262-2.24-.385-.538-1.026-.855-1.804-.891l-9.47-.121c-.025-.26-.041-.52-.048-.784Z"
 			clipRule="evenodd"
