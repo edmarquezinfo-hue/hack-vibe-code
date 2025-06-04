@@ -33,7 +33,7 @@ export function AIMessage({
 				<AIAvatar className="size-6 text-orange-500" />
 			</div>
 			<div className="flex flex-col gap-2">
-				<div className="font-mono font-medium text-text-50">V1.dev</div>
+				<div className="font-mono font-medium text-text-50">Orange</div>
 				<Markdown className={clsx('a-tag', isThinking ? 'animate-pulse' : '')}>
 					{message}
 				</Markdown>

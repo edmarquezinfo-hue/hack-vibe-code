@@ -158,12 +158,12 @@ export function useChat({
 					setBlueprint(state.blueprint);
 					updatePhase('blueprint', { status: 'completed' });
 				}
-
-				if (state.previewURL) {
-					setPreviewUrl(state.previewURL);
+				const previewURL = import.meta.env.PREVIEW_MODE === 'tunnel' ? state.tunnelURL : state.previewURL;
+				if (previewURL) {
+					setPreviewUrl(previewURL);
 					sendMessage({
 						id: 'deployment-status',
-						message: 'Your project has been deployed to ' + state.previewURL,
+						message: 'Your project has been deployed to ' + previewURL,
 					});
 				}
 				setQuery(state.query);
@@ -315,10 +315,11 @@ export function useChat({
 			}
 
 			case 'deployment_completed': {
-				setPreviewUrl(message.previewURL);
+				const previewURL = import.meta.env.PREVIEW_MODE === 'tunnel' ? message.tunnelURL : message.previewURL;
+				setPreviewUrl(previewURL);
 				sendMessage({
 					id: 'deployment-status',
-					message: 'Your project has been deployed to ' + message.previewURL,
+					message: 'Your project has been deployed to ' + previewURL,
 				});
 
 				break;

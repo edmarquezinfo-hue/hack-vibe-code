@@ -191,7 +191,7 @@ export class CodeGeneratorAgent extends Agent<Env, CodeGenState> {
                     this.setState({ ...this.state, isGenerating: true });
 
                     try {
-                        await this.generateFile(nextFile.path, nextFile.purpose, nextFile.signature);
+                        await this.generateFile(nextFile);
                     } catch (error) {
                         logger.error(`Error generating file ${nextFile.path}:`, error);
                         this.sendError(connection, `Error generating file: ${error instanceof Error ? error.message : String(error)}`);
@@ -297,6 +297,7 @@ export class CodeGeneratorAgent extends Agent<Env, CodeGenState> {
             lastCodeReview: undefined,
             runnerInstanceId: undefined,
             previewURL: undefined,
+            tunnelURL: undefined,
             isGenerating: false,
         });
 
@@ -436,7 +437,7 @@ export class CodeGeneratorAgent extends Agent<Env, CodeGenState> {
      */
     async deployToRunnerService(): Promise<string | null> {
         const { blueprint, templateDetails, generatedFilesMap } = this.state;
-        let { runnerInstanceId, previewURL } = this.state;
+        let { runnerInstanceId, previewURL, tunnelURL } = this.state;
 
         if (!templateDetails) {
             logger.error("RunnerServiceClient not available for deployment.");
@@ -450,7 +451,8 @@ export class CodeGeneratorAgent extends Agent<Env, CodeGenState> {
             if (!runnerInstanceId) {
                 const {
                     runnerInstanceId: newRunnerInstanceId,
-                    previewURL: newPreviewURL
+                    previewURL: newPreviewURL,
+                    tunnelURL: newTunnelURL,
                 } = await createNewDeployment({
                     blueprint,
                     templateDetails
@@ -458,11 +460,13 @@ export class CodeGeneratorAgent extends Agent<Env, CodeGenState> {
 
                 runnerInstanceId = newRunnerInstanceId;
                 previewURL = newPreviewURL;
+                tunnelURL = newTunnelURL
 
                 this.setState({
                     ...this.state,
                     runnerInstanceId,
-                    previewURL
+                    previewURL,
+                    tunnelURL
                 });
 
 
@@ -503,6 +507,7 @@ export class CodeGeneratorAgent extends Agent<Env, CodeGenState> {
             this.broadcast(WebSocketMessageTypes.DEPLOYMENT_COMPLETED, {
                 message: "Deployment completed",
                 previewURL: previewURL,
+                tunnelURL: tunnelURL,
                 instanceId: runnerInstanceId
             });
             logger.info("Deployment process completed.");
@@ -533,14 +538,14 @@ export class CodeGeneratorAgent extends Agent<Env, CodeGenState> {
 
             // Fetch runtime errors
             const errors = await this.fetchRuntimeErrors();
-            
+
             this.broadcast(WebSocketMessageTypes.GENERATION_ERRORS, {
                 typeErrors: typeErrors?.issues.length || 0,
                 lintIssues: lintResults?.issues.length || 0,
                 runtimeErrors: errors
             });
 
-            if (errors.length === 0 && (!lintResults?.issues ||  lintResults.issues.length === 0) && (!typeErrors || typeErrors.issues.length === 0)) {
+            if (errors.length === 0 && (!lintResults?.issues || lintResults.issues.length === 0) && (!typeErrors || typeErrors.issues.length === 0)) {
                 logger.info("No issues found during code review.");
                 return;
             }
@@ -556,7 +561,7 @@ export class CodeGeneratorAgent extends Agent<Env, CodeGenState> {
 
             // Include lint issues in the review context
             let lintContext = '';
-            
+
             if (lintResults && lintResults.issues.length > 0) {
                 lintContext = `
 <LINT RESULTS>
@@ -567,7 +572,7 @@ ${lintResults.issues.map(issue => `- ${issue.severity.toUpperCase()} in ${issue.
                 logger.info(`Adding ${lintResults.issues.length} linting issues to code review context`);
             }
 
-            
+
             if (typeErrors && typeErrors.issues.length > 0) {
                 lintContext += `
 <TYPECHECK RESULTS>
@@ -824,7 +829,7 @@ ${file.file_contents}
         }
     }
 
-    private getNextFileToGenerateFromBlueprint(): { path: string, purpose: string, signature: string } | null {
+    private getNextFileToGenerateFromBlueprint() {
         const generatedFilePaths = Object.keys(this.state.generatedFilesMap);
 
         // If we haven't generated any files yet, use the firstFileToGenerate from the blueprint
@@ -834,11 +839,7 @@ ${file.file_contents}
                 logger.error("First file to generate not found in blueprint file structure");
                 return null;
             }
-            return {
-                path: firstFile.path,
-                purpose: firstFile.purpose,
-                signature: firstFile.signature
-            };
+            return firstFile;
         }
 
         // Next, check files from the blueprint that haven't been generated yet
@@ -867,13 +868,13 @@ ${file.file_contents}
     /**
      * Generate the next file based on the blueprint and previously generated files
      */
-    async generateFile(filePath: string, filePurpose: string, signature: string): Promise<FileGenerationOutputType | null> {
+    async generateFile(file: Blueprint['fileStructure'][0]): Promise<FileGenerationOutputType | null> {
         try {
-            logger.info("Generating file:", filePath);
+            logger.info("Generating file:", file.path);
 
             this.broadcast(WebSocketMessageTypes.FILE_GENERATING, {
-                file_path: filePath,
-                file_purpose: filePurpose
+                file_path: file.path,
+                file_purpose: file.purpose
             });
 
             const messages = this.getGenerationContext();
@@ -882,19 +883,24 @@ ${file.file_contents}
                 return null;
             }
 
-            const userMessage = createFileGenerationRequestMessage(filePath, filePurpose, signature);
+            const userMessage = createFileGenerationRequestMessage(file);
             messages.push(userMessage);
+
+            if(file.complexity === 'complex') {
+                logger.info(`Generating complex file: ${file.path}`);
+            }
 
             const generatedFileRaw = await executeInference({
                 env: this.env,
                 messages,
                 maxTokens: 500000,
-                operationName: `File generation for ${filePath}`,
+                operationName: `File generation for ${file.path}`,
                 modelName: AIModels.GEMINI_2_5_FLASH_PREVIEW_05_20,
+                reasoningEffort: file.complexity === 'complex' ? 'high' : undefined,
                 retryLimit: 5,
                 onChunk: (chunk: string) => {
                     this.broadcast(WebSocketMessageTypes.FILE_CHUNK_GENERATED, {
-                        file_path: filePath,
+                        file_path: file.path,
                         chunk
                     });
                 }
@@ -902,17 +908,17 @@ ${file.file_contents}
 
 
             if (!generatedFileRaw || generatedFileRaw.length === 0) {
-                logger.error(`Failed to generate file: ${filePath}`);
+                logger.error(`Failed to generate file: ${file.path}`);
                 return null;
             }
 
             const generatedFile = {
-                file_path: filePath,
+                file_path: file.path,
                 file_contents: this.cleanFileContents(cleanFileMetadata(generatedFileRaw ?? '')),
-                explanation: filePurpose,
+                explanation: file.purpose,
             }
 
-            logger.info(`File generated successfully: ${filePath}`);
+            logger.info(`File generated successfully: ${file.path}`);
 
             this.addNewFile(generatedFile);
 
@@ -920,13 +926,13 @@ ${file.file_contents}
                 file: generatedFile,
             });
 
-            logger.info(`Updated state with generated file: ${filePath}`);
+            logger.info(`Updated state with generated file: ${file.path}`);
             return generatedFile;
         } catch (error) {
-            logger.error(`Error generating file ${filePath}:`, error);
+            logger.error(`Error generating file ${file.path}:`, error);
 
             this.broadcast(WebSocketMessageTypes.ERROR, {
-                error: `Error generating file ${filePath}: ${error instanceof Error ? error.message : String(error)}`
+                error: `Error generating file ${file.path}: ${error instanceof Error ? error.message : String(error)}`
             });
 
             return null;
@@ -955,7 +961,7 @@ ${file.file_contents}
             return;
         }
 
-        const nextFile = this.getNextFileToGenerateFromBlueprint();
+        let nextFile = this.getNextFileToGenerateFromBlueprint();
 
         if (!nextFile) {
             logger.error("Could not determine the first file to generate.");
@@ -965,28 +971,19 @@ ${file.file_contents}
             logger.info(`Starting generation with firstFileToGenerate from blueprint: ${nextFile.path}`);
         }
 
-        let nextFilePath = nextFile.path;
-        let nextFilePurpose = nextFile.purpose;
-        let nextFileSignature = nextFile.signature;
-
-        while (nextFilePath) {
-            logger.info(`Generating file: ${nextFilePath}`);
-            const generatedFile = await this.generateFile(nextFilePath, nextFilePurpose, nextFileSignature);
+        while (nextFile) {
+            logger.info(`Generating file: ${nextFile.path}`);
+            const generatedFile = await this.generateFile(nextFile);
 
             if (!generatedFile) {
-                logger.error(`Failed to generate file: ${nextFilePath}. Stopping generation.`);
-                this.broadcast(WebSocketMessageTypes.ERROR, { error: `Failed to generate ${nextFilePath}. Stopping.` });
+                logger.error(`Failed to generate file: ${nextFile.path}. Stopping generation.`);
+                this.broadcast(WebSocketMessageTypes.ERROR, { error: `Failed to generate ${nextFile.path}. Stopping.` });
                 break;
             }
-
-            // If AI doesn't recommend a next file, try getting one from the blueprint
-            logger.info("AI did not recommend a next file. Checking blueprint for remaining files.");
             const nextFromBlueprint = this.getNextFileToGenerateFromBlueprint();
             if (!nextFromBlueprint) break;
-            nextFilePath = nextFromBlueprint.path;
-            nextFilePurpose = nextFromBlueprint.purpose;
-            nextFileSignature = nextFromBlueprint.signature;
-            logger.info(`Using next file from blueprint: ${nextFilePath}`);
+            nextFile = nextFromBlueprint;
+            logger.info(`Using next file from blueprint: ${nextFile.path}`);
         }
 
         const numFilesGenerated = Object.keys(this.state.generatedFilesMap).length;
@@ -1036,6 +1033,7 @@ ${file.file_contents}
                 message: "Code generation and review process completed.",
                 instanceId: this.state.runnerInstanceId,
                 previewURL: this.state.previewURL,
+                tunnelURL: this.state.tunnelURL,
             });
         }
     }

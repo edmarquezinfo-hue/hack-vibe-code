@@ -29,6 +29,7 @@ export class RunnerServiceClient {
         endpoint: string,
         method: 'GET' | 'POST' | 'DELETE',
         schema?: T,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         body?: any
     ): Promise<z.infer<T> | null> {
         const url = `${RunnerServiceClient.runnerServiceUrl}${endpoint}`;

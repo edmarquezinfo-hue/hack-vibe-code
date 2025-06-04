@@ -138,13 +138,27 @@ export async function executeInference({
     return null;
 }
 
+type StrippedBlueprint = Omit<Blueprint, 'fileStructure' | 'commands'> & {
+    fileStructure: Array<{
+        path: string;
+        purpose: string;
+        dependencies: string[];
+    }>;
+} & { commands?: unknown };
+
 export function createCodeGenerationSystemMessage(
     query: string,
     blueprint: Blueprint,
     templateDetails?: TemplateDetailsResponse['templateDetails'],
 ): Message {
-    
         // Use the system prompt and blue print to generate the initial context
+        const blueprintCopy: StrippedBlueprint = { ...blueprint };
+        delete blueprintCopy.commands;
+        blueprintCopy.fileStructure = blueprintCopy.fileStructure.map(file => ({
+            path: file.path,
+            purpose: file.purpose,
+            dependencies: file.dependencies,
+        }));
         const blueprintText = JSON.stringify(blueprint, null, 2);
 
         let promptTemplateDetails = '';
@@ -213,12 +227,8 @@ export function createUpdateProjectRequestSystemMessage(
 /**
  * Creates a file generation request message
  */
-export function createFileGenerationRequestMessage(filePath: string, filePurpose: string, fileSignature: string): Message {
-    const content = USER_PROMPT_FORMATTER.CODE_GENERATION(
-        filePath,
-        filePurpose || '',
-        fileSignature,
-    );
+export function createFileGenerationRequestMessage(file: Blueprint['fileStructure'][0]): Message {
+    const content = USER_PROMPT_FORMATTER.CODE_GENERATION(file);
 
     return createUserMessage(content);
 }

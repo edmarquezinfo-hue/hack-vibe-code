@@ -3,6 +3,7 @@ import { AIModels, infer, MessageRole } from './aigateway';
 import type { TemplateDetails } from './runnerServiceTypes'; // Import the type
 import { getUsecaseSpecificInstructions, SYSTEM_PROMPT_FORMATTER } from './prompts';
 import { TemplateSelection } from './templateSelector';
+import { zodObjectToDescriptions } from './utils';
 
 /**
  * Schema for the blueprint output
@@ -10,7 +11,7 @@ import { TemplateSelection } from './templateSelector';
  */
 export const BlueprintSchema = z.object({
     title: z.string().describe('Title of the application, do not talk about the style name'),
-    description: z.string().describe('Detailed description of what the application does and how its supposed to work. Break down the project into smaller components and describe each component in detail. Do not talk about UI or file structure here.'),
+    description: z.string().describe('Detailed description of what the application does and how its supposed to work. Describe each component in detail but do not talk about UI or individual files here.'),
     colorPalette: z.array(z.string()).describe('Color palette RGB codes to be used in the application, only base colors and not their shades, max 3 colors'),
     layout: z.string().describe('One line description of the UI layout of the application'),
     userFlow: z.object({
@@ -26,6 +27,7 @@ export const BlueprintSchema = z.object({
         path: z.string().describe('Path to the file relative to the project root'),
         purpose: z.string().describe('Detailed description, purpose and expected contents of this file including its role in the architecture, data and code flow details.'),
         signature: z.string().describe('Signatures of all the functions and classes, class methods in this file as well as imports and exports annotated with jsdoc'),
+        complexity: z.enum(['simple', 'moderate', 'complex']).describe('Complexity of generating this file'),
         dependencies: z.array(z.string()).describe('Internal/External dependencies this file has')
     })).describe('Files that need to be generated (new or modified existing), including paths and purposes of each source/code file.'),
     firstFileToGenerate: z.string().describe('The first file (path) to be generated, from which the implementation will start'),
@@ -49,6 +51,43 @@ export interface BlueprintGenerationArgs {
     analyzeQueryResponse: TemplateSelection;
 }
 
+/* ---------- prompt fragment when a template is provided ---------- */
+const templateFragment = (tpl: TemplateDetails) => {
+    // Define the tree function with proper type annotations
+    const tree = (node: TemplateDetails['fileTree'], ind: string = ''): string =>
+        `${ind}${node.path} (${node.type})\n` +
+        (node.children ?? []).map((ch: TemplateDetails['fileTree']) => tree(ch, ind + '  ')).join('');
+
+    const filesText = tpl.files.map((file, index) => `${index + 1}. ${file.file_path}\n-------\n${file.file_contents}`).join('\n\n');
+
+    return `
+<FILE_TREE>
+        ${tree(tpl.fileTree).trimEnd()}
+</FILE_TREE>
+
+<TEMPLATE_FILES>
+${filesText}
+</TEMPLATE_FILES>
+
+${tpl.deps &&
+        `<INSTALLED_DEPENDENCIES>
+        ${Object.entries(tpl.deps).map(([dep, version]) => `- ${dep}: ${version}`).join('\n')}
+    </INSTALLED_DEPENDENCIES>`
+        }
+
+<TEMPLATE_USAGE_INSTRUCTIONS>
+${tpl.description.usage}
+</TEMPLATE_USAGE_INSTRUCTIONS>
+
+<CONSTRAINTS>
+    • New files are allowed *only* when strictly necessary.
+    • You are allowed to install known libraries and frameworks, but try not to add any new libraries or frameworks unless absolutely necessary. Be very careful with the versions of libraries and frameworks you choose.
+    • Minimize the number of new files created. Each file generation or modification is very expensive, so challenge yourself to do it in the least number of files possible.
+    • \`frameworks\`(frameworks, libraries with versions, extracted from package.json)
+
+<END_TEMPLATE>`;
+};
+
 /**
  * Generate a blueprint for the application based on user prompt
  */
@@ -70,44 +109,16 @@ export async function generateBlueprint({ env, query, language, frameworks, sele
         );
 
 
-        /* ---------- prompt fragment when a template is provided ---------- */
-        const templateFragment = (tpl: TemplateDetails) => {
-            // Define the tree function with proper type annotations
-            const tree = (node: TemplateDetails['fileTree'], ind: string = ''): string =>
-                `${ind}${node.path} (${node.type})\n` +
-                (node.children ?? []).map((ch: TemplateDetails['fileTree']) => tree(ch, ind + '  ')).join('');
-
-            const filesText = tpl.files.map((file, index) => `${index+1}. ${file.file_path}\n-------\n${file.file_contents}`).join('\n\n');
-
-            return `
-<FILE_TREE>
-        ${tree(tpl.fileTree).trimEnd()}
-</FILE_TREE>
-
-<TEMPLATE_FILES>
-${filesText}
-</TEMPLATE_FILES>
-
-${tpl.deps &&
-                `<INSTALLED_DEPENDENCIES>
-        ${Object.entries(tpl.deps).map(([dep, version]) => `- ${dep}: ${version}`).join('\n')}
-    </INSTALLED_DEPENDENCIES>`
-                }
-
-<TEMPLATE_USAGE_INSTRUCTIONS>
-${tpl.description.usage}
-</TEMPLATE_USAGE_INSTRUCTIONS>
-
-<CONSTRAINTS>
-    • New files are allowed *only* when strictly necessary.
-    • You are allowed to install known libraries and frameworks, but try not to add any new libraries or frameworks unless absolutely necessary. Be very careful with the versions of libraries and frameworks you choose.
-    • Minimize the number of new files created. Each file generation or modification is very expensive, so challenge yourself to do it in the least number of files possible.
-    • \`frameworks\`(frameworks, libraries with versions, extracted from package.json)
-
-<END_TEMPLATE>`;
-        };
 
         const systemPrompt = basePrompt + templateFragment(selectedTemplate);
+
+        let modelName = AIModels.GEMINI_2_5_PRO_PREVIEW_05_06;
+        let reasoningEffort: "high" | "medium" | "low" | undefined = "medium" as const;
+        if (analyzeQueryResponse.complexity === 'simple' || analyzeQueryResponse.complexity === 'moderate') {
+            console.log(`Using medium reasoning for simple/moderate queries`);
+            modelName = AIModels.OPENAI_O4_MINI;
+            reasoningEffort = undefined;
+        }
 
 
         const messages = [
@@ -115,13 +126,13 @@ ${tpl.description.usage}
             { role: "user" as MessageRole, content: `Create a detailed blueprint for the following application request: "${query}"` }
         ];
 
-        const modelName = AIModels.OPENAI_O4_MINI;
-        // let reasoningEffort: "high" | "medium" = "high" as const; 
-        // // if (analyzeQueryResponse.complexity === 'simple' || analyzeQueryResponse.complexity === 'moderate') {
-        // //     console.log(`Using medium reasoning for simple/moderate queries`);
-        // //     // modelName = AIModels.OPENAI_O4_MINI;
-        // //     reasoningEffort = 'medium' as const;
-        // // }
+        // https://datachain.ai/blog/enforcing-json-outputs-in-commercial-llms?utm_source=chatgpt.com
+        // Description fields are not used directly from the schema
+        if(modelName.includes("gemini")) {
+            messages[1].content += `\n\n<OUTPUT FORMAT>${zodObjectToDescriptions(BlueprintSchema)}\n</OUTPUT FORMAT>`;
+
+        }
+
 
         return infer<typeof BlueprintSchema>({
             env,
@@ -129,7 +140,7 @@ ${tpl.description.usage}
             schemaName: "blueprint",
             schema: BlueprintSchema,
             maxTokens: 32000,
-            // reasoningEffort,
+            reasoningEffort,
             modelName,
             ...(onChunk ? {
                 stream: {

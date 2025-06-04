@@ -63,10 +63,18 @@ export async function infer<OutputSchema extends z.AnyZodObject>(
         /** 1. ————————————————— credentials & baseURL */
         let apiKey = env.OPENAI_API_KEY;
         let baseURL: string | undefined;
+        const schemaObj = (schema && schemaName) ? { response_format: zodResponseFormat(schema, schemaName) } : {};
 
         if (modelName.includes("gemini")) {
             apiKey = env.GEMINI_API_KEY;
             baseURL = "https://generativelanguage.googleapis.com/v1beta/openai/";
+            // if(schemaObj.response_format) {
+            //     // Convert Zod schema to JSON schema and use it directly
+            //     const jsonSchemaRaw = schemaObj.response_format.json_schema.schema;
+            //     if(jsonSchemaRaw){
+            //         jsonSchemaRaw.propertyOrdering = Object.keys(jsonSchemaRaw.properties as Record<string, string>);
+            //     }
+            // }
         } else if (modelName.includes("claude")) {
             // Use inferWithFunctionCalling for function calling
             if (schema && schemaName) {
@@ -97,7 +105,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>(
             reasoning_effort: reasoningEffort,
             temperature,
             max_completion_tokens: maxTokens || 150000,
-            ...((schema && schemaName) ? { response_format: zodResponseFormat(schema, schemaName) } : {}),
+            ...schemaObj,
             stream: true
         });
 

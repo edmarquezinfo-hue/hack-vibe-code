@@ -5,7 +5,7 @@ import { CodeGenController } from './controllers/codeGenController';
 // import { handleInsertRag, handleQueryRag } from "./rag";
 
 // Export the CodeGenerator Agent as a Durable Object class named CodeGen
-export { CodeGeneratorAgent } from "./codegen/codeGenerator";
+import { CodeGeneratorAgent } from "./codegen/codeGenerator";
 
 // Logger for the main application
 const logger = createLogger('App');
@@ -55,3 +55,5 @@ export default {
         }
     },
 } satisfies ExportedHandler<Env>;
+
+export { CodeGeneratorAgent }

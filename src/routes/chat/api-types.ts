@@ -71,6 +71,7 @@ type StateMessage = {
 			[file_path: string]: GeneratedFile;
 		};
 		previewURL?: string;
+		tunnelURL?: string;
 		templateDetails: {
 			name: string;
 			description: string;
@@ -125,6 +126,7 @@ type GenerationCompleteMessage = {
 type DeploymentCompletedMessage = {
 	type: 'deployment_completed';
 	previewURL: string;
+	tunnelURL: string;
 	instanceId: string;
 	message: string;
 };

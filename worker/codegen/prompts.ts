@@ -8,6 +8,7 @@
 // 4. Connect UI to data layer
 // 5. Add styling and finish with entry point files
 
+import { Blueprint } from "./blueprint";
 import { TemplateSelection } from "./templateSelector";
 
 export const SYSTEM_PROMPTS = {
@@ -20,7 +21,7 @@ export const SYSTEM_PROMPTS = {
 <CONTEXT>
     • Goal: Design a **Blueprint** (JSON) that a coding AI agent will use to generate runnable code.  
     • Tech: Language={{language}}; Frameworks={{frameworks}}.  
-    • Schema: Your reply **must** validate against the TypeScript \`BlueprintSchema\` supplied at runtime.
+    • Frontend only project, no backend or server-side code.
 
 <TASK>
     1. Plan internally* how to realise the user's request.  
@@ -43,8 +44,8 @@ export const SYSTEM_PROMPTS = {
     • Prefer semantic, descriptive names.  
     • No TODOs, placeholders, or unexplained abstractions.
     • Refrain from suggesting changes to template configuration files (e.g., package.json, tsconfig.json, etc.).
-    • Specify key layout structures, navigation patterns, and desired visual style (e.g., minimalist, professional, shadcn). **Be precise about spacing, alignment, and responsiveness.**
-    • USE THE SETUP COMMANDS TO INSTALL ANY ADDITIONAL DEPENDENCIES THAT ARE NECESSARY and not included in the template, BUT BE VERY CAREFUL WITH THE VERSION OF THE DEPENDENCIES YOU INSTALL.
+    • Specify key layout structures, navigation patterns. **Be precise about spacing, alignment, and responsiveness.**
+    • USE THE SETUP COMMANDS TO INSTALL ANY ADDITIONAL DEPENDENCIES THAT ARE ABSOLUTELY NECESSARY and not included in the template, BUT BE VERY CAREFUL WITH THE VERSION OF THE DEPENDENCIES YOU INSTALL.
     
     **ONLY SUGGEST FILES. DO NOT SUGGEST FOLDERS, THEY WOULD BE AUTOMATICALLY CREATED** 
     **PLEASE SUGGEST EVERY NEW FILE THAT IS NEEDED OR EXISTING FILE THAT NEEDS TO BE MODIFIED.**
@@ -417,11 +418,11 @@ CONTEXT:
 };
 
 export const USER_PROMPT_FORMATTER = {
-    CODE_GENERATION: (filePath: string, filePurpose: string, fileSignature: string) => {
+    CODE_GENERATION: (file: Blueprint['fileStructure'][0]) => {
         return USER_PROMPT.CODE_GENERATION
-            .replaceAll('{{filePath}}', filePath)
-            .replaceAll('{{filePurpose}}', filePurpose)
-            .replaceAll('{{fileSignature}}', fileSignature);
+            .replaceAll('{{filePath}}', file.path)
+            .replaceAll('{{filePurpose}}', file.purpose)
+            .replaceAll('{{fileSignature}}', file.signature);
     },
     CODE_REVIEW: (filePath: string, fileContents: string, fileExplanation: string) => {
         return USER_PROMPT.CODE_REVIEW
@@ -514,6 +515,16 @@ const ECOMM_INSTRUCTIONS = (): string => `
 ** Use a clean, modern layout with generous white space and a clear visual hierarchy
 `;
 
+const DASHBOARD_INSTRUCTIONS = (): string => `
+** If applicable to user query group Related Controls and Forms into Well-Labeled Cards / Panels
+** If applicable to user query offer Quick Actions / Shortcuts for Common Tasks
+** If user asked for analytics/visualizations/statistics - Show sparklines, mini line/bar charts, or simple pie indicators for trends 
+** If user asked for analytics/visualizations/statistics - Maybe show key metrics in modular cards
+** If applicable to user query make It Interactive and Contextual (Filters, Search, Pagination)
+** If applicable to user query add a sidebar and or tabs
+** Dashboard should be information dense.
+`;
+
 export const getUsecaseSpecificInstructions = (selectedTemplate: TemplateSelection): string | undefined => {
     switch (selectedTemplate.useCase) {
         case 'SaaS Product Website':
@@ -521,8 +532,7 @@ export const getUsecaseSpecificInstructions = (selectedTemplate: TemplateSelecti
         case 'E-Commerce':
             return ECOMM_INSTRUCTIONS();
         case 'Dashboard':
-            // Use default shadcn styling
-            return '';
+            return DASHBOARD_INSTRUCTIONS();
         default:
             return `Use the following artistic style:
             ${getStyleInstructions(selectedTemplate.styleSelection)}`;

@@ -1,5 +1,102 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { MessageRole } from './aigateway';
+import {
+  ZodTypeAny,
+  ZodFirstPartyTypeKind,
+  AnyZodObject,
+  ZodObject,
+  ZodArray,
+  ZodOptional,
+  ZodNullable,
+  ZodDefault,
+  ZodEffects,
+} from "zod";
+
+/**
+ * Walk a Zod schema node and return:
+ *  • a string (if .describe(...) was applied on that node), or
+ *  • an array [ ... ] (if it’s an array of something), or
+ *  • a nested object { ... } (if it’s a ZodObject),
+ *  • or undefined (if nothing was described anywhere in that branch).
+ */
+function schemaToDescriptionOrNested(
+  schema: ZodTypeAny
+): string | Array<any> | Record<string, any> | undefined {
+  const def: any = (schema as any)._def;
+
+
+  // 2) If it’s a wrapper (optional / nullable / default / effects), unwrap and recurse
+  switch (def?.typeName as ZodFirstPartyTypeKind) {
+    case ZodFirstPartyTypeKind.ZodOptional:
+      return schemaToDescriptionOrNested((schema as ZodOptional<any>)._def.innerType);
+
+    case ZodFirstPartyTypeKind.ZodNullable:
+      return schemaToDescriptionOrNested((schema as ZodNullable<any>)._def.innerType);
+
+    case ZodFirstPartyTypeKind.ZodDefault:
+      return schemaToDescriptionOrNested((schema as ZodDefault<any>)._def.innerType);
+
+    case ZodFirstPartyTypeKind.ZodEffects:
+      return schemaToDescriptionOrNested((schema as ZodEffects<any>)._def.schema);
+  }
+
+  // 3) If it’s an array, unwrap the element type and recurse, returning [innerResult]
+  if (def?.typeName === ZodFirstPartyTypeKind.ZodArray) {
+    const arrDef = (schema as ZodArray<any>)._def;
+    const itemSchema = arrDef.type; // the ZodTypeAny for elements
+    const innerDesc = schemaToDescriptionOrNested(itemSchema);
+
+    // If the element branch returned undefined, there was no .describe in that subtree—so return undefined.
+    if (innerDesc === undefined) {
+      return undefined;
+    }
+    // Otherwise, wrap it in a single‐element array to show “this field is an array of …”
+    return [innerDesc];
+  }
+
+  // 1) If this node has a .describe("…"), return that description immediately
+  if (def?.description) {
+    return def.description as string;
+  }
+
+  // 4) If it’s an object, walk into each property and build a nested Record<key, descOrNested>
+  if (def?.typeName === ZodFirstPartyTypeKind.ZodObject) {
+    const obj = schema as AnyZodObject;
+    const shape = (obj as ZodObject<any>)._def.shape();
+    const result: Record<string, any> = {};
+
+    for (const key of Object.keys(shape)) {
+      result[key] = schemaToDescriptionOrNested(shape[key]);
+    }
+
+    return result;
+  }
+
+  // 5) Nothing to describe here, and not an object or array we care about—return undefined.
+  return undefined;
+}
+
+/**
+ * Given a ZodObject<…>, return a plain JS object whose keys match
+ * the original ZodObject’s keys, and whose values are either:
+ *  • a string (if that field/schema branch had a .describe()),
+ *  • an array [ … ] (if it was an array whose element‐type had descriptions),
+ *  • a nested Record<string, …> (if it was a nested object),
+ *  • or undefined (if no .describe() was found anywhere underneath).
+ */
+export function zodObjectToDescriptions(
+  obj: AnyZodObject
+): Record<string, string | Array<any> | Record<string, any> | undefined> {
+  const shape = (obj as ZodObject<any>)._def.shape();
+  const out: Record<string, any> = {};
+
+  for (const key of Object.keys(shape)) {
+    out[key] = schemaToDescriptionOrNested(shape[key]);
+  }
+
+  return out;
+}
+
 
 
 /**
