@@ -158,7 +158,7 @@ export function useChat({
 					setBlueprint(state.blueprint);
 					updatePhase('blueprint', { status: 'completed' });
 				}
-				const previewURL = import.meta.env.PREVIEW_MODE === 'tunnel' ? state.tunnelURL : state.previewURL;
+				const previewURL = import.meta.env.VITE_PREVIEW_MODE === 'tunnel' ? state.tunnelURL : state.previewURL;
 				if (previewURL) {
 					setPreviewUrl(previewURL);
 					sendMessage({
@@ -315,7 +315,7 @@ export function useChat({
 			}
 
 			case 'deployment_completed': {
-				const previewURL = import.meta.env.PREVIEW_MODE === 'tunnel' ? message.tunnelURL : message.previewURL;
+				const previewURL = import.meta.env.VITE_PREVIEW_MODE === 'tunnel' ? message.tunnelURL : message.previewURL;
 				setPreviewUrl(previewURL);
 				sendMessage({
 					id: 'deployment-status',
