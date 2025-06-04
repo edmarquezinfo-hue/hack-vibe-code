@@ -290,23 +290,40 @@ export default function Chat() {
 										return (
 											<div className="flex relative w-full gap-2 pb-2.5 last:pb-0">
 												<div className="translate-y-px z-20">
-													{status === 'pending' && (
-														<div className="size-5 flex items-center justify-center">
-															<div className="size-2 rounded-full bg-zinc-300" />
-														</div>
-													)}
+													<AnimatePresence>
+														{status === 'pending' && (
+															<motion.div
+																initial={{ scale: 0.2, opacity: 0.4 }}
+																animate={{ scale: 1, opacity: 1 }}
+																exit={{ scale: 0.2, opacity: 0.4 }}
+																className="size-5 flex items-center justify-center"
+															>
+																<div className="size-2 rounded-full bg-zinc-300" />
+															</motion.div>
+														)}
 
-													{status === 'active' && (
-														<div className="size-5 bg-bg flex items-center justify-center">
-															<LoaderCircle className="size-3 text-orange-400 animate-spin" />
-														</div>
-													)}
+														{status === 'active' && (
+															<motion.div
+																initial={{ scale: 0.2, opacity: 0.4 }}
+																animate={{ scale: 1, opacity: 1 }}
+																exit={{ scale: 0.2, opacity: 0.4 }}
+																className="size-5 bg-bg flex items-center justify-center"
+															>
+																<LoaderCircle className="size-3 text-orange-400 animate-spin" />
+															</motion.div>
+														)}
 
-													{status === 'completed' && (
-														<div className="size-5 flex items-center justify-center">
-															<div className="size-2 rounded-full bg-orange-400" />
-														</div>
-													)}
+														{status === 'completed' && (
+															<motion.div
+																initial={{ scale: 0.2, opacity: 0.4 }}
+																animate={{ scale: 1, opacity: 1 }}
+																exit={{ scale: 0.2, opacity: 0.4 }}
+																className="size-5 flex items-center justify-center"
+															>
+																<div className="size-2 rounded-full bg-orange-400" />
+															</motion.div>
+														)}
+													</AnimatePresence>
 												</div>
 												<div className="flex flex-col gap-2 flex-1">
 													<div className="flex">
@@ -321,14 +338,17 @@ export default function Chat() {
 															{title}
 														</span>
 														{id === 'code' && status !== 'pending' && (
-															<>
+															<motion.div
+																initial={{ x: -120 }}
+																animate={{ x: 0 }}
+															>
 																<span className="text-zinc-300 mx-1">
 																	&bull;
 																</span>
 																<span className="text-zinc-400">
 																	{progress}/{total} files
 																</span>
-															</>
+															</motion.div>
 														)}
 													</div>
 
