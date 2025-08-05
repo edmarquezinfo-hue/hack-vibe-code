@@ -1,0 +1,930 @@
+{
+  "authenticationFlows": {
+    "title": "Orange Build Authentication & Authorization Flow Diagrams",
+    "lastUpdated": "2025-07-19",
+    "version": "2.0",
+    "description": "Comprehensive authentication and authorization flows for multi-provider auth with JWT sessions, OAuth, and anonymous user support",
+    "status": "Active development - Production hardening in progress"
+  },
+
+  "systemOverview": {
+    "authenticationMethods": [
+      "Email/Password with bcrypt hashing",
+      "Google OAuth 2.0 with PKCE",
+      "GitHub OAuth with organization support", 
+      "Anonymous sessions with seamless upgrade"
+    ],
+    "sessionManagement": "JWT with HttpOnly cookies and refresh token rotation",
+    "securityFeatures": [
+      "PKCE for OAuth security",
+      "CSRF protection with state validation",
+      "Rate limiting and account lockout",
+      "Device fingerprinting",
+      "Session invalidation on suspicious activity"
+    ],
+    "components": {
+      "frontend": "React AuthContext with automatic token refresh",
+      "backend": "Modular auth services with clean separation",
+      "storage": "Database-backed sessions with D1 SQLite",
+      "middleware": "Security middleware for route protection"
+    }
+  },
+
+  "emailPasswordRegistration": {
+    "name": "Email/Password Registration Flow",
+    "description": "Traditional registration with email and password",
+    "participants": ["User", "React Frontend", "AuthContext", "Cloudflare Worker", "AuthService", "Database"],
+    "steps": [
+      {
+        "step": 1,
+        "name": "Registration Form Submission",
+        "actor": "User",
+        "action": "Fill and submit registration form",
+        "location": "React Frontend Registration Page",
+        "data": {
+          "email": "Valid email address",
+          "password": "Plaintext password (HTTPS encrypted)",
+          "name": "Display name",
+          "preferences": "Optional user preferences"
+        },
+        "clientValidation": [
+          "Email format validation",
+          "Password strength requirements (8+ chars, mixed case, numbers)",
+          "Required field validation",
+          "Real-time validation feedback"
+        ]
+      },
+      {
+        "step": 2,
+        "name": "API Registration Request",
+        "actor": "React Frontend",
+        "action": "POST /api/auth/register",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": "CSRF protection token"
+        },
+        "payload": {
+          "email": "Validated email",
+          "password": "Plaintext password",
+          "name": "Display name",
+          "preferences": "User preferences object"
+        },
+        "security": "HTTPS encryption, input sanitization"
+      },
+      {
+        "step": 3,
+        "name": "Request Validation",
+        "actor": "AuthService",
+        "action": "Validate registration request",
+        "validations": [
+          "Zod schema validation",
+          "Email format and domain checks",
+          "Password strength validation",
+          "Rate limiting check (max 5 attempts per hour)",
+          "Duplicate email check"
+        ],
+        "errorHandling": {
+          "validationFailure": "400 Bad Request with specific error messages",
+          "rateLimitExceeded": "429 Too Many Requests",
+          "duplicateEmail": "409 Conflict with user-friendly message"
+        }
+      },
+      {
+        "step": 4,
+        "name": "Password Hashing",
+        "actor": "AuthService", 
+        "action": "Hash password securely",
+        "algorithm": {
+          "method": "bcrypt",
+          "saltRounds": 12,
+          "execution": "Asynchronous to prevent blocking",
+          "timing": "~100ms for security vs performance balance"
+        },
+        "security": "Salt is unique per password, computationally expensive"
+      },
+      {
+        "step": 5,
+        "name": "User Record Creation",
+        "actor": "AuthService",
+        "action": "Create user in database",
+        "database": "Cloudflare D1",
+        "table": "users",
+        "record": {
+          "email": "Unique email address",
+          "passwordHash": "Bcrypt hashed password",
+          "name": "Display name",
+          "emailVerified": "false (pending verification)",
+          "createdAt": "Registration timestamp",
+          "preferences": "User preferences JSON",
+          "authProvider": "local"
+        },
+        "constraints": [
+          "UNIQUE constraint on email",
+          "NOT NULL constraints on required fields",
+          "JSON validation on preferences"
+        ]
+      },
+      {
+        "step": 6,
+        "name": "JWT Token Generation",
+        "actor": "AuthService",
+        "action": "Generate access and refresh tokens",
+        "tokenTypes": {
+          "accessToken": {
+            "type": "JWT",
+            "expiry": "15 minutes",
+            "claims": {
+              "sub": "User ID",
+              "email": "User email",
+              "name": "Display name",
+              "iat": "Issued at time",
+              "exp": "Expiration time",
+              "type": "access"
+            }
+          },
+          "refreshToken": {
+            "type": "JWT", 
+            "expiry": "7 days",
+            "claims": {
+              "sub": "User ID",
+              "jti": "Token ID for revocation",
+              "iat": "Issued at time",
+              "exp": "Expiration time",
+              "type": "refresh"
+            }
+          }
+        },
+        "signing": {
+          "algorithm": "HS256",
+          "secret": "JWT_SECRET from environment",
+          "headers": "Standard JWT headers with algorithm"
+        }
+      },
+      {
+        "step": 7,
+        "name": "Session Record Creation",
+        "actor": "AuthService",
+        "action": "Create session in database",
+        "table": "sessions",
+        "record": {
+          "userId": "Created user ID",
+          "refreshToken": "Hashed refresh token",
+          "accessToken": "Hashed access token",
+          "expiresAt": "Session expiration time",
+          "deviceInfo": "User agent and device fingerprint",
+          "ipAddress": "Client IP address",
+          "createdAt": "Session creation time",
+          "lastActivity": "Current timestamp"
+        },
+        "security": "Tokens hashed before storage, sensitive info encrypted"
+      },
+      {
+        "step": 8,
+        "name": "Success Response with Cookies",
+        "actor": "Cloudflare Worker",
+        "action": "Return success response with secure cookies",
+        "response": {
+          "status": 201,
+          "body": {
+            "success": true,
+            "user": {
+              "id": "User ID",
+              "email": "Email address", 
+              "name": "Display name",
+              "emailVerified": false
+            },
+            "message": "Registration successful"
+          }
+        },
+        "cookies": [
+          {
+            "name": "accessToken",
+            "value": "JWT access token",
+            "httpOnly": true,
+            "secure": true,
+            "sameSite": "Strict",
+            "maxAge": "15 minutes"
+          },
+          {
+            "name": "refreshToken",
+            "value": "JWT refresh token", 
+            "httpOnly": true,
+            "secure": true,
+            "sameSite": "Strict",
+            "maxAge": "7 days"
+          }
+        ]
+      },
+      {
+        "step": 9,
+        "name": "Frontend State Update",
+        "actor": "AuthContext",
+        "action": "Update authentication state",
+        "stateChanges": [
+          "Set isAuthenticated to true",
+          "Store user information",
+          "Initialize token refresh timer",
+          "Trigger navigation to dashboard or intended destination"
+        ],
+        "automaticActions": [
+          "Start 10-minute token refresh interval",
+          "Set up logout on window close (optional)",
+          "Initialize session monitoring"
+        ]
+      }
+    ],
+    "errorScenarios": {
+      "duplicateEmail": {
+        "response": "409 Conflict",
+        "message": "Account with this email already exists",
+        "userAction": "Login instead or use different email"
+      },
+      "weakPassword": {
+        "response": "400 Bad Request",
+        "message": "Password does not meet security requirements",
+        "requirements": "Minimum 8 characters, mixed case, numbers"
+      },
+      "rateLimitExceeded": {
+        "response": "429 Too Many Requests",
+        "message": "Too many registration attempts, try again later",
+        "retryAfter": "1 hour"
+      }
+    }
+  },
+
+  "emailPasswordLogin": {
+    "name": "Email/Password Login Flow",
+    "description": "Authentication with existing email/password credentials",
+    "steps": [
+      {
+        "step": 1,
+        "name": "Login Form Submission", 
+        "actor": "User",
+        "action": "Submit login credentials",
+        "data": {
+          "email": "Registered email address",
+          "password": "Plaintext password",
+          "rememberMe": "Optional extended session flag"
+        },
+        "clientValidation": ["Email format", "Required fields"]
+      },
+      {
+        "step": 2,
+        "name": "Login API Request",
+        "actor": "React Frontend",
+        "action": "POST /api/auth/login",
+        "rateLimiting": "Max 10 attempts per hour per IP",
+        "security": "HTTPS encryption, CSRF protection"
+      },
+      {
+        "step": 3,
+        "name": "User Lookup and Validation",
+        "actor": "AuthService",
+        "action": "Find user by email",
+        "database": "Query users table",
+        "validations": [
+          "User exists check",
+          "Account not locked check",
+          "Email verification status (warning if unverified)"
+        ],
+        "securityChecks": [
+          "Failed attempt tracking",
+          "Account lockout after 5 failed attempts",
+          "IP address monitoring for suspicious activity"
+        ]
+      },
+      {
+        "step": 4,
+        "name": "Password Verification",
+        "actor": "AuthService",
+        "action": "Compare provided password with stored hash",
+        "method": "bcrypt.compare(plaintext, hashedPassword)",
+        "timing": "Constant time comparison to prevent timing attacks",
+        "result": "Boolean success/failure"
+      },
+      {
+        "step": 5,
+        "name": "Authentication Success Processing",
+        "actor": "AuthService",
+        "condition": "Password verification successful",
+        "actions": [
+          "Reset failed attempt counter",
+          "Update last login timestamp",
+          "Generate new JWT tokens",
+          "Create new session record",
+          "Log successful authentication"
+        ]
+      },
+      {
+        "step": 6,
+        "name": "Token Generation and Response",
+        "actor": "AuthService",
+        "action": "Generate fresh JWT tokens and return with user data",
+        "tokenExpiry": {
+          "standard": "15 min access, 7 day refresh",
+          "rememberMe": "1 hour access, 30 day refresh"
+        },
+        "response": "User data with secure HttpOnly cookies"
+      }
+    ],
+    "failureScenarios": {
+      "invalidCredentials": {
+        "action": "Increment failed attempt counter",
+        "response": "401 Unauthorized with generic message",
+        "security": "Same response for wrong email or password"
+      },
+      "accountLocked": {
+        "condition": "5 failed attempts within 1 hour",
+        "response": "423 Locked with unlock time",
+        "unlockMechanism": "Automatic after 1 hour or admin intervention"
+      },
+      "suspiciousActivity": {
+        "triggers": ["Multiple IPs", "Rapid attempts", "Unusual patterns"],
+        "action": "Enhanced verification required or temporary lock"
+      }
+    }
+  },
+
+  "googleOAuthFlow": {
+    "name": "Google OAuth 2.0 Authentication Flow",
+    "description": "OAuth authentication with Google using PKCE for enhanced security",
+    "participants": ["User", "React Frontend", "Cloudflare Worker", "Google OAuth", "AuthService", "Database"],
+    "steps": [
+      {
+        "step": 1,
+        "name": "OAuth Initiation",
+        "actor": "User",
+        "action": "Click 'Sign in with Google' button",
+        "trigger": "Frontend OAuth handler"
+      },
+      {
+        "step": 2,
+        "name": "OAuth Authorization Request",
+        "actor": "React Frontend",
+        "action": "GET /api/auth/oauth/google",
+        "serverProcessing": [
+          "Generate PKCE code verifier and challenge",
+          "Create CSRF state token",
+          "Store state in database with 10-minute expiration"
+        ]
+      },
+      {
+        "step": 3,
+        "name": "State Storage",
+        "actor": "AuthService",
+        "action": "Store OAuth state for security validation",
+        "table": "oauth_states",
+        "record": {
+          "state": "Generated CSRF state token",
+          "provider": "google",
+          "codeVerifier": "PKCE code verifier",
+          "codeChallenge": "SHA256 hash of verifier",
+          "createdAt": "Current timestamp",
+          "expiresAt": "Current time + 10 minutes"
+        },
+        "cleanup": "Automatic cleanup of expired states"
+      },
+      {
+        "step": 4,
+        "name": "Google Authorization Redirect",
+        "actor": "Cloudflare Worker",
+        "action": "Redirect user to Google OAuth endpoint",
+        "url": "https://accounts.google.com/oauth2/auth",
+        "parameters": {
+          "client_id": "Google OAuth client ID",
+          "redirect_uri": "Configured callback URL",
+          "response_type": "code",
+          "scope": "openid email profile",
+          "state": "CSRF protection state",
+          "code_challenge": "PKCE code challenge", 
+          "code_challenge_method": "S256"
+        }
+      },
+      {
+        "step": 5,
+        "name": "User Consent at Google",
+        "actor": "User",
+        "action": "Authenticate with Google and grant permissions",
+        "location": "Google's authorization server",
+        "userExperience": [
+          "Google login if not already authenticated",
+          "Review requested permissions",
+          "Grant or deny access to application"
+        ]
+      },
+      {
+        "step": 6,
+        "name": "Authorization Code Callback",
+        "actor": "Google OAuth",
+        "action": "Redirect back to application callback",
+        "endpoint": "GET /api/auth/callback/google",
+        "parameters": {
+          "code": "Authorization code from Google",
+          "state": "CSRF state for validation"
+        },
+        "errorCases": [
+          "user_denied: User cancelled authorization",
+          "invalid_request: Malformed OAuth request"
+        ]
+      },
+      {
+        "step": 7,
+        "name": "State Validation",
+        "actor": "AuthService",
+        "action": "Validate CSRF state and retrieve PKCE verifier",
+        "validations": [
+          "State exists in database and not expired",
+          "State matches callback parameter",
+          "Provider matches (google)",
+          "Retrieve code verifier for PKCE"
+        ],
+        "security": "Prevents CSRF attacks and ensures request integrity"
+      },
+      {
+        "step": 8,
+        "name": "Token Exchange",
+        "actor": "AuthService",
+        "action": "Exchange authorization code for access token",
+        "endpoint": "POST https://oauth2.googleapis.com/token",
+        "payload": {
+          "client_id": "Google OAuth client ID",
+          "client_secret": "Google OAuth client secret",
+          "code": "Authorization code from callback",
+          "grant_type": "authorization_code",
+          "redirect_uri": "Must match authorization request",
+          "code_verifier": "PKCE code verifier"
+        },
+        "security": "PKCE prevents code interception attacks"
+      },
+      {
+        "step": 9,
+        "name": "Google Token Response",
+        "actor": "Google OAuth",
+        "action": "Return OAuth tokens",
+        "response": {
+          "access_token": "Google access token",
+          "id_token": "JWT with user identity",
+          "token_type": "Bearer",
+          "expires_in": 3600,
+          "refresh_token": "Optional refresh token",
+          "scope": "Granted scopes"
+        }
+      },
+      {
+        "step": 10,
+        "name": "User Profile Retrieval",
+        "actor": "AuthService",
+        "action": "Fetch user profile from Google",
+        "endpoint": "GET https://www.googleapis.com/oauth2/v2/userinfo",
+        "headers": {
+          "Authorization": "Bearer {google_access_token}"
+        },
+        "profile": {
+          "id": "Google user ID",
+          "email": "Verified email address",
+          "name": "Full name",
+          "picture": "Profile picture URL",
+          "verified_email": "Email verification status"
+        }
+      },
+      {
+        "step": 11,
+        "name": "User Account Synchronization",
+        "actor": "AuthService", 
+        "action": "Find existing user or create new account",
+        "logic": [
+          "Search for existing user by email",
+          "If found: Link OAuth account to existing user",
+          "If not found: Create new user with OAuth data",
+          "Update OAuth account tokens"
+        ],
+        "tables": ["users", "oauth_accounts"],
+        "userRecord": {
+          "email": "From Google profile",
+          "name": "From Google profile", 
+          "emailVerified": "true (verified by Google)",
+          "avatar": "Google profile picture URL",
+          "authProvider": "google"
+        },
+        "oauthRecord": {
+          "userId": "User ID (existing or new)",
+          "provider": "google",
+          "providerId": "Google user ID",
+          "accessToken": "Encrypted Google access token",
+          "refreshToken": "Encrypted Google refresh token",
+          "tokenExpiresAt": "Token expiration time"
+        }
+      },
+      {
+        "step": 12,
+        "name": "Application Session Creation",
+        "actor": "AuthService",
+        "action": "Create application JWT session",
+        "process": [
+          "Generate application JWT tokens",
+          "Create session record in database",
+          "Clean up OAuth state record",
+          "Return success response with cookies"
+        ]
+      }
+    ],
+    "errorHandling": {
+      "stateValidationFailure": {
+        "cause": "CSRF state mismatch or expired",
+        "response": "400 Bad Request - Invalid state",
+        "action": "Redirect to login with error message"
+      },
+      "tokenExchangeFailure": {
+        "cause": "Invalid authorization code or PKCE failure",
+        "response": "400 Bad Request - OAuth error",
+        "action": "Log error and redirect to login"
+      },
+      "profileRetrievalFailure": {
+        "cause": "Google API error or network issue",
+        "response": "500 Internal Server Error",
+        "action": "Retry with exponential backoff"
+      }
+    }
+  },
+
+  "githubOAuthFlow": {
+    "name": "GitHub OAuth Authentication Flow",
+    "description": "OAuth authentication with GitHub, including organization support",
+    "differences": [
+      "Different OAuth endpoints (github.com/login/oauth)",
+      "Organization membership support",
+      "Team integration capabilities",
+      "Different profile data structure"
+    ],
+    "specificFeatures": {
+      "organizationSupport": {
+        "scope": "read:org for organization access",
+        "validation": "Check organization membership",
+        "teamIntegration": "Map GitHub teams to application roles"
+      },
+      "repositoryAccess": {
+        "scope": "repo for private repository access (optional)",
+        "useCase": "Code export to GitHub repositories",
+        "permissions": "Read/write access based on user grants"
+      }
+    },
+    "flowSimilarity": "Nearly identical to Google OAuth with endpoint and data differences"
+  },
+
+  "anonymousSessionFlow": {
+    "name": "Anonymous User Session Management",
+    "description": "Support for unauthenticated users with seamless upgrade path",
+    "steps": [
+      {
+        "step": 1,
+        "name": "Anonymous Session Detection",
+        "actor": "React Frontend (useChat hook)",
+        "trigger": "User starts code generation without authentication",
+        "action": "Check for existing anonymous session token in localStorage"
+      },
+      {
+        "step": 2,
+        "name": "Session Token Generation",
+        "actor": "React Frontend",
+        "condition": "No existing anonymous token",
+        "action": "Generate anonymous session token",
+        "implementation": [
+          "Create UUID for session identification",
+          "Store in localStorage as 'anonymous_session_token'",
+          "Set expiration (24 hours typical)"
+        ]
+      },
+      {
+        "step": 3,
+        "name": "Backend Session Validation",
+        "actor": "Cloudflare Worker",
+        "action": "Validate or create anonymous session",
+        "process": [
+          "Check if session token exists in database",
+          "If not exists: create anonymous session record",
+          "Associate generated content with session",
+          "Track usage for analytics"
+        ],
+        "table": "anonymous_sessions",
+        "record": {
+          "sessionToken": "Anonymous session UUID",
+          "createdAt": "Session creation time",
+          "lastActivity": "Last usage timestamp",
+          "expiresAt": "Session expiration (24-48 hours)",
+          "generatedApps": "Array of app IDs created"
+        }
+      },
+      {
+        "step": 4,
+        "name": "Content Association",
+        "actor": "CodeGenController",
+        "action": "Associate generated apps with anonymous session",
+        "appRecord": {
+          "userId": "null",
+          "sessionToken": "Anonymous session token",
+          "visibility": "private",
+          "temporaryAccess": "true"
+        },
+        "limitations": [
+          "Cannot share apps publicly",
+          "Limited to session duration",
+          "No cross-device access",
+          "Cannot save favorites or settings"
+        ]
+      },
+      {
+        "step": 5,
+        "name": "Authentication Upgrade",
+        "actor": "User",
+        "trigger": "User decides to register or login",
+        "upgradeProcess": [
+          "User completes authentication flow",
+          "System migrates anonymous session data to user account",
+          "Transfer ownership of generated apps",
+          "Clean up anonymous session record",
+          "Update localStorage to remove anonymous token"
+        ],
+        "dataMigration": {
+          "apps": "Transfer ownership from session to user",
+          "preferences": "Migrate any stored preferences",
+          "history": "Preserve generation history",
+          "cleanup": "Remove anonymous session record"
+        }
+      }
+    ],
+    "advantages": [
+      "No friction for initial user experience",
+      "Immediate access to core functionality",
+      "Seamless upgrade to full account",
+      "Privacy-friendly for cautious users"
+    ],
+    "limitations": [
+      "Temporary nature of data",
+      "No cross-device synchronization", 
+      "Limited sharing capabilities",
+      "Potential data loss if session expires"
+    ]
+  },
+
+  "tokenRefreshFlow": {
+    "name": "Automatic Token Refresh Mechanism",
+    "description": "Background token refresh to maintain seamless user experience",
+    "trigger": "AuthContext timer every 10 minutes",
+    "steps": [
+      {
+        "step": 1,
+        "name": "Token Expiration Check",
+        "actor": "AuthContext",
+        "frequency": "Every 10 minutes",
+        "logic": "if (accessTokenExpiresIn < 2 minutes) { refresh() }",
+        "proactive": "Refresh before expiration to prevent interruption"
+      },
+      {
+        "step": 2,
+        "name": "Refresh Token Request",
+        "actor": "AuthContext",
+        "action": "POST /api/auth/refresh",
+        "authentication": "Include current refresh token in request",
+        "automatic": "Transparent to user, no UI indication"
+      },
+      {
+        "step": 3,
+        "name": "Session Validation",
+        "actor": "AuthService",
+        "validations": [
+          "Refresh token exists and not expired",
+          "Session record exists in database",
+          "Token signature validation",
+          "User account still active"
+        ]
+      },
+      {
+        "step": 4,
+        "name": "Token Rotation",
+        "actor": "AuthService",
+        "action": "Generate new token pair",
+        "security": [
+          "Issue new access token (15 min expiry)",
+          "Issue new refresh token (7 day expiry)", 
+          "Invalidate old refresh token",
+          "Update session record with new tokens"
+        ],
+        "tokenRotation": "Enhanced security through token rotation"
+      },
+      {
+        "step": 5,
+        "name": "Response and Cookie Update",
+        "actor": "Cloudflare Worker",
+        "action": "Return new tokens in secure cookies",
+        "response": {
+          "success": true,
+          "expiresIn": "New token expiration time"
+        },
+        "cookies": "Updated HttpOnly secure cookies",
+        "transparent": "No user interaction required"
+      },
+      {
+        "step": 6,
+        "name": "Frontend State Update",
+        "actor": "AuthContext",
+        "action": "Update authentication state silently",
+        "stateChanges": [
+          "Reset token refresh timer",
+          "Update token expiration tracking",
+          "Continue normal operation"
+        ],
+        "errorHandling": "On failure, redirect to login"
+      }
+    ],
+    "errorScenarios": {
+      "refreshTokenExpired": {
+        "action": "Clear auth state and redirect to login",
+        "userExperience": "Seamless redirect with 'session expired' message"
+      },
+      "networkFailure": {
+        "action": "Retry with exponential backoff",
+        "maxRetries": 3,
+        "fallback": "Show network error and retry option"
+      },
+      "serverError": {
+        "action": "Log error and retry later",
+        "gracefulDegradation": "Continue with existing token until manual refresh"
+      }
+    }
+  },
+
+  "sessionManagement": {
+    "name": "Session Lifecycle Management",
+    "description": "Complete session management from creation to cleanup",
+    "components": {
+      "sessionCreation": {
+        "triggers": ["Successful login", "Registration", "OAuth completion"],
+        "process": [
+          "Generate unique session ID",
+          "Create session record with expiration",
+          "Set secure HttpOnly cookies",
+          "Initialize session monitoring"
+        ]
+      },
+      "sessionMaintenance": {
+        "activities": [
+          "Update last activity timestamp on requests",
+          "Monitor for suspicious activity patterns",
+          "Track session usage for analytics",
+          "Refresh tokens before expiration"
+        ]
+      },
+      "sessionTermination": {
+        "triggers": [
+          "User logout",
+          "Token expiration",
+          "Suspicious activity detection",
+          "Administrative action"
+        ],
+        "process": [
+          "Invalidate all session tokens",
+          "Clear secure cookies",
+          "Remove session record from database",
+          "Log session termination"
+        ]
+      },
+      "sessionCleanup": {
+        "schedule": "Daily cleanup job",
+        "targets": [
+          "Expired sessions",
+          "Orphaned OAuth states", 
+          "Old anonymous sessions",
+          "Invalid session records"
+        ],
+        "retention": "30 days for audit purposes"
+      }
+    },
+    "securityFeatures": {
+      "sessionFixation": "New session ID on privilege escalation",
+      "concurrentSessions": "Allow multiple sessions per user with tracking",
+      "sessionTimeout": "Automatic timeout after inactivity",
+      "deviceFingerprinting": "Track device characteristics for security"
+    }
+  },
+
+  "authorizationMiddleware": {
+    "name": "Route Protection and Authorization",
+    "description": "Middleware for protecting routes and enforcing permissions",
+    "implementation": "worker/middleware/security/auth.ts",
+    "components": {
+      "authenticationMiddleware": {
+        "purpose": "Verify user authentication status",
+        "process": [
+          "Extract JWT from HttpOnly cookie",
+          "Validate token signature and expiration",
+          "Look up session in database",
+          "Inject user context into request"
+        ],
+        "outcomes": [
+          "Authenticated: Continue with user context",
+          "Unauthenticated: Return 401 or redirect to login",
+          "Token expired: Attempt automatic refresh"
+        ]
+      },
+      "authorizationMiddleware": {
+        "purpose": "Enforce role-based access control",
+        "implementation": "Check user roles and permissions",
+        "roleHierarchy": {
+          "user": "Basic authenticated user",
+          "premium": "Premium subscription user",
+          "admin": "Administrative access",
+          "superadmin": "Full system access"
+        },
+        "permissionModel": "Role-based with resource-specific permissions"
+      },
+      "routeProtection": {
+        "publicRoutes": ["/", "/auth/*", "/discover", "/app/:id"],
+        "protectedRoutes": ["/dashboard", "/profile", "/settings", "/apps"],
+        "adminRoutes": ["/admin/*", "/system/*"],
+        "apiProtection": "All /api routes require appropriate authentication"
+      }
+    }
+  },
+
+  "securityFeatures": {
+    "name": "Security Implementations and Best Practices",
+    "implementations": {
+      "passwordSecurity": {
+        "hashing": "bcrypt with 12 salt rounds",
+        "strength": "Minimum 8 chars, mixed case, numbers",
+        "storage": "Never store plaintext passwords",
+        "transmission": "Only over HTTPS"
+      },
+      "tokenSecurity": {
+        "signing": "HS256 with strong secret",
+        "storage": "HttpOnly, Secure, SameSite cookies",
+        "rotation": "Automatic refresh token rotation",
+        "expiration": "Short-lived access tokens (15 min)"
+      },
+      "oauthSecurity": {
+        "pkce": "PKCE for all OAuth flows",
+        "state": "CSRF protection with state validation",
+        "scope": "Minimal scope requests",
+        "storage": "Encrypted token storage"
+      },
+      "sessionSecurity": {
+        "fixation": "Session ID regeneration on login",
+        "hijacking": "IP and device fingerprinting",
+        "timeout": "Automatic session timeout",
+        "invalidation": "Suspicious activity detection"
+      }
+    },
+    "monitoring": {
+      "failedLogins": "Track and alert on unusual patterns",
+      "bruteForce": "Rate limiting and account lockout",
+      "anomalies": "Geographic and behavioral analysis",
+      "compliance": "Audit logging for regulatory requirements"
+    }
+  },
+
+  "errorHandlingAndRecovery": {
+    "name": "Authentication Error Handling",
+    "errorTypes": {
+      "userErrors": [
+        "Invalid credentials",
+        "Account locked",
+        "Email not verified",
+        "Password too weak"
+      ],
+      "systemErrors": [
+        "Database connection failure",
+        "OAuth provider unavailable",
+        "Token signing failure",
+        "Session storage failure"
+      ],
+      "securityErrors": [
+        "CSRF token mismatch",
+        "Suspicious activity detected",
+        "Rate limit exceeded",
+        "Invalid OAuth state"
+      ]
+    },
+    "recoveryMechanisms": {
+      "automaticRetry": "Retry transient failures with backoff",
+      "gracefulDegradation": "Fallback to alternative auth methods",
+      "userGuidance": "Clear error messages with next steps",
+      "adminEscalation": "Critical errors alert administrators"
+    }
+  },
+
+  "performanceOptimizations": {
+    "name": "Authentication Performance Optimizations",
+    "optimizations": {
+      "tokenValidation": "In-memory caching of valid tokens",
+      "sessionLookup": "Database indexing on session keys",
+      "passwordHashing": "Async hashing to prevent blocking",
+      "oauthCaching": "Cache OAuth provider configurations"
+    },
+    "metrics": {
+      "authLatency": "< 100ms for token validation",
+      "loginLatency": "< 500ms for successful login",
+      "oauthLatency": "< 2s for complete OAuth flow",
+      "refreshLatency": "< 200ms for token refresh"
+    }
+  }
+}

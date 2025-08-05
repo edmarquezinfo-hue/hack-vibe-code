@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mermaid Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <h1>Simple Mermaid Test</h1>
+    <div class="mermaid">
+        graph TD
+            A[Start] --> B[Process]
+            B --> C[End]
+    </div>
+    
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default'
+        });
+    </script>
+</body>
+</html>

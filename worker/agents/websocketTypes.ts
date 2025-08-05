@@ -1,0 +1,330 @@
+import type { Blueprint, ClientReportedErrorType, CodeReviewOutputType, FileConceptType, FileOutputType, TechnicalInstructionType } from "./schemas";
+import type { CodeGenState } from "./core/state";
+import type { RuntimeError, StaticAnalysisResponse } from "../services/sandbox/sandboxTypes";
+
+/**
+ * Generation REST API response
+ */
+export interface ApiResponse {
+	success: boolean;
+	data: {
+		text_explanation: string;
+		generated_code?: FileOutputType[];
+		progress?: {
+			completedFiles: number;
+			totalFiles: number;
+		};
+		blueprint?: Blueprint;
+	};
+	statusCode: number;
+}
+
+type ErrorMessage = {
+    type: 'error';
+    error: string;
+};
+
+type StateMessage = {
+	type: 'cf_agent_state';
+	state: CodeGenState;
+};
+
+type GenerationStartedMessage = {
+	type: 'generation_started';
+	message: string;
+	totalFiles: number;
+};
+
+type FileGeneratingMessage = {
+	type: 'file_generating';
+	file_path: string;
+	file_purpose: string;
+};
+
+type FileRegeneratingMessage = {
+	type: 'file_regenerating';
+	file_path: string;
+	original_issues?: string;
+};
+
+type FileChunkGeneratedMessage = {
+	type: 'file_chunk_generated';
+	file_path: string;
+	chunk: string;
+};
+
+type FileGeneratedMessage = {
+	type: 'file_generated';
+	file: FileOutputType;
+};
+
+type FileRegeneratedMessage = {
+	type: 'file_regenerated';
+	file: FileOutputType;
+	original_issues: string;
+};
+
+type GenerationCompleteMessage = {
+	type: 'generation_complete';
+	instanceId?: string;
+	previewURL?: string;
+};
+
+type DeploymentStartedMessage = {
+	type: 'deployment_started';
+	message: string;
+	files: { file_path: string }[];
+};
+
+type DeploymentFailedMessage = {
+	type: 'deployment_failed';
+	message: string;
+};
+
+type DeploymentCompletedMessage = {
+	type: 'deployment_completed';
+	previewURL: string;
+	tunnelURL: string;
+	instanceId: string;
+	message: string;
+};
+
+type CommandExecutingMessage = {
+	type: 'command_executing';
+	message: string;
+	commands: string[];
+};
+
+type CodeReviewMessage = {
+	type: 'code_review';
+	message: string;
+	review: CodeReviewOutputType;
+};
+
+type RuntimeErrorFoundMessage = {
+	type: 'runtime_error_found';
+	errors: RuntimeError[];
+	count: number;
+};
+
+export type CodeFixEdits = {
+	type: 'code_fix_edits';
+	filePath: string;
+	search: string;
+	replacement: string;
+};
+
+type GenerationErrors = {
+	type: 'generation_errors';
+	staticAnalysis?: StaticAnalysisResponse;
+	clientErrors: ClientReportedErrorType[];
+	runtimeErrors: RuntimeError[];
+};
+
+type StaticAnalysisResults = {
+    type: 'static_analysis_results';
+    staticAnalysis: StaticAnalysisResponse;
+}
+
+type PhaseGeneratingMessage = {
+	type: 'phase_generating';
+	message: string;
+	phase?: {
+		name: string;
+		description: string;
+		files: FileConceptType[];
+	};
+};
+
+type PhaseGeneratedMessage = {
+	type: 'phase_generated';
+	message: string;
+	phase: {
+		name: string;
+		description: string;
+		files: FileConceptType[];
+	};
+};
+
+type PhaseImplementingMessage = {
+	type: 'phase_implementing';
+	message: string;
+	phase: {
+		name: string;
+		description: string;
+		files: FileConceptType[];
+	};
+};
+
+type PhaseImplementedMessage = {
+	type: 'phase_implemented';
+	message: string;
+	phase: {
+		name: string;
+		description: string;
+		files: FileConceptType[];
+	};
+};
+
+type PhaseValidatingMessage = {
+	type: 'phase_validating';
+	message: string;
+	phase: {
+		name: string;
+		description: string;
+		files: FileConceptType[];
+	};
+};
+
+type PhaseValidatedMessage = {
+	type: 'phase_validated';
+	message: string;
+	phase: {
+		name: string;
+		description: string;
+		files: FileConceptType[];
+	};
+};
+
+type GenerationStoppedMessage = {
+	type: 'generation_stopped';
+	message: string;
+	instanceId: string;
+};
+
+type GenerationResumedMessage = {
+	type: 'generation_resumed';
+	message: string;
+	instanceId: string;
+};
+
+type CloudflareDeploymentStartedMessage = {
+	type: 'cloudflare_deployment_started';
+	message: string;
+	instanceId: string;
+};
+
+type CloudflareDeploymentCompletedMessage = {
+	type: 'cloudflare_deployment_completed';
+	message: string;
+	instanceId: string;
+	deploymentUrl: string;
+	workersUrl?: string;
+};
+
+type CloudflareDeploymentErrorMessage = {
+	type: 'cloudflare_deployment_error';
+	message: string;
+	instanceId: string;
+	error: string;
+};
+
+type ScreenshotAnalysisResultMessage = {
+	type: 'screenshot_analysis_result';
+	message: string;
+	analysis: {
+		hasIssues: boolean;
+		issues: string[];
+		suggestions: string[];
+		uiCompliance: {
+			matchesBlueprint: boolean;
+			deviations: string[];
+		};
+	};
+};
+
+type GitHubExportStartedMessage = {
+	type: 'github_export_started';
+	message: string;
+	repositoryName: string;
+	isPrivate: boolean;
+};
+
+type GitHubExportProgressMessage = {
+	type: 'github_export_progress';
+	message: string;
+	step: 'creating_repository' | 'uploading_files' | 'finalizing';
+	progress: number; // 0-100
+};
+
+type GitHubExportCompletedMessage = {
+	type: 'github_export_completed';
+	message: string;
+	repositoryUrl: string;
+};
+
+type GitHubExportErrorMessage = {
+	type: 'github_export_error';
+	message: string;
+	error: string;
+};
+
+type UserSuggestionsProcessingMessage = {
+	type: 'user_suggestions_processing';
+	message: string;
+	suggestions: string[];
+};
+
+type UserSuggestionsProcessedMessage = {
+	type: 'user_suggestions_processed';
+	message: string;
+} & TechnicalInstructionType;
+
+type ConversationResponseMessage = {
+	type: 'conversation_response';
+	message: string;
+	conversationId?: string;
+	enhancedRequest?: string;
+	pendingInputsCount?: number;
+	isStreaming?: boolean;
+};
+
+export type WebSocketMessage =
+	| StateMessage
+	| GenerationStartedMessage
+	| FileGeneratingMessage
+	| FileRegeneratingMessage
+	| FileChunkGeneratedMessage
+	| FileGeneratedMessage
+	| FileRegeneratedMessage
+	| GenerationCompleteMessage
+	| DeploymentStartedMessage
+	| DeploymentCompletedMessage
+	| DeploymentFailedMessage
+	| CodeReviewMessage
+	| CommandExecutingMessage
+	| RuntimeErrorFoundMessage
+	| CodeFixEdits
+	| GenerationErrors
+    | StaticAnalysisResults
+	| PhaseGeneratingMessage
+	| PhaseGeneratedMessage
+	| PhaseImplementingMessage
+	| PhaseImplementedMessage
+	| PhaseValidatingMessage
+	| PhaseValidatedMessage
+	| GenerationStoppedMessage
+	| GenerationResumedMessage
+	| CloudflareDeploymentStartedMessage
+	| CloudflareDeploymentCompletedMessage
+	| CloudflareDeploymentErrorMessage
+	| ScreenshotAnalysisResultMessage
+	| GitHubExportStartedMessage
+	| GitHubExportProgressMessage
+	| GitHubExportCompletedMessage
+	| GitHubExportErrorMessage
+	| ErrorMessage
+	| UserSuggestionsProcessingMessage
+	| UserSuggestionsProcessedMessage
+	| ConversationResponseMessage;
+
+// A type representing all possible message type strings (e.g., 'generation_started', 'file_generating', etc.)
+export type WebSocketMessageType = WebSocketMessage['type'];
+
+// A utility type to find the full message object from the union based on its type string.
+// e.g., MessagePayload<'phase_generating'> will resolve to PhaseGeneratingMessage
+type WebSocketMessagePayload<T extends WebSocketMessageType> = Extract<WebSocketMessage, { type: T }>;
+
+// A utility type to get only the data part of the payload, excluding the 'type' property.
+// This is what your 'data' parameter will be.
+export type WebSocketMessageData<T extends WebSocketMessageType> = Omit<WebSocketMessagePayload<T>, 'type'>;

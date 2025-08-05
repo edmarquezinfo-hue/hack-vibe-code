@@ -2,19 +2,19 @@
  * For more details on how to configure Wrangler, refer to:
  * https://developers.cloudflare.com/workers/wrangler/configuration/
  */
-{
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "orange_build",
+ {
+	// "$schema": "node_modules/wrangler/config-schema.json",
+	"name": "orange_build_prod",
 	"main": "worker/index.ts",
 	"compatibility_date": "2025-04-10",
 	"compatibility_flags": ["nodejs_compat"],
-	"account_id": "7449da25f3a0ed58b1f500c4f1d5a0e4",
 	"assets": {
 		"directory": "dist",
 		"not_found_handling": "single-page-application",
+		"run_worker_first": ["/api/*", "!/api/docs/*"]
 	},
 	"observability": {
-		"enabled": true,
+		"enabled": true
 	},
 	/**
 	 * Bindings
@@ -23,29 +23,112 @@
 	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
 	 */
 	"ai": {
-		"binding": "AI",
+		"binding": "AI"
 	},
+	"containers": [
+		{
+			"class_name": "UserAppSandboxService",
+			"image": "./SandboxDockerfile",
+			"max_instances": 10,
+            "configuration": {
+              "vcpu": 8,
+              "memory_mib": 8192,
+              "disk": {
+                "size_mb": 10240
+              }
+            },
+            "rollout_step_percentage": 100
+		}
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "orange-build-db",
+			"database_id": "3085356f-6009-4a75-a478-66c05a5a532f",
+			"migrations_dir": "migrations"
+		}
+	],
 	"durable_objects": {
 		"bindings": [
 			{
 				"class_name": "CodeGeneratorAgent",
 				"name": "CodeGenObject"
-			}
+			},
+			// {
+			// 	"class_name": "SmartCodeGeneratorAgent",
+			// 	"name": "CodeGenObject"
+			// },
+            {
+                "class_name": "UserAppSandboxService",
+                "name": "SandboxServiceObject"
+            }
 		]
 	},
+    "r2_buckets": [
+      {
+        "binding": "TEMPLATES_BUCKET",
+        "bucket_name": "orange-build-templates",
+        "experimental_remote": true,
+        "preview_bucket_name": "orange-build-template-dev"
+      }
+    ],
+    "kv_namespaces": [
+        {
+        "binding": "INSTANCE_REGISTRY",
+        "id": "801cc1d5758e44f1bd0565985d9d6df0"
+        }
+    ],
 	"migrations": [
 		{
 			"new_sqlite_classes": [
-				"CodeGeneratorAgent"
+				"CodeGeneratorAgent",
+				// "SmartCodeGeneratorAgent"
+				"UserAppSandboxService"
 			],
 			"tag": "v1"
 		}
 	],
+	"services": [
+		{
+			"binding": "RUNNER_SERVICE",
+			"service": "runner-service"
+		}
+	],
+	"routes": [
+	  {
+		"pattern": "build.chat.cloudflare.dev",
+		"custom_domain": true
+	  },
+	  {
+		"pattern": "build.cloudflare.dev",
+		"custom_domain": true
+	  },
+	  {
+		"pattern": "*build.cloudflare.dev/*",
+		"custom_domain": false
+	  }
+	],
 	"vars": {
-		"RUNNER_SERVICE_URL": "http://ec2-54-83-20-139.compute-1.amazonaws.com:13198",
-		"CF_ACCOUNT_ID": "7449da25f3a0ed58b1f500c4f1d5a0e4",
-		"CF_GATEWAY_ID": "c-coder",
+		"SANDBOX_SERVICE_URL": "https://runner-service.eti-india.workers.dev", 
+		// // "SANDBOX_SERVICE_URL": "https://sandboxsdk-dev-worker.eti-india.workers.dev",
+		// "CF_ACCOUNT_ID": "7449da25f3a0ed58b1f500c4f1d5a0e4", // "f44999d1ddda7012e9a87729eba250f1",
+		// "CF_GATEWAY_ID": "c-coder",
+        "TEMPLATES_BUCKET_URL": "https://pub-a087c6e0b61c4f15984726f1f1b40594.r2.dev",
+        "TEMPLATES_GATEWAY_URL": "https://templates.coder.eti-india.workers.dev",
+        "VITE_PREVIEW_MODE": "tunnel",
+        "SANDBOX_SERVICE_TYPE": "sandbox"
+		// "ANTHROPIC_API_KEY": "",
+		// "OPENAI_API_KEY": "",
+		// "GEMINI_API_KEY": "",
+		// "OPENROUTER_API_KEY": "",
+		// "RUNNER_SERVICE_API_KEY": "",
+		// "JWT_SECRET": "",
+		// "BASE_URL": "https://build.ashishkumarsingh.com",
+		// "GITHUB_CLIENT_ID": "",
+		// "GITHUB_CLIENT_SECRET": "",
+		// "GOOGLE_CLIENT_ID": "",
+		// "GOOGLE_CLIENT_SECRET": ""
 	},
 	"workers_dev": false,
-	"preview_urls": false,
+	"preview_urls": false
 }

@@ -32,7 +32,7 @@ export function FileTreeItem({
 				className={`flex items-center w-full gap-2 py-1 px-3 transition-colors text-sm ${
 					isCurrentFile
 						? 'text-brand bg-zinc-100'
-						: 'text-text/80 hover:bg-white/5 hover:text-text'
+						: 'text-text/80 hover:bg-accent hover:text-text'
 				}`}
 				style={{ paddingLeft: `${level * 12 + 12}px` }}
 			>
@@ -55,7 +55,7 @@ export function FileTreeItem({
 		<div>
 			<button
 				onClick={() => setIsExpanded(!isExpanded)}
-				className="flex items-center gap-2 py-1 px-3 transition-colors text-sm text-text/80 hover:bg-white/5 hover:text-text w-full"
+				className="flex items-center gap-2 py-1 px-3 transition-colors text-sm text-text/80 hover:bg-accent hover:text-text w-full"
 				style={{ paddingLeft: `${level * 12 + 12}px` }}
 			>
 				<ChevronRight

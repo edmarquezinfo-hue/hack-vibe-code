@@ -7,35 +7,78 @@ import {
 	type FormEvent,
 } from 'react';
 import { ArrowRight } from 'react-feather';
-import { useParams, useSearchParams } from 'react-router';
+import { useParams, useSearchParams , useNavigate } from 'react-router';
 import { MonacoEditor } from '../../components/monaco-editor/monaco-editor';
-import { Header } from '../../components/header';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Expand, Loader, LoaderCircle } from 'lucide-react';
+import {
+	Expand,
+	LoaderCircle,
+	RefreshCw,
+	Save,
+	Github,
+} from 'lucide-react';
 import { Blueprint } from './components/blueprint';
 import { FileExplorer } from './components/file-explorer';
 import { UserMessage, AIMessage } from './components/messages';
+import { PhaseTimeline } from './components/phase-timeline';
+import { SmartPreviewIframe } from './components/smart-preview-iframe';
 import { ViewModeSwitch } from './components/view-mode-switch';
+import { DebugPanel, type DebugMessage } from './components/debug-panel';
+import { DeploymentControls } from './components/deployment-controls';
 import { useChat, type FileType } from './hooks/use-chat';
+import type { BlueprintType } from './api-types';
 import { Copy } from './components/copy';
-import { useNavigate } from 'react-router';
 import { useFileContentStream } from './hooks/use-file-content-stream';
 import { logger } from '../../utils/logger';
 import clsx from 'clsx';
+import { useApp } from '@/hooks/use-app';
+import { AgentModeDisplay } from '../../components/agent-mode-display';
+import { useGitHubExport } from '@/hooks/use-github-export';
+import { GitHubExportModal } from '@/components/github-export-modal';
 
 export default function Chat() {
-	const { agentId } = useParams();
+	const { chatId: urlChatId } = useParams();
 
 	const [searchParams] = useSearchParams();
 	const userQuery = searchParams.get('query');
+	const agentMode = searchParams.get('agentMode') || 'deterministic';
+
+	// Load existing app data if chatId is provided
+	const { app, loading: appLoading } = useApp(urlChatId);
+
+	// If we have an existing app, use its data
+	const displayQuery = app ? app.originalPrompt || app.title : (userQuery || '');
+	const appTitle = app?.title;
+
+	// Manual refresh trigger for preview
+	const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0);
+
+	// Debug message utilities
+	const addDebugMessage = useCallback((type: DebugMessage['type'], message: string, details?: string, source?: string, messageType?: string, rawMessage?: unknown) => {
+		const debugMessage: DebugMessage = {
+			id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+			timestamp: Date.now(),
+			type,
+			message,
+			details,
+			source,
+			messageType,
+			rawMessage
+		};
+		
+		setDebugMessages(prev => [...prev, debugMessage]);
+	}, []);
+	
+	const clearDebugMessages = useCallback(() => {
+		setDebugMessages([]);
+	}, []);
 
 	const {
 		messages,
+		edit,
 		bootstrapFiles,
-		blueprint,
-		previewUrl,
-		query,
 		chatId,
+		query,
 		files,
 		isGeneratingBlueprint,
 		isBootstrapping,
@@ -43,14 +86,36 @@ export default function Chat() {
 		websocket,
 		sendUserMessage,
 		sendAiMessage,
-		edit,
+		blueprint,
+		previewUrl,
 		clearEdit,
-		projectPhases,
+		projectStages,
+		phaseTimeline,
+		isThinking,
 		onCompleteBootstrap,
+		// Deployment and generation control
+		isDeploying,
+		cloudflareDeploymentUrl,
+		deploymentError,
+		isRedeployReady,
+		isGenerationPaused,
+		isGenerating,
+		handleStopGeneration,
+		handleResumeGeneration,
+		handleDeployToCloudflare,
+		// Preview refresh control
+		shouldRefreshPreview,
+		// Preview deployment state
+		isPreviewDeploying,
 	} = useChat({
-		agentId,
+		chatId: urlChatId,
 		query: userQuery,
+		agentMode: agentMode as 'deterministic' | 'smart',
+		onDebugMessage: addDebugMessage,
 	});
+
+	// GitHub export functionality
+	const githubExport = useGitHubExport(websocket);
 
 	const navigate = useNavigate();
 
@@ -58,9 +123,14 @@ export default function Chat() {
 	const [view, setView] = useState<'editor' | 'preview' | 'blueprint'>(
 		'editor',
 	);
+	
+	// Debug panel state
+	const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
 
 	const hasSeenPreview = useRef(false);
 	const hasSwitchedFile = useRef(false);
+	const wasChatDisabled = useRef(true);
+	const hasShownWelcome = useRef(false);
 
 	const editorRef = useRef<HTMLDivElement>(null);
 	const previewRef = useRef<HTMLIFrameElement>(null);
@@ -97,8 +167,8 @@ export default function Chat() {
 	);
 
 	const codeGenState = useMemo(() => {
-		return projectPhases[2].status;
-	}, [projectPhases]);
+		return projectStages.find(stage => stage.id === 'code')?.status;
+	}, [projectStages]);
 
 	const generatingFile = useMemo(() => {
 		// code gen status should be active
@@ -130,6 +200,10 @@ export default function Chat() {
 		streamedBootstrapFiles,
 		isBootstrapping,
 	]);
+
+	const isPhase1Complete = useMemo(() => {
+		return phaseTimeline.length > 0;
+	}, [phaseTimeline]);
 
 	const showMainView = useMemo(
 		() => streamedBootstrapFiles.length > 0 || !!blueprint || files.length > 0,
@@ -197,7 +271,7 @@ export default function Chat() {
 		if (doneStreaming && !isGeneratingBlueprint && !blueprint) {
 			onCompleteBootstrap();
 			sendAiMessage({
-				id: 'main',
+				id: 'creating-blueprint',
 				message: 'Bootstrapping complete, now creating a blueprint for you...',
 				isThinking: true,
 			});
@@ -212,22 +286,52 @@ export default function Chat() {
 
 	const isRunning = useMemo(() => {
 		return (
-			isBootstrapping || isGeneratingBlueprint || codeGenState === 'active'
+			isBootstrapping || isGeneratingBlueprint// || codeGenState === 'active'
 		);
-	}, [isBootstrapping, isGeneratingBlueprint, codeGenState]);
+	}, [isBootstrapping, isGeneratingBlueprint]);
+
+	// Check if chat input should be disabled (before blueprint completion and agentId assignment)
+	const isChatDisabled = useMemo(() => {
+		const blueprintStage = projectStages.find(stage => stage.id === 'blueprint');
+		const isBlueprintComplete = blueprintStage?.status === 'completed';
+		const hasAgentId = !!chatId;
+		
+		// Disable until both blueprint is complete AND we have an agentId
+		return !isBlueprintComplete || !hasAgentId;
+	}, [projectStages, chatId]);
+
+	// Show welcome message when chat becomes available
+	useEffect(() => {
+		if (wasChatDisabled.current && !isChatDisabled && chatId && !hasShownWelcome.current) {
+			sendAiMessage({
+				id: 'chat-welcome',
+				message: 'You can talk to me while I get your app built',
+				isThinking: false,
+			});
+			wasChatDisabled.current = false;
+			hasShownWelcome.current = true;
+		} else if (isChatDisabled) {
+			wasChatDisabled.current = true;
+		}
+	}, [isChatDisabled, chatId, sendAiMessage]);
 
 	const onNewMessage = useCallback(
 		(e: FormEvent) => {
 			e.preventDefault();
-			if (!isRunning) {
-				websocket?.send(
-					JSON.stringify({ type: 'update_query', query: newMessage }),
-				);
-				sendUserMessage(newMessage);
-				setNewMessage('');
+			
+			// Don't submit if chat is disabled or message is empty
+			if (isChatDisabled || !newMessage.trim()) {
+				return;
 			}
+			
+			// When generation is active, send as conversational AI suggestion
+			websocket?.send(
+				JSON.stringify({ type: 'user_suggestion', message: newMessage }),
+			);
+			sendUserMessage(newMessage);
+			setNewMessage('');
 		},
-		[newMessage, websocket, sendUserMessage, isRunning],
+		[newMessage, websocket, sendUserMessage, isChatDisabled],
 	);
 
 	const [progress, total] = useMemo((): [number, number] => {
@@ -259,21 +363,37 @@ export default function Chat() {
 			progress,
 			total,
 			isRunning,
-			projectPhases,
+			projectStages,
 		});
 	}
 
 	return (
 		<div className="size-full flex flex-col">
-			<Header />
 			<div className="flex-1 flex min-h-0 justify-center">
 				<motion.div
 					layout="position"
-					className="flex-1 shrink-0 flex flex-col basis-0 max-w-lg relative z-10"
+					className="flex-1 shrink-0 flex flex-col basis-0 max-w-lg relative z-10 h-full"
 				>
-					<div className="flex-1 overflow-y-auto">
-						<div className="pt-5 px-4 text-sm flex flex-col gap-5">
-							<UserMessage message={query ?? userQuery ?? ''} />
+					<div className="flex-1 overflow-y-auto min-h-0 chat-messages-scroll">
+						<div className="pt-5 px-4 pb-4 text-sm flex flex-col gap-5">
+							{appLoading ? (
+								<div className="flex items-center gap-2 text-muted-foreground">
+									<LoaderCircle className="size-4 animate-spin" />
+									Loading app...
+								</div>
+							) : (
+								<>
+									{appTitle && (
+										<div className="text-lg font-semibold mb-2">{appTitle}</div>
+									)}
+									<UserMessage message={query ?? displayQuery} />
+									<div className="flex justify-between items-center py-2 border-b border-border/50 mb-4">
+										<AgentModeDisplay 
+											mode={agentMode as 'deterministic' | 'smart'} 
+										/>
+									</div>
+								</>
+							)}
 
 							{mainMessage && (
 								<AIMessage
@@ -284,8 +404,8 @@ export default function Chat() {
 
 							<motion.div layout="position" className="pl-9 drop-shadow mb-2">
 								<div className="px-2 pr-3.5 py-3 flex-1 rounded-xl border border-black/12 bg-bg">
-									{projectPhases.map((phase, index) => {
-										const { id, status, title, metadata } = phase;
+									{projectStages.map((stage, index) => {
+										const { id, status, title, metadata } = stage;
 
 										return (
 											<div className="flex relative w-full gap-2 pb-2.5 last:pb-0">
@@ -370,51 +490,17 @@ export default function Chat() {
 														</button>
 													)}
 
-													{id === 'code' &&
-														files.map((file) => {
-															const isFileActive =
-																view === 'editor' &&
-																activeFile?.file_path === file.file_path;
-
-															return (
-																<button
-																	key={file.file_path}
-																	onClick={() => handleFileClick(file)}
-																	className="flex items-center gap-2 py-0.5 transition-colors font-mono"
-																	aria-selected={isFileActive}
-																>
-																	{file.isGenerating ? (
-																		<span className="text-brand/70 whitespace-nowrap">
-																			<Loader className="size-4 animate-spin" />
-																		</span>
-																	) : (
-																		<span className="text-green-600 whitespace-nowrap">
-																			<Check className="size-4" />
-																		</span>
-																	)}
-																	<span
-																		className={clsx(
-																			'text-xs flex-1 text-left truncate',
-
-																			isFileActive
-																				? // && viewState.mode === 'code'
-																					'text-brand underline decoration-dotted'
-																				: 'text-text/80 hover:bg-bg-lighter/50 hover:text-text',
-																		)}
-																	>
-																		{file.file_path}
-																	</span>
-
-																	<div>
-																		<span className="text-green-600 text-xs font-mono tracking-tight">
-																			+
-																			{file.file_contents.split('\n').length +
-																				1}
-																		</span>
-																	</div>
-																</button>
-															);
-														})}
+													{id === 'code' && (
+														<PhaseTimeline
+															phaseTimeline={phaseTimeline}
+															files={files}
+															view={view}
+															activeFile={activeFile}
+															onFileClick={handleFileClick}
+															isThinkingNext={isThinking}
+															isPreviewDeploying={isPreviewDeploying}
+														/>
+													)}
 
 													{metadata && (
 														<span className="font-mono text-xs text-zinc-500 tracking-tighter">
@@ -423,7 +509,7 @@ export default function Chat() {
 													)}
 												</div>
 
-												{index !== projectPhases.length - 1 && (
+												{index !== projectStages.length - 1 && (
 													<div
 														className={clsx(
 															'absolute left-[9.25px] w-px h-full top-2.5 z-10',
@@ -439,8 +525,32 @@ export default function Chat() {
 								</div>
 							</motion.div>
 
+							{/* Deployment and Generation Controls */}
+							{chatId && (
+								<motion.div
+									initial={{ opacity: 0, y: 20 }}
+									animate={{ opacity: 1, y: 0 }}
+									transition={{ duration: 0.3, delay: 0.2 }}
+									className="px-4 mb-6"
+								>
+									<DeploymentControls
+										isPhase1Complete={isPhase1Complete}
+										isDeploying={isDeploying}
+										deploymentUrl={cloudflareDeploymentUrl}
+										instanceId={chatId}
+										isRedeployReady={isRedeployReady}
+										deploymentError={deploymentError}
+										isGenerating={isGenerating || isGeneratingBlueprint}
+										isPaused={isGenerationPaused}
+										onDeploy={handleDeployToCloudflare}
+										onStopGeneration={handleStopGeneration}
+										onResumeGeneration={handleResumeGeneration}
+									/>
+								</motion.div>
+							)}
+
 							{otherMessages.map((message) => {
-								if (message.type === 'ai')
+								if (message.type === 'ai') {
 									return (
 										<AIMessage
 											key={message.id}
@@ -448,6 +558,7 @@ export default function Chat() {
 											isThinking={message.isThinking}
 										/>
 									);
+								}
 								return (
 									<UserMessage key={message.id} message={message.message} />
 								);
@@ -455,11 +566,9 @@ export default function Chat() {
 						</div>
 					</div>
 
-					<div className="h-20"></div>
-
 					<form
 						onSubmit={onNewMessage}
-						className="absolute bottom-0 left-0 right-0 p-4 pb-5 bg-transparent"
+						className="shrink-0 p-4 pb-5 bg-transparent"
 					>
 						<div className="relative">
 							<input
@@ -468,12 +577,19 @@ export default function Chat() {
 								onChange={(e) => {
 									setNewMessage(e.target.value);
 								}}
-								placeholder="Ask a follow up..."
-								className="w-full bg-bg-lighter border border-white/10 rounded-xl px-3 pr-10 py-2 text-sm outline-none focus:border-white/20 drop-shadow-2xl text-text placeholder:!text-text/50"
+								disabled={isChatDisabled}
+								placeholder={
+									isChatDisabled 
+										? "Please wait for blueprint completion..." 
+										: isRunning 
+											? "Chat with AI while generating..." 
+											: "Ask a follow up..."
+								}
+								className="w-full bg-bg-lighter border border-white/10 rounded-xl px-3 pr-10 py-2 text-sm outline-none focus:border-white/20 drop-shadow-2xl text-text placeholder:!text-text/50 disabled:opacity-50 disabled:cursor-not-allowed"
 							/>
 							<button
 								type="submit"
-								disabled={!newMessage.trim() || isRunning}
+								disabled={!newMessage.trim() || isChatDisabled}
 								className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md bg-brand/90 hover:bg-bg-lighter/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-transparent text-text-on-brands disabled:text-text transition-colors"
 							>
 								<ArrowRight className="size-4" />
@@ -509,25 +625,60 @@ export default function Chat() {
 													{blueprint?.title ?? 'Preview'}
 												</span>
 												<Copy text={previewUrl} />
+												<button
+													className="p-1 hover:bg-bg-lighter rounded transition-colors"
+													onClick={() => {
+														setManualRefreshTrigger(Date.now());
+													}}
+													title="Refresh preview"
+												>
+													<RefreshCw className="size-4 text-text/50" />
+												</button>
 											</div>
 										</div>
 
 										<div className="flex items-center justify-end gap-1.5">
 											<button
-												className="p-1"
+												className="flex items-center gap-1.5 px-2 py-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-md transition-all duration-200 text-xs font-medium shadow-sm"
+												onClick={() => handleDeployToCloudflare(chatId!)}
+												disabled={isDeploying}
+												title="Save & Deploy"
+											>
+												{isDeploying ? (
+													<LoaderCircle className="size-3 animate-spin" />
+												) : (
+													<Save className="size-3" />
+												)}
+												{isDeploying ? 'Deploying...' : 'Save'}
+											</button>
+											<button
+												className="flex items-center gap-1.5 px-2 py-1 bg-gray-800 hover:bg-gray-900 text-white rounded-md transition-all duration-200 text-xs font-medium shadow-sm"
+												onClick={githubExport.openModal}
+												title="Export to GitHub"
+											>
+												<Github className="size-3" />
+												GitHub
+											</button>
+											<button
+												className="p-1 hover:bg-bg-lighter rounded transition-colors"
 												onClick={() => {
 													previewRef.current?.requestFullscreen();
 												}}
+												title="Fullscreen"
 											>
 												<Expand className="size-4 text-text/50" />
 											</button>
 										</div>
 									</div>
-									<iframe
+									<SmartPreviewIframe
 										src={previewUrl}
 										ref={previewRef}
 										className="flex-1 w-full h-full border-0"
 										title="Preview"
+										shouldRefreshPreview={shouldRefreshPreview}
+										manualRefreshTrigger={manualRefreshTrigger}
+										webSocket={websocket}
+										phaseTimelineLength={phaseTimeline.length}
 									/>
 								</div>
 							)}
@@ -546,8 +697,7 @@ export default function Chat() {
 									<div className="flex-1 overflow-y-auto bg-bg-light">
 										<div className="py-12 mx-auto">
 											<Blueprint
-												// eslint-disable-next-line @typescript-eslint/no-explicit-any
-												blueprint={blueprint ?? ({} as any)}
+												blueprint={blueprint ?? {} as BlueprintType}
 												className="w-full max-w-2xl mx-auto"
 											/>
 										</div>
@@ -579,10 +729,32 @@ export default function Chat() {
 
 											<div className="flex items-center justify-end gap-1.5">
 												<button
-													className="p-1"
+													className="flex items-center gap-1.5 px-2 py-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-md transition-all duration-200 text-xs font-medium shadow-sm"
+													onClick={() => handleDeployToCloudflare(chatId!)}
+													disabled={isDeploying}
+													title="Save & Deploy"
+												>
+													{isDeploying ? (
+														<LoaderCircle className="size-3 animate-spin" />
+													) : (
+														<Save className="size-3" />
+													)}
+													{isDeploying ? 'Deploying...' : 'Save'}
+												</button>
+												<button
+													className="flex items-center gap-1.5 px-2 py-1 bg-gray-800 hover:bg-gray-900 text-white rounded-md transition-all duration-200 text-xs font-medium shadow-sm"
+													onClick={githubExport.openModal}
+													title="Export to GitHub"
+												>
+													<Github className="size-3" />
+													GitHub
+												</button>
+												<button
+													className="p-1 hover:bg-bg-lighter rounded transition-colors"
 													onClick={() => {
 														editorRef.current?.requestFullscreen();
 													}}
+													title="Fullscreen"
 												>
 													<Expand className="size-4 text-text/50" />
 												</button>
@@ -631,6 +803,23 @@ export default function Chat() {
 					)}
 				</AnimatePresence>
 			</div>
+			
+			{/* Debug Panel */}
+			<DebugPanel 
+				messages={debugMessages} 
+				onClear={clearDebugMessages}
+				chatSessionId={chatId}
+			/>
+			
+			{/* GitHub Export Modal */}
+			<GitHubExportModal
+				isOpen={githubExport.isModalOpen}
+				onClose={githubExport.closeModal}
+				onExport={githubExport.startExport}
+				isExporting={githubExport.isExporting}
+				exportProgress={githubExport.progress}
+				exportResult={githubExport.result}
+			/>
 		</div>
 	);
 }

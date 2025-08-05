@@ -38,7 +38,7 @@ export function ViewModeSwitch({
 					'p-1 flex items-center justify-between h-full rounded-md transition-colors',
 					view === 'preview'
 						? 'bg-bg text-text'
-						: 'text-text-50/70 hover:text-text hover:bg-white/5',
+						: 'text-text-50/70 hover:text-text hover:bg-accent',
 				)}
 			>
 				<Eye className="size-4" />
@@ -49,7 +49,7 @@ export function ViewModeSwitch({
 					'p-1 flex items-center justify-between h-full rounded-md transition-colors',
 					view === 'editor'
 						? 'bg-bg text-text'
-						: 'text-text-50/70 hover:text-text hover:bg-white/5',
+						: 'text-text-50/70 hover:text-text hover:bg-accent',
 				)}
 			>
 				<Code className="size-4" />

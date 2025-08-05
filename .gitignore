@@ -27,5 +27,13 @@ dist-ssr
 # wrangler files
 .wrangler
 .dev.vars*
+.prod.vars*
 .env
 .env.*
+
+runner/downloads
+/generated/prisma
+
+/generated/prisma
+test.ts
+temp/

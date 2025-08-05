@@ -1,6 +1,235 @@
-@import 'tailwindcss' source('.');
-@plugin '@tailwindcss/typography';
+@import 'tailwindcss';
+@import "tw-animate-css";
 
+@custom-variant dark (&:is(.dark *));
+@plugin '@tailwindcss/typography';
+@theme inline {
+	--radius-sm:
+		calc(var(--radius) - 4px);
+	--radius-md:
+		calc(var(--radius) - 2px);
+	--radius-lg:
+		var(--radius);
+	--radius-xl:
+		calc(var(--radius) + 4px);
+	--color-background:
+		var(--background);
+	--color-foreground:
+		var(--foreground);
+	--color-card:
+		var(--card);
+	--color-card-foreground:
+		var(--card-foreground);
+	--color-popover:
+		var(--popover);
+	--color-popover-foreground:
+		var(--popover-foreground);
+	--color-primary:
+		var(--primary);
+	--color-primary-foreground:
+		var(--primary-foreground);
+	--color-secondary:
+		var(--secondary);
+	--color-secondary-foreground:
+		var(--secondary-foreground);
+	--color-muted:
+		var(--muted);
+	--color-muted-foreground:
+		var(--muted-foreground);
+	--color-accent:
+		var(--accent);
+	--color-accent-foreground:
+		var(--accent-foreground);
+	--color-destructive:
+		var(--destructive);
+	--color-border:
+		var(--border);
+	--color-input:
+		var(--input);
+	--color-ring:
+		var(--ring);
+	--color-chart-1:
+		var(--chart-1);
+	--color-chart-2:
+		var(--chart-2);
+	--color-chart-3:
+		var(--chart-3);
+	--color-chart-4:
+		var(--chart-4);
+	--color-chart-5:
+		var(--chart-5);
+	--color-sidebar:
+		var(--sidebar);
+	--color-sidebar-foreground:
+		var(--sidebar-foreground);
+	--color-sidebar-primary:
+		var(--sidebar-primary);
+	--color-sidebar-primary-foreground:
+		var(--sidebar-primary-foreground);
+	--color-sidebar-accent:
+		var(--sidebar-accent);
+	--color-sidebar-accent-foreground:
+		var(--sidebar-accent-foreground);
+	--color-sidebar-border:
+		var(--sidebar-border);
+	--color-sidebar-ring:
+		var(--sidebar-ring);
+}
+
+:root {
+	--radius:
+		0.625rem;
+	--background:
+		#fbfbfc;
+	--foreground:
+		oklch(0.145 0 0);
+	--card:
+		#ffffff;
+	--card-foreground:
+		oklch(0.145 0 0);
+	--popover:
+		oklch(1 0 0);
+	--popover-foreground:
+		oklch(0.145 0 0);
+	--primary:
+		oklch(0.205 0 0);
+	--primary-foreground:
+		oklch(0.985 0 0);
+	--secondary:
+		oklch(0.97 0 0);
+	--secondary-foreground:
+		oklch(0.205 0 0);
+	--muted:
+		oklch(0.97 0 0);
+	--muted-foreground:
+		oklch(0.556 0 0);
+	--accent:
+		oklch(0.97 0 0);
+	--accent-foreground:
+		oklch(0.205 0 0);
+	--destructive:
+		oklch(0.577 0.245 27.325);
+	--border:
+		oklch(0.922 0 0);
+	--input:
+		oklch(0.922 0 0);
+	--ring:
+		oklch(0.708 0 0);
+	--chart-1:
+		oklch(0.646 0.222 41.116);
+	--chart-2:
+		oklch(0.6 0.118 184.704);
+	--chart-3:
+		oklch(0.398 0.07 227.392);
+	--chart-4:
+		oklch(0.828 0.189 84.429);
+	--chart-5:
+		oklch(0.769 0.188 70.08);
+	--sidebar:
+		oklch(0.985 0 0);
+	--sidebar-foreground:
+		oklch(0.145 0 0);
+	--sidebar-primary:
+		oklch(0.205 0 0);
+	--sidebar-primary-foreground:
+		oklch(0.985 0 0);
+	--sidebar-accent:
+		oklch(0.97 0 0);
+	--sidebar-accent-foreground:
+		oklch(0.205 0 0);
+	--sidebar-border:
+		oklch(0.922 0 0);
+	--sidebar-ring:
+		oklch(0.708 0 0);
+}
+
+.dark {
+	/* Cloudflare-inspired dark theme with improved layering */
+	--background:
+		#1d1e1e; /* Base background - slightly warmer than pure black */
+	--foreground:
+		#ffffff; /* Pure white for primary text */
+	--color-bg-light: #292929; /* Elevated surface (bg-3 from CF) */
+	--color-bg: #1d1e1e; /* Main background */
+	--card:
+		#1f2020; /* Card background (bg-2 from CF) */
+	--card-foreground:
+		#ffffff; /* White text on cards */
+	--popover:
+		#292929; /* Popover background (bg-3) */
+	--popover-foreground:
+		#ffffff; /* White text */
+	--primary:
+		#0096ff; /* Cloudflare blue */
+	--primary-foreground:
+		#ffffff; /* White on primary */
+	--secondary:
+		#3c3c3c; /* Secondary elements (bg-4) */
+	--secondary-foreground:
+		rgba(255, 255, 255, 0.8); /* 80% white */
+	--muted:
+		#393939; /* Muted elements */
+	--muted-foreground:
+		rgba(255, 255, 255, 0.6); /* 60% white for tertiary text */
+	--accent:
+		#292929; /* Accent background */
+	--accent-foreground:
+		#ffffff; /* White text */
+	--destructive:
+		#ef4444; /* Error red */
+	--border:
+		#393939; /* Primary border color */
+	--input:
+		#292929; /* Input background */
+	--ring:
+		#0096ff; /* Focus ring */
+	--chart-1:
+		#0096ff; /* Blue */
+	--chart-2:
+		#10b981; /* Green */
+	--chart-3:
+		#f59e0b; /* Yellow */
+	--chart-4:
+		#8b5cf6; /* Purple */
+	--chart-5:
+		#ef4444; /* Red */
+	--sidebar:
+		#1a1b1b; /* Slightly darker than main bg */
+	--sidebar-foreground:
+		#ffffff; /* White text */
+	--sidebar-primary:
+		#0096ff; /* Cloudflare blue */
+	--sidebar-primary-foreground:
+		#ffffff; /* White */
+	--sidebar-accent:
+		#1f2020; /* Sidebar accent */
+	--sidebar-accent-foreground:
+		#ffffff; /* White text */
+	--sidebar-border:
+		#393939; /* Border color */
+	--sidebar-ring:
+		#0096ff; /* Focus ring */
+	
+	/* Override theme colors for dark mode */
+	--color-brand: #0096ff; /* Cloudflare blue */
+	--color-bg: #1d1e1e; /* Main background */
+	--color-text: #ffffff; /* Primary text */
+	--color-text-on-brand: #ffffff; /* White on brand */
+	--color-bg-lighter: #1f2020; /* Slightly elevated */
+	--color-bg-light: #292929; /* More elevated */
+	--color-bg-bright: #f6821f; /* Cloudflare orange */
+	--color-bg-bright-dim: #f48120; /* Slightly dimmer orange */
+	--color-bg-darkest: #1a1b1b; /* Darkest background */
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+	}
+  body {
+    @apply bg-background text-foreground;
+	}
+}
 @theme {
 	--font-sans:
 		'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
@@ -11,13 +240,13 @@
 	--color-text: #000;
 	--color-text-on-brand: #fff;
 
-	--color-bg-lighter: #fff;
+	--color-bg-lighter: var(--background);
 	--color-bg-light: #fbfbfc;
 
 	--color-bg-bright: #0092b8;
 	--color-bg-bright-dim: #0092b8;
 
-	--color-bg-darkest: #171512;
+	--color-bg-darkest: #0a0a0a;
 }
 
 @layer base {
@@ -56,17 +285,56 @@
 }
 
 ::-webkit-scrollbar-thumb {
-	background-color: #0a0a0a;
+	background-color: rgba(0, 0, 0, 0.2);
 	border-radius: 4px;
 	transition: background-color 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-	background-color: #1a1a1a;
+	background-color: rgba(0, 0, 0, 0.3);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+	background-color: rgba(255, 255, 255, 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+	background-color: rgba(255, 255, 255, 0.3);
 }
 
 ::-webkit-scrollbar-corner {
 	background-color: transparent;
+}
+
+/* Phase Timeline Custom Scrollbar */
+.phase-timeline-scroll::-webkit-scrollbar {
+	width: 6px;
+}
+
+.phase-timeline-scroll::-webkit-scrollbar-track {
+	background: rgba(0, 0, 0, 0.05);
+	border-radius: 3px;
+}
+
+.phase-timeline-scroll::-webkit-scrollbar-thumb {
+	background: rgba(0, 0, 0, 0.2);
+	border-radius: 3px;
+}
+
+.phase-timeline-scroll::-webkit-scrollbar-thumb:hover {
+	background: rgba(0, 0, 0, 0.3);
+}
+
+.dark .phase-timeline-scroll::-webkit-scrollbar-track {
+	background: rgba(255, 255, 255, 0.05);
+}
+
+.dark .phase-timeline-scroll::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.2);
+}
+
+.dark .phase-timeline-scroll::-webkit-scrollbar-thumb:hover {
+	background: rgba(255, 255, 255, 0.3);
 }
 
 .a-tag a {
@@ -79,4 +347,30 @@
 	--tw-prose-th-headers: --value(var(--color-text));
 	--tw-prose-body: --value(var(--color-text));
 	--tw-prose-headings: --value(var(--color-text));
+}
+
+/* Chat messages custom scrollbar */
+.chat-messages-scroll::-webkit-scrollbar {
+	width: 8px;
+}
+
+.chat-messages-scroll::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.chat-messages-scroll::-webkit-scrollbar-thumb {
+	background: rgba(0, 0, 0, 0.1);
+	border-radius: 4px;
+}
+
+.chat-messages-scroll::-webkit-scrollbar-thumb:hover {
+	background: rgba(0, 0, 0, 0.15);
+}
+
+.dark .chat-messages-scroll::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.15);
+}
+
+.dark .chat-messages-scroll::-webkit-scrollbar-thumb:hover {
+	background: rgba(255, 255, 255, 0.2);
 }

@@ -1,0 +1,211 @@
+import { AIModels, infer, InferError, InferResponseString, InferResponseObject } from './aigateway';
+import { createAssistantMessage, createUserMessage, Message } from './common';
+import z from 'zod';
+// import { CodeEnhancementOutput, CodeEnhancementOutputType } from '../codegen/phasewiseGenerator';
+import { SchemaFormat } from './schemaFormatters';
+import { ChatCompletionTool, ReasoningEffort } from 'openai/resources.mjs';
+import { AGENT_CONFIG, AgentActionKey } from '../config';
+import { createLogger } from '../../logger';
+
+const logger = createLogger('InferenceUtils');
+
+const responseRegenerationPrompts = `
+The response you provided was either in an incorrect/unparsable format or was incomplete.
+Please provide a valid response that matches the expected output format exactly.
+`;
+
+/**
+ * Helper function to execute AI inference with consistent error handling
+ * @param params Parameters for the inference operation
+ * @returns The inference result or null if error
+ */
+
+interface InferenceParamsBase {
+    env: Env;
+    id: string;
+    messages: Message[];
+    maxTokens?: number;
+    temperature?: number;
+    modelName?: AIModels | string;
+    operationName?: string;
+    retryLimit?: number;
+    schemaName: AgentActionKey;
+    tools?: ChatCompletionTool[];
+    stream?: {
+        chunk_size: number;
+        onChunk: (chunk: string) => void;
+    };
+
+    reasoning_effort?: ReasoningEffort;
+}
+
+interface InferenceParamsStructured<T extends z.AnyZodObject> extends InferenceParamsBase {
+    schema: T;
+    format?: SchemaFormat;
+}
+
+export async function executeInference<T extends z.AnyZodObject>(
+    params: InferenceParamsStructured<T>
+): Promise<InferResponseObject<T>>;
+
+export async function executeInference(
+    params: InferenceParamsBase
+): Promise<InferResponseString>;
+    
+
+export async function executeInference<T extends z.AnyZodObject>(   {
+    env,
+    id,
+    messages,
+    temperature,
+    maxTokens,
+    operationName,
+    retryLimit = 5, // Increased retry limit for better reliability
+    stream,
+    tools,
+    reasoning_effort,
+    schema,
+    schemaName,
+    format,
+    modelName
+}: InferenceParamsBase & {
+    schema?: T;
+    format?: SchemaFormat;
+}): Promise<InferResponseString | InferResponseObject<T> | null> {
+    const conf = AGENT_CONFIG[schemaName];
+
+    modelName = modelName || conf.name;
+    temperature = temperature || conf.temperature || 0.2;
+    maxTokens = maxTokens || conf.max_tokens || 16000;
+    reasoning_effort = reasoning_effort || conf.reasoning_effort;
+    const providerOverride = conf.providerOverride;
+
+    // Exponential backoff for retries
+    const backoffMs = (attempt: number) => Math.min(100 * Math.pow(2, attempt), 10000);
+
+    let useCheaperModel = false;
+
+    for (let attempt = 0; attempt < retryLimit; attempt++) {
+        try {
+            logger.info(`Starting ${operationName} operation with model ${modelName} (attempt ${attempt + 1}/${retryLimit})`);
+
+            const result = schema ? await infer<T>({
+                env,
+                id,
+                messages,
+                schema,
+                schemaName,
+                format,
+                maxTokens,
+                modelName: useCheaperModel ? AIModels.GEMINI_2_5_FLASH : modelName,
+                formatOptions: {
+                    debug: false,
+                },
+                tools,
+                stream,
+                reasoning_effort: useCheaperModel ? undefined : reasoning_effort,
+                temperature,
+                providerOverride
+            }) : await infer({
+                env,
+                id,
+                messages,
+                maxTokens,
+                modelName: useCheaperModel ? AIModels.GEMINI_2_5_FLASH: modelName,
+                tools,
+                stream,
+                reasoning_effort: useCheaperModel ? undefined : reasoning_effort,
+                temperature,
+                providerOverride
+            });
+            logger.info(`Successfully completed ${operationName} operation`);
+            // console.log(result);
+            return result;
+        } catch (error) {
+            const isLastAttempt = attempt === retryLimit - 1;
+            logger.error(
+                `Error during ${operationName} operation (attempt ${attempt + 1}/${retryLimit}):`,
+                error
+            );
+
+            if (error instanceof InferError) {
+                // If its an infer error, we can append the partial response to the list of messages and ask a cheaper model to retry the generation
+                if (error.partialResponse && error.partialResponse.length > 1000) {
+                    messages.push(createAssistantMessage(error.partialResponse));
+                    messages.push(createUserMessage(responseRegenerationPrompts));
+                    useCheaperModel = true;
+                }
+            } else {
+                // Try using fallback model
+                modelName = conf.fallbackModel || modelName;
+            }
+
+            if (!isLastAttempt) {
+                // Wait with exponential backoff before retrying
+                const delay = backoffMs(attempt);
+                logger.info(`Retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Creates a file enhancement request message
+ * @param filePath Path to the file being enhanced
+ * @param fileContents Contents of the file to enhance
+ * @returns A message for the AI model to enhance the file
+ */
+export function createFileEnhancementRequestMessage(filePath: string, fileContents: string): Message {
+    const fileExtension = filePath.split('.').pop() || '';
+    const codeBlock = fileExtension ?
+        `\`\`\`${fileExtension}\n${fileContents}\n\`\`\`` :
+        `\`\`\`\n${fileContents}\n\`\`\``;
+
+    return createUserMessage(`
+<FILE_ENHANCEMENT_REQUEST>
+Please review the following file and identify any potential issues:
+- Syntax errors
+- Missing variable declarations
+- Incorrect imports
+- Incorrect usage of libraries or APIs
+- Unicode or special characters that shouldn't be there
+- Inconsistent indentation or formatting
+- Logic errors
+- Any other issues that could cause runtime errors
+
+If you find any issues:
+1. Fix them directly in the code
+2. Return the full enhanced code with all issues fixed
+3. Provide a list of issues that were fixed with clear descriptions
+
+If no issues are found, simply indicate this without modifying the code.
+
+File Path: ${filePath}
+
+${codeBlock}
+</FILE_ENHANCEMENT_REQUEST>
+`);
+}
+
+/**
+ * Creates a response message about a generated file
+ */
+export function createFileGenerationResponseMessage(filePath: string, fileContents: string, explanation: string, nextFile?: { path: string, purpose: string }): Message {
+    // Format the message in a focused way to reduce token usage
+    const fileExtension = filePath.split('.').pop() || '';
+    const codeBlock = fileExtension ?
+        `\`\`\`${fileExtension}\n${fileContents}\n\`\`\`` :
+        `\`\`\`\n${fileContents}\n\`\`\``;
+
+    return {
+        role: 'assistant',
+        content: `
+<GENERATED FILE: "${filePath}">
+${codeBlock}
+
+Explanation: ${explanation}
+Next file to generate: ${nextFile ? `Path: ${nextFile.path} | Purpose: (${nextFile.purpose})` : "None"}
+`};
+}
