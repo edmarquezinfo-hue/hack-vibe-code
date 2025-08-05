@@ -58,7 +58,7 @@ export const InstanceDetailsSchema = z.object({
     startTime: z.union([z.string(), z.date()]),
     uptime: z.number(),
     previewURL: z.string().optional(),
-    tunnelUrl: z.string().optional(),
+    tunnelURL: z.string().optional(),
     directory: z.string(),
     serviceDirectory: z.string(),
     fileTree: FileTreeNodeSchema.optional(),
@@ -128,6 +128,7 @@ export const BootstrapRequestSchema = z.object({
     projectName: z.string(),
     wait: z.boolean(),
     webhookUrl: z.string().url().optional(),
+    envVars: z.record(z.string(), z.string()).optional(),
 })
 export type BootstrapRequest = z.infer<typeof BootstrapRequestSchema>
 
@@ -538,6 +539,7 @@ export const ResumeInstanceResponseSchema = z.object({
     message: z.string().optional(),
     resumed: z.boolean(), // Whether instance was actually resumed or already running
     previewURL: z.string().optional(),
+    tunnelURL: z.string().optional(),
     processId: z.string().optional(),
     error: z.string().optional(),
 })
