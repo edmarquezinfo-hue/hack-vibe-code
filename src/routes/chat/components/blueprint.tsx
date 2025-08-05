@@ -29,13 +29,6 @@ export function Blueprint({
 					<div className="text-text-50/70 font-mono">Description</div>
 					<Markdown className="text-text-50">{blueprint.description}</Markdown>
 
-					{blueprint.layout && (
-						<>
-							<div className="text-text-50/70 font-mono">Layout</div>
-							<Markdown className="text-text-50">{blueprint.layout}</Markdown>
-						</>
-					)}
-
 					{Array.isArray(blueprint.colorPalette) &&
 						blueprint.colorPalette.length > 0 && (
 							<>
@@ -90,6 +83,27 @@ export function Blueprint({
 					</div>
 				</div>
 
+				{/* Views */}
+				{Array.isArray(blueprint.views) && blueprint.views.length > 0 && (
+					<div>
+						<h3 className="text-sm font-medium mb-3 text-text-50/70 uppercase tracking-wider">
+							Views
+						</h3>
+						<div className="space-y-3">
+							{blueprint.views.map((view, index) => (
+								<div key={`view-${index}`} className="space-y-1">
+									<h4 className="text-xs font-medium text-text-50/70">
+										{view.name}
+									</h4>
+									<Markdown className="text-sm text-text-50">
+										{view.description}
+									</Markdown>
+								</div>
+							))}
+						</div>
+					</div>
+				)}
+
 				{/* User Flow */}
 				{blueprint.userFlow && (
 					<div>
@@ -97,6 +111,17 @@ export function Blueprint({
 							User Flow
 						</h3>
 						<div className="space-y-4">
+							{blueprint.userFlow?.uiLayout && (
+								<div>
+									<h4 className="text-xs font-medium mb-2 text-text-50/70">
+										UI Layout
+									</h4>
+									<Markdown className="text-sm text-text-50">
+										{blueprint.userFlow.uiLayout}
+									</Markdown>
+								</div>
+							)}
+
 							{blueprint.userFlow?.uiDesign && (
 								<div>
 									<h4 className="text-xs font-medium mb-2 text-text-50/70">
@@ -122,32 +147,70 @@ export function Blueprint({
 					</div>
 				)}
 
-				{/* Architecture */}
-				<div>
-					<h3 className="text-sm font-medium mb-2 text-text-50/70 uppercase tracking-wider">
-						Architecture
-					</h3>
-					<div className="space-y-4">
-						<div>
-							<h4 className="text-xs font-medium mb-2 text-text-50/70">
-								Data Flow
-							</h4>
-							<Markdown className="text-sm text-text-50">
-								{blueprint.architecture?.dataFlow}
-							</Markdown>
-						</div>
-					</div>
-				</div>
-
-				{/* Implementation Details */}
-				{blueprint.implementationDetails && (
+				{/* Data Flow */}
+				{(blueprint.dataFlow || blueprint.architecture?.dataFlow) && (
 					<div>
 						<h3 className="text-sm font-medium mb-2 text-text-50/70 uppercase tracking-wider">
-							Implementation Details
+							Data Flow
 						</h3>
 						<Markdown className="text-sm text-text-50">
-							{blueprint.implementationDetails}
+							{blueprint.dataFlow || blueprint.architecture?.dataFlow}
 						</Markdown>
+					</div>
+				)}
+
+				{/* Implementation Roadmap */}
+				{Array.isArray(blueprint.implementationRoadmap) && blueprint.implementationRoadmap.length > 0 && (
+					<div>
+						<h3 className="text-sm font-medium mb-2 text-text-50/70 uppercase tracking-wider">
+							Implementation Roadmap
+						</h3>
+						<div className="space-y-3">
+							{blueprint.implementationRoadmap.map((roadmapItem, index) => (
+								<div key={`roadmap-${index}`} className="space-y-1">
+									<h4 className="text-xs font-medium text-text-50/70">
+										Phase {index + 1}: {roadmapItem.phase}
+									</h4>
+									<Markdown className="text-sm text-text-50">
+										{roadmapItem.description}
+									</Markdown>
+								</div>
+							))}
+						</div>
+					</div>
+				)}
+
+				{/* Initial Phase */}
+				{blueprint.initialPhase && (
+					<div>
+						<h3 className="text-sm font-medium mb-2 text-text-50/70 uppercase tracking-wider">
+							Initial Phase
+						</h3>
+						<div className="space-y-3">
+							<div>
+								<h4 className="text-xs font-medium mb-2 text-text-50/70">
+									{blueprint.initialPhase.name}
+								</h4>
+								<Markdown className="text-sm text-text-50 mb-3">
+									{blueprint.initialPhase.description}
+								</Markdown>
+								{Array.isArray(blueprint.initialPhase.files) && blueprint.initialPhase.files.length > 0 && (
+									<div>
+										<h5 className="text-xs font-medium mb-2 text-text-50/60">
+											Files to be created:
+										</h5>
+										<div className="space-y-2">
+											{blueprint.initialPhase.files.map((file, fileIndex) => (
+												<div key={`initial-phase-file-${fileIndex}`} className="border-l-2 border-text/10 pl-3">
+													<div className="font-mono text-xs text-text-50/80">{file.path}</div>
+													<div className="text-xs text-text-50/60">{file.purpose}</div>
+												</div>
+											))}
+										</div>
+									</div>
+								)}
+							</div>
+						</div>
 					</div>
 				)}
 
@@ -169,27 +232,7 @@ export function Blueprint({
 					</div>
 				)}
 
-				{/* Commands */}
-				{Array.isArray(blueprint.commands?.setup) &&
-					blueprint.commands.setup.length > 0 && (
-						<div>
-							<h3 className="text-sm font-medium mb-2 text-text-50/70 uppercase tracking-wider">
-								Commands
-							</h3>
-							<div className="font-mono text-xs text-text-50/80">
-								{Array.isArray(blueprint.commands.setup) &&
-									blueprint.commands.setup.map((cmd, index) => (
-										<div
-											key={`cmd-${index}`}
-											className="bg-bg-lighter/30 rounded p-2"
-										>
-											<span className="text-text-50/70 select-none">$</span>
-											<span className="ml-2">{cmd}</span>
-										</div>
-									))}
-							</div>
-						</div>
-					)}
+
 			</div>
 		</div>
 	);

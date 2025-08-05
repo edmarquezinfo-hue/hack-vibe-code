@@ -26,6 +26,41 @@ export async function* ndjsonStream(response: Response) {
 }
 
 
+// Synchronous NDJSON parser for testing
+type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
+
+export class NDJSONStreamParser {
+    private buffer = '';
+    private onMessage: (message: JSONValue) => void;
+
+    constructor(onMessage: (message: JSONValue) => void) {
+        this.onMessage = onMessage;
+    }
+
+    processChunk(chunk: string): void {
+        this.buffer += chunk;
+        
+        // Handle both \n and \r\n line endings
+        const lines = this.buffer.split(/\r?\n/);
+        
+        // Keep the last partial line in the buffer
+        this.buffer = lines.pop() || '';
+        
+        // Process complete lines
+        for (const line of lines) {
+            if (line.trim()) {
+                try {
+                    const message = JSON.parse(line);
+                    this.onMessage(message);
+                } catch (error) {
+                    // Silently ignore invalid JSON
+                    console.warn('Invalid JSON in NDJSON stream:', line);
+                }
+            }
+        }
+    }
+}
+
 export function createRepairingJSONParser() {
     let buffer = '';
 

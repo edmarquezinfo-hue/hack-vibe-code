@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orange Build - System Overview</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1a202c;
+            border-bottom: 3px solid #3182ce;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #2d3748;
+            margin-top: 40px;
+        }
+        .diagram {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        .description {
+            background: #edf2f7;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border-left: 4px solid #3182ce;
+        }
+        nav {
+            background: #2d3748;
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 30px;
+        }
+        nav ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        nav a {
+            color: #90cdf4;
+            text-decoration: none;
+        }
+        nav a:hover {
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <ul>
+                <li><a href="#overview">System Overview</a></li>
+                <li><a href="#architecture">Architecture</a></li>
+                <li><a href="#workflow">Code Generation Workflow</a></li>
+                <li><a href="#websocket">WebSocket Protocol</a></li>
+                <li><a href="#auth">Authentication</a></li>
+            </ul>
+        </nav>
+
+        <h1>🍊 Orange Build - System Architecture Overview</h1>
+        
+        <div class="description">
+            <strong>Orange Build</strong> is a sophisticated AI-powered webapp generation platform that transforms natural language descriptions into fully functional web applications through a phase-wise development process with real-time streaming and parallel processing.
+        </div>
+
+        <section id="overview">
+            <h2>High-Level System Architecture</h2>
+            <div class="diagram">
+                <div class="mermaid">
+graph TB
+    subgraph "Client Layer"
+        A[React Frontend<br/>TypeScript + Vite + shadcn/ui]
+        B[WebSocket Connection<br/>Real-time Streaming]
+        C[Anonymous Sessions<br/>localStorage Token]
+    end
+    
+    subgraph "Cloudflare Worker Layer"
+        D[Fetch Handler<br/>HTTP Router + CORS]
+        E[API Routes<br/>/auth /codegen /apps /stats]
+        F[Durable Objects<br/>CodeGeneratorAgent]
+    end
+    
+    subgraph "AI Agent Architecture"
+        G[Operations Layer<br/>PhaseImplementation, CodeReview]
+        H[Services Layer<br/>Dependency Injection]
+        I[Domain Layer<br/>Pure Functions + Value Objects]
+        J[Assistants Layer<br/>RealtimeCodeFixer]
+    end
+    
+    subgraph "Planning Agents"
+        K[Template Selector<br/>Gemini 2.5 Flash]
+        L[Blueprint Generator<br/>Gemini 2.5 Pro]
+    end
+    
+    subgraph "Code Generation & Processing"
+        M[Phase Implementation<br/>Gemini 2.5 Pro + SCOF Parser]
+        N[Realtime Code Fixer<br/>Claude 4 Opus + Diff Appliers]
+        O[Code Review Operation<br/>Claude 4 Sonnet]
+        P[Phase Generation<br/>Gemini 2.5 Pro]
+    end
+    
+    subgraph "External Services"
+        Q[Runner Service<br/>Containerized Execution]
+        R[AI Models<br/>Claude 4 + Gemini 2.5]
+        S[Database<br/>Cloudflare D1 + Drizzle]
+        T[OAuth Providers<br/>Google + GitHub]
+    end
+    
+    A --> D
+    B --> F
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+    H --> J
+    F --> K
+    F --> L
+    G --> M
+    G --> N
+    G --> O
+    G --> P
+    F --> Q
+    G --> R
+    E --> S
+    E --> T
+    Q --> A
+    R --> F
+                </div>
+            </div>
+        </section>
+
+        <section id="architecture">
+            <h2>Agent Architecture Deep Dive</h2>
+            <div class="diagram">
+                <div class="mermaid">
+graph TD
+    subgraph "CodeGeneratorAgent (Durable Object)"
+        A1[ServiceContainer<br/>Dependency Injection]
+        A2[State Manager<br/>Immutable Updates]
+        A3[WebSocket Broadcaster<br/>Real-time Updates]
+        A4[Operation Executor<br/>Command Pattern]
+    end
+    
+    subgraph "AI-Powered Operations"
+        B1[PhaseImplementation<br/>🤖 Gemini 2.5 Pro<br/>📝 SCOF Parser]
+        B2[CodeReview<br/>🤖 Claude 4 Sonnet<br/>🔍 Static Analysis]
+        B3[FileRegeneration<br/>🤖 Claude 4 Sonnet<br/>🔧 Issue Fixing]
+        B4[PhaseGeneration<br/>🤖 Gemini 2.5 Pro<br/>📋 Next Phase Planning]
+        B5[ScreenshotAnalysis<br/>🤖 Claude 4 Sonnet<br/>👁️ UI Validation]
+    end
+    
+    subgraph "AI Assistants & Specialists"
+        E1[ProjectSetupAssistant<br/>🤖 Gemini 2.5 Flash<br/>⚙️ Commands + Dependencies]
+        E2[RealtimeCodeFixer<br/>🤖 Claude 4 Opus<br/>🔧 Search-Replace Diffs]
+        E3[Blueprint Generator<br/>🤖 Gemini 2.5 Pro<br/>📐 Project Architecture]
+        E4[Template Selector<br/>🤖 Gemini 2.5 Flash<br/>🎯 Framework Selection]
+    end
+    
+    subgraph "Core Infrastructure"
+        C1[Runner Service<br/>🐳 Containerized Execution]
+        C2[File Manager<br/>📁 Template + Generated Files]
+        C3[Message Broadcaster<br/>📡 WebSocket Management]
+        C4[State Manager<br/>💾 Persistence Layer]
+    end
+    
+    subgraph "Processing Tools"
+        D1[SCOF Parser<br/>📄 Structured Code Streaming]
+        D2[Diff Appliers<br/>🔄 Search-Replace + Unified]
+        D3[Phase Management<br/>📊 Progress Tracking]
+        D4[Dependency Management<br/>📦 Package.json Merging]
+    end
+    
+    A1 --> A4
+    A4 --> B1
+    A4 --> B2
+    A4 --> B3
+    A4 --> B4
+    A4 --> B5
+    A1 --> C1
+    A1 --> C2
+    A1 --> C3
+    A1 --> C4
+    A1 --> E1
+    B1 --> E2
+    B1 --> D1
+    E2 --> D2
+    B2 --> D3
+    B3 --> D4
+    E3 --> B1
+    E4 --> E3
+                </div>
+            </div>
+            
+            <div class="description">
+                <strong>Agent Architecture Highlights:</strong><br/>
+                • <strong>Multi-AI Model Strategy:</strong> Different AI models optimized for specific tasks<br/>
+                • <strong>Streaming Code Generation:</strong> SCOF parser enables real-time file streaming<br/>
+                • <strong>Immediate Code Fixing:</strong> RealtimeCodeFixer applies improvements during generation<br/>
+                • <strong>Clean Architecture:</strong> Dependency injection with service interfaces<br/>
+                • <strong>Operation Pattern:</strong> Modular, testable operations with side effects<br/>
+                • <strong>Real-time Communication:</strong> WebSocket broadcasting for live updates
+            </div>
+        </section>
+
+        <section id="workflow">
+            <h2>Complete Code Generation Flow - Accurate Implementation</h2>
+            <div class="diagram">
+                <div class="mermaid">
+flowchart TD
+    A[User Submits Query] --> B[Blueprint Generation - Gemini 2.5 Pro]
+    B --> C[Initialize CodeGeneratorAgent - ServiceContainer]
+    C --> D1[Setup Runner Instance]
+    C --> D2[Generate Setup Commands - ProjectSetupAssistant]
+    D1 --> D3[Execute Setup Commands]
+    D2 --> D3
+    D3 --> E[BROADCAST generation_started - SET isGenerating true]
+    
+    E --> F[fetchAllIssues - Runtime Static Client]
+    F --> G[Get Current nextPhase]
+    G --> H{nextPhase exists and not empty?}
+    
+    H -->|Yes| I[BROADCAST PHASE_IMPLEMENTING]
+    I --> J[Phase Implementation - Gemini 2.5 Pro Streaming]
+    J --> K[SCOF Parser processes LLM stream - 256 byte chunks]
+    
+    K --> L[For each file - BROADCAST FILE_GENERATING]
+    L --> M[Stream file chunks - BROADCAST FILE_CHUNK_GENERATED]
+    M --> N[File complete - Process contents]
+    
+    N --> O[Spawn RealtimeCodeFixer - Claude 4 Opus]
+    O --> P[Smart Diff Application with retry]
+    P --> Q[BROADCAST FILE_GENERATED - Add to fixedFilePromises]
+    
+    Q --> R{More files in phase?}
+    R -->|Yes| L
+    R -->|No| S[BROADCAST PHASE_VALIDATING]
+    
+    S --> T[await Promise.all fixedFiles]
+    T --> U[Update State - generatedFilesMap generatedPhases]
+    U --> V[BROADCAST PHASE_IMPLEMENTED]
+    
+    V --> W[BROADCAST deployment_started]
+    W --> X[Deploy Files to Runner - Batch]
+    X --> Y[BROADCAST deployment_completed]
+    Y --> Z[fetchAllIssues - Clear runtime errors]
+    
+    Z --> AA{shouldHalt OR lastPhase?}
+    AA -->|Yes| BB[Final Phase - Finalization and Review]
+    AA -->|No| CC[GENERATE_NEXT_PHASE - Gemini 2.5 Pro]
+    
+    CC --> DD{nextPhase generated?}
+    DD -->|No| BB
+    DD -->|Yes| EE{Has install commands?}
+    EE -->|Yes| FF[Execute Commands - Chunked npm to bun]
+    EE -->|No| F
+    FF --> F
+    
+    BB --> GG[Review Cycles Loop - FOR i to reviewCycles]
+    GG --> HH[REVIEW_CODE Operation - Claude 4 Sonnet]
+    HH --> II[Analyze Issues - Runtime Static Client]
+    II --> JJ{Issues found?}
+    
+    JJ -->|No| KK[Review Complete - No issues]
+    JJ -->|Yes| LL[Process files_to_fix array]
+    LL --> MM{File requires code_changes?}
+    MM -->|Yes| NN[BROADCAST FILE_GENERATING - is_regeneration true]
+    MM -->|No| OO[Next file]
+    
+    NN --> PP[REGENERATE_FILE - Claude 4 Sonnet - Up to 3 retries]
+    PP --> QQ[BROADCAST deployment_started]
+    QQ --> RR[DEPLOY_TO_RUNNER - Individual file]
+    RR --> SS[BROADCAST deployment_completed]
+    SS --> OO
+    
+    OO --> TT{More files to fix?}
+    TT -->|Yes| LL
+    TT -->|No| UU{More review cycles?}
+    UU -->|Yes| HH
+    UU -->|No| KK
+    
+    KK --> VV[UPDATE_DATABASE - status completed]
+    VV --> WW[BROADCAST generation_complete - SET isGenerating false]
+    WW --> XX[Show Preview Options - previewURL instanceId]
+    
+    style A fill:#e1f5fe
+    style J fill:#f3e5f5
+    style K fill:#fff8e1
+    style O fill:#fff3e0
+    style CC fill:#f3e5f5
+    style HH fill:#e8f5e8
+    style PP fill:#e8f5e8
+    style XX fill:#e1f5fe
+                </div>
+            </div>
+            
+            <div class="description">
+                <strong>Corrected Implementation Details:</strong><br/>
+                • <strong>SCOF Processing:</strong> SCOF parser processes the streaming LLM output during Phase Implementation<br/>
+                • <strong>Realtime Fixing:</strong> RealtimeCodeFixer spawned immediately per file, runs in parallel<br/>
+                • <strong>Deployment Timing:</strong> deployment_started/completed events occur after phase validation and after file regeneration<br/>
+                • <strong>File Regeneration:</strong> Individual file deployments happen during review cycles after regeneration<br/>
+                • <strong>Promise Coordination:</strong> All files fixed in parallel, then batch deployment after validation<br/>
+                • <strong>Issue Tracking:</strong> Runtime errors cleared after deployment, fed to next phase planning<br/>
+                • <strong>Review Cycles:</strong> Up to 10 review cycles with targeted file regeneration and individual deployment<br/>
+                • <strong>State Persistence:</strong> generatedFilesMap and generatedPhases updated after phase completion
+            </div>
+        </section>
+
+        <section id="websocket">
+            <h2>WebSocket Message Flow</h2>
+            <div class="diagram">
+                <div class="mermaid">
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Connecting: User starts generation
+    Connecting --> Connected: WebSocket established
+    Connecting --> Retrying: Connection failed
+    Retrying --> Connecting: Retry with backoff
+    Retrying --> Failed: Max retries exceeded
+    
+    Connected --> Generating: generate_all received
+    Generating --> FileGenerating: phase_implementing
+    FileGenerating --> FileStreaming: file_generating
+    FileStreaming --> FileComplete: file_generated
+    FileComplete --> FileGenerating: Next file
+    FileComplete --> PhaseComplete: Phase done
+    PhaseComplete --> Generating: Next phase
+    PhaseComplete --> Validating: All phases done
+    
+    Validating --> ErrorRecovery: Issues found
+    ErrorRecovery --> FileRegenerating: file_regenerated
+    FileRegenerating --> Validating: Fixes applied
+    Validating --> Complete: No issues
+    
+    Complete --> Connected: generation_complete
+    Connected --> Idle: User disconnects
+    
+    note right of FileStreaming
+        High-frequency streaming:
+        - file_chunk_generated
+        - deployment_started
+        - deployment_completed
+        - runtime_error_found
+    end note
+                </div>
+            </div>
+        </section>
+
+        <section id="auth">
+            <h2>Authentication System</h2>
+            <div class="diagram">
+                <div class="mermaid">
+flowchart TD
+    A[User Access] --> B{Authenticated?}
+    B -->|No| C[Anonymous Session]
+    B -->|Yes| D[Authenticated User]
+    
+    C --> C1[localStorage Token]
+    C1 --> C2[Limited Features]
+    C2 --> C3{Wants Full Access?}
+    C3 -->|Yes| E[Choose Auth Method]
+    C3 -->|No| C4[Continue Anonymous]
+    
+    E --> E1[Email/Password]
+    E --> E2[Google OAuth]
+    E --> E3[GitHub OAuth]
+    
+    E1 --> E1a[Register/Login Form]
+    E1a --> E1b[bcrypt + JWT]
+    E1b --> F[Session Created]
+    
+    E2 --> E2a[OAuth Redirect]
+    E2a --> E2b[PKCE + State Validation]
+    E2b --> E2c[Token Exchange]
+    E2c --> E2d[Profile Fetch]
+    E2d --> F
+    
+    E3 --> E3a[GitHub OAuth]
+    E3a --> E3b[Organization Check]
+    E3b --> F
+    
+    F --> G[JWT Tokens]
+    G --> G1[Access Token: 15min]
+    G --> G2[Refresh Token: 7days]
+    G1 --> H[HttpOnly Cookies]
+    G2 --> H
+    
+    H --> I[Auto Refresh]
+    I --> I1[Background Timer: 10min]
+    I1 --> I2{Token Expires Soon?}
+    I2 -->|Yes| I3[Refresh Request]
+    I2 -->|No| I1
+    I3 --> I4[Token Rotation]
+    I4 --> G
+    
+    D --> J[Full Features]
+    J --> J1[App Management]
+    J --> J2[Social Features]
+    J --> J3[Settings]
+    J --> J4[Analytics]
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#3182ce',
+                primaryTextColor: '#1a202c',
+                primaryBorderColor: '#2d3748',
+                lineColor: '#4a5568',
+                secondaryColor: '#edf2f7',
+                tertiaryColor: '#f7fafc'
+            }
+        });
+    </script>
+</body>
+</html>

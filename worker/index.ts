@@ -1,39 +1,29 @@
-import { createLogger } from './utils/logger';
-import { Router } from './utils/router';
-import { errorResponse } from './utils/responses';
-import { CodeGenController } from './controllers/codeGenController';
-// import { handleInsertRag, handleQueryRag } from "./rag";
+import { createLogger } from './logger';
+import { setupRouter } from './api/routes/codegenRoutes';
+import { errorResponse } from './api/responses';
+import { SmartCodeGeneratorAgent } from "./agents/core/smartGeneratorAgent";
 
-// Export the CodeGenerator Agent as a Durable Object class named CodeGen
-import { CodeGeneratorAgent } from "./codegen/codeGenerator";
+export class CodeGeneratorAgent extends SmartCodeGeneratorAgent {}
+export { UserAppSandboxService } from './services/sandbox/sandboxSdkClient';
 
 // Logger for the main application
 const logger = createLogger('App');
-
-/**
- * Setup and configure the application router
- */
-function setupRouter(): Router {
-    const router = new Router();
-    const codeGenController = new CodeGenController();
-
-    router.post('/codegen/incremental', codeGenController.startCodeGeneration.bind(codeGenController));
-    router.get('/codegen/incremental/:agentId', codeGenController.getCodeGenerationProgress.bind(codeGenController));
-
-    // WebSocket endpoint for real-time code generation updates
-    router.register('/codegen/ws/:agentId', codeGenController.handleWebSocketConnection.bind(codeGenController), ['GET']);
-
-    // Default codegen path
-    router.post('/codegen', codeGenController.startCodeGeneration.bind(codeGenController));
-
-    return router;
-}
-
 /**
  * Main Worker fetch handler
  */
 export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+        // allow CORS preflight requests
+        if (request.method === 'OPTIONS') {
+            return new Response('', {
+                headers: {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                },
+            });
+        }
+
         try {
             // Ignore favicon requests
             if (new URL(request.url).pathname.startsWith('/favicon')) {
@@ -55,5 +45,3 @@ export default {
         }
     },
 } satisfies ExportedHandler<Env>;
-
-export { CodeGeneratorAgent }

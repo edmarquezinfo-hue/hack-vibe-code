@@ -1,0 +1,978 @@
+{
+  "webSocketProtocol": {
+    "title": "Orange Build Real-time WebSocket Communication Protocol",
+    "lastUpdated": "2025-07-19", 
+    "version": "2.0",
+    "description": "Comprehensive real-time communication protocol for AI-powered webapp generation with bidirectional messaging, error recovery, and state synchronization"
+  },
+
+  "connectionManagement": {
+    "establishment": {
+      "endpoint": "/api/codegen/ws/:agentId",
+      "protocol": "WebSocket over HTTPS (WSS)",
+      "upgradeProcess": [
+        {
+          "step": 1,
+          "action": "HTTP GET request with Upgrade header",
+          "headers": {
+            "Upgrade": "websocket",
+            "Connection": "Upgrade",
+            "Sec-WebSocket-Key": "Generated client key",
+            "Sec-WebSocket-Version": "13",
+            "Authorization": "Bearer JWT_TOKEN (if authenticated)"
+          }
+        },
+        {
+          "step": 2,
+          "action": "Server WebSocket upgrade response",
+          "status": "101 Switching Protocols",
+          "headers": {
+            "Upgrade": "websocket", 
+            "Connection": "Upgrade",
+            "Sec-WebSocket-Accept": "Server-generated accept key"
+          }
+        },
+        {
+          "step": 3,
+          "action": "WebSocket connection established",
+          "result": "Bidirectional communication channel active"
+        }
+      ],
+      "authentication": {
+        "method": "JWT token validation",
+        "source": "Authorization header or query parameter",
+        "fallback": "Anonymous session token support",
+        "validation": "Token verification against database sessions"
+      },
+      "timeout": {
+        "connectionTimeout": "30 seconds",
+        "handshakeTimeout": "10 seconds",
+        "maxIdleTime": "5 minutes without activity"
+      }
+    },
+
+    "resilience": {
+      "clientSideRetry": {
+        "implementation": "Frontend useChat hook",
+        "strategy": "Exponential backoff with jitter",
+        "maxAttempts": 5,
+        "delayProgression": ["1s", "2s", "4s", "8s", "16s"],
+        "backoffMultiplier": 2,
+        "jitterRange": "±500ms to prevent thundering herd"
+      },
+      "connectionStates": {
+        "idle": "No WebSocket connection attempted",
+        "connecting": "Connection in progress",
+        "connected": "Active WebSocket connection established", 
+        "failed": "Connection failed after exhausting retries",
+        "retrying": "Attempting reconnection with backoff delay"
+      },
+      "stateTransitions": {
+        "idle → connecting": "User initiates generation or reconnection",
+        "connecting → connected": "WebSocket handshake successful",
+        "connecting → retrying": "Connection failed, retry scheduled",
+        "connected → retrying": "Connection lost, reconnection initiated",
+        "retrying → connecting": "Retry attempt after backoff delay",
+        "retrying → failed": "Max retry attempts exceeded"
+      },
+      "reconnectionBehavior": {
+        "automaticReconnect": true,
+        "stateRecovery": "Resume from last known state",
+        "messageQueuing": "Queue messages during disconnection",
+        "maxQueueSize": "1000 messages",
+        "queueTimeout": "5 minutes"
+      }
+    },
+
+    "healthMonitoring": {
+      "heartbeat": {
+        "pingInterval": "30 seconds",
+        "pongTimeout": "10 seconds", 
+        "missedPongLimit": 3,
+        "implementation": "Built-in WebSocket ping/pong frames"
+      },
+      "connectionHealth": {
+        "metrics": [
+          "Message round-trip latency",
+          "Failed message delivery count",
+          "Connection stability duration",
+          "Reconnection frequency"
+        ],
+        "alertThresholds": {
+          "highLatency": "> 2 seconds",
+          "frequentReconnects": "> 5 per minute",
+          "messageFailures": "> 10% failure rate"
+        }
+      }
+    }
+  },
+
+  "messageProtocol": {
+    "format": {
+      "structure": {
+        "type": "Message type identifier (string)",
+        "data": "Message-specific payload (object)",
+        "timestamp": "ISO 8601 timestamp (optional)",
+        "messageId": "Unique message identifier (optional)",
+        "sessionId": "Generation session ID (optional)"
+      },
+      "encoding": "UTF-8 JSON",
+      "maxMessageSize": "1MB per message",
+      "compression": "Optional gzip compression for large messages"
+    },
+
+    "messageValidation": {
+      "schema": "Zod schema validation for all message types",
+      "errorHandling": "Invalid messages logged and ignored",
+      "typeChecking": "Runtime type validation with fallback",
+      "sanitization": "Input sanitization for security"
+    },
+
+    "messageRouting": {
+      "serverSide": "Type-based message routing in Durable Object",
+      "clientSide": "Message type handlers in useChat hook",
+      "unknownTypes": "Logged with warning, no error thrown",
+      "versionCompatibility": "Forward and backward compatibility support"
+    }
+  },
+
+  "clientToServerMessages": {
+    "description": "Messages sent from React frontend to CodeGeneratorAgent",
+    
+    "generate_all": {
+      "purpose": "Initiate complete code generation process",
+      "trigger": "User clicks generate button or auto-start",
+      "frequency": "Once per generation session",
+      "payload": {
+        "type": "generate_all",
+        "data": {
+          "startFromPhase": "Phase number to begin from (default: 1)",
+          "options": {
+            "skipValidation": "Boolean to skip initial validation",
+            "maxPhases": "Maximum number of phases to generate",
+            "timeLimit": "Maximum generation time in minutes",
+            "errorThreshold": "Maximum acceptable error count"
+          },
+          "resumeSession": "Resume from previous interrupted session",
+          "userPreferences": {
+            "codeStyle": "Preferred coding style and conventions",
+            "frameworks": "Preferred framework versions",
+            "optimizations": "Performance vs readability preferences"
+          }
+        }
+      },
+      "responseMessages": ["generation_started", "phase_generating", "file_generating"],
+      "errorHandling": {
+        "invalidOptions": "Use default options with warning",
+        "duplicateRequest": "Ignore duplicate requests during active generation",
+        "agentBusy": "Queue request or return busy status"
+      }
+    },
+
+    "code_review": {
+      "purpose": "Request AI-powered code review and analysis",
+      "trigger": "User manually requests code review or error threshold exceeded",
+      "frequency": "On-demand, typically 0-3 times per session",
+      "payload": {
+        "type": "code_review",
+        "data": {
+          "reviewType": "comprehensive | targeted | security | performance",
+          "focusAreas": [
+            "List of specific areas to analyze",
+            "File patterns to focus on",
+            "Known issues to investigate"
+          ],
+          "severity": "Minimum severity level for reported issues",
+          "includeFiles": "Specific files to review (optional)",
+          "excludeFiles": "Files to exclude from review"
+        }
+      },
+      "responseMessages": ["code_review", "static_analysis_results"],
+      "aiModel": "Anthropic Claude for comprehensive analysis",
+      "timeEstimate": "30 seconds - 2 minutes depending on codebase size"
+    },
+
+    "deploy": {
+      "purpose": "Deploy generated code to preview or production",
+      "trigger": "User initiates deployment action",
+      "frequency": "Multiple times per session for updates",
+      "payload": {
+        "type": "deploy",
+        "data": {
+          "target": "preview | cloudflare-workers | github",
+          "deploymentConfig": {
+            "environment": "development | staging | production",
+            "customDomain": "Optional custom domain for deployment",
+            "environmentVars": "Environment variables for deployment",
+            "buildSettings": "Custom build configuration"
+          },
+          "force": "Force deployment even if validation fails",
+          "previousDeploymentId": "Reference to previous deployment"
+        }
+      },
+      "responseMessages": ["deployment_started", "deployment_completed", "cloudflare_deployment_started"],
+      "deploymentTargets": {
+        "preview": "Update existing Runner Service preview",
+        "cloudflare-workers": "Deploy to Cloudflare Workers for production",
+        "github": "Export to GitHub repository (future feature)"
+      }
+    },
+
+    "runtime_error_found": {
+      "purpose": "Report client-side errors or user-observed issues",
+      "trigger": "Client-side error detection or user reports problem",
+      "frequency": "As needed when errors occur",
+      "payload": {
+        "type": "runtime_error_found", 
+        "data": {
+          "error": {
+            "message": "Error description",
+            "stack": "JavaScript stack trace (if available)",
+            "type": "Error type classification",
+            "source": "client | user_reported | automated"
+          },
+          "context": {
+            "url": "Page URL where error occurred",
+            "userAgent": "Browser information",
+            "timestamp": "Error occurrence time",
+            "userActions": "Actions leading to error",
+            "sessionState": "Current application state"
+          },
+          "screenshot": {
+            "included": "Boolean indicating if screenshot attached",
+            "data": "Base64 encoded screenshot (if included)",
+            "compression": "Image compression format (JPEG/PNG)"
+          },
+          "reproductionSteps": "Steps to reproduce the error"
+        }
+      },
+      "responseMessages": ["error_acknowledged", "file_regenerated"],
+      "maxScreenshotSize": "10MB compressed",
+      "errorClassification": ["ui_issue", "functionality_error", "performance_issue", "security_concern"]
+    },
+
+    "screenshot_captured": {
+      "purpose": "Submit UI screenshot for analysis and comparison",
+      "trigger": "User captures screenshot for AI analysis",
+      "frequency": "Rarely, on user request",
+      "payload": {
+        "type": "screenshot_captured",
+        "data": {
+          "screenshot": {
+            "data": "Base64 encoded image data",
+            "format": "image/png | image/jpeg",
+            "dimensions": {
+              "width": "Image width in pixels",
+              "height": "Image height in pixels"
+            },
+            "compression": "Compression quality (0-100)"
+          },
+          "context": {
+            "pageUrl": "URL of captured page",
+            "viewport": "Viewport dimensions",
+            "deviceType": "desktop | tablet | mobile",
+            "timestamp": "Capture timestamp"
+          },
+          "analysisRequest": {
+            "compareToRequirements": "Compare against original requirements",
+            "identifyIssues": "Look for visual or functional issues",
+            "suggestImprovements": "Recommend UI/UX improvements"
+          }
+        }
+      },
+      "responseMessages": ["screenshot_analysis", "file_regenerated"],
+      "maxImageSize": "25MB uncompressed",
+      "analysisCapabilities": [
+        "UI compliance verification",
+        "Visual bug detection", 
+        "Responsive design validation",
+        "Accessibility assessment"
+      ]
+    },
+
+    "update_query": {
+      "purpose": "Modify generation requirements mid-process",
+      "trigger": "User wants to adjust requirements during generation",
+      "frequency": "Occasionally during active generation",
+      "payload": {
+        "type": "update_query",
+        "data": {
+          "newQuery": "Updated requirement description",
+          "modifications": [
+            {
+              "type": "add_feature",
+              "description": "New feature to add"
+            },
+            {
+              "type": "remove_feature", 
+              "description": "Feature to remove or modify"
+            },
+            {
+              "type": "style_change",
+              "description": "UI/UX style modifications"
+            }
+          ],
+          "priority": "low | medium | high | critical",
+          "applyToPhase": "Current phase or future phases"
+        }
+      },
+      "responseMessages": ["query_updated", "phase_generating"],
+      "limitations": "Some changes may require regeneration of existing code",
+      "impact": "May extend generation time and create additional phases"
+    },
+
+    "overwrite": {
+      "purpose": "Replace specific files with user-provided content",
+      "trigger": "User wants to manually override generated files",
+      "frequency": "Rarely, for specific customizations",
+      "payload": {
+        "type": "overwrite",
+        "data": {
+          "files": [
+            {
+              "path": "File path to overwrite",
+              "content": "New file content",
+              "encoding": "utf-8 | base64",
+              "reason": "Explanation for manual override"
+            }
+          ],
+          "backup": "Create backup of original files",
+          "validate": "Validate new content before applying"
+        }
+      },
+      "responseMessages": ["files_overwritten", "deployment_started"],
+      "validation": "Syntax and dependency validation before applying",
+      "backup": "Original files backed up automatically"
+    }
+  },
+
+  "serverToClientMessages": {
+    "description": "Messages sent from CodeGeneratorAgent to React frontend",
+    
+    "generation_started": {
+      "purpose": "Notify client that code generation process has begun",
+      "frequency": "Once per generation session start",
+      "payload": {
+        "type": "generation_started",
+        "data": {
+          "message": "Generation process initiated successfully",
+          "sessionId": "Unique generation session identifier",
+          "totalFiles": "Estimated number of files to generate",
+          "estimatedPhases": "Expected number of development phases",
+          "estimatedTime": "Estimated total completion time in minutes",
+          "blueprint": {
+            "title": "Project title",
+            "framework": "Selected technology stack",
+            "complexity": "Assessed project complexity level"
+          },
+          "startTime": "Generation start timestamp"
+        }
+      },
+      "clientHandling": "Initialize progress tracking and UI updates",
+      "uiUpdates": "Show progress bar, phase timeline, and estimated completion"
+    },
+
+    "generation_complete": {
+      "purpose": "Notify client that entire generation process is finished",
+      "frequency": "Once per successful generation completion",
+      "payload": {
+        "type": "generation_complete",
+        "data": {
+          "message": "Generation completed successfully",
+          "summary": {
+            "totalTime": "Total generation duration in minutes",
+            "filesGenerated": "Number of files created",
+            "phasesCompleted": "Number of development phases",
+            "issuesResolved": "Count of issues fixed during generation",
+            "codeReviewCycles": "Number of review and improvement cycles"
+          },
+          "deliverables": {
+            "previewURL": "Live application preview URL",
+            "sourceCode": "Generated source code summary",
+            "documentation": "Generated documentation and README"
+          },
+          "qualityMetrics": {
+            "codeQualityScore": "Overall code quality assessment (0-100)",
+            "testCoverage": "Test coverage percentage", 
+            "performanceScore": "Application performance rating",
+            "securityScore": "Security assessment score"
+          },
+          "nextSteps": [
+            "View live preview",
+            "Download source code",
+            "Deploy to production",
+            "Request modifications",
+            "Share publicly"
+          ],
+          "completionTime": "Generation completion timestamp"
+        }
+      },
+      "clientHandling": "Show completion celebration, enable post-generation actions",
+      "uiUpdates": "Display success message, show next steps, enable download/deploy buttons"
+    },
+
+    "phase_generating": {
+      "purpose": "Indicate AI is planning the next development phase",
+      "frequency": "Before each new phase implementation",
+      "payload": {
+        "type": "phase_generating",
+        "data": {
+          "message": "Generating next development phase",
+          "currentPhase": "Current phase number",
+          "totalPhases": "Total expected phases (estimate)",
+          "phaseType": "Type of phase being planned",
+          "progress": "Overall generation progress percentage",
+          "timeElapsed": "Time elapsed since generation start"
+        }
+      },
+      "duration": "Typically 10-30 seconds",
+      "clientHandling": "Show phase planning indicator"
+    },
+
+    "phase_generated": {
+      "purpose": "Announce completion of phase planning with details",
+      "frequency": "After each phase concept is created",
+      "payload": {
+        "type": "phase_generated",
+        "data": {
+          "message": "Development phase planned",
+          "phase": {
+            "name": "Phase name and title",
+            "description": "Detailed phase description",
+            "goals": "Phase objectives and deliverables",
+            "files": "Files to be created or modified",
+            "dependencies": "Required packages or configurations",
+            "estimatedTime": "Estimated time for phase completion"
+          },
+          "phaseNumber": "Current phase number",
+          "progress": "Updated progress percentage"
+        }
+      },
+      "clientHandling": "Update phase timeline with new phase information"
+    },
+
+    "phase_implementing": {
+      "purpose": "Signal start of actual code generation for current phase", 
+      "frequency": "At the beginning of each phase implementation",
+      "payload": {
+        "type": "phase_implementing",
+        "data": {
+          "message": "Starting phase implementation",
+          "phase": {
+            "name": "Phase being implemented",
+            "description": "Phase implementation details",
+            "files": "List of files to be generated"
+          },
+          "phaseNumber": "Current phase number",
+          "totalFiles": "Number of files in this phase",
+          "aiModel": "AI model being used for generation",
+          "startTime": "Phase implementation start time"
+        }
+      },
+      "duration": "2-10 minutes depending on phase complexity",
+      "clientHandling": "Show active phase implementation status"
+    },
+
+    "phase_implemented": {
+      "purpose": "Confirm completion of phase implementation",
+      "frequency": "After each phase is fully implemented and deployed",
+      "payload": {
+        "type": "phase_implemented",
+        "data": {
+          "message": "Phase implementation completed",
+          "phase": {
+            "name": "Completed phase name",
+            "filesGenerated": "Number of files created",
+            "outcome": "Phase completion summary"
+          },
+          "phaseNumber": "Completed phase number",
+          "duration": "Time taken for phase implementation",
+          "progress": "Updated overall progress percentage",
+          "issues": "Any issues encountered and resolved",
+          "nextPhase": "Preview of next phase (if applicable)"
+        }
+      },
+      "clientHandling": "Mark phase as complete in timeline, update progress"
+    },
+
+    "phase_validating": {
+      "purpose": "Indicate validation and quality assurance in progress",
+      "frequency": "During validation phases",
+      "payload": {
+        "type": "phase_validating",
+        "data": {
+          "message": "Validating generated code",
+          "validationType": "static_analysis | runtime_testing | ai_review",
+          "scope": "Files or components being validated",
+          "progress": "Validation progress percentage"
+        }
+      },
+      "duration": "30 seconds - 2 minutes",
+      "clientHandling": "Show validation in progress indicator"
+    },
+
+    "phase_validated": {
+      "purpose": "Report validation results and quality metrics",
+      "frequency": "After validation completion",
+      "payload": {
+        "type": "phase_validated",
+        "data": {
+          "message": "Code validation completed",
+          "results": {
+            "passed": "Boolean indicating overall validation success",
+            "score": "Quality score (0-100)",
+            "issues": "Number of issues found",
+            "warnings": "Number of warnings"
+          },
+          "details": {
+            "staticAnalysis": "Static analysis results summary",
+            "runtimeTesting": "Runtime test results",
+            "aiReview": "AI code review summary"
+          },
+          "nextActions": "Required actions based on validation"
+        }
+      },
+      "clientHandling": "Display validation results, highlight issues if any"
+    },
+
+    "file_generating": {
+      "purpose": "Announce start of individual file generation",
+      "frequency": "Once per file at generation start",
+      "payload": {
+        "type": "file_generating",
+        "data": {
+          "file_path": "Path of file being generated",
+          "file_purpose": "Purpose and role of the file",
+          "is_regeneration": "Boolean indicating if this is a fix/improvement",
+          "issue": "Specific issue being addressed (if regeneration)",
+          "phase": "Current phase name",
+          "fileNumber": "File number within current phase",
+          "totalFiles": "Total files in current phase",
+          "estimatedSize": "Estimated file size"
+        }
+      },
+      "clientHandling": "Add file to generation queue display",
+      "uiUpdates": "Show file name in active generation list"
+    },
+
+    "file_chunk_generated": {
+      "purpose": "Stream file content in real-time as it's generated",
+      "frequency": "Multiple times per file (high frequency during generation)",
+      "payload": {
+        "type": "file_chunk_generated",
+        "data": {
+          "file_path": "File being updated",
+          "chunk": "Content chunk (up to 256 bytes)",
+          "format": "full_content | unified_diff",
+          "position": {
+            "start": "Chunk start position in file",
+            "end": "Chunk end position in file"
+          },
+          "isComplete": "Boolean indicating if file is complete",
+          "chunkNumber": "Sequential chunk number",
+          "totalChunks": "Total expected chunks (estimate)"
+        }
+      },
+      "streamingBehavior": "High frequency, low latency updates",
+      "clientHandling": "Append content to file display with syntax highlighting",
+      "optimization": "Batch multiple chunks for smooth rendering"
+    },
+
+    "file_generated": {
+      "purpose": "Confirm completion of individual file generation",
+      "frequency": "Once per file upon completion",
+      "payload": {
+        "type": "file_generated",
+        "data": {
+          "file": {
+            "file_path": "Complete file path",
+            "file_contents": "Complete file content",
+            "file_purpose": "File purpose and description",
+            "size": "Final file size in bytes",
+            "language": "Programming language/file type"
+          },
+          "message": "File generation completion message",
+          "duration": "Time taken to generate file",
+          "aiModel": "AI model used for generation",
+          "quality": {
+            "syntaxValid": "Boolean indicating syntax validity",
+            "hasIssues": "Boolean indicating if issues detected"
+          }
+        }
+      },
+      "clientHandling": "Mark file as complete, enable file viewing/editing",
+      "triggerActions": ["Real-time code fixing", "File deployment to Runner Service"]
+    },
+
+    "file_regenerated": {
+      "purpose": "Notify about file regeneration for issue resolution",
+      "frequency": "When files are regenerated to fix issues",
+      "payload": {
+        "type": "file_regenerated",
+        "data": {
+          "file": {
+            "file_path": "Regenerated file path",
+            "file_contents": "New file content",
+            "previousVersion": "Previous version for comparison",
+            "changes": "Summary of changes made"
+          },
+          "issues": {
+            "resolved": "List of issues that were fixed",
+            "remaining": "Any remaining issues",
+            "newIssues": "New issues introduced (if any)"
+          },
+          "regenerationReason": "Why the file was regenerated",
+          "attempts": "Number of regeneration attempts for this file",
+          "success": "Boolean indicating regeneration success"
+        }
+      },
+      "clientHandling": "Show before/after comparison, highlight fixes",
+      "maxAttempts": "3 attempts before escalation"
+    },
+
+    "deployment_started": {
+      "purpose": "Indicate deployment process has begun",
+      "frequency": "When files are being deployed to Runner Service",
+      "payload": {
+        "type": "deployment_started",
+        "data": {
+          "message": "Starting deployment to preview environment",
+          "target": "preview | production | staging",
+          "files": "Number of files being deployed",
+          "deploymentId": "Unique deployment identifier",
+          "estimatedTime": "Expected deployment duration"
+        }
+      },
+      "duration": "30-90 seconds typically",
+      "clientHandling": "Show deployment progress indicator"
+    },
+
+    "deployment_completed": {
+      "purpose": "Confirm successful deployment with access information",
+      "frequency": "After successful deployment to Runner Service",
+      "payload": {
+        "type": "deployment_completed",
+        "data": {
+          "message": "Deployment completed successfully",
+          "previewURL": "Live preview URL with HTTPS",
+          "instanceId": "Runner Service instance identifier",
+          "deploymentId": "Deployment identifier for reference",
+          "details": {
+            "filesDeployed": "Number of files deployed",
+            "buildTime": "Build process duration",
+            "deploymentTime": "Total deployment time",
+            "status": "healthy | warning | error"
+          },
+          "capabilities": [
+            "Live preview available",
+            "Hot reload enabled", 
+            "Error monitoring active",
+            "Performance tracking enabled"
+          ],
+          "accessInfo": {
+            "publicUrl": "Public access URL",
+            "sslEnabled": "HTTPS availability",
+            "mobileResponsive": "Mobile compatibility"
+          }
+        }
+      },
+      "clientHandling": "Enable preview button, show success message",
+      "uiUpdates": "Make preview URL clickable, show deployment success"
+    },
+
+    "cloudflare_deployment_started": {
+      "purpose": "Indicate production deployment to Cloudflare Workers has begun",
+      "frequency": "When user initiates production deployment",
+      "payload": {
+        "type": "cloudflare_deployment_started",
+        "data": {
+          "message": "Starting deployment to Cloudflare Workers",
+          "target": "production",
+          "configuration": {
+            "domain": "Custom domain (if specified)",
+            "environment": "Production environment settings",
+            "scaling": "Auto-scaling configuration"
+          },
+          "estimatedTime": "Expected deployment duration"
+        }
+      },
+      "duration": "2-5 minutes for complete deployment",
+      "clientHandling": "Show production deployment progress"
+    },
+
+    "cloudflare_deployment_completed": {
+      "purpose": "Confirm successful production deployment",
+      "frequency": "After successful Cloudflare Workers deployment",
+      "payload": {
+        "type": "cloudflare_deployment_completed", 
+        "data": {
+          "message": "Successfully deployed to Cloudflare Workers",
+          "productionURL": "Live production URL",
+          "deploymentInfo": {
+            "workerName": "Deployed worker name",
+            "customDomain": "Custom domain (if configured)",
+            "scalingSettings": "Auto-scaling configuration",
+            "performance": "Global edge deployment status"
+          },
+          "features": [
+            "Global CDN distribution",
+            "Auto-scaling enabled",
+            "HTTPS by default",
+            "High availability"
+          ],
+          "monitoring": {
+            "metricsUrl": "Cloudflare dashboard URL",
+            "analyticsEnabled": "Usage analytics availability"
+          }
+        }
+      },
+      "clientHandling": "Show production URL, enable sharing features"
+    },
+
+    "runtime_error_found": {
+      "purpose": "Report runtime errors detected in generated application",
+      "frequency": "As errors are detected during development/testing",
+      "payload": {
+        "type": "runtime_error_found",
+        "data": {
+          "errors": [
+            {
+              "type": "JavaScript Error | Network Error | Build Error",
+              "message": "Error description",
+              "file": "File where error occurred",
+              "line": "Line number (if applicable)",
+              "stack": "Stack trace for debugging",
+              "severity": "critical | high | medium | low",
+              "frequency": "Error occurrence frequency",
+              "impact": "User experience impact assessment"
+            }
+          ],
+          "summary": {
+            "totalErrors": "Total number of errors detected",
+            "criticalCount": "Number of critical errors",
+            "newErrors": "Recently detected errors",
+            "resolvedErrors": "Previously resolved errors"
+          },
+          "context": {
+            "detectionTime": "When errors were detected",
+            "applicationState": "Application state when errors occurred",
+            "userActions": "Actions that triggered errors"
+          },
+          "recommendedActions": [
+            "Suggested fixes for the errors",
+            "Files that may need regeneration",
+            "Configuration changes needed"
+          ]
+        }
+      },
+      "clientHandling": "Display error notifications, highlight affected files",
+      "severity": "Critical errors shown immediately, others batched"
+    },
+
+    "static_analysis_results": {
+      "purpose": "Provide results from static code analysis and linting",
+      "frequency": "After static analysis completion",
+      "payload": {
+        "type": "static_analysis_results",
+        "data": {
+          "summary": {
+            "totalIssues": "Total issues found",
+            "byType": {
+              "errors": "Critical issues count",
+              "warnings": "Warning issues count",
+              "info": "Informational issues count"
+            },
+            "bySeverity": {
+              "critical": "Critical severity count",
+              "high": "High severity count", 
+              "medium": "Medium severity count",
+              "low": "Low severity count"
+            }
+          },
+          "tools": {
+            "eslint": {
+              "issues": "ESLint rule violations",
+              "score": "Code quality score",
+              "fixableIssues": "Auto-fixable issues count"
+            },
+            "typescript": {
+              "errors": "Type checking errors",
+              "warnings": "Type checking warnings",
+              "strictness": "Strict mode compliance"
+            },
+            "security": {
+              "vulnerabilities": "Security issues found",
+              "riskLevel": "Overall security risk assessment",
+              "recommendations": "Security improvement suggestions"
+            }
+          },
+          "files": [
+            {
+              "path": "File path",
+              "issues": "Issues in this file",
+              "score": "File quality score",
+              "recommendations": "File-specific recommendations"
+            }
+          ],
+          "trends": {
+            "improvement": "Quality improvement over time",
+            "newIssues": "Recently introduced issues",
+            "resolvedIssues": "Recently fixed issues"
+          }
+        }
+      },
+      "clientHandling": "Display analysis results dashboard, highlight issues",
+      "actionable": "Provide quick fix suggestions where possible"
+    },
+
+    "code_review": {
+      "purpose": "Provide comprehensive AI-powered code review results",
+      "frequency": "After AI code review completion",
+      "payload": {
+        "type": "code_review",
+        "data": {
+          "reviewSummary": {
+            "overallScore": "Code quality score (0-100)",
+            "reviewer": "AI model used for review",
+            "reviewTime": "Time taken for review",
+            "scope": "Files and components reviewed"
+          },
+          "findings": [
+            {
+              "category": "architecture | performance | security | maintainability",
+              "severity": "critical | high | medium | low",
+              "title": "Issue title",
+              "description": "Detailed issue description",
+              "location": {
+                "file": "File path",
+                "line": "Line number range",
+                "function": "Function or component name"
+              },
+              "recommendation": "Specific fix recommendation",
+              "examples": "Code examples for improvement",
+              "impact": "Potential impact if not addressed"
+            }
+          ],
+          "positiveAspects": [
+            "Well-implemented features",
+            "Good coding practices observed",
+            "Strengths of the codebase"
+          ],
+          "metrics": {
+            "codeComplexity": "Cyclomatic complexity score",
+            "maintainabilityIndex": "Maintainability assessment",
+            "testCoverage": "Test coverage percentage",
+            "performance": "Performance characteristics"
+          },
+          "recommendations": {
+            "immediate": "Issues requiring immediate attention",
+            "shortTerm": "Improvements for near-term implementation",
+            "longTerm": "Strategic improvements for future"
+          }
+        }
+      },
+      "clientHandling": "Display comprehensive review dashboard",
+      "interactive": "Allow filtering by category, severity, and file"
+    },
+
+    "command_executing": {
+      "purpose": "Indicate system commands are being executed",
+      "frequency": "During setup, build, or maintenance operations",
+      "payload": {
+        "type": "command_executing",
+        "data": {
+          "message": "Executing system commands",
+          "commands": [
+            {
+              "command": "Command being executed",
+              "purpose": "Why this command is needed",
+              "estimatedTime": "Expected execution time"
+            }
+          ],
+          "phase": "Setup | Build | Deployment | Maintenance",
+          "progress": "Command execution progress"
+        }
+      },
+      "duration": "Variable (10 seconds - 5 minutes)",
+      "clientHandling": "Show command execution progress with details"
+    },
+
+    "error": {
+      "purpose": "Report system errors and failures",
+      "frequency": "When system errors occur",
+      "payload": {
+        "type": "error",
+        "data": {
+          "error": {
+            "code": "Error code for categorization",
+            "message": "Human-readable error message",
+            "details": "Technical error details",
+            "context": "Context when error occurred"
+          },
+          "severity": "critical | high | medium | low",
+          "recoverable": "Boolean indicating if error is recoverable",
+          "userAction": "Required user action (if any)",
+          "supportInfo": {
+            "sessionId": "Session ID for support",
+            "timestamp": "Error timestamp",
+            "diagnostics": "Diagnostic information"
+          },
+          "retryPossible": "Boolean indicating if retry is possible"
+        }
+      },
+      "clientHandling": "Show error notification with appropriate severity styling",
+      "userExperience": "Provide clear next steps and support options"
+    }
+  },
+
+  "errorRecovery": {
+    "connectionFailures": {
+      "detection": "WebSocket onclose and onerror events",
+      "immediate": "Attempt immediate reconnection (1 try)",
+      "backoff": "Exponential backoff for subsequent attempts",
+      "maxRetries": 5,
+      "fallback": "Graceful degradation to polling (if implemented)"
+    },
+
+    "messageFailures": {
+      "sendFailure": "Queue message for retry when connection restored",
+      "receiveFailure": "Request message resend with sequence numbers",
+      "corruptedMessage": "Log and ignore, request resend if critical"
+    },
+
+    "stateRecovery": {
+      "serverState": "Durable Object maintains state across connections",
+      "clientState": "Resume from last known state on reconnection",
+      "stateSynchronization": "Sync client and server state after reconnection"
+    }
+  },
+
+  "performanceOptimizations": {
+    "messageBatching": {
+      "fileChunks": "Batch multiple file chunks for smooth rendering",
+      "statusUpdates": "Combine non-critical status updates",
+      "errorReports": "Batch similar errors to reduce noise"
+    },
+
+    "compression": {
+      "largPayloads": "Gzip compression for messages > 1KB",
+      "images": "Efficient image compression for screenshots",
+      "codeContent": "Compress large code files"
+    },
+
+    "clientOptimizations": {
+      "messageQueuing": "Queue messages during high frequency periods",
+      "renderOptimization": "Debounce UI updates for smooth experience",
+      "memoryManagement": "Clean up old messages and state"
+    }
+  },
+
+  "securityConsiderations": {
+    "authentication": "JWT token validation for all connections",
+    "authorization": "Verify user permissions for agent access",
+    "inputValidation": "Sanitize all incoming message data",
+    "rateLimiting": "Limit message frequency per connection",
+    "messageSize": "Enforce maximum message size limits",
+    "contentFiltering": "Filter potentially malicious content"
+  }
+}

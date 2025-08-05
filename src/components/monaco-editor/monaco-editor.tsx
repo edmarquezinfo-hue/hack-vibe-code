@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor';
+import { useTheme } from '../../contexts/theme-context';
 
 import 'monaco-editor/esm/vs/editor/editor.all.js';
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
@@ -168,12 +169,13 @@ export const MonacoEditor = memo<MonacoEditorProps>(function MonacoEditor({
 	const editor = useRef<monaco.editor.IStandaloneCodeEditor>(undefined);
 	const prevValue = useRef<string>(createOptions.value || '');
 	const stickyScroll = useRef(true);
+	const { theme } = useTheme();
 
 	useEffect(() => {
 		editor.current = monaco.editor.create(containerRef.current!, {
 			language: createOptions.language || 'typescript',
 			minimap: { enabled: false },
-			theme: 'v1-dev',
+			theme: theme === 'dark' ? 'v1-dev-dark' : 'v1-dev',
 			automaticLayout: true,
 			value: defaultCode,
 			fontSize: 13,
@@ -282,6 +284,13 @@ export const MonacoEditor = memo<MonacoEditorProps>(function MonacoEditor({
 			decorations,
 		);
 	}, [find, replace]);
+
+	// Update theme when app theme changes
+	useEffect(() => {
+		if (editor.current) {
+			monaco.editor.setTheme(theme === 'dark' ? 'v1-dev-dark' : 'v1-dev');
+		}
+	}, [theme]);
 
 	return <div {...props} ref={containerRef}></div>;
 });

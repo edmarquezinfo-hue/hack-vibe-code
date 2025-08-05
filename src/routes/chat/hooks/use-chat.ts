@@ -13,6 +13,7 @@ import {
 } from '../../../utils/ndjson-parser/ndjson-parser';
 import { getFileType } from '../../../utils/string';
 import { logger } from '../../../utils/logger';
+import { useAuth } from '@/contexts/auth-context';
 
 export interface FileType {
 	file_path: string;
@@ -24,14 +25,29 @@ export interface FileType {
 	language?: string;
 }
 
-export interface Phase {
+export interface ProjectStage {
 	id: 'bootstrap' | 'blueprint' | 'code' | 'validate' | 'fix';
 	title: string;
 	status: 'pending' | 'active' | 'completed' | 'error';
 	metadata?: string;
 }
 
-const initialPhases: Phase[] = [
+// New interface for phase timeline tracking
+export interface PhaseTimelineItem {
+	id: string;
+	name: string;
+	description: string;
+	files: {
+		path: string;
+		purpose: string;
+		status: 'generating' | 'completed' | 'error' | 'validating';
+		contents?: string;
+	}[];
+	status: 'generating' | 'completed' | 'error' | 'validating';
+	timestamp: number;
+}
+
+const initialStages: ProjectStage[] = [
 	{
 		id: 'bootstrap',
 		title: 'Bootstrapping project',
@@ -43,7 +59,7 @@ const initialPhases: Phase[] = [
 		status: 'pending',
 	},
 	{ id: 'code', title: 'Generating code', status: 'pending' },
-	{ id: 'validate', title: 'Validating code', status: 'pending' },
+	{ id: 'validate', title: 'Reviewing & fixing code', status: 'pending' },
 	// { id: 'fixingErrors', title: 'Fixing errors', status: 'pending' },
 ];
 
@@ -54,14 +70,32 @@ type ChatMessage = {
 	isThinking?: boolean;
 };
 
+// Helper function to get or create session token for anonymous users
+function getOrCreateSessionToken(): string {
+	let token = localStorage.getItem('anonymous_session_token');
+	if (!token) {
+		token = crypto.randomUUID();
+		localStorage.setItem('anonymous_session_token', token);
+	}
+	return token;
+}
+
 export function useChat({
-	agentId,
+	chatId: urlChatId,
 	query: userQuery,
+	agentMode = 'deterministic',
+	onDebugMessage,
 }: {
-	agentId?: string;
+	chatId?: string;
 	query: string | null;
+	agentMode?: 'deterministic' | 'smart';
+	onDebugMessage?: (type: 'error' | 'warning' | 'info' | 'websocket', message: string, details?: string, source?: string, messageType?: string, rawMessage?: unknown) => void;
 }) {
-	const connectionStatus = useRef<'idle' | 'connecting' | 'connected'>('idle');
+	const { user } = useAuth();
+	const connectionStatus = useRef<'idle' | 'connecting' | 'connected' | 'failed' | 'retrying'>('idle');
+	const retryCount = useRef(0);
+	const maxRetries = 5;
+	const retryTimeouts = useRef<NodeJS.Timeout[]>([]);
 	const [chatId, setChatId] = useState<string>();
 	const [messages, setMessages] = useState<ChatMessage[]>([
 		{ type: 'ai', id: 'main', message: 'Thinking...', isThinking: true },
@@ -77,7 +111,10 @@ export function useChat({
 	const [isGeneratingBlueprint, setIsGeneratingBlueprint] = useState(false);
 	const [isBootstrapping, setIsBootstrapping] = useState(true);
 
-	const [projectPhases, setProjectPhases] = useState<Phase[]>(initialPhases);
+	const [projectStages, setProjectStages] = useState<ProjectStage[]>(initialStages);
+
+	// New state for phase timeline tracking
+	const [phaseTimeline, setPhaseTimeline] = useState<PhaseTimelineItem[]>([]);
 
 	const [files, setFiles] = useState<FileType[]>([]);
 
@@ -85,12 +122,34 @@ export function useChat({
 
 	const [edit, setEdit] = useState<Omit<CodeFixEdits, 'type'>>();
 
-	const updatePhase = useCallback(
-		(phaseId: Phase['id'], data: Partial<Omit<Phase, 'id'>>) => {
-			logger.debug('updatePhase', { phaseId, ...data });
-			setProjectPhases((prevPhases) =>
-				prevPhases.map((phase) =>
-					phase.id === phaseId ? { ...phase, ...data } : phase,
+	// Deployment and generation control state
+	const [isDeploying, setIsDeploying] = useState(false);
+	const [cloudflareDeploymentUrl, setCloudflareDeploymentUrl] = useState<string>('');
+	const [deploymentError, setDeploymentError] = useState<string>();
+	
+	// Preview deployment state
+	const [isPreviewDeploying, setIsPreviewDeploying] = useState(false);
+	
+	// Redeployment state - tracks when redeploy button should be enabled
+	const [isRedeployReady, setIsRedeployReady] = useState(false);
+	// const [lastDeploymentPhaseCount, setLastDeploymentPhaseCount] = useState(0);
+	const [isGenerationPaused, setIsGenerationPaused] = useState(false);
+	const [isGenerating, setIsGenerating] = useState(false);
+
+	const [isThinking, setIsThinking] = useState(false);
+	
+	// Preview refresh state - triggers preview reload after deployment
+	const [shouldRefreshPreview, setShouldRefreshPreview] = useState(false);
+	
+	// Track whether we've completed initial state restoration to avoid disrupting active sessions
+	const [isInitialStateRestored, setIsInitialStateRestored] = useState(false);
+
+	const updateStage = useCallback(
+		(stageId: ProjectStage['id'], data: Partial<Omit<ProjectStage, 'id'>>) => {
+			logger.debug('updateStage', { stageId, ...data });
+			setProjectStages((prevStages) =>
+				prevStages.map((stage) =>
+					stage.id === stageId ? { ...stage, ...data } : stage,
 				),
 			);
 		},
@@ -98,23 +157,52 @@ export function useChat({
 	);
 
 	const onCompleteBootstrap = useCallback(() => {
-		updatePhase('bootstrap', { status: 'completed' });
-	}, [updatePhase]);
+		updateStage('bootstrap', { status: 'completed' });
+	}, [updateStage]);
 
 	const clearEdit = useCallback(() => {
 		setEdit(undefined);
 	}, []);
 
-	const sendMessage = useCallback((message: Omit<ChatMessage, 'type'>) => {
-		setMessages((prev) => {
-			if (prev.some((m) => m.id === message.id && m.type === 'ai')) {
-				return prev.map((msg) =>
-					msg.id === message.id ? { ...msg, ...message } : msg,
-				);
-			}
-			return [...prev, { type: 'ai', ...message }];
-		});
+	// Define which message IDs should appear in the conversational chat
+	const isConversationalMessage = useCallback((messageId: string) => {
+		const conversationalIds = [
+			'main',
+			'creating-blueprint', 
+			'conversation_response',
+			'fetching-chat',
+			'chat-not-found',
+			'resuming-chat',
+			'chat-welcome',
+            'deployment-status'
+		];
+		
+		// Allow all conversation IDs that start with 'conv-' OR are in the static list
+		return conversationalIds.includes(messageId) || messageId.startsWith('conv-');
 	}, []);
+
+	const sendMessage = useCallback((message: Omit<ChatMessage, 'type'>) => {
+		// Only add conversational messages to the chat UI
+		if (!isConversationalMessage(message.id)) {
+			return; // System messages are handled by other UI components
+		}
+
+		setMessages((prev) => {
+			// Special case: Update the initial "Thinking..." message with id 'main' only once
+			if (message.id === 'main') {
+				const mainMessageIndex = prev.findIndex(m => m.id === 'main' && m.isThinking);
+				if (mainMessageIndex !== -1) {
+					// Replace the thinking message with the actual response
+					return prev.map((msg, index) =>
+						index === mainMessageIndex ? { ...msg, ...message, type: 'ai' as const } : msg
+					);
+				}
+			}
+			
+			// For all other conversational messages, always append chronologically
+			return [...prev, { type: 'ai' as const, ...message }];
+		});
+	}, [isConversationalMessage]);
 
 	const sendUserMessage = useCallback((message: string) => {
 		setMessages((prev) => [
@@ -145,58 +233,176 @@ export function useChat({
 	};
 
 	const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
-		if (import.meta.env.DEV) {
-			if (message.type !== 'file_chunk_generated') {
-				logger.debug('received message', message);
-			}
+		if (message.type !== 'file_chunk_generated' && message.type !== 'cf_agent_state') {
+			logger.info('received message', message.type, message);
+			// Capture ALL WebSocket messages for debug panel (lightweight when not open)
+			onDebugMessage?.('websocket', 
+				`${message.type}`,
+				JSON.stringify(message, null, 2),
+				'WebSocket',
+				message.type,
+				message
+			);
 		}
+		
 		switch (message.type) {
 			case 'cf_agent_state': {
 				const { state } = message;
+				console.log('🔄 Agent state update received:', state);
 
-				if (state.blueprint) {
-					setBlueprint(state.blueprint);
-					updatePhase('blueprint', { status: 'completed' });
-				}
-				const previewURL = import.meta.env.VITE_PREVIEW_MODE === 'tunnel' ? state.tunnelURL : state.previewURL;
-				if (previewURL) {
-					setPreviewUrl(previewURL);
-					sendMessage({
-						id: 'deployment-status',
-						message: 'Your project has been deployed to ' + previewURL,
-					});
-				}
-				setQuery(state.query);
+				// Only do full state restoration on initial load or when explicitly needed
+				if (!isInitialStateRestored) {
+					console.log('📥 Performing initial state restoration');
+					
+					// Restore blueprint
+					if (state.blueprint && !blueprint) {
+						setBlueprint(state.blueprint);
+						updateStage('blueprint', { status: 'completed' });
+					}
 
-				if (state.templateDetails?.files) {
-					loadBootstrapFiles(state.templateDetails.files);
-					// updatePhaseStatus('bootstrapping', 'completed');
-				}
+					// Restore query
+					if (state.query && !query) {
+						setQuery(state.query);
+					}
 
-				if (state.generatedFilesMap) {
-					setFiles(
-						Object.values(state.generatedFilesMap).map((file) => {
-							return {
+					// Restore template/bootstrap files
+					if (state.templateDetails?.files && bootstrapFiles.length === 0) {
+						loadBootstrapFiles(state.templateDetails.files);
+					}
+
+					// Restore generated files
+					if (state.generatedFilesMap && files.length === 0) {
+						setFiles(
+							Object.values(state.generatedFilesMap).map((file) => ({
 								file_path: file.file_path,
 								file_contents: file.file_contents,
-								explanation: file.explanation,
 								isGenerating: false,
 								needsFixing: false,
 								hasErrors: false,
 								language: getFileType(file.file_path),
-							};
-						}),
-					);
+							})),
+						);
+					}
 
-					if (
-						agentId === 'new' &&
-						Object.values(state.generatedFilesMap).length > 0
-					) {
-						updatePhase('code', { status: 'active' });
-						// updatePhaseStatus('validatingCode', 'completed');
+					// Restore phase timeline from generatedPhases
+					if (state.generatedPhases && state.generatedPhases.length > 0 && phaseTimeline.length === 0) {
+						console.log('📋 Restoring phase timeline:', state.generatedPhases);
+						const timeline = state.generatedPhases.map((phase, index) => ({
+							id: `phase-${index}`,
+							name: phase.name,
+							description: phase.description,
+							status: phase.completed ? 'completed' as const : 'generating' as const,
+                            files: phase.files.map((filesConcept) => {
+                                const file = state.generatedFilesMap?.[filesConcept.path];
+                                return {
+                                    path: filesConcept.path,
+                                    purpose: filesConcept.purpose,
+                                    status: (file? 'completed' as const : 'generating' as const),
+                                    contents: file?.file_contents
+                                };
+                            }),
+                            timestamp: Date.now(),
+                        }));
+						setPhaseTimeline(timeline);
+					}
+
+					// Restore conversation messages
+					if (state.conversationMessages && state.conversationMessages.length > 0) {
+						console.log('💬 Restoring conversation messages:', state.conversationMessages.length);
+						const restoredMessages = state.conversationMessages.map((msg) => ({
+							type: msg.role === 'user' ? 'user' as const : 'ai' as const,
+							id: (msg.conversationId || crypto.randomUUID()),
+							message: msg.content as string,
+							isThinking: false
+						}));
+
+                        // Filter out internal memos - If the message contains '<Internal Memo>'
+                        const filteredMessages = restoredMessages.filter((msg) => !msg.message.includes('<Internal Memo>'));
+						
+						// Only replace messages if we have actual conversation content to restore
+						if (filteredMessages.length > 0) {
+							console.log('💬 Replacing messages with restored conversation:', filteredMessages.length);
+							setMessages(filteredMessages);
+						} else {
+							console.log('💬 No conversation messages to restore, preserving initial state for welcome message');
+							// For restored chats with no conversation history, trigger welcome message manually
+							setTimeout(() => {
+								sendMessage({
+									id: 'chat-welcome',
+									message: 'You can talk to me while I get your app built',
+									isThinking: false,
+								});
+							}, 100); // Small delay to ensure state is properly updated
+						}
+					} else if (state.blueprint && !state.conversationMessages) {
+						// If we have a blueprint but no conversation messages at all, show welcome message
+						console.log('💬 No conversation messages in state, showing welcome message for functional chat');
+						setTimeout(() => {
+							sendMessage({
+								id: 'chat-welcome',
+								message: 'You can talk to me while I get your app built',
+								isThinking: false,
+							});
+						}, 100); // Small delay to ensure state is properly updated
+					}
+
+					// Update project stages based on current state
+					updateStage('bootstrap', { status: 'completed' });
+					
+					if (state.blueprint) {
+						updateStage('blueprint', { status: 'completed' });
+					}
+					
+					if (state.generatedFilesMap && Object.keys(state.generatedFilesMap).length > 0) {
+						updateStage('code', { status: 'completed' });
+						updateStage('validate', { status: 'completed' });
+					}
+
+					// Mark initial restoration as complete
+					setIsInitialStateRestored(true);
+				}
+
+				// Always handle preview URL updates (this is safe to do repeatedly)
+				const finalPreviewURL = import.meta.env.VITE_PREVIEW_MODE === 'tunnel' ? state.tunnelURL : state.previewURL;
+				if (finalPreviewURL && finalPreviewURL !== previewUrl) {
+					setPreviewUrl(finalPreviewURL);
+					// Only send deployment message if this is a new URL
+					if (!previewUrl) {
+						sendMessage({
+							id: 'deployment-status',
+							message: 'Your project has been deployed to ' + finalPreviewURL,
+						});
 					}
 				}
 
+				// Always handle shouldBeGenerating flag for auto-resume (this is important for reconnects)
+				if (state.shouldBeGenerating) {
+					console.log('🔄 shouldBeGenerating=true detected, auto-resuming generation');
+					updateStage('code', { status: 'active' });
+					
+					// Auto-send generate_all message to resume generation
+					if (websocket && websocket.readyState === WebSocket.OPEN) {
+						console.log('📡 Sending auto-resume generate_all message');
+						websocket.send(JSON.stringify({ type: 'generate_all' }));
+					}
+				} else {
+					// If shouldBeGenerating is false, ensure code stage is not active (unless currently generating)
+					const codeStage = projectStages.find(stage => stage.id === 'code');
+					if (codeStage?.status === 'active' && !isGenerating) {
+						if (state.generatedFilesMap && Object.keys(state.generatedFilesMap).length > 0) {
+							updateStage('code', { status: 'completed' });
+							updateStage('validate', { status: 'completed' });
+
+							// Auto-deploy preview if we have generated files but no preview URL
+							if (!finalPreviewURL && websocket && websocket.readyState === WebSocket.OPEN) {
+								console.log('🚀 Generated files exist but no preview URL - auto-deploying preview');
+								websocket.send(JSON.stringify({ type: 'preview' }));
+							}
+						}
+					}
+				}
+
+				console.log('✅ Agent state update processed');
 				break;
 			}
 
@@ -239,6 +445,7 @@ export function useChat({
 			}
 
 			case 'file_generated': {
+				// setIsRedeployReady(true);
 				// find the file and change isGenerating to false with the file in same index
 				setFiles((prev) => {
 					const file = prev.find(
@@ -250,7 +457,6 @@ export function useChat({
 							{
 								file_path: message.file.file_path,
 								file_contents: message.file.file_contents,
-								explanation: message.file.explanation,
 								isGenerating: false,
 								needsFixing: false,
 								hasErrors: false,
@@ -259,13 +465,34 @@ export function useChat({
 						];
 					file.isGenerating = false;
 					file.file_contents = message.file.file_contents;
-					file.explanation = message.file.explanation;
 					return [...prev];
+				});
+				
+				// Update file status in phase timeline from generating to completed
+				setPhaseTimeline(prev => {
+					const updated = [...prev];
+					
+					// Find the active phase (not completed) and update the specific file
+					for (let i = updated.length - 1; i >= 0; i--) {
+						if (updated[i].status !== 'completed') {
+							const fileInPhase = updated[i].files.find(f => f.path === message.file.file_path);
+							if (fileInPhase) {
+								fileInPhase.status = 'completed';
+								// Store the final contents of the file for this phase
+								fileInPhase.contents = message.file.file_contents;
+								console.log(`File completed in phase ${updated[i].name}: ${message.file.file_path}`);
+								break;
+							}
+						}
+					}
+					
+					return updated;
 				});
 				break;
 			}
 
 			case 'file_regenerated': {
+				setIsRedeployReady(true);
 				// update the file
 				setFiles((prev) => {
 					const file = prev.find(
@@ -273,19 +500,42 @@ export function useChat({
 					);
 					if (!file) return prev;
 					file.file_contents = message.file.file_contents;
-					file.explanation = message.file.explanation;
+					// Clear regenerating flags
+					file.isGenerating = false;
+					file.needsFixing = false;
+					file.hasErrors = false;
 					return [...prev];
+				});
+				
+				// Update phase timeline to show file regeneration completed
+				setPhaseTimeline(prev => {
+					const updated = [...prev];
+					
+					// Find the most recent phase that contains this file and mark as completed
+					for (let i = updated.length - 1; i >= 0; i--) {
+						const fileInPhase = updated[i].files.find(f => f.path === message.file.file_path);
+						if (fileInPhase) {
+							fileInPhase.status = 'completed';
+							// Store the updated contents for this phase
+							fileInPhase.contents = message.file.file_contents;
+							console.log(`File regeneration completed in phase ${updated[i].name}: ${message.file.file_path}`);
+							break;
+						}
+					}
+					
+					return updated;
 				});
 				break;
 			}
 
 			case 'generation_started': {
-				updatePhase('code', { status: 'active' });
+				updateStage('code', { status: 'active' });
 				setTotalFiles(message.totalFiles);
 				break;
 			}
 
 			case 'generation_complete': {
+				setIsRedeployReady(true);
 				// update the file
 				setFiles((prev) =>
 					prev.map((file) => {
@@ -295,69 +545,127 @@ export function useChat({
 						return file;
 					}),
 				);
-				updatePhase('code', { status: 'completed' });
-				// update validate phase only if isn't completed
-				setProjectPhases((prev) => {
-					return prev.map((phase) => {
-						if (phase.id === 'validate' && phase.status !== 'completed') {
-							return { ...phase, status: 'active' };
-						}
-						return phase;
-					});
-				});
+				updateStage('code', { status: 'completed' });
+				updateStage('validate', { status: 'completed' });
 
 				sendMessage({
-					id: 'main',
+					id: 'generation-complete',
 					message: 'Code generation has been completed.',
 					isThinking: false,
 				});
 				break;
 			}
 
+			case 'deployment_started': {
+				setIsPreviewDeploying(true);
+				break;
+			}
+
 			case 'deployment_completed': {
-				const previewURL = import.meta.env.VITE_PREVIEW_MODE === 'tunnel' ? message.tunnelURL : message.previewURL;
-				setPreviewUrl(previewURL);
+				setIsPreviewDeploying(false);
+				const finalPreviewURL = import.meta.env.VITE_PREVIEW_MODE === 'tunnel' ? message.tunnelURL : message.previewURL;
+				setPreviewUrl(finalPreviewURL);
 				sendMessage({
 					id: 'deployment-status',
-					message: 'Your project has been deployed to ' + previewURL,
+					message: 'Your project has been deployed to ' + finalPreviewURL,
 				});
 
 				break;
 			}
 
 			case 'code_review': {
-				// sendMessage({
-				// 	id: 'code-review',
-				// 	message: message.message,
-				// });
-				// updatePhaseStatus('codeReview', 'active');
+				const reviewData = message.review;
+				const totalIssues = reviewData?.files_to_fix?.reduce((count, file) => count + file.issues.length, 0) || 0;
+				
+				let reviewMessage = 'Code review complete';
+				if (reviewData?.issues_found) {
+					reviewMessage = `Code review complete - ${totalIssues} issue${totalIssues !== 1 ? 's' : ''} found across ${reviewData.files_to_fix?.length || 0} file${reviewData.files_to_fix?.length !== 1 ? 's' : ''}`;
+				} else {
+					reviewMessage = 'Code review complete - no issues found';
+				}
+				
+				sendMessage({
+					id: 'code_review',
+					message: reviewMessage,
+				});
+				break;
+			}
+
+			case 'file_regenerating': {
+				// Mark file as being regenerated (similar to file_generating)
+				setFiles((prev) => {
+					const existingFile = prev.find(f => f.file_path === message.file_path);
+					if (existingFile) {
+						existingFile.isGenerating = true;
+						existingFile.needsFixing = true; // Indicate this is a regeneration
+						return [...prev];
+					}
+					// If file doesn't exist, add it
+					return [...prev, {
+						file_path: message.file_path,
+						file_contents: '',
+						explanation: 'File being regenerated...',
+						isGenerating: true,
+						needsFixing: true,
+						hasErrors: false,
+						language: getFileType(message.file_path),
+					}];
+				});
+				
+				// Update phase timeline to show file being regenerated
+				setPhaseTimeline(prev => {
+					const updated = [...prev];
+					
+					// Find the most recent phase that contains this file
+					for (let i = updated.length - 1; i >= 0; i--) {
+						const fileInPhase = updated[i].files.find(f => f.path === message.file_path);
+						if (fileInPhase) {
+							fileInPhase.status = 'generating'; // Show as regenerating
+							console.log(`File regenerating in phase ${updated[i].name}: ${message.file_path}`);
+							break;
+						}
+					}
+					
+					return updated;
+				});
 				break;
 			}
 
 			case 'runtime_error_found': {
+				const errorMessage = `I detected a runtime error, will work on it: 
+Count: ${message.count}
+Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
+                // Truncate the message to 100 characters
+                const truncatedMessage = errorMessage.length > 100 ? errorMessage.substring(0, 100) + '...' : errorMessage;
 				setMessages((prev) => [
 					...prev,
 					{
 						type: 'ai',
 						id: 'runtime_error',
-						message: `Runtime error found: \nCount: ${message.count}\nMessage: ${message.errors.map((e) => e.message).join('\n')}`,
+						message: truncatedMessage,
 					},
 				]);
 				logger.info('Runtime error found', message.errors);
+				
+				// Capture for debug panel
+				onDebugMessage?.('error', 
+					`Runtime Error (${message.count} errors)`,
+					message.errors.map(e => `${e.message}\nStack: ${e.stack || 'N/A'}`).join('\n\n'),
+					'Runtime Detection'
+				);
 				break;
 			}
 
 			case 'generation_errors': {
 				const totalIssues =
-					message.lintIssues +
-					message.typeErrors +
-					message.runtimeErrors.length;
+					(message.staticAnalysis?.lint?.issues?.length || 0) +
+					(message.staticAnalysis?.typecheck?.issues?.length || 0) +
+					(message.runtimeErrors.length || 0);
 
-				updatePhase('code', { status: 'completed' });
-				updatePhase('validate', { status: 'completed' });
+				updateStage('validate', { status: 'active' });
 
 				if (totalIssues > 0) {
-					setProjectPhases((list) => [
+					setProjectStages((list) => [
 						...list,
 						{
 							id: 'fix',
@@ -366,35 +674,307 @@ export function useChat({
 							metadata: `Fixing ${totalIssues} errors`,
 						},
 					]);
+					
+					// Capture for debug panel
+					const errorDetails = [
+						`Lint Issues: ${JSON.stringify(message.staticAnalysis?.lint?.issues)}`,
+						`Type Errors: ${JSON.stringify(message.staticAnalysis?.typecheck?.issues)}`,
+						`Runtime Errors: ${JSON.stringify(message.runtimeErrors)}`,
+						`Client Errors: ${JSON.stringify(message.clientErrors)}`,
+					].filter(Boolean).join('\n');
+					
+					onDebugMessage?.('warning', 
+						`Generation Issues Found (${totalIssues} total)`,
+						errorDetails,
+						'Code Generation'
+					);
 				}
 				break;
 			}
 
-			case 'code_fix_edits': {
-				setEdit({
-					filePath: message.filePath,
-					search: message.search,
-					replacement: message.replacement,
-				});
+			case 'phase_generating': {
 				sendMessage({
-					id: 'code_fix_edits',
-					message: `Fixed errors in \`${message.filePath}\``,
+					id: 'phase_generating',
+					message: message.message,
+				});
+				setIsThinking(true);
+				break;
+			}
+
+			case 'phase_generated': {
+				sendMessage({
+					id: 'phase_generated',
+					message: message.message,
+				});
+				setIsThinking(false);
+				break;
+			}
+
+			case 'phase_implementing': {
+				sendMessage({
+					id: 'phase_implementing',
+					message: message.message,
+				});
+				updateStage('code', { status: 'active' });
+				
+				// Add phase to timeline with duplicate checking
+				if (message.phase) {
+					setPhaseTimeline(prev => {
+						// Check if phase already exists
+						const existingPhase = prev.find(p => p.name === message.phase.name);
+						if (existingPhase) {
+							console.log('Phase already exists in timeline:', message.phase.name);
+							return prev; // Don't add duplicate
+						}
+						
+						// Add new phase
+						const newPhase = {
+							id: `${message.phase.name}-${Date.now()}`,
+							name: message.phase.name,
+							description: message.phase.description,
+							files: message.phase.files?.map(f => {
+								// Capture current file contents for incremental calculation
+								// const existingFile = files.find(file => file.file_path === f.path);
+								return {
+									path: f.path,
+									purpose: f.purpose,
+									status: 'generating' as const,
+									// contents: existingFile?.file_contents || '' // Store current contents
+								};
+							}) || [],
+							status: 'generating' as const,
+							timestamp: Date.now()
+						};
+						
+						console.log('Added new phase to timeline:', message.phase.name);
+						return [...prev, newPhase];
+					});
+				}
+				break;
+			}
+
+			case 'phase_validating': {
+				sendMessage({
+					id: 'phase_validating',
+					message: message.message,
+				});
+				updateStage('validate', { status: 'active' });
+				
+				// Update phase timeline to show validation state
+				setPhaseTimeline(prev => {
+					const updated = [...prev];
+					if (updated.length > 0) {
+						const lastPhase = updated[updated.length - 1];
+						lastPhase.status = 'validating';
+						console.log(`Phase validating: ${lastPhase.name}`);
+					}
+					return updated;
+				});
+				
+				// Clear preview deploying state when validation starts
+				setIsPreviewDeploying(false);
+				break;
+			}
+
+			case 'phase_validated': {
+				sendMessage({
+					id: 'phase_validated',
+					message: message.message,
+				});
+				updateStage('validate', { status: 'completed' });
+				
+				// No need to update phase timeline here - it will be updated when deployment starts
+				break;
+			}
+
+			case 'phase_implemented': {
+				sendMessage({
+					id: 'phase_implemented',
+					message: message.message,
 				});
 
-				updatePhase('code', { status: 'completed' });
-				updatePhase('validate', { status: 'completed' });
-
-				setFiles((prev) =>
-					prev.map((file) => {
-						if (file.file_path === message.filePath) {
-							file.file_contents = file.file_contents.replace(
-								message.search,
-								message.replacement,
-							);
+				updateStage('code', { status: 'completed' });
+				setIsRedeployReady(true);
+				
+				// Update phase timeline
+				if (message.phase) {
+					setPhaseTimeline(prev => {
+						const updated = [...prev];
+						if (updated.length > 0) {
+							const lastPhase = updated[updated.length - 1];
+							lastPhase.status = 'completed';
+							lastPhase.files = lastPhase.files.map(f => ({ ...f, status: 'completed' as const }));
+							console.log(`Phase completed: ${lastPhase.name}`);
 						}
-						return file;
-					}),
+						return updated;
+					});
+				}
+
+				console.log('🔄 Scheduling preview refresh in 1 second after deployment completion');
+				setTimeout(() => {
+					console.log('🔄 Triggering preview refresh after deployment completion');
+					setShouldRefreshPreview(true);
+					
+					// Reset the refresh trigger after a brief delay
+					setTimeout(() => {
+						setShouldRefreshPreview(false);
+					}, 100);
+					
+					// Debug logging for preview refresh
+					onDebugMessage?.('info',
+						'Preview Auto-Refresh Triggered',
+						`Preview refreshed 1 second after deployment completion`,
+						'Preview Auto-Refresh'
+					);
+				}, 1000); // 1 second delay
+				break;
+			}
+
+			case 'generation_stopped': {
+				setIsGenerating(false);
+				setIsGenerationPaused(true);
+				sendMessage({
+					id: 'generation_stopped',
+					message: message.message,
+				});
+				break;
+			}
+
+			case 'generation_resumed': {
+				setIsGenerating(true);
+				setIsGenerationPaused(false);
+				sendMessage({
+					id: 'generation_resumed',
+					message: message.message,
+				});
+				break;
+			}
+
+			case 'cloudflare_deployment_started': {
+				setIsDeploying(true);
+				sendMessage({
+					id: 'cloudflare_deployment_started',
+					message: message.message,
+				});
+				break;
+			}
+
+			case 'cloudflare_deployment_completed': {
+				setIsDeploying(false);
+				setCloudflareDeploymentUrl(message.deploymentUrl);
+				
+				// Clear any previous deployment error
+				setDeploymentError('');
+				
+				// Disable redeploy button after successful deployment until next phase
+				setIsRedeployReady(false);
+				
+				sendMessage({
+					id: 'cloudflare_deployment_completed',
+					message: `Your project has been permanently deployed to Cloudflare Workers: ${message.deploymentUrl}`,
+				});
+				
+				// Debug logging for redeployment state
+				onDebugMessage?.('info', 
+					'Deployment Completed - Redeploy Reset',
+					`Deployment URL: ${message.deploymentUrl}\nPhase count at deployment: ${phaseTimeline.length}\nRedeploy button disabled until next phase`,
+					'Redeployment Management'
 				);
+				break;
+			}
+
+			case 'cloudflare_deployment_error': {
+				// Reset deployment state for retry
+				setIsDeploying(false);
+				
+				// Set deployment error for UI display
+				setDeploymentError(message.error || 'Unknown deployment error');
+				
+				// Clear deployment URL to allow button to show "Deploy to Cloudflare" again
+				setCloudflareDeploymentUrl('');
+				
+				// Reset redeploy state to allow fresh deployment attempt
+				setIsRedeployReady(true);
+				
+				sendMessage({
+					id: 'cloudflare_deployment_error',
+					message: `❌ Deployment failed: ${message.error}\n\n🔄 You can try deploying again.`,
+				});
+				
+				// Debug logging for deployment failure
+				onDebugMessage?.('error', 
+					'Deployment Failed - State Reset',
+					`Error: ${message.error}\nDeployment button reset for retry`,
+					'Deployment Error Recovery'
+				);
+				break;
+			}
+
+			case 'github_export_started': {
+				sendMessage({
+					id: 'github_export_started',
+					message: message.message,
+				});
+				break;
+			}
+
+			case 'github_export_progress': {
+				sendMessage({
+					id: 'github_export_progress',
+					message: message.message,
+				});
+				break;
+			}
+
+			case 'github_export_completed': {
+				sendMessage({
+					id: 'github_export_completed',
+					message: message.message,
+				});
+				break;
+			}
+
+			case 'github_export_error': {
+				sendMessage({
+					id: 'github_export_error',
+					message: `❌ GitHub export failed: ${message.error}`,
+				});
+				break;
+			}
+
+			case 'conversation_response': {
+				// Use unique conversation ID or fallback for backward compatibility
+				const messageId = message.conversationId || 'conversation_response';
+				
+				if (message.isStreaming) {
+					// Handle streaming chunks - append to existing conversation message
+					setMessages((prev) => {
+						const existingMessageIndex = prev.findIndex(m => m.id === messageId && m.type === 'ai');
+						
+						if (existingMessageIndex !== -1) {
+							// Append chunk to existing message
+							return prev.map((msg, index) => 
+								index === existingMessageIndex 
+									? { ...msg, message: msg.message + message.message }
+									: msg
+							);
+						} else {
+							// Create new streaming message with unique ID
+							return [...prev, {
+								type: 'ai' as const,
+								id: messageId,
+								message: message.message,
+								isThinking: false
+							}];
+						}
+					});
+				} else {
+					// Handle complete message (fallback) - always create new message
+					sendMessage({
+						id: messageId,
+						message: message.message,
+					});
+				}
 				break;
 			}
 
@@ -404,76 +984,193 @@ export function useChat({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	const connect = useCallback(
+	// Enhanced WebSocket connection with retry logic
+	const connectWithRetry = useCallback(
 		(
 			wsUrl: string,
-			{ disableGenerate = false }: { disableGenerate?: boolean } = {
-				disableGenerate: false,
-			},
+			{ disableGenerate = false, isRetry = false }: { disableGenerate?: boolean; isRetry?: boolean } = {},
 		) => {
-			logger.debug('connect() called with url:', wsUrl);
-			if (!wsUrl) return;
-			connectionStatus.current = 'connecting';
+			logger.debug(`🔌 ${isRetry ? 'Retrying' : 'Attempting'} WebSocket connection (attempt ${retryCount.current + 1}/${maxRetries + 1}):`, wsUrl);
+			
+			if (!wsUrl) {
+				console.error('❌ WebSocket URL is required');
+				return;
+			}
+
+			connectionStatus.current = isRetry ? 'retrying' : 'connecting';
 
 			try {
+				console.log('🔗 Attempting WebSocket connection to:', wsUrl);
 				const ws = new WebSocket(wsUrl);
 				setWebsocket(ws);
 
-				ws.addEventListener('open', () => {
-					logger.info('✅ WebSocket connection established!');
-					connectionStatus.current = 'connected';
-					// Request file generation
+				// Connection timeout - if connection doesn't open within 10 seconds
+				const connectionTimeout = setTimeout(() => {
+					if (ws.readyState === WebSocket.CONNECTING) {
+						console.warn('⏰ WebSocket connection timeout');
+						ws.close();
+						handleConnectionFailure(wsUrl, disableGenerate, 'Connection timeout');
+					}
+				}, 30000);
 
-					if (!disableGenerate) {
+				ws.addEventListener('open', () => {
+					clearTimeout(connectionTimeout);
+					logger.info('✅ WebSocket connection established successfully!');
+					connectionStatus.current = 'connected';
+					
+					// Reset retry count on successful connection
+					retryCount.current = 0;
+					
+					// Clear any pending retry timeouts
+					retryTimeouts.current.forEach(clearTimeout);
+					retryTimeouts.current = [];
+
+					// Send success message to user
+					if (isRetry) {
+						sendMessage({
+							id: 'websocket_reconnected',
+							message: '🔌 Connection restored! Continuing with code generation...',
+						});
+					}
+
+					// Request file generation for new chats only
+					if (!disableGenerate && urlChatId === 'new') {
+						console.log('🔄 Starting code generation for new chat');
 						ws.send(JSON.stringify({ type: 'generate_all' }));
 					}
+					// For existing chats, auto-resume will be handled by cf_agent_state message
 				});
 
 				ws.addEventListener('message', (event) => {
-					const message: WebSocketMessage = JSON.parse(event.data);
-					handleWebSocketMessage(message);
+					try {
+						const message: WebSocketMessage = JSON.parse(event.data);
+						handleWebSocketMessage(message);
+					} catch (parseError) {
+						console.error('❌ Error parsing WebSocket message:', parseError, event.data);
+					}
 				});
 
 				ws.addEventListener('error', (error) => {
+					clearTimeout(connectionTimeout);
 					console.error('❌ WebSocket error:', error);
+					handleConnectionFailure(wsUrl, disableGenerate, 'WebSocket error');
 				});
 
 				ws.addEventListener('close', (event) => {
+					clearTimeout(connectionTimeout);
 					logger.info(
-						`WebSocket connection closed with code ${event.code}: ${event.reason || 'No reason provided'}`,
+						`🔌 WebSocket connection closed with code ${event.code}: ${event.reason || 'No reason provided'}`,
 						event,
 					);
+					
+					// Only retry if this wasn't an intentional close (code 1000)
+					if (event.code !== 1000 && connectionStatus.current === 'connected') {
+						handleConnectionFailure(wsUrl, disableGenerate, `Connection closed (code: ${event.code})`);
+					}
 				});
 
 				return function disconnect() {
+					clearTimeout(connectionTimeout);
 					ws.close();
 				};
 			} catch (error) {
 				console.error('❌ Error establishing WebSocket connection:', error);
+				handleConnectionFailure(wsUrl, disableGenerate, 'Connection setup failed');
 			}
 		},
-		[handleWebSocketMessage],
+		[handleWebSocketMessage, retryCount, maxRetries, retryTimeouts],
+	);
+
+	// Handle connection failures with exponential backoff retry
+	const handleConnectionFailure = useCallback(
+		(wsUrl: string, disableGenerate: boolean, reason: string) => {
+			connectionStatus.current = 'failed';
+			
+			if (retryCount.current >= maxRetries) {
+				console.error(`💥 WebSocket connection failed permanently after ${maxRetries + 1} attempts`);
+				sendMessage({
+					id: 'websocket_failed',
+					message: `🚨 Connection failed permanently after ${maxRetries + 1} attempts.\n\n❌ Reason: ${reason}\n\n🔄 Please refresh the page to try again.`,
+				});
+				
+				// Debug logging for permanent failure
+				onDebugMessage?.('error',
+					'WebSocket Connection Failed Permanently',
+					`Failed after ${maxRetries + 1} attempts. Reason: ${reason}`,
+					'WebSocket Resilience'
+				);
+				return;
+			}
+
+			retryCount.current++;
+			
+			// Exponential backoff: 2^attempt * 1000ms (1s, 2s, 4s, 8s, 16s)
+			const retryDelay = Math.pow(2, retryCount.current) * 1000;
+			const maxDelay = 30000; // Cap at 30 seconds
+			const actualDelay = Math.min(retryDelay, maxDelay);
+
+			console.warn(`🔄 Retrying WebSocket connection in ${actualDelay / 1000}s (attempt ${retryCount.current + 1}/${maxRetries + 1})`);
+			
+			sendMessage({
+				id: 'websocket_retrying',
+				message: `🔄 Connection failed. Retrying in ${Math.ceil(actualDelay / 1000)} seconds... (attempt ${retryCount.current + 1}/${maxRetries + 1})\n\n❌ Reason: ${reason}`,
+				isThinking: true,
+			});
+
+			const timeoutId = setTimeout(() => {
+				connectWithRetry(wsUrl, { disableGenerate, isRetry: true });
+			}, actualDelay);
+			
+			retryTimeouts.current.push(timeoutId);
+			
+			// Debug logging for retry attempt
+			onDebugMessage?.('warning',
+				'WebSocket Connection Retry',
+				`Retry ${retryCount.current}/${maxRetries} in ${actualDelay / 1000}s. Reason: ${reason}`,
+				'WebSocket Resilience'
+			);
+		},
+		[maxRetries, retryCount, retryTimeouts, onDebugMessage, sendMessage],
+	);
+
+	// Legacy connect function for compatibility
+	const connect = useCallback(
+		(
+			wsUrl: string,
+			options: { disableGenerate?: boolean } = {},
+		) => {
+			retryCount.current = 0; // Reset retry count for new connection attempts
+			return connectWithRetry(wsUrl, options);
+		},
+		[connectWithRetry],
 	);
 
 	useEffect(() => {
 		async function init() {
-			if (!agentId || connectionStatus.current !== 'idle') return;
+			if (!urlChatId || connectionStatus.current !== 'idle') return;
 
 			try {
-				if (agentId === 'new') {
+				if (urlChatId === 'new') {
 					if (!userQuery) {
 						console.error('Query is required for new code generation');
 						return;
 					}
 
 					// Start new code generation
-					const response = await fetch('/codegen/incremental',
+					const headers: HeadersInit = {
+						'Content-Type': 'application/json',
+					};
+					
+					// Add session token for anonymous users
+					if (!user) {
+						headers['X-Session-Token'] = getOrCreateSessionToken();
+					}
+					
+					const response = await fetch('/api/codegen/incremental',
 						{
 							method: 'POST',
-							headers: {
-								'Content-Type': 'application/json',
-							},
-							body: JSON.stringify({ query: userQuery }),
+							headers,
+							body: JSON.stringify({ query: userQuery, agentMode }),
 						},
 					);
 
@@ -483,9 +1180,26 @@ export function useChat({
 
 					const parser = createRepairingJSONParser();
 
-					let result;
+					const result: {
+						websocketUrl: string;
+						agentId: string;
+						template: {
+							files: FileType[];
+						};
+					} = {
+						websocketUrl: '',
+						agentId: '',
+						template: {
+							files: [],
+						},
+					};
 
 					let startedBlueprintStream = false;
+					sendMessage({
+						id: 'main',
+						message: "Sure, let's get started. Bootstrapping the project first...",
+						isThinking: true,
+					});
 
 					for await (const obj of ndjsonStream(response)) {
 						if (obj.chunk) {
@@ -499,31 +1213,33 @@ export function useChat({
 								setIsBootstrapping(false);
 								setIsGeneratingBlueprint(true);
 								startedBlueprintStream = true;
-								updatePhase('bootstrap', { status: 'completed' });
-								updatePhase('blueprint', { status: 'active' });
+								updateStage('bootstrap', { status: 'completed' });
+								updateStage('blueprint', { status: 'active' });
 							}
 							parser.feed(obj.chunk);
 							try {
-								// eslint-disable-next-line @typescript-eslint/no-explicit-any
-								const partial = parser.finalize() as any;
+								const partial = parser.finalize();
 								setBlueprint(partial);
 							} catch (e) {
-								console.error('Error parsing JSON:', e);
+								console.error('Error parsing JSON:', e, obj.chunk);
 							}
-						} else {
-							logger.info('chat-result', obj);
-							result = obj;
-							sendMessage({
-								id: 'main',
-								message:
-									"Sure, let's get started. Bootstrapping the project first...",
-								isThinking: true,
-							});
-							loadBootstrapFiles(result.template.files);
+						} 
+						if (obj.agentId) {
+							result.agentId = obj.agentId;
+						}
+						if (obj.websocketUrl) {
+							result.websocketUrl = obj.websocketUrl;
+							console.log('📡 Received WebSocket URL from server:', result.websocketUrl)
+						}
+						if (obj.template) {
+							result.template = obj.template;
+							if (obj.template.files) {
+								loadBootstrapFiles(obj.template.files);
+							}
 						}
 					}
 
-					updatePhase('blueprint', { status: 'completed' });
+					updateStage('blueprint', { status: 'completed' });
 					setIsGeneratingBlueprint(false);
 					sendMessage({
 						id: 'main',
@@ -535,21 +1251,34 @@ export function useChat({
 					// Connect to WebSocket
 					logger.debug('connecting to ws with created id');
 					connect(result.websocketUrl);
-					setChatId(result.agentId);
+					setChatId(result.agentId); // This comes from the server response
 				} else if (connectionStatus.current === 'idle') {
 					setIsBootstrapping(false);
 					// Get existing progress
 					sendMessage({
-						id: 'main',
+						id: 'fetching-chat',
 						message: 'Fetching your previous chat...',
 					});
-					const response = await fetch(`/codegen/incremental/${agentId}`,
+					const response = await fetch(`/api/codegen/incremental/${urlChatId}`,
 						{
 							method: 'GET',
 						},
 					);
 
 					if (!response.ok) {
+						console.error(`Failed to fetch existing chat ${urlChatId}:`, response.status, response.statusText);
+						if (response.status === 404) {
+							sendMessage({
+								id: 'chat-not-found',
+								message: 'Chat session not found. Starting a new session...',
+								isThinking: false,
+							});
+							// Redirect to new chat
+							setTimeout(() => {
+								window.location.href = '/chat/new';
+							}, 1500);
+							return;
+						}
 						throw new Error(`HTTP error ${response.status}`);
 					}
 
@@ -559,8 +1288,8 @@ export function useChat({
 
 					if (result.data.blueprint) {
 						setBlueprint(result.data.blueprint);
-						updatePhase('bootstrap', { status: 'completed' });
-						updatePhase('blueprint', { status: 'completed' });
+						updateStage('bootstrap', { status: 'completed' });
+						updateStage('blueprint', { status: 'completed' });
 						// If blueprint exists, assume prior stages are done for an existing agent
 						setBlueprint(result.data.blueprint);
 					}
@@ -569,14 +1298,14 @@ export function useChat({
 						setTotalFiles(result.data.progress.totalFiles);
 						console.log(result.data.progress);
 
-						if (
-							result.data.progress.completedFiles ===
-							result.data.progress.totalFiles
-						) {
-							console.log('complete');
-							updatePhase('code', { status: 'completed' });
-							updatePhase('validate', { status: 'completed' });
-						}
+						// if (
+						// 	result.data.progress.completedFiles ===
+						// 	result.data.progress.totalFiles
+						// ) {
+						// 	console.log('complete');
+						// 	updateStage('code', { status: 'completed' });
+						// 	updateStage('validate', { status: 'completed' });
+						// }
 					}
 
 					let loadedFiles: FileType[] = [];
@@ -588,7 +1317,6 @@ export function useChat({
 								return {
 									file_path: file.file_path,
 									file_contents: file.file_contents,
-									explanation: file.explanation,
 									isGenerating: false,
 									needsFixing: false,
 									hasErrors: false,
@@ -601,14 +1329,28 @@ export function useChat({
 					}
 
 					sendMessage({
-						id: 'main',
+						id: 'resuming-chat',
 						message: 'Starting from where you left off...',
 						isThinking: false,
 					});
 
-					logger.debug('connecting from init for existing agentId');
-					connect(`/codegen/ws/${agentId}`, {
-						disableGenerate: true,
+					// Initialize basic stage states based on recovered data
+					updateStage('bootstrap', { status: 'completed' });
+					if (result.data.blueprint) {
+						updateStage('blueprint', { status: 'completed' });
+					}
+					if (loadedFiles.length > 0) {
+						updateStage('code', { status: 'completed' });
+						updateStage('validate', { status: 'completed' });
+					}
+
+					logger.debug('connecting from init for existing chatId');
+					// Construct proper WebSocket URL for existing chat
+					const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+					const wsUrl = `${protocol}//${window.location.host}/api/codegen/ws/${urlChatId}`;
+					console.log('📡 Connecting to existing chat WebSocket:', wsUrl);
+					connect(wsUrl, {
+						disableGenerate: true, // We'll handle generation resume in the WebSocket open handler
 					});
 				}
 			} catch (error) {
@@ -645,6 +1387,78 @@ export function useChat({
 		}
 	}, [edit]);
 
+	// Control functions for deployment and generation
+	const handleStopGeneration = useCallback(() => {
+		if (websocket && websocket.readyState === WebSocket.OPEN) {
+			websocket.send(JSON.stringify({ type: 'stop_generation' }));
+		}
+	}, [websocket]);
+
+	const handleResumeGeneration = useCallback(() => {
+		if (websocket && websocket.readyState === WebSocket.OPEN) {
+			websocket.send(JSON.stringify({ type: 'resume_generation' }));
+		}
+	}, [websocket]);
+
+	const handleDeployToCloudflare = useCallback(async (instanceId: string) => {
+		try {
+			// Send deployment command via WebSocket instead of HTTP request
+			if (websocket && websocket.readyState === WebSocket.OPEN) {
+				websocket.send(JSON.stringify({ 
+					type: 'deploy',
+					instanceId 
+				}));
+				console.log('🚀 Deployment WebSocket message sent:', instanceId);
+				
+				// Set 1-minute timeout for deployment
+				setTimeout(() => {
+					if (isDeploying) {
+						console.warn('⏰ Deployment timeout after 1 minute');
+						
+						// Reset deployment state
+						setIsDeploying(false);
+						setCloudflareDeploymentUrl('');
+						setIsRedeployReady(false);
+						
+						// Show timeout message
+						sendMessage({
+							id: 'deployment_timeout',
+							message: `⏰ Deployment timed out after 1 minute.\n\n🔄 Please try deploying again. The server may be busy.`,
+						});
+						
+						// Debug logging for timeout
+						onDebugMessage?.('warning', 
+							'Deployment Timeout',
+							`Deployment for ${instanceId} timed out after 60 seconds`,
+							'Deployment Timeout Management'
+						);
+					}
+				}, 60000); // 1 minute = 60,000ms
+				
+				// Store timeout ID for cleanup if deployment completes early
+				// Note: In a real implementation, you'd want to clear this timeout
+				// when deployment completes successfully
+				
+			} else {
+				throw new Error('WebSocket connection not available');
+			}
+		} catch (error) {
+			console.error('❌ Error sending deployment WebSocket message:', error);
+			
+			// Set deployment state immediately for UI feedback
+			setIsDeploying(true);
+			// Clear any previous deployment error
+			setDeploymentError('');
+			setCloudflareDeploymentUrl('');
+			setIsRedeployReady(false);
+			
+			sendMessage({
+				id: 'deployment_error',
+				message: `❌ Failed to initiate deployment: ${error instanceof Error ? error.message : 'Unknown error'}\n\n🔄 You can try again.`,
+			});
+		}
+	}, [websocket, sendMessage, isDeploying, onDebugMessage]);
+
 	return {
 		messages,
 		edit,
@@ -661,7 +1475,23 @@ export function useChat({
 		sendUserMessage,
 		sendAiMessage: sendMessage,
 		clearEdit,
-		projectPhases,
+		projectStages,
+		phaseTimeline,
+		isThinking,
 		onCompleteBootstrap,
+		// Deployment and generation control
+		isDeploying,
+		cloudflareDeploymentUrl,
+		deploymentError,
+		isRedeployReady,
+		isGenerationPaused,
+		isGenerating,
+		handleStopGeneration,
+		handleResumeGeneration,
+		handleDeployToCloudflare,
+		// Preview refresh control
+		shouldRefreshPreview,
+		// Preview deployment state
+		isPreviewDeploying,
 	};
 }

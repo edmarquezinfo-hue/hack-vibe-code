@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text-to-Web Application System - Complete Flow Visualization</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333; 
+            margin: 0; 
+            padding: 20px; 
+            min-height: 100vh;
+        }
+        h1, h2 { 
+            text-align: center; 
+            color: #fff; 
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .nav-buttons {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .nav-btn {
+            background: rgba(255,255,255,0.9);
+            border: none;
+            padding: 10px 20px;
+            margin: 0 10px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .nav-btn:hover {
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+        .nav-btn.active {
+            background: #4CAF50;
+            color: white;
+        }
+        .diagram-container {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            padding: 30px;
+            margin: 20px auto;
+            max-width: 95%;
+            backdrop-filter: blur(10px);
+            display: none;
+        }
+        .diagram-container.active {
+            display: block;
+        }
+        .diagram-container h2 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        pre.mermaid {
+            text-align: center;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #e9ecef;
+        }
+        .description {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #3498db;
+        }
+        .key-insight {
+            background: #fff3cd;
+            border: 1px solid #ffdf7e;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .error-pattern {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Text-to-Web Application System - Complete Architecture & Flow</h1>
+    
+    <div class="nav-buttons">
+        <button class="nav-btn active" onclick="showDiagram('overview')">System Overview</button>
+        <button class="nav-btn" onclick="showDiagram('complete-flow')">Complete Flow</button>
+        <button class="nav-btn" onclick="showDiagram('phase-detail')">Phase Implementation</button>
+        <button class="nav-btn" onclick="showDiagram('data-schemas')">Data & Schemas</button>
+        <button class="nav-btn" onclick="showDiagram('error-handling')">Error Handling</button>
+    </div>
+
+    <!-- System Overview -->
+    <div id="overview" class="diagram-container active">
+        <h2>🏗️ System Overview - High-Level Architecture</h2>
+        <div class="description">
+            <strong>Complete System Components:</strong> This shows all major components including the missing template selection and planning phase that orchestrates the entire generation process.
+        </div>
+        <pre class="mermaid">
+graph TB
+    subgraph "🌐 Client Layer"
+        A[Client Browser]
+        WS[WebSocket Connection]
+    end
+
+    subgraph "☁️ Cloudflare Worker"
+        B[index.ts<br/>Fetch Handler]
+        C[CodeGeneratorAgent<br/>Main Orchestrator]
+    end
+
+    subgraph "🤖 Planning & AI Layer"
+        D[TemplateSelector<br/>AI Template Selection]
+        E[BlueprintGenerator<br/>Application Design]
+        F[ProjectSetupAssistant<br/>Dependency Setup]
+        G[LLM Gateway<br/>Code Generation]
+    end
+
+    subgraph "🔧 Code Processing"
+        H[SCOF Parser<br/>Streaming Code Format]
+        I[Unified Diff Applier<br/>Code Modifications]
+        J[Static Analysis<br/>Code Validation]
+    end
+
+    subgraph "🚀 Deployment & Testing"
+        K[RunnerService<br/>Sandbox Environment]
+        L[Runtime Error Collection]
+        M[Preview Generation]
+    end
+
+    A -->|HTTP Request| B
+    A <-->|Real-time Updates| WS
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    G -->|Streaming Response| H
+    H --> I
+    C --> J
+    C <--> K
+    K --> L
+    K --> M
+    WS <--> C
+
+    style C fill:#e1f5fe,stroke:#01579b,stroke-width:3px
+    style D fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    style E fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    style G fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style K fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+        </pre>
+    </div>
+
+    <!-- Complete Flow -->
+    <div id="complete-flow" class="diagram-container">
+        <h2>📋 Complete Generation Flow - End-to-End Process</h2>
+        <div class="key-insight">
+            <strong>Key Insight:</strong> The first phase details come directly from the blueprint's fileStructure. Only AFTER the first phase implementation do we generate subsequent phases dynamically using AI.
+        </div>
+        <pre class="mermaid">
+sequenceDiagram
+    participant Client
+    participant Agent as CodeGeneratorAgent
+    participant TemplateSelector
+    participant BlueprintGen as BlueprintGenerator
+    participant ProjectSetup
+    participant LLM
+    participant SCOF as SCOFParser
+    participant Runner as RunnerService
+
+    Client->>Agent: Generate App (query)
+    activate Agent
+
+    Note over Agent: 🎯 PLANNING PHASE
+    Agent->>TemplateSelector: selectTemplate(query, availableTemplates)
+    activate TemplateSelector
+    TemplateSelector->>LLM: Analyze query & select best template
+    LLM-->>TemplateSelector: Selected template + reasoning
+    TemplateSelector-->>Agent: TemplateSelection
+    deactivate TemplateSelector
+
+    Agent->>BlueprintGen: generateBlueprint(query, template)
+    activate BlueprintGen
+    BlueprintGen->>LLM: Create detailed app blueprint
+    LLM-->>BlueprintGen: Blueprint with fileStructure
+    BlueprintGen-->>Agent: Complete Blueprint
+    deactivate BlueprintGen
+
+    Agent->>ProjectSetup: generateSetupCommands(blueprint)
+    activate ProjectSetup
+    ProjectSetup->>LLM: Generate dependency commands
+    LLM-->>ProjectSetup: Setup commands
+    ProjectSetup-->>Agent: Installation commands
+    deactivate ProjectSetup
+
+    Agent->>Runner: Execute setup commands
+    Runner-->>Agent: Dependencies installed
+
+    Note over Agent: 🚀 PHASE 1 (From Blueprint)
+    Agent->>Client: broadcast(PHASE_IMPLEMENTING)
+    Agent->>LLM: implementPhase(blueprintPhase1)
+    activate LLM
+    
+    loop SCOF Stream Processing
+        LLM-->>SCOF: Stream SCOF chunks
+        SCOF-->>Agent: Parsed file operations
+        Agent->>Client: broadcast(FILE_GENERATING)
+        Agent->>Client: broadcast(FILE_CHUNK_GENERATED)
+        Agent->>Client: broadcast(FILE_GENERATED)
+    end
+    deactivate LLM
+
+    Agent->>Runner: deployToRunnerService()
+    Runner-->>Agent: Deployment complete + preview URL
+
+    Note over Agent: 🔄 SUBSEQUENT PHASES (AI Generated)
+    loop For Each Additional Phase
+        Agent->>LLM: generateNextPhase(currentState)
+        activate LLM
+        LLM-->>Agent: Next phase concept
+        deactivate LLM
+        
+        Agent->>Runner: fetchRuntimeErrors() + runStaticAnalysis()
+        Runner-->>Agent: Current errors & analysis
+        
+        Agent->>LLM: implementPhase(generatedPhase)
+        activate LLM
+        loop SCOF Stream Processing
+            LLM-->>SCOF: Stream code chunks
+            SCOF-->>Agent: File operations
+            Agent->>Client: Real-time updates
+        end
+        deactivate LLM
+        
+        Agent->>Runner: deployToRunnerService()
+        Runner-->>Agent: Updated deployment
+    end
+
+    Agent->>Client: broadcast(DEPLOYMENT_COMPLETED)
+    deactivate Agent
+        </pre>
+    </div>
+
+    <!-- Phase Implementation Detail -->
+    <div id="phase-detail" class="diagram-container">
+        <h2>⚙️ Phase Implementation - Detailed Process</h2>
+        <div class="description">
+            <strong>Phase Types:</strong>
+            <ul>
+                <li><strong>First Phase:</strong> Uses blueprint.fileStructure directly (no AI generation needed)</li>
+                <li><strong>Subsequent Phases:</strong> AI generates phase concepts dynamically based on current state</li>
+            </ul>
+        </div>
+        <pre class="mermaid">
+flowchart TD
+    A[Phase Ready] --> B{Is First Phase?}
+    
+    B -->|Yes| C[Extract from<br/>Blueprint.fileStructure]
+    B -->|No| D[Generate Phase Concept<br/>via LLM]
+    
+    C --> E[Phase Concept Ready]
+    D --> E
+    
+    E --> F[Fetch Runtime Errors<br/>from RunnerService]
+    F --> G[Run Static Analysis<br/>on Current Codebase]
+    
+    G --> H[Build Enhanced Prompt<br/>with Context + Errors]
+    H --> I[Send to LLM<br/>for Implementation]
+    
+    I --> J[LLM Streams SCOF Format]
+    J --> K{SCOF Parsing Loop}
+    
+    K --> L[Parse File Operation<br/>cat > filename or patch]
+    L --> M{Operation Type?}
+    
+    M -->|New File| N[Create Full Content]
+    M -->|Modify File| O[Apply Unified Diff]
+    
+    N --> P[Broadcast FILE_GENERATED]
+    O --> P
+    
+    P --> Q{More Files in Stream?}
+    Q -->|Yes| K
+    Q -->|No| R[All Phase Files Complete]
+    
+    R --> S[Deploy to RunnerService]
+    S --> T[Update GeneratedFilesMap]
+    
+    T --> U{More Phases Needed?}
+    U -->|Yes| D
+    U -->|No| V[Generation Complete]
+    
+    style E fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style J fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style S fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+        </pre>
+    </div>
+
+    <!-- Data & Schemas -->
+    <div id="data-schemas" class="diagram-container">
+        <h2>📊 Data Flow & Schema Validation</h2>
+        <div class="description">
+            <strong>Zod Schema Validation:</strong> Every data transformation is validated using Zod schemas ensuring type safety and data integrity throughout the pipeline.
+        </div>
+        <pre class="mermaid">
+flowchart LR
+    subgraph "Input Schemas"
+        A1[User Query<br/>string]
+        A2[TemplateSelection<br/>Schema]
+        A3[Blueprint<br/>Schema]
+    end
+    
+    subgraph "Processing Schemas"
+        B1[PhaseConceptSchema<br/>Phase Definition]
+        B2[FileGenerationOutput<br/>SCOF Parsed Files]
+        B3[RuntimeErrorSchema<br/>Error Collection]
+    end
+    
+    subgraph "State Management"
+        C1[CodeGenState<br/>Agent State]
+        C2[GeneratedFilesMap<br/>File Tracking]
+        C3[StreamingState<br/>SCOF Parser State]
+    end
+    
+    subgraph "Output Schemas"
+        D1[FileOutputSchema<br/>Generated Files]
+        D2[CodeReviewOutput<br/>Issue Analysis]
+        D3[DeploymentResult<br/>Runner Response]
+    end
+    
+    A1 --> A2
+    A2 --> A3
+    A3 --> B1
+    B1 --> B2
+    B2 --> C1
+    C1 --> C2
+    B2 --> C3
+    C2 --> D1
+    B3 --> D2
+    D1 --> D3
+    
+    style A3 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style B1 fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    style C1 fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+        </pre>
+    </div>
+
+    <!-- Error Handling -->
+    <div id="error-handling" class="diagram-container">
+        <h2>🛡️ Error Handling & Recovery Strategies</h2>
+        <div class="error-pattern">
+            <strong>Current Limitations:</strong>
+            <ul>
+                <li>❌ Reactive error handling (waits for deployment failures)</li>
+                <li>❌ No pre-deployment validation pipeline</li>
+                <li>❌ Limited fallback strategies for LLM failures</li>
+                <li>❌ Sequential processing bottlenecks</li>
+            </ul>
+        </div>
+        <pre class="mermaid">
+flowchart TD
+    A[Code Generation] --> B[SCOF Parsing]
+    B --> C{Parsing Success?}
+    
+    C -->|No| D[Retry with<br/>Error Recovery]
+    D --> E{Retry < 3?}
+    E -->|Yes| B
+    E -->|No| F[Mark Phase Failed]
+    
+    C -->|Yes| G[Deploy to Runner]
+    G --> H[Fetch Runtime Errors]
+    H --> I{Errors Found?}
+    
+    I -->|Yes| J[Generate Error Report]
+    J --> K[Regenerate Affected Files]
+    K --> L{Regeneration Success?}
+    
+    L -->|No| M[Manual Intervention<br/>Required]
+    L -->|Yes| G
+    
+    I -->|No| N[Run Static Analysis]
+    N --> O{Analysis Issues?}
+    
+    O -->|Yes| P[Apply Quick Fixes]
+    P --> G
+    O -->|No| Q[Phase Complete]
+    
+    style D fill:#fff3cd,stroke:#856404,stroke-width:2px
+    style J fill:#f8d7da,stroke:#721c24,stroke-width:2px
+    style M fill:#f8d7da,stroke:#721c24,stroke-width:3px
+    style Q fill:#d4edda,stroke:#155724,stroke-width:2px
+        </pre>
+        
+        <div class="key-insight">
+            <strong>Proposed Improvements:</strong>
+            <ul>
+                <li>✅ Add proactive validation before deployment</li>
+                <li>✅ Implement intelligent fallback strategies</li>
+                <li>✅ Enable parallel processing for independent files</li>
+                <li>✅ Create predictive error prevention system</li>
+            </ul>
+        </div>
+    </div>
+
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#4CAF50',
+                primaryTextColor: '#000',
+                primaryBorderColor: '#2E7D32',
+                lineColor: '#757575',
+                sectionBkgColor: '#e8f5e8',
+                altSectionBkgColor: '#f1f8e9',
+                gridColor: '#e0e0e0'
+            }
+        });
+
+        window.showDiagram = function(diagramId) {
+            // Hide all diagrams
+            document.querySelectorAll('.diagram-container').forEach(container => {
+                container.classList.remove('active');
+            });
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected diagram
+            document.getElementById(diagramId).classList.add('active');
+            
+            // Add active class to clicked button
+            event.target.classList.add('active');
+        };
+    </script>
+</body>
+</html>

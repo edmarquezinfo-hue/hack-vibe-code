@@ -1,0 +1,83 @@
+/* Sidebar Override Styles for Perfect Icon Centering */
+
+/* Universal collapsed sidebar button styling - systematic approach */
+.group[data-collapsible="icon"] [data-sidebar="menu-button"] {
+  width: 48px !important;
+  height: 40px !important;
+  min-width: 48px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 6px !important;
+}
+
+/* Special handling for logo button */
+.group[data-collapsible="icon"] .logo-button {
+  min-width: auto !important;
+  padding: 12px !important;
+  margin: 0 !important;
+}
+
+/* Create button - maintain orange styling with perfect centering */
+.group[data-collapsible="icon"] .create-button {
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  margin: 0 auto !important;
+  border-radius: 8px !important;
+}
+
+/* Search button - full width for better UX */
+.group[data-collapsible="icon"] .search-button {
+  width: 44px !important;
+  height: 40px !important;
+  margin: 0 auto !important;
+}
+
+/* Remove any conflicting margins from group containers */
+.group[data-collapsible="icon"] [data-sidebar="group-content"] {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Ensure sidebar group items have proper spacing */
+.group[data-collapsible="icon"] [data-sidebar="menu"] {
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 2px !important;
+}
+
+/* Ensure proper transitions */
+[data-sidebar="menu-button"] {
+  transition: all 200ms ease-in-out;
+}
+
+/* Fix any overflow issues */
+.group[data-collapsible="icon"] [data-sidebar="menu"] {
+  overflow: visible;
+}
+
+/* Make UI text non-selectable for solid appearance */
+[data-sidebar="group-label"],
+[data-sidebar="menu-button"] span,
+[data-sidebar="menu-button"] div,
+.logo-button span,
+.logo-button div {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+}
+
+/* Ensure tooltips are also non-selectable */
+[data-tooltip],
+[role="tooltip"] {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+}

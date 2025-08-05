@@ -1,0 +1,1104 @@
+{
+  "systemName": "Orange Build (v1.dev) - AI-Powered Webapp Generation Platform",
+  "lastUpdated": "2025-07-19",
+  "version": "2.0",
+  "description": "Comprehensive system architecture for spec-driven, phase-wise webapp generation with real-time streaming and parallel processing",
+  
+  "systemLayers": {
+    "clientLayer": {
+      "description": "React+Vite frontend with real-time WebSocket communication and anonymous user support",
+      "components": {
+        "reactApplication": {
+          "name": "React Frontend Application",
+          "technology": "React 18 + TypeScript + Vite + shadcn/ui",
+          "responsibilities": [
+            "Real-time Code Generation Interface",
+            "WebSocket Connection Management with Retry Logic",
+            "Anonymous User Session Support",
+            "Multi-provider Authentication (Google, GitHub, Email/Password)",
+            "App Management (CRUD, Favorites, Discovery)",
+            "Real-time File Streaming with Syntax Highlighting",
+            "Theme Management and Responsive Design"
+          ],
+          "stateManagement": {
+            "pattern": "Context + Custom Hooks",
+            "contexts": ["AuthContext", "ThemeContext"],
+            "hooks": ["useChat", "useApps", "useStats", "useFileContentStream"]
+          },
+          "routes": {
+            "public": ["/", "/chat/:chatId", "/discover", "/app/:id"],
+            "protected": ["/dashboard", "/profile", "/settings", "/apps"]
+          },
+          "realTimeFeatures": [
+            "Live file generation streaming",
+            "Phase timeline updates", 
+            "Deployment status tracking",
+            "Runtime error notifications",
+            "Blueprint generation progress"
+          ]
+        },
+        "webSocketConnection": {
+          "name": "Advanced WebSocket Management",
+          "implementation": "use-chat.ts hook with exponential backoff",
+          "responsibilities": [
+            "Robust Connection with 5-attempt Retry Logic",
+            "Progressive Delay Strategy (1s, 2s, 4s, 8s, 16s)",
+            "Real-time Bidirectional Communication",
+            "File Streaming with Chunk-by-Chunk Updates",
+            "Phase Transition Broadcasting",
+            "Error Recovery and Graceful Degradation"
+          ],
+          "connectionStates": ["idle", "connecting", "connected", "failed", "retrying"],
+          "messageTypes": {
+            "inbound": [
+              "generate_all", "generate", "code_review", "deploy",
+              "screenshot_captured", "runtime_error_found", 
+              "update_query", "overwrite"
+            ],
+            "outbound": [
+              "generation_started", "generation_complete",
+              "phase_generating", "phase_generated", "phase_implementing", "phase_implemented",
+              "phase_validating", "phase_validated",
+              "file_generating", "file_chunk_generated", "file_generated", "file_regenerated",
+              "deployment_started", "deployment_completed",
+              "cloudflare_deployment_started", "cloudflare_deployment_completed",
+              "runtime_error_found", "static_analysis_results",
+              "code_review", "command_executing", "error"
+            ]
+          }
+        },
+        "streamingSystem": {
+          "name": "Multi-tier Streaming Architecture",
+          "tiers": {
+            "webSocketStreaming": "Real-time file generation and phase updates",
+            "httpStreaming": "NDJSON blueprint generation and bootstrapping",
+            "fileContentStreaming": "Simulated typing effect for file revelation"
+          }
+        }
+      }
+    },
+
+    "cloudflareWorkerLayer": {
+      "description": "Cloudflare Workers runtime with Durable Objects for stateful AI agents",
+      "platform": "Cloudflare Workers + Durable Objects + D1 Database",
+      "components": {
+        "fetchHandler": {
+          "name": "Main Worker Entry Point",
+          "file": "worker/index.ts",
+          "responsibilities": [
+            "HTTP Request Routing and Method Handling",
+            "Security Middleware Pipeline", 
+            "CORS and Security Headers",
+            "Durable Object Orchestration",
+            "WebSocket Upgrade Management",
+            "Error Handling and Logging"
+          ],
+          "middleware": [
+            "CORS Headers with Origin Validation",
+            "Security Headers (CSP, HSTS, etc.)", 
+            "Rate Limiting per IP/User",
+            "Input Validation and Sanitization",
+            "JWT Authentication",
+            "Request Logging and Metrics"
+          ]
+        },
+        "apiRouter": {
+          "name": "Advanced RESTful API Router",
+          "file": "worker/api/router.ts",
+          "pattern": "Custom router with path parameters, wildcards, and method-based routing",
+          "endpoints": {
+            "/api/auth/*": {
+              "description": "Multi-provider authentication and session management",
+              "methods": ["POST /register", "POST /login", "POST /refresh", "GET /profile"],
+              "oauth": ["GET /oauth/:provider", "GET /callback/:provider"]
+            },
+            "/api/codegen/*": {
+              "description": "AI-powered code generation and real-time streaming",
+              "methods": ["POST /incremental", "GET /incremental/:agentId", "GET /ws/:agentId"]
+            },
+            "/api/apps/*": {
+              "description": "Application CRUD, social features, and discovery",
+              "methods": ["GET /apps", "POST /apps", "GET /apps/:id", "POST /apps/:id/favorite"],
+              "social": ["POST /apps/:id/star", "POST /apps/:id/fork", "GET /apps/public"]
+            },
+            "/api/stats/*": {
+              "description": "User analytics, activity tracking, and achievements",
+              "methods": ["GET /stats", "GET /stats/activity"]
+            }
+          },
+          "responseFormat": {
+            "pattern": "Consistent JSON API with success/error structure",
+            "headers": ["CORS", "Content-Type", "Cache-Control"]
+          }
+        },
+        "durableObjects": {
+          "newCodeGeneratorAgent": {
+            "name": "CodeGeneratorAgent (Modern Architecture)",
+            "file": "worker/agents/codegen/codeGeneratorAgent.ts",
+            "pattern": "Service-based Clean Architecture with Dependency Injection",
+            "status": "Current Implementation",
+            "responsibilities": [
+              "Stateful Multi-phase Code Generation",
+              "Real-time WebSocket Session Management",
+              "Operation-based Command Orchestration",
+              "Parallel Process Coordination",
+              "Error Recovery and Retry Logic",
+              "State Persistence across Failures"
+            ],
+            "serviceContainer": {
+              "runnerService": "External sandbox environment integration",
+              "fileManager": "Generated file storage and template management", 
+              "broadcaster": "WebSocket communication and event streaming",
+              "stateManager": "Immutable state updates and persistence",
+              "projectSetupAssistant": "Dependency analysis and command generation",
+              "logger": "Structured logging with contextual data"
+            },
+            "state": {
+              "blueprint": "Comprehensive project architecture and design",
+              "generatedFilesMap": "All files with content, metadata, and version history",
+              "generatedPhases": "Completed development phases with outcomes",
+              "runnerInstanceId": "Active sandbox environment reference", 
+              "isGenerating": "Current generation status and phase",
+              "nextPhase": "Planned next development phase with context",
+              "deploymentStatus": "Preview and production deployment states",
+              "errorHistory": "Runtime and static analysis error tracking"
+            }
+          },
+          "legacyCodeGenerator": {
+            "name": "OldCodeGeneratorAgent (Legacy)",
+            "file": "worker/agents/codegen/phasewiseGenerator.ts", 
+            "status": "Legacy - Active but being phased out",
+            "pattern": "Monolithic agent with embedded logic and methods",
+            "migrationNote": "Maintained for backward compatibility during transition"
+          }
+        }
+      }
+    },
+
+    "agentArchitectureLayer": {
+      "description": "Multi-layered AI agent system with Clean Architecture patterns",
+      "pattern": "Clean Architecture with Service Layer, Domain Logic, and Operations",
+      
+      "operationsLayer": {
+        "name": "Operation-based Command Pattern",
+        "description": "Discrete, composable operations for complex AI workflows",
+        "location": "worker/agents/operations/",
+        "operations": {
+          "PhaseImplementation": {
+            "file": "PhaseImplementation.ts",
+            "purpose": "Generate files for a development phase with real-time streaming",
+            "inputs": ["PhaseConceptType", "GenerationContext", "IssueReport"],
+            "outputs": ["Generated files", "WebSocket broadcasts", "State updates"],
+            "streaming": true,
+            "format": "SCOF (Shell Command Output Format)",
+            "aiModel": "Anthropic Claude"
+          },
+          "CodeReview": {
+            "file": "CodeReview.ts", 
+            "purpose": "Comprehensive code analysis with error detection and fix suggestions",
+            "inputs": ["Runtime errors", "Static analysis results", "Generated files"],
+            "outputs": ["CodeReviewOutput", "Fix recommendations", "Priority classification"],
+            "aiModel": "Anthropic Claude"
+          },
+          "FileRegeneration": {
+            "file": "FileRegeneration.ts",
+            "purpose": "Regenerate specific files to address identified issues", 
+            "inputs": ["File path", "Specific issues", "Generation context"],
+            "outputs": ["Updated file content", "Fix confirmation", "Change summary"],
+            "retryLimit": 3,
+            "fallbackStrategy": "Revert to last known good version"
+          },
+          "PhaseGeneration": {
+            "file": "PhaseGeneration.ts",
+            "purpose": "Plan next development phase based on current progress and issues",
+            "inputs": ["Current state", "Identified issues", "Dependency requirements"],
+            "outputs": ["PhaseConceptType", "Implementation plan", "File priorities"]
+          },
+          "ScreenshotAnalysis": {
+            "file": "ScreenshotAnalysis.ts",
+            "purpose": "Analyze UI screenshots for design compliance and functionality",
+            "inputs": ["Screenshot image", "Design requirements", "User expectations"],
+            "outputs": ["UI analysis report", "Compliance score", "Improvement suggestions"]
+          }
+        },
+        "operationResult": {
+          "pattern": "Consistent result structure across all operations",
+          "fields": {
+            "success": "boolean - Operation success/failure status",
+            "data": "T - Operation-specific result data", 
+            "error": "string - Human-readable error message",
+            "broadcasts": "BroadcastMessage[] - WebSocket messages to send",
+            "stateUpdates": "StateUpdate[] - Immutable state changes",
+            "sideEffects": "SideEffect[] - External actions (deployments, notifications)"
+          }
+        }
+      },
+
+      "servicesLayer": {
+        "name": "Service Layer with Interface-based Dependency Injection",
+        "location": "worker/agents/services/",
+        "serviceContainer": "ServiceContainer.ts - Central DI container",
+        "services": {
+          "IRunnerService": {
+            "interface": "interfaces/IRunnerService.ts",
+            "implementation": "implementations/RunnerServiceAdapter.ts", 
+            "responsibilities": [
+              "Create and manage sandbox instances",
+              "Execute shell commands with timeout handling",
+              "Deploy generated files to runner environment",
+              "Collect runtime errors and performance metrics",
+              "Run static analysis (ESLint, TypeScript)",
+              "Manage Cloudflare Workers deployments"
+            ],
+            "resilience": ["Retry logic", "Circuit breaker", "Graceful degradation"]
+          },
+          "IFileManager": {
+            "interface": "interfaces/IFileManager.ts",
+            "implementation": "implementations/FileManager.ts",
+            "responsibilities": [
+              "Store and retrieve generated files with metadata", 
+              "Manage template files and configurations",
+              "Handle file versioning and history",
+              "Optimize file storage with compression",
+              "Provide file search and filtering capabilities"
+            ]
+          },
+          "IMessageBroadcaster": {
+            "interface": "interfaces/IMessageBroadcaster.ts", 
+            "implementation": "implementations/WebSocketBroadcaster.ts",
+            "responsibilities": [
+              "Manage WebSocket connections and broadcasting",
+              "Handle real-time event streaming with backpressure", 
+              "Support multi-client sessions",
+              "Provide connection health monitoring",
+              "Handle graceful connection cleanup"
+            ]
+          },
+          "IStateManager": {
+            "interface": "interfaces/IStateManager.ts",
+            "implementation": "implementations/StateManager.ts", 
+            "responsibilities": [
+              "Manage immutable state updates with validation",
+              "Persist state changes to Durable Object storage",
+              "Handle state migration and versioning",
+              "Provide state snapshots and rollback",
+              "Ensure state consistency across operations"
+            ]
+          }
+        }
+      },
+
+      "domainLayer": {
+        "name": "Pure Domain Logic with Immutable Value Objects",
+        "pattern": "Pure functions and immutable data structures",
+        "location": "worker/agents/domain/",
+        
+        "valueObjects": {
+          "GenerationContext": {
+            "file": "values/GenerationContext.ts",
+            "immutable": true,
+            "description": "Complete context for AI generation operations",
+            "properties": [
+              "query", "blueprint", "generatedFiles", "templateDetails",
+              "dependencies", "runtimeErrors", "staticAnalysis", "userPreferences"
+            ]
+          },
+          "IssueReport": {
+            "file": "values/IssueReport.ts", 
+            "immutable": true,
+            "description": "Comprehensive collection of detected issues",
+            "properties": [
+              "runtimeErrors", "staticAnalysisIssues", "clientErrors",
+              "severity", "timestamp", "resolution", "affectedFiles"
+            ]
+          }
+        },
+
+        "pureFunctions": {
+          "PhaseManagement": {
+            "file": "pure/PhaseManagement.ts",
+            "functions": [
+              "countGeneratedFiles - Calculate file generation progress",
+              "calculateProgress - Determine overall completion percentage",
+              "formatPhaseForNextGeneration - Prepare phase context", 
+              "validatePhaseCompletion - Verify phase requirements met",
+              "optimizePhaseSequence - Reorder phases for efficiency"
+            ]
+          },
+          "FileProcessing": {
+            "file": "pure/FileProcessing.ts", 
+            "functions": [
+              "cleanupFileContent - Normalize whitespace and formatting",
+              "applyDiffSafely - Apply diffs with rollback capability",
+              "findFilePurpose - Infer file purpose from content and structure", 
+              "validateFileStructure - Check file integrity and dependencies",
+              "extractFileMetadata - Generate file metadata and signatures"
+            ]
+          },
+          "DependencyManagement": {
+            "file": "pure/DependencyManagement.ts",
+            "functions": [
+              "mergePackageJson - Intelligently combine package.json files",
+              "extractDependencies - Parse dependencies from various sources",
+              "validateDependencyCompatibility - Check version conflicts", 
+              "optimizeDependencies - Remove redundant and unused deps",
+              "suggestAlternatives - Recommend better dependency options"
+            ]
+          }
+        }
+      },
+
+      "assistantsLayer": {
+        "name": "Specialized AI Assistants with Conversation History",
+        "pattern": "Stateful AI assistants with memory and specialization",
+        "location": "worker/agents/assistants/",
+        "baseClass": "Assistant<T> - Generic conversation-aware AI helper",
+        "assistants": {
+          "ProjectSetupAssistant": {
+            "file": "projectsetup.ts",
+            "purpose": "Intelligent dependency management and project configuration",
+            "capabilities": [
+              "Analyze project dependencies and requirements",
+              "Generate setup commands with proper sequencing",
+              "Merge package.json files intelligently",
+              "Handle environment-specific configurations",
+              "Optimize build processes and scripts"
+            ],
+            "conversationMemory": "Remembers previous setup decisions and preferences"
+          },
+          "RealtimeCodeFixer": {
+            "file": "realtimeCodeFixer.ts",
+            "purpose": "Apply AI-powered fixes immediately after file generation",
+            "realTime": true,
+            "capabilities": [
+              "Search-replace diff application with multiple strategies",
+              "Fuzzy matching for robust diff application",
+              "Automatic retry with AI-powered error correction",
+              "CSS file filtering to avoid unnecessary processing",
+              "Context-aware code improvements"
+            ],
+            "diffStrategies": [
+              "EXACT - Character-perfect matching",
+              "WHITESPACE_INSENSITIVE - Ignore formatting differences", 
+              "FUZZY - Approximate matching with similarity scoring"
+            ],
+            "errorRecovery": "AI analyzes failed diffs and generates corrections"
+          }
+        }
+      }
+    },
+
+    "planningLayer": {
+      "description": "AI-powered project planning and architectural design",
+      "location": "worker/agents/planning/",
+      "agents": {
+        "templateSelector": {
+          "name": "Template Selector Agent",
+          "file": "templateSelector.ts",
+          "aiModel": "Google Gemini Flash (optimized for speed)",
+          "responsibilities": [
+            "Analyze user requirements and technical constraints",
+            "Match optimal template from available options", 
+            "Consider framework preferences and project complexity",
+            "Evaluate style and UI design requirements",
+            "Provide fallback options for edge cases"
+          ],
+          "outputs": {
+            "selectedTemplateName": "Chosen template identifier",
+            "reasoning": "AI explanation for template choice",
+            "useCase": "Identified project use case category",
+            "complexity": "Assessed project complexity level",
+            "styleSelection": "UI/UX design style recommendation",
+            "fallbackOptions": "Alternative template suggestions"
+          },
+          "integration": "Communicates with Runner Service for template availability"
+        },
+        "blueprintGenerator": {
+          "name": "Blueprint Generator Agent", 
+          "file": "blueprint.ts",
+          "aiModel": "Anthropic Claude (optimized for detailed analysis)",
+          "streamingSupport": true,
+          "responsibilities": [
+            "Create comprehensive project architecture",
+            "Design detailed implementation roadmap",
+            "Plan file structure and component hierarchy", 
+            "Analyze data flow and state management needs",
+            "Specify UI/UX design requirements and patterns",
+            "Generate phase-by-phase development plan"
+          ],
+          "outputs": {
+            "title": "Project name and branding",
+            "description": "Detailed project description and goals",
+            "colorPalette": "UI color scheme and design tokens", 
+            "userFlow": "User journey and interaction patterns",
+            "frameworks": "Technology stack and framework choices",
+            "fileStructure": "Complete file and folder organization",
+            "implementationRoadmap": "Phase-by-phase development plan",
+            "dataModels": "Data structure and API design"
+          },
+          "streamingBehavior": "Real-time blueprint generation with progressive disclosure"
+        }
+      }
+    },
+
+    "codeProcessingLayer": {
+      "description": "Advanced code generation, parsing, and diff application systems",
+      "location": "worker/agents/",
+
+      "codeFormats": {
+        "scofFormat": {
+          "name": "SCOF - Shell Command Output Format",
+          "file": "code-formats/scof.ts",
+          "primary": true,
+          "description": "LLM-optimized streaming format using shell command patterns",
+          "patterns": [
+            "cat > filename << 'EOF' - Full file content generation",
+            "cat >> filename << 'EOF' - Append content to existing file", 
+            "cat << 'EOF' | patch filename - Apply unified diff patches"
+          ],
+          "streamingSupport": {
+            "chunkSize": "Variable chunk boundaries handled gracefully",
+            "callbacks": [
+              "onFileOpen - Triggered when file path detected",
+              "onFileChunk - Content chunk received with progress", 
+              "onFileClose - File generation completed"
+            ],
+            "webSocketIntegration": "Real-time broadcasting of file generation progress"
+          },
+          "mixedFormatSupport": "Handles SCOF + Unified Diff in single stream"
+        },
+        "baseFormat": {
+          "name": "Base Code Format Interface",
+          "file": "code-formats/base.ts",
+          "purpose": "Abstract interface for extensible code format support",
+          "extensibility": "Foundation for additional code generation formats"
+        }
+      },
+
+      "diffFormats": {
+        "unifiedDiff": {
+          "name": "Unified Diff Format (Git-style)",
+          "file": "diff-formats/udiff.ts", 
+          "description": "Industry-standard diff format for precise code modifications",
+          "pattern": "@@ -startLine,lineCount +startLine,lineCount @@",
+          "features": [
+            "Context line preservation for accurate patching",
+            "Hunk-based processing for large file changes", 
+            "Line number tracking with offset management",
+            "Conflict detection and resolution strategies",
+            "Whitespace handling and normalization"
+          ],
+          "errorHandling": "Graceful fallback to original content on patch failure"
+        },
+        "searchReplace": {
+          "name": "Search-Replace Diff Format (LLM-friendly)", 
+          "file": "diff-formats/search-replace.ts",
+          "description": "Human-readable diff format optimized for LLM generation",
+          "pattern": "<<<SEARCH>>>\\n...search content...\\n<<<REPLACE>>>\\n...replacement...",
+          "matchingStrategies": {
+            "EXACT": "Character-perfect matching with exact whitespace",
+            "WHITESPACE_INSENSITIVE": "Ignores whitespace and formatting differences",
+            "FUZZY": "Approximate matching using similarity algorithms"
+          },
+          "advancedFeatures": [
+            "Multi-strategy fallback for robust diff application",
+            "Similarity scoring for fuzzy matching confidence",
+            "Context-aware search with surrounding code analysis",
+            "AI-powered error correction for failed matches"
+          ],
+          "errorRecovery": {
+            "retryLogic": "Automatic retry with different matching strategies",
+            "aiCorrection": "LLM analyzes failed diffs and generates corrections",
+            "fallbackStrategy": "Preserve original content with error reporting"
+          }
+        }
+      },
+
+      "parsing": {
+        "streamingParser": {
+          "name": "Real-time Streaming Code Parser",
+          "capabilities": [
+            "Handle arbitrary chunk boundaries in streaming data",
+            "Support mixed format parsing (SCOF + diffs in single stream)",
+            "Real-time file extraction with progress tracking", 
+            "WebSocket integration for live client updates",
+            "Error recovery from malformed or incomplete streams"
+          ],
+          "performance": "Optimized for low-latency, high-throughput streaming"
+        }
+      },
+
+      "staticAnalysis": {
+        "name": "Comprehensive Static Analysis System",
+        "integration": "Runner Service hosted analysis tools",
+        "capabilities": [
+          "ESLint integration with custom rules and configurations",
+          "TypeScript compiler integration for type checking",
+          "Custom static analysis rules for generated code quality",
+          "Performance analysis and optimization suggestions",
+          "Security vulnerability scanning"
+        ],
+        "outputs": {
+          "lintIssues": "Code style and quality issues with severity levels",
+          "typecheckIssues": "Type errors and warnings with location info", 
+          "performanceIssues": "Performance bottlenecks and optimization suggestions",
+          "securityIssues": "Security vulnerabilities and recommended fixes"
+        },
+        "realTimeIntegration": "Continuous analysis during code generation"
+      }
+    },
+
+    "deploymentLayer": {
+      "description": "Sandboxed code execution and deployment infrastructure",
+      "components": {
+        "runnerService": {
+          "name": "Runner Service (External Microservice)",
+          "platform": "Cloudflare Containers + NodeJS (GoLang rewrite in progress)",
+          "deployment": "Independent service with Cloudflared tunnels",
+          "responsibilities": [
+            "Containerized Sandboxed Code Execution",
+            "Dynamic Project Bootstrapping with Template Support",
+            "Real-time File Management and Deployment",
+            "Command Execution with Timeout and Error Handling", 
+            "Live Preview URL Generation with SSL",
+            "Comprehensive Runtime Error Collection and Monitoring",
+            "Static Analysis Integration (ESLint, TypeScript)",
+            "Production Deployment to Cloudflare Workers"
+          ],
+          "endpoints": {
+            "instanceManagement": [
+              "POST /instances - Create new sandbox instance",
+              "GET /instances/:id - Get instance status and metadata",
+              "DELETE /instances/:id - Cleanup and destroy instance"
+            ],
+            "fileOperations": [
+              "POST /instances/:id/files - Write/update multiple files",
+              "GET /instances/:id/files - Retrieve file contents",
+              "GET /instances/:id/files/:path - Get specific file content"
+            ],
+            "commandExecution": [
+              "POST /instances/:id/commands - Execute shell commands",
+              "GET /instances/:id/commands/:commandId - Get command status"
+            ],
+            "errorAndAnalysis": [
+              "GET /instances/:id/errors - Get runtime errors",
+              "DELETE /instances/:id/errors - Clear error history",
+              "POST /instances/:id/analysis - Run static analysis"
+            ],
+            "deployment": [
+              "POST /instances/:id/deploy - Deploy to Cloudflare Workers",
+              "GET /instances/:id/preview - Get preview URL"
+            ],
+            "templates": [
+              "GET /templates - List available templates",
+              "GET /templates/:name - Get template configuration"
+            ]
+          },
+          "lifecycle": {
+            "phases": [
+              "1. Template Selection - Choose optimal project template",
+              "2. Directory Creation - Copy template to unique workspace",
+              "3. Port Allocation - Assign available port for dev server", 
+              "4. Tunnel Creation - Setup Cloudflared tunnel for external access",
+              "5. Parallel Setup - Run 'bun install' and 'bun run dev' concurrently",
+              "6. Preview URL - Expose application via secure tunnel",
+              "7. Monitoring - Continuous error collection and health checks",
+              "8. Cleanup - Automatic instance termination after 10-15 minutes"
+            ],
+            "parallelization": "Dependency installation and dev server startup run concurrently"
+          },
+          "templating": {
+            "optimization": "Pre-installed packages with hardlinks and aggressive caching",
+            "packageManager": "Bun for fast dependency management",
+            "supportedTemplates": [
+              "Next.js with App Router and TypeScript",
+              "Vite + React + TypeScript",
+              "SvelteKit with TypeScript", 
+              "Astro with integrations",
+              "Vanilla JavaScript/TypeScript",
+              "Custom templates with extensible configuration"
+            ],
+            "caching": "Template instances cached with hardlinks for instant cloning"
+          },
+          "monitoring": {
+            "errorCollection": [
+              "JavaScript runtime errors with stack traces",
+              "Build process failures and warnings",
+              "Network request failures and timeouts",
+              "Console logs and debugging information"
+            ],
+            "healthChecks": "Continuous monitoring of instance health and responsiveness",
+            "metrics": "Performance metrics, resource usage, and uptime tracking"
+          },
+          "security": [
+            "Isolated containers for each instance",
+            "Resource limits and quotas",
+            "Network isolation and firewall rules",
+            "Automatic cleanup and garbage collection"
+          ]
+        }
+      }
+    },
+
+    "databaseLayer": {
+      "description": "Cloudflare D1 SQLite database with advanced ORM and analytics",
+      "technology": "Cloudflare D1 + Drizzle ORM + TypeScript",
+      "location": "worker/database/",
+      "components": {
+        "schema": {
+          "file": "schema.ts",
+          "pattern": "Drizzle ORM schema definitions with type safety",
+          "tables": {
+            "users": {
+              "description": "User accounts with multi-provider OAuth support",
+              "features": ["OAuth provider links", "Security tracking", "Profile management"]
+            },
+            "sessions": {
+              "description": "JWT session management with device tracking", 
+              "features": ["Token rotation", "Device fingerprinting", "Session analytics"]
+            },
+            "apps": {
+              "description": "Generated applications with comprehensive metadata",
+              "features": ["Version history", "Social features", "Analytics tracking"]
+            },
+            "appAnalytics": {
+              "description": "Usage metrics and performance tracking",
+              "features": ["View counts", "Performance metrics", "User engagement"]
+            },
+            "agentSessions": {
+              "description": "AI generation session tracking",
+              "features": ["Generation history", "Error tracking", "Performance metrics"]
+            },
+            "social": {
+              "favorites": "User app favorites with timestamps",
+              "stars": "GitHub-style starring system",
+              "comments": "Threaded comments with moderation",
+              "teams": "Multi-user collaboration teams",
+              "boards": "Community boards for app sharing"
+            }
+          },
+          "patterns": [
+            "Soft deletes with deletedAt timestamps",
+            "Audit trails for compliance and debugging", 
+            "Strategic indexing for query performance",
+            "JSON columns for flexible metadata storage",
+            "Foreign key constraints for data integrity"
+          ]
+        },
+        "operations": {
+          "migrations": {
+            "file": "migrate.ts",
+            "capabilities": ["Schema versioning", "Safe migrations", "Rollback support"]
+          },
+          "analytics": {
+            "file": "analytics.ts", 
+            "capabilities": [
+              "Real-time usage tracking",
+              "Privacy-compliant data collection",
+              "Performance metrics aggregation",
+              "User behavior analysis"
+            ]
+          },
+          "databaseService": {
+            "abstraction": "Clean abstraction over Drizzle ORM",
+            "features": [
+              "Connection pooling and management",
+              "Query optimization and caching",
+              "Batch operations for performance",
+              "Transaction support with rollback",
+              "Error handling and retry logic"
+            ]
+          }
+        },
+        "performance": [
+          "Strategic indexing on frequently queried columns",
+          "Prepared statements for query optimization", 
+          "Batch operations to reduce round trips",
+          "Connection pooling for high concurrency",
+          "Query result caching for read-heavy workloads"
+        ]
+      }
+    },
+
+    "authenticationLayer": {
+      "description": "Enterprise-grade multi-provider authentication system",
+      "status": "Active development - Production hardening in progress",
+      "location": "worker/services/auth/",
+      "architecture": "Microservice-style with clean separation of concerns",
+      "components": {
+        "providers": {
+          "local": {
+            "implementation": "Email/password with bcrypt hashing",
+            "security": ["Rate limiting", "Account lockout", "Password strength validation"]
+          },
+          "google": {
+            "implementation": "Google OAuth 2.0 with PKCE",
+            "scopes": ["profile", "email"],
+            "security": ["State validation", "Nonce verification"]
+          },
+          "github": {
+            "implementation": "GitHub OAuth with organization support",
+            "scopes": ["user:email", "read:user"],
+            "features": ["Organization membership", "Team integration"]
+          },
+          "extensible": {
+            "pattern": "Base provider interface for adding new OAuth providers",
+            "planned": ["Microsoft", "Discord", "Apple", "LinkedIn"]
+          }
+        },
+        "sessionManagement": {
+          "technology": "JWT with HttpOnly cookies and refresh token rotation",
+          "security": [
+            "HttpOnly and Secure cookie flags",
+            "SameSite protection against CSRF", 
+            "Automatic token refresh with rotation",
+            "Session invalidation on suspicious activity",
+            "Device fingerprinting for enhanced security"
+          ],
+          "services": {
+            "SessionService": "Core session lifecycle management",
+            "TokenService": "JWT creation, validation, and refresh logic", 
+            "TokenValidator": "Comprehensive token validation and verification",
+            "SessionCleanupService": "Automatic cleanup of expired sessions"
+          },
+          "storage": "Database-backed session storage with Redis-like caching"
+        },
+        "middleware": {
+          "authMiddleware": {
+            "file": "middleware/security/auth.ts",
+            "responsibilities": [
+              "Request authentication validation",
+              "Route-based access control",
+              "User context injection", 
+              "Rate limiting and abuse prevention"
+            ]
+          },
+          "security": {
+            "rateLimiting": "IP-based and user-based rate limiting",
+            "inputValidation": "Zod schema validation for all inputs",
+            "headers": "Security headers (CSP, HSTS, etc.)",
+            "cors": "Configurable CORS with origin validation"
+          }
+        }
+      }
+    }
+  },
+
+  "dataFlows": {
+    "completeUserJourney": {
+      "description": "End-to-end flow from user request to deployed application",
+      "phases": [
+        {
+          "name": "Request Initiation",
+          "steps": [
+            "User submits query via React frontend",
+            "Anonymous users get session token from localStorage",
+            "POST request to /api/codegen/incremental with query",
+            "CodeGenController validates and processes request"
+          ]
+        },
+        {
+          "name": "Planning Phase",
+          "parallel": true,
+          "steps": [
+            "Template Selection Agent analyzes query",
+            "Blueprint Generator creates project architecture",
+            "NDJSON streaming sends blueprint chunks to client",
+            "Database record created for app tracking"
+          ]
+        },
+        {
+          "name": "Agent Initialization", 
+          "parallel": true,
+          "steps": [
+            "Durable Object CodeGeneratorAgent instantiated",
+            "ServiceContainer injected with dependencies",
+            "WebSocket connection established for real-time updates",
+            "Runner Service instance created and configured"
+          ]
+        },
+        {
+          "name": "Code Generation",
+          "iterative": true,
+          "steps": [
+            "Phase Implementation Operation generates files",
+            "SCOF streaming parser processes AI output",
+            "Real-time Code Fixer applies improvements",
+            "Files deployed to Runner Service",
+            "Static analysis and runtime error collection"
+          ]
+        },
+        {
+          "name": "Deployment and Preview",
+          "steps": [
+            "Runner Service builds and starts preview",
+            "Cloudflared tunnel exposes preview URL",
+            "Client receives deployment completion notification",
+            "User can interact with live preview"
+          ]
+        }
+      ]
+    },
+
+    "parallelProcesses": {
+      "agentInitialization": {
+        "description": "Concurrent operations during agent startup",
+        "processes": [
+          {
+            "name": "deployToRunnerService",
+            "type": "infrastructure_setup",
+            "timing": "parallel",
+            "duration": "~30 seconds",
+            "operations": ["Instance creation", "Template cloning", "Port allocation"]
+          },
+          {
+            "name": "generateSetupCommands",
+            "type": "dependency_analysis", 
+            "timing": "parallel",
+            "duration": "~10 seconds",
+            "operations": ["Package.json analysis", "Command generation", "Optimization"]
+          },
+          {
+            "name": "blueprintStreaming",
+            "type": "ai_planning",
+            "timing": "parallel",
+            "duration": "~20 seconds",
+            "operations": ["Architecture design", "File structure planning", "UI design"]
+          }
+        ],
+        "synchronization": "Promise.all completion before command execution",
+        "fallback": "Graceful degradation if any process fails"
+      },
+
+      "phaseImplementation": {
+        "description": "Concurrent processing during active code generation",
+        "processes": [
+          {
+            "name": "fileGeneration",
+            "type": "ai_code_generation", 
+            "timing": "streaming",
+            "integration": "Real-time WebSocket broadcasting with chunk-level updates",
+            "format": "SCOF with mixed diff support"
+          },
+          {
+            "name": "realtimeFixing",
+            "type": "code_improvement",
+            "timing": "parallel_per_file",
+            "trigger": "onFileClose callback from SCOF parser",
+            "strategies": ["Search-replace diffs", "Fuzzy matching", "AI error correction"]
+          },
+          {
+            "name": "deploymentQueue",
+            "type": "infrastructure_update",
+            "timing": "asynchronous_batched", 
+            "optimization": "Prevents deployment conflicts and optimizes file writes",
+            "batching": "Multiple files batched into single deployment"
+          }
+        ],
+        "coordination": "Operations coordinator ensures proper sequencing and error handling"
+      },
+
+      "validationAndReview": {
+        "description": "Multi-layered validation with parallel analysis",
+        "processes": [
+          {
+            "name": "staticAnalysis",
+            "type": "automated_validation",
+            "timing": "parallel",
+            "tools": ["ESLint with custom rules", "TypeScript compiler", "Security scanners"],
+            "outputs": ["Lint issues", "Type errors", "Security vulnerabilities"]
+          },
+          {
+            "name": "runtimeErrorCollection", 
+            "type": "runtime_monitoring",
+            "timing": "continuous",
+            "integration": "Runner Service monitoring with error aggregation",
+            "errorTypes": ["JavaScript errors", "Network failures", "Build errors"]
+          },
+          {
+            "name": "aiCodeReview",
+            "type": "intelligent_analysis", 
+            "timing": "on_demand",
+            "trigger": "Error threshold exceeded or user request",
+            "capabilities": ["Issue prioritization", "Fix recommendations", "Code quality assessment"]
+          }
+        ]
+      },
+
+      "errorRecoveryAndRegeneration": {
+        "description": "Automated error handling with parallel recovery strategies",
+        "processes": [
+          {
+            "name": "errorClassification",
+            "type": "error_analysis",
+            "timing": "immediate",
+            "classification": ["Runtime errors", "Static analysis", "Client-reported", "Deployment"]
+          },
+          {
+            "name": "fileRegeneration",
+            "type": "targeted_fixes",
+            "timing": "parallel_per_file",
+            "retryLimit": 3,
+            "strategies": ["AI-powered regeneration", "Template fallback", "Manual intervention"]
+          },
+          {
+            "name": "deploymentRetry",
+            "type": "infrastructure_recovery",
+            "timing": "exponential_backoff",
+            "fallback": "New instance creation if current instance fails"
+          }
+        ]
+      }
+    },
+
+    "streamingFlows": {
+      "realTimeGeneration": {
+        "description": "End-to-end streaming from AI model to client UI",
+        "latency": "Sub-second file chunk delivery with progress tracking",
+        "throughput": "Multiple files processed concurrently with parallel streaming",
+        "flow": [
+          "AI Model → SCOF Stream → Real-time Parser → File Extraction",
+          "File Extraction → WebSocket Broadcast → Client UI Update", 
+          "Parallel: Real-time Fixing → Improved Code → Deployment Queue",
+          "Deployment Queue → Runner Service → Preview Update"
+        ],
+        "errorHandling": "Stream recovery with partial content preservation"
+      },
+
+      "blueprintStreaming": {
+        "description": "Progressive blueprint generation with real-time client updates",
+        "format": "NDJSON streaming over HTTP with incremental parsing",
+        "flow": [
+          "Client Request → Template Selection → Blueprint Generation",
+          "AI Model streams blueprint chunks → NDJSON formatter",
+          "Client receives incremental updates → Progressive UI rendering",
+          "Final blueprint → Agent state persistence → WebSocket connection"
+        ],
+        "progressive": "UI updates progressively as blueprint sections complete"
+      },
+
+      "scofStreaming": {
+        "description": "Advanced SCOF format streaming with mixed content support",
+        "chunkHandling": "Graceful handling of arbitrary chunk boundaries",
+        "formatSupport": "Mixed SCOF + Unified Diff in single stream",
+        "flow": [
+          "LLM streams mixed content → SCOF Parser with state machine",
+          "Parser detects file operations → onFileOpen → WebSocket FILE_GENERATING",
+          "Content chunks processed → onFileChunk → FILE_CHUNK_GENERATED", 
+          "File completion detected → onFileClose → FILE_GENERATED",
+          "Parallel: Real-time Fixer processes completed files"
+        ],
+        "resilience": "Error recovery from malformed streams with content preservation"
+      },
+
+      "errorRecoveryFlow": {
+        "description": "Intelligent error detection and automated correction pipeline",
+        "flow": [
+          "Multi-source Error Detection → Runtime + Static + Client Monitoring",
+          "Error Classification → Severity Assessment → Priority Queue",
+          "AI Code Review → Issue Analysis → Fix Strategy Selection",
+          "Parallel Fix Generation → File Regeneration + Deployment Retry",
+          "Validation Loop → Error Verification → Success Confirmation"
+        ],
+        "retryStrategy": "Exponential backoff with AI-powered strategy adjustment",
+        "fallback": "Human-readable error reporting when automated fixes fail"
+      }
+    },
+
+    "webSocketProtocol": {
+      "description": "Comprehensive real-time communication protocol",
+      "connectionManagement": {
+        "strategy": "Exponential backoff with progressive delays",
+        "retryAttempts": 5,
+        "delays": ["1s", "2s", "4s", "8s", "16s"],
+        "states": ["idle", "connecting", "connected", "failed", "retrying"]
+      },
+      "messageRouting": {
+        "pattern": "Type-based message routing with error handling",
+        "validation": "Zod schema validation for all message types",
+        "broadcasting": "Multi-client support with connection health monitoring"
+      }
+    }
+  },
+
+  "keyInnovations": {
+    "architecturalPatterns": [
+      "Clean Architecture implementation in Cloudflare Durable Objects",
+      "Operation-based command pattern for composable AI workflows",
+      "Service layer with interface-based dependency injection",
+      "Immutable domain objects with pure function business logic", 
+      "Real-time streaming architecture with WebSocket integration",
+      "Multi-strategy diff application with AI-powered error correction"
+    ],
+    "technicalInnovations": [
+      "SCOF streaming format optimized for LLM code generation",
+      "Phase-wise development with parallel processing and error recovery",
+      "Real-time code fixing with fuzzy matching and multiple strategies",
+      "Integrated sandbox deployment with continuous error feedback loops",
+      "Anonymous user support with seamless authentication upgrade",
+      "Multi-provider OAuth with PKCE and security hardening"
+    ],
+    "userExperienceInnovations": [
+      "Sub-second file generation feedback with progress tracking",
+      "Progressive blueprint generation with incremental UI updates",
+      "Live preview with automatic deployment and tunnel exposure",
+      "Intelligent error recovery with minimal user intervention",
+      "Social features integration (starring, forking, community boards)",
+      "Comprehensive debug panel for development troubleshooting"
+    ]
+  },
+
+  "scalabilityAndPerformance": {
+    "cloudflareOptimizations": [
+      "Durable Objects for stateful operations with geographic distribution",
+      "Edge compute for ultra-low latency responses worldwide", 
+      "D1 SQLite for fast local database access with global replication",
+      "Workers KV for template and static asset caching",
+      "R2 for large file storage and CDN distribution (planned)",
+      "Stream processing for real-time data without memory limits"
+    ],
+    "concurrencyPatterns": [
+      "Parallel agent initialization with coordinated synchronization",
+      "Concurrent file processing with dependency-aware sequencing", 
+      "Asynchronous deployment queues with batch optimization",
+      "Real-time streaming with backpressure and flow control",
+      "Multi-strategy retry logic with exponential backoff",
+      "Connection pooling and resource management"
+    ],
+    "performanceOptimizations": [
+      "Strategic database indexing for sub-100ms query response",
+      "Prepared statements and query result caching",
+      "Template hardlinking and aggressive caching strategies",
+      "Chunked file processing to handle large codebases",
+      "WebSocket message batching to reduce network overhead",
+      "Lazy loading and progressive enhancement in frontend"
+    ]
+  },
+
+  "securityAndCompliance": {
+    "authenticationSecurity": [
+      "Multi-provider OAuth 2.0 with PKCE and state validation",
+      "JWT tokens with HttpOnly cookies and automatic rotation",
+      "Session invalidation on suspicious activity detection",
+      "Device fingerprinting and geographical anomaly detection",
+      "Rate limiting and account lockout protection",
+      "Comprehensive audit logging for compliance"
+    ],
+    "infrastructureSecurity": [
+      "Containerized sandbox isolation for code execution",
+      "Resource limits and quotas to prevent abuse",
+      "Network isolation with firewall rules",
+      "Input validation and sanitization at all layers",
+      "Security headers (CSP, HSTS, X-Frame-Options)",
+      "Regular security scanning and vulnerability assessment"
+    ],
+    "dataProtection": [
+      "Privacy-compliant analytics with data anonymization",
+      "Soft deletes for data retention and recovery",
+      "Encrypted sensitive data storage",
+      "GDPR compliance with user data export/deletion",
+      "Secure communication with TLS everywhere",
+      "Regular backups with point-in-time recovery"
+    ]
+  }
+}
