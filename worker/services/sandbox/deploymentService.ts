@@ -22,7 +22,7 @@ export async function deployToCloudflareWorkers(args: CFDeploymentArgs): Promise
     // Extract zip file
     await sandbox.exec(`unzip -o -q ${args.instanceId}.zip -d .`);
     args.logger.info(`Extracted zip file to sandbox: ${args.instanceId}`);
-    const deployCmd = `CLOUDFLARE_API_TOKEN=${env.CLOUDFLARE_API_TOKEN} CLOUDFLARE_ACCOUNT_ID=${env.CLOUDFLARE_ACCOUNT_ID} bunx wrangler deploy`;
+    const deployCmd = `CLOUDFLARE_API_TOKEN=${env.CLOUDFLARE_API_TOKEN} CLOUDFLARE_ACCOUNT_ID=${env.CLOUDFLARE_ACCOUNT_ID} bunx wrangler deploy --dispatch-namespace orange-build-default-namespace`;
                 
     const startTime = Date.now();
     const deployResult = await sandbox.exec(`cd ${args.instanceId} && ${deployCmd}`);

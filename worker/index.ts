@@ -13,6 +13,32 @@ const logger = createLogger('App');
  */
 export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+        // Get the hostname from the request URL
+        const hostname = request.headers.get('host');
+        if (!hostname) {
+            return new Response('Hostname not found', { status: 400 });
+        }
+        // Check if hostname is an ip address via regex
+        const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/;
+        if (!ipRegex.test(hostname)) {
+            // Get the immideate subdomain of the hostname
+            const subdomain = hostname.split('.')[0];
+            logger.info(`Subdomain: ${subdomain}, Hostname: ${hostname}`);
+            // If the subdomain is not build, or there are less than 3 subdomains, redirect it to dispatcher
+            // Thus either the main site should be build.somehost.com or build.something.somehost.com or something.com or www.something.com
+            if (subdomain !== 'www' &&subdomain !== 'build' && hostname.split('.').length > 2) {
+                logger.info(`Dispatching request to dispatcher`);
+                // Get worker from dispatch namespace
+                const worker = env.DISPATCHER.get(subdomain);
+                if (worker) {
+                    logger.info(`Dispatching request to worker ${subdomain}`);
+                    // Dispatch request to worker
+                    return await worker.fetch(request);
+                }
+            }
+        }
+        
+
         // allow CORS preflight requests
         if (request.method === 'OPTIONS') {
             return new Response('', {
