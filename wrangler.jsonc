@@ -25,6 +25,13 @@
 	"ai": {
 		"binding": "AI"
 	},
+    "dispatch_namespaces": [
+        {
+            "binding": "DISPATCHER",
+            "namespace": "orange-build-default-namespace",
+            "experimental_remote": true
+        }
+    ],
 	"containers": [
 		{
 			"class_name": "UserAppSandboxService",
@@ -38,14 +45,28 @@
               }
             },
             "rollout_step_percentage": 100
-		}
+		},
+        {
+          "class_name": "DeployerService",
+          "image": "./DeployerDockerfile",
+          "max_instances": 1,
+          "configuration": {
+            "vcpu": 4,
+            "memory_mib": 2048,
+            "disk": {
+              "size": "20GB"
+            }
+          },
+          "rollout_step_percentage": 100
+        }
 	],
 	"d1_databases": [
 		{
 			"binding": "DB",
 			"database_name": "orange-build-db",
 			"database_id": "3085356f-6009-4a75-a478-66c05a5a532f",
-			"migrations_dir": "migrations"
+			"migrations_dir": "migrations",
+			"experimental_remote": true
 		}
 	],
 	"durable_objects": {
@@ -61,6 +82,10 @@
             {
                 "class_name": "UserAppSandboxService",
                 "name": "SandboxServiceObject"
+            },
+            {
+                "class_name": "DeployerService",
+                "name": "DeployerServiceObject"
             }
 		]
 	},
@@ -68,8 +93,7 @@
       {
         "binding": "TEMPLATES_BUCKET",
         "bucket_name": "orange-build-templates",
-        "experimental_remote": true,
-        "preview_bucket_name": "orange-build-template-dev"
+        "experimental_remote": true
       }
     ],
     "kv_namespaces": [
@@ -86,7 +110,13 @@
 				"UserAppSandboxService"
 			],
 			"tag": "v1"
-		}
+		},
+        {
+            "new_sqlite_classes": [
+                "DeployerService"
+            ],
+            "tag": "v2"
+        }
 	],
 	"services": [
 		{
