@@ -20,7 +20,12 @@ export default defineConfig({
           },
         },
     },
-	plugins: [react(), cloudflare(), tailwindcss()],
+	plugins: [react(),  
+        cloudflare({
+          configPath: "wrangler.jsonc",
+          experimental: { remoteBindings: true },
+        }),
+        tailwindcss()],
 	resolve: {
 	  alias: {
 		"@": path.resolve(__dirname, "./src"),

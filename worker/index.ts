@@ -4,7 +4,7 @@ import { errorResponse } from './api/responses';
 import { SmartCodeGeneratorAgent } from "./agents/core/smartGeneratorAgent";
 
 export class CodeGeneratorAgent extends SmartCodeGeneratorAgent {}
-export { UserAppSandboxService } from './services/sandbox/sandboxSdkClient';
+export { UserAppSandboxService, DeployerService } from './services/sandbox/sandboxSdkClient';
 
 // Logger for the main application
 const logger = createLogger('App');
