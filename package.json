@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "DEV_MODE=true vite",
-		"dev:worker": "DEV_MODE=true npm run build && wrangler dev --local --port 5173",
+		"dev:worker": "DEV_MODE=true npm run build && wrangler dev --x-remote-bindings --port 5173",
 		"dev:remote": "DEV_MODE=true npm run build && wrangler dev --remote --port 5173",
 		"build": "tsc -b && vite build",
 		"lint": "eslint .",
@@ -125,7 +125,7 @@
 		"zod": "^3.23.8"
 	},
 	"devDependencies": {
-		"@cloudflare/vite-plugin": "^1.7.5",
+		"@cloudflare/vite-plugin": "^1.11.1",
 		"@cloudflare/vitest-pool-workers": "^0.8.55",
 		"@eslint/js": "^9.25.1",
 		"@tailwindcss/typography": "^0.5.16",
@@ -155,7 +155,7 @@
 		"vite": "^6.3.5",
 		"vite-plugin-monaco-editor": "^1.1.0",
 		"vitest": "^3.2.4",
-		"wrangler": "4.27.0"
+		"wrangler": "4.28.0"
 	},
 	"prettier": {
 		"singleQuote": true,

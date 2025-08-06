@@ -440,9 +440,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                         }
                         
                         promises.push(this.regenerateFile(
-                            fileToRegenerate.file_path,
-                            fileToRegenerate.file_purpose,
-                            fileToFix.issues.join("\n")
+                            fileToRegenerate,
+                            fileToFix.issues,
+                            0
                         ));
                     }
 
@@ -660,11 +660,11 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
      * Regenerate a file to fix identified issues
      * Retries up to 3 times before giving up
      */
-    async regenerateFile(filePath: string, filePurpose: string, issueDescription: string, retryIndex: number = 0) {
+    async regenerateFile(file: FileOutputType, issues: string[], retryIndex: number = 0) {
         const context = GenerationContext.from(this.state, this.logger);
         
         const result = await this.operations.regenerateFile.execute(
-            {filePath, filePurpose, issueDescription, retryIndex},
+            {file, issues, retryIndex},
             {
                 env: this.env,
                 agentId: this.state.sessionId,
@@ -1277,20 +1277,20 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         });
     }
 
-    /**
-     * Get project dependencies from state and package.json
-     */
-    private getDependencies(): Record<string, string> {
-        const state = this.state;
-        const deps = state.templateDetails?.deps || {};
-        // Add additional dependencies from the last package.json
-        if (state.lastPackageJson) {
-            const parsedPackageJson = JSON.parse(state.lastPackageJson);
-            Object.assign(deps, parsedPackageJson.dependencies as Record<string, string>);
-            this.logger.info(`Adding dependencies from last package.json: ${Object.keys(parsedPackageJson.dependencies).join(', ')}`);
-        }
-        return deps;
-    }
+    // /**
+    //  * Get project dependencies from state and package.json
+    //  */
+    // private getDependencies(): Record<string, string> {
+    //     const state = this.state;
+    //     const deps = state.templateDetails?.deps || {};
+    //     // Add additional dependencies from the last package.json
+    //     if (state.lastPackageJson) {
+    //         const parsedPackageJson = JSON.parse(state.lastPackageJson);
+    //         Object.assign(deps, parsedPackageJson.dependencies as Record<string, string>);
+    //         this.logger.info(`Adding dependencies from last package.json: ${Object.keys(parsedPackageJson.dependencies).join(', ')}`);
+    //     }
+    //     return deps;
+    // }
 
     /**
      * Execute commands with retry logic
@@ -1640,29 +1640,29 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
     }
 
 
-    /**
-     * Ensure project dependencies are installed
-     * Runs asynchronously without blocking
-     */
-    private ensureDependencies(newFiles: FileOutputType[]): void {
-        try {
-            const dependencies = this.getDependencies();
+    // /**
+    //  * Ensure project dependencies are installed
+    //  * Runs asynchronously without blocking
+    //  */
+    // private ensureDependencies(newFiles: FileOutputType[]): void {
+    //     try {
+    //         const dependencies = this.getDependencies();
 
-            // Execute asynchronously
-            this.getProjectSetupAssistant().ensureDependencies(
-                newFiles,
-                dependencies
-            ).then(commands => {
-                if (commands?.commands) {
-                    this.executeCommands(commands.commands);
-                }
-            }).catch(error => {
-                this.logger.error('Error ensuring dependencies:', error);
-            });
-        } catch (error) {
-            this.logger.error('Error ensuring dependencies:', error);
-        }
-    }
+    //         // Execute asynchronously
+    //         this.getProjectSetupAssistant().ensureDependencies(
+    //             newFiles,
+    //             dependencies
+    //         ).then(commands => {
+    //             if (commands?.commands) {
+    //                 this.executeCommands(commands.commands);
+    //             }
+    //         }).catch(error => {
+    //             this.logger.error('Error ensuring dependencies:', error);
+    //         });
+    //     } catch (error) {
+    //         this.logger.error('Error ensuring dependencies:', error);
+    //     }
+    // }
 
     /**
      * Update database with generation status

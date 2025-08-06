@@ -13,11 +13,8 @@ const logger = createLogger('App');
  */
 export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-        // Get the hostname from the request URL
-        const hostname = request.headers.get('host');
-        if (!hostname) {
-            return new Response('Hostname not found', { status: 400 });
-        }
+        const url = new URL(request.url);
+        const hostname = url.hostname;
         // Check if hostname is an ip address via regex
         const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/;
         if (!ipRegex.test(hostname)) {
@@ -26,18 +23,20 @@ export default {
             logger.info(`Subdomain: ${subdomain}, Hostname: ${hostname}`);
             // If the subdomain is not build, or there are less than 3 subdomains, redirect it to dispatcher
             // Thus either the main site should be build.somehost.com or build.something.somehost.com or something.com or www.something.com
-            if (subdomain !== 'www' &&subdomain !== 'build' && hostname.split('.').length > 2) {
+            if (subdomain !== 'www' && subdomain !== 'build' && hostname.split('.').length >= 2) {
                 logger.info(`Dispatching request to dispatcher`);
                 // Get worker from dispatch namespace
                 const worker = env.DISPATCHER.get(subdomain);
                 if (worker) {
                     logger.info(`Dispatching request to worker ${subdomain}`);
                     // Dispatch request to worker
-                    return await worker.fetch(request);
+                    const response = await worker.fetch(request);
+                    return response;
                 }
             }
         }
-        
+
+        logger.info(`Handling the request ${url}`);
 
         // allow CORS preflight requests
         if (request.method === 'OPTIONS') {
@@ -52,11 +51,11 @@ export default {
 
         try {
             // Ignore favicon requests
-            if (new URL(request.url).pathname.startsWith('/favicon')) {
+            if (url.pathname.startsWith('/favicon')) {
                 return new Response('', { status: 404 });
             }
 
-            logger.info(`${request.method} ${new URL(request.url).pathname}`);
+            logger.info(`${request.method} ${url.pathname}`);
 
             // Setup router and handle the request
             const router = setupRouter();

@@ -85,12 +85,14 @@ export abstract class BaseSandboxService {
             const response = await env.TEMPLATES_BUCKET.get(
                 'template_catalog.json',
             );
+            
+            console.log(`Template catalog found: ${JSON.stringify(response, null, 2)}`);
+
             if (response === null) {
                 throw new Error(
                     `Failed to fetch template catalog: Template catalog not found`,
                 );
             }
-
             const templates = (await response.json()) as TemplateInfo[];
 
             // For now, just filter out *next* templates

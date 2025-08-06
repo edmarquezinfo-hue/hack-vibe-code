@@ -11,7 +11,9 @@
 	"assets": {
 		"directory": "dist",
 		"not_found_handling": "single-page-application",
-		"run_worker_first": ["/api/*", "!/api/docs/*"]
+		// "run_worker_first": ["!/src/*", "!/api/docs/*"],
+        "run_worker_first": true,
+        "binding": "ASSETS"
 	},
 	"observability": {
 		"enabled": true
@@ -39,7 +41,7 @@
 			"max_instances": 10,
             "configuration": {
               "vcpu": 8,
-              "memory_mib": 8192,
+              "memory_mib": 6144,
               "disk": {
                 "size_mb": 10240
               }
@@ -98,8 +100,9 @@
     ],
     "kv_namespaces": [
         {
-        "binding": "INSTANCE_REGISTRY",
-        "id": "801cc1d5758e44f1bd0565985d9d6df0"
+            "binding": "INSTANCE_REGISTRY",
+            "id": "801cc1d5758e44f1bd0565985d9d6df0",
+            "experimental_remote": true
         }
     ],
 	"migrations": [
@@ -124,20 +127,20 @@
 			"service": "runner-service"
 		}
 	],
-	"routes": [
-	  {
-		"pattern": "build.chat.cloudflare.dev",
-		"custom_domain": true
-	  },
-	  {
-		"pattern": "build.cloudflare.dev",
-		"custom_domain": true
-	  },
-	  {
-		"pattern": "*build.cloudflare.dev/*",
-		"custom_domain": false
-	  }
-	],
+	// "routes": [
+	// //   {
+	// // 	"pattern": "build.chat.cloudflare.dev",
+	// // 	"custom_domain": true
+	// //   },
+	//   {
+	// 	"pattern": "build.cloudflare.dev",
+	// 	"custom_domain": true
+	//   },
+	//   {
+	// 	"pattern": "*build.cloudflare.dev/*",
+	// 	"custom_domain": false
+	//   }
+	// ],
 	"vars": {
 		"SANDBOX_SERVICE_URL": "https://runner-service.eti-india.workers.dev", 
 		// // "SANDBOX_SERVICE_URL": "https://sandboxsdk-dev-worker.eti-india.workers.dev",

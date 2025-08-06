@@ -88,7 +88,7 @@ export class CodeGenController extends BaseController {
             });
 
             // If no template is selected, fetch available templates
-            const templatesResponse = await SandboxSdkClient.listTemplates(env.TEMPLATES_BUCKET_URL);
+            const templatesResponse = await SandboxSdkClient.listTemplates();
             if (!templatesResponse) {
                 return this.createErrorResponse('Failed to fetch templates from sandbox service', 500);
             }

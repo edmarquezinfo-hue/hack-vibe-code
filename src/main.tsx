@@ -6,7 +6,6 @@ import { routes } from './routes.ts';
 import './index.css';
 
 const router = createBrowserRouter(routes, {
-	 
 	hydrationData: (window as any).__staticRouterHydrationData,
 });
 

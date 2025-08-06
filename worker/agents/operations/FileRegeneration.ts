@@ -3,11 +3,10 @@ import { PROMPT_UTILS } from '../prompts';
 import { AgentOperation, OperationOptions } from '../operations/common';
 import { RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
 import { AIModels } from '../inferutils/aigateway';
+import { FileOutputType } from '../schemas';
 
 export interface FileRegenerationInputs {
-    filePath: string;
-    filePurpose: string;
-    fileContents: string;
+    file: FileOutputType;
     issues: string[];
     retryIndex: number;
 }
@@ -18,9 +17,6 @@ Here is some relevant context:
 <user_query>
 {{query}}
 </user_query>
-
-Current project phase **being implemented:**
-{{phaseConcept}}
 
 You are only provided with this file to review.
 ================================
@@ -65,11 +61,7 @@ export class FileRegenerationOperation extends AgentOperation<FileRegenerationIn
         try {
             // Use realtime code fixer to fix the file
             const realtimeCodeFixer = new RealtimeCodeFixer(options.env, options.agentId, false, AIModels.GEMINI_2_5_FLASH, USER_PROMPT);
-            const fixedFile = await realtimeCodeFixer.run({
-                file_path: inputs.filePath,
-                file_contents: inputs.fileContents,
-                file_purpose: inputs.filePurpose,
-            }, {
+            const fixedFile = await realtimeCodeFixer.run(inputs.file, {
                 previousFiles: options.context.allFiles,
                 query: options.context.query,
                 blueprint: options.context.blueprint,

@@ -1,5 +1,5 @@
 import { createObjectLogger, StructuredLogger } from '../logger';
-import { methodNotAllowedResponse, notFoundResponse } from './responses';
+import { methodNotAllowedResponse } from './responses';
 
 /**
  * Request handler function type
@@ -156,8 +156,9 @@ export class Router {
             const match = this.matchRoute(request);
 
             if (!match) {
-                this.logger.warn(`No route found for ${request.method} ${new URL(request.url).pathname}`);
-                return notFoundResponse('Route');
+                // this.logger.warn(`No route found for ${request.method} ${new URL(request.url).pathname}`);
+                // return notFoundResponse('Route');
+                return env.ASSETS.fetch(request);
             }
 
             const { route, params } = match;
