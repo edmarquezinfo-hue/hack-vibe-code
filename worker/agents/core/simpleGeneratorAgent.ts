@@ -607,14 +607,15 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
 
         this.logger.info("Completed phases:", JSON.stringify(updatedPhases, null, 2));
 
-        // Check and install dependencies asynchronously
-        if (result.deploymentNeeded) {
-            this.ensureDependencies(result.files);
-        }
+        // // Check and install dependencies asynchronously
+        // if (result.deploymentNeeded) {
+        //     this.ensureDependencies(result.files);
+        // }
 
         // Execute commands if provided
         if (result.commands && result.commands.length > 0) {
-            this.executeCommands(result.commands);
+            this.logger.info("Phase implementation suggested install commands:", result.commands);
+            await this.executeCommands(result.commands);
         }
         
         return result;

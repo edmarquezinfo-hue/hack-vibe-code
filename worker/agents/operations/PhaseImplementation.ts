@@ -1,14 +1,14 @@
 import { PhaseConceptType, FileOutputType, PhaseImplementationSchemaType, PhaseConceptSchema, TechnicalInstructionType } from '../schemas';
 import { IssueReport } from '../domain/values/IssueReport';
-import { createUserMessage, extractCommands } from '../inferutils/common';
+import { createUserMessage } from '../inferutils/common';
 import { executeInference } from '../inferutils/inferenceUtils';
 import { issuesPromptFormatter, PROMPT_UTILS, STRATEGIES } from '../prompts';
 import { WebSocketMessageResponses } from '../constants';
-import { CodeGenerationStreamingState, ParsingState } from '../code-formats/base';
+import { CodeGenerationStreamingState } from '../code-formats/base';
 import { FileProcessing } from '../domain/pure/FileProcessing';
 import { RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
 import { AgentOperation, getSystemPromptWithProjectContext, OperationOptions } from '../operations/common';
-import { SCOFFormat } from '../code-formats/scof';
+import { SCOFFormat, SCOFParsingState } from '../code-formats/scof';
 import { TemplateRegistry } from '../inferutils/schemaFormatters';
 
 export interface PhaseImplementationInputs {
@@ -98,8 +98,6 @@ These are the instructions and quality standards that must be followed to implem
     •   **Try to wrap all essential code in try-catch blocks to isolate errors and prevent application crashes. Treat this project as mission critical**
     •   **In the footer of pages, you can mention the following: "Built with <love emoji> at Cloudflare"**
     •   **Follow DRY principles by heart, Always research and understand the codebase before making changes. Understand the patterns used in the codebase**
-
-    •   **Dependency Check:** Only use dependencies confirmed available in <DEPENDENCIES>. Verify all imports. Using any other libraries, files or dependencies would cause the application to break.
     •   Make sure every component, variable, function, class, and type is defined before it is used. 
     •   Make sure everything that is needed is exported correctly from relevant files. Do not put duplicate 'default' exports.
     •   While rewriting a .tsx file, Make sure you correct any setState calls in useEffect or any other lifecycle method.
@@ -117,7 +115,7 @@ These are the instructions and quality standards that must be followed to implem
 </INSTRUCTIONS & CODE QUALITY STANDARDS>
 
 Every single file listed in <CURRENT_PHASE> needs to be implemented in the order its listed, and implemented **ONLY ONCE** in this phase, based on the provided <OUTPUT FORMAT>.
-There shouldn't be any syntax errors or bugs or issues in your implementation and you should only use dependencies confirmed available either the template or the blueprint (see <DEPENDENCIES> for details).
+There shouldn't be any syntax errors or bugs or issues in your implementation.
 
 **MAKE SURE THERE ARE NO COMPONENT RERENDERING INFINITE LOOPS OR setState inside render or without dependencies. IF YOU MISTAKENLY WRITE SUCH CODE, REWRITE THE WHOLE FILE AGAIN**
 **ALSO THIS NEXT PHASE SHOULDN'T BREAK ANYTHING FROM THE PREVIOUS PHASE. ANY FUNCTIONALITY SHOULDN'T BE BROKEN! WE HAVE A LOT OF CASES OF THIS HAPPENING IN THE PAST**
@@ -257,7 +255,7 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
         const streamingState: CodeGenerationStreamingState = {
             accumulator: '',
             completedFiles: new Map(),
-            parsingState: {} as ParsingState
+            parsingState: {} as SCOFParsingState
         };
     
         const fixedFilePromises: Promise<FileOutputType>[] = [];
@@ -276,7 +274,7 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
             }));
     
         // Execute inference with streaming
-        const results = await executeInference({
+        await executeInference({
             id: options.agentId,    
             env: env,
             schemaName: "phaseImplementation",
@@ -368,9 +366,11 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
             }
         });
 
-        // Extract commands from the generated files
-        const commands = extractCommands(results.string);
-        logger.info("Files generated for phase:", phase.name, "with", fixedFilePromises.length, "files being fixed in real-time");
+        // // Extract commands from the generated files
+        // const commands = extractCommands(results.string, true);
+        const commands = streamingState.parsingState.extractedInstallCommands;
+
+        logger.info("Files generated for phase:", phase.name, "with", fixedFilePromises.length, "files being fixed in real-time and extracted install commands:", commands);
     
         broadcaster!.broadcast(WebSocketMessageResponses.PHASE_VALIDATING, {
             message: `Validating files for phase: ${phase.name}`,

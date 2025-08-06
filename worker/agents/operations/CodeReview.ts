@@ -18,7 +18,7 @@ const SYSTEM_PROMPT = `<ROLE>
 </ROLE>
 
 <GOAL>
-    Perform a thorough review of the entire provided codebase (<REVIEW: ALL GENERATED FILES>) against the <REFER: APPLICATION BLUEPRINT> and <REFER: APPLICATION DESCRIPTION>. 
+    Perform a thorough review of the entire provided codebase (<ENTIRE CODEBASE>) against the <BLUEPRINT> and <CLIENT REQUEST>. 
     Identify *all urgent* issues that would prevent the application from functioning correctly, rendering properly, or meeting the specified requirements. 
     Provide clear, actionable feedback for fixing the identified issues.
     If there are already runtime errors or linting errors provided, Just focus on resolving them with utmost priority, and provide fixes for only those errors.
@@ -138,11 +138,7 @@ These are the dependencies that came installed in the environment:
 If anything else is used in the project, make sure it is installed in the environment
 </DEPENDENCIES>
 
-{{template}}
-
-<FINAL INSTRUCTION>
-    Analyze the provided code thoroughly. Identify all critical issues preventing correct functionality or rendering based on the blueprint. Provide concise, actionable fixes for each issue identified.
-</FINAL INSTRUCTION>`;
+{{template}}`;
 
 const USER_PROMPT = `
 <CRITICAL RUNTIME ERRORS>
@@ -159,7 +155,11 @@ const USER_PROMPT = `
 
 <ENTIRE CODEBASE>
 {{context}}
-</ENTIRE CODEBASE>`;
+</ENTIRE CODEBASE>
+
+<FINAL INSTRUCTION>
+    Analyze the provided code thoroughly. Identify all critical issues preventing correct functionality or rendering based on the blueprint. Provide concise, actionable fixes for each issue identified.
+</FINAL INSTRUCTION>`;
 
 const userPromptFormatter = (issues: IssueReport, context: string) => {
     const prompt = USER_PROMPT
