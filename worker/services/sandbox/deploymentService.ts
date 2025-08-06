@@ -8,6 +8,8 @@ export interface CFDeploymentArgs {
     instanceId: string;
     base64encodedArchive: string;
     logger: StructuredLogger;
+    projectName: string;
+    hostname: string;
 }
 
 export async function deployToCloudflareWorkers(args: CFDeploymentArgs): Promise<DeploymentResult> {
@@ -31,9 +33,9 @@ export async function deployToCloudflareWorkers(args: CFDeploymentArgs): Promise
     args.logger.info(`Deployed ${args.instanceId} in ${duration} seconds`, deployResult);
     if (deployResult.exitCode === 0) {
         // Extract deployed URL from output
-        const urlMatch = deployResult.stdout.match(/https:\/\/[^\s]+\.workers\.dev/g);
-        const deployedUrl = urlMatch ? urlMatch[0] : undefined;
-        
+        // const urlMatch = deployResult.stdout.match(/https:\/\/[^\s]+\.workers\.dev/g);
+        // const deployedUrl = urlMatch ? urlMatch[0] : undefined;
+        const deployedUrl = `${args.projectName}.${args.hostname}`;
         args.logger.info(`Successfully deployed instance ${args.instanceId}`, { deployedUrl });
         
         return {

@@ -1441,7 +1441,9 @@ export class SandboxSdkClient extends BaseSandboxService {
             return deployToCloudflareWorkers({
                 instanceId,
                 base64encodedArchive: base64Data,
-                logger: this.logger
+                logger: this.logger,
+                projectName: this.metadataCache.get(instanceId)?.projectName || '',
+                hostname: this.hostname
             });
             
         } catch (error) {
