@@ -104,6 +104,8 @@ export class FileRegenerationOperation extends AgentOperation<FileRegenerationIn
                 original_issues: inputs.issues,
             });
             
+            options.fileManager!.saveGeneratedFile(fixedFile);
+
             return {
                 ...fixedFile,
                 format: "full_content"

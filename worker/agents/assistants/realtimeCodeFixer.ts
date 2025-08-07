@@ -279,6 +279,7 @@ export class RealtimeCodeFixer extends Assistant<Env> {
                     createUserMessage(`
 Please quickly re-review the entire code for another pass to ensure there are no **critical** issues or bugs remaining and there are no weird unapplied changes or residues (e.g, malformed search/replace blocks or diffs).
 **Look out for serious issues that can cause runtime errors, rendering issues, logical bugs, or things that got broken by previous fixes**
+**Indentations do not cause issues, Please ignore indentation issues**
 **Thoroughly look for \`Maximum update depth exceeded\` and other issues that can crash the app on priority**
 **No need to be verbose or descriptive if you dont see any issues! We need to commit this file as soon as possible so don't waste time nit-picking! But it shouldn't break at any cost!**
 

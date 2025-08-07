@@ -205,8 +205,5 @@ export function looksLikeCommand(text: string): boolean {
 		/^(?:export|source|alias)\s/,
 	];
 
-	return (
-		commandIndicators.some((pattern) => pattern.test(text)) ||
-		(text.includes(' ') && !text.includes(' = ') && !text.includes('://'))
-	);
+	return commandIndicators.some((pattern) => pattern.test(text));
 }
