@@ -14,6 +14,7 @@ import {
 import { getFileType } from '../../../utils/string';
 import { logger } from '../../../utils/logger';
 import { useAuth } from '@/contexts/auth-context';
+import { getPreviewUrl } from '@/lib/utils';
 
 export interface FileType {
 	file_path: string;
@@ -364,7 +365,7 @@ export function useChat({
 				}
 
 				// Always handle preview URL updates (this is safe to do repeatedly)
-				const finalPreviewURL = import.meta.env.VITE_PREVIEW_MODE === 'tunnel' ? state.tunnelURL : state.previewURL;
+				const finalPreviewURL = getPreviewUrl(state.previewURL, state.tunnelURL);
 				if (finalPreviewURL && finalPreviewURL !== previewUrl) {
 					setPreviewUrl(finalPreviewURL);
 					// Only send deployment message if this is a new URL
@@ -565,7 +566,7 @@ export function useChat({
 
 			case 'deployment_completed': {
 				setIsPreviewDeploying(false);
-				const finalPreviewURL = import.meta.env.VITE_PREVIEW_MODE === 'tunnel' ? message.tunnelURL : message.previewURL;
+				const finalPreviewURL = getPreviewUrl(message.previewURL, message.tunnelURL);
 				setPreviewUrl(finalPreviewURL);
 				sendMessage({
 					id: 'deployment-status',

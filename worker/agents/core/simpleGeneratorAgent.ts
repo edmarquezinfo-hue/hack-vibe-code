@@ -860,7 +860,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         }
     }
 
-    private async createNewDeployment(): Promise<{ sandboxInstanceId: string; previewURL: string; tunnelURL: string } | null> {
+    private async createNewDeployment(): Promise<{ sandboxInstanceId: string; previewURL: string; tunnelURL?: string } | null> {
         // Create new deployment
         const templateName = this.state.templateDetails?.name || 'scratch';
         // Generate a short unique suffix (6 chars from session ID)
@@ -886,7 +886,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         const sandboxInstanceId = createResponse.runId;
         const previewURL = createResponse.previewURL;
         const tunnelURL = createResponse.tunnelURL;
-        if (sandboxInstanceId && previewURL && tunnelURL) {
+        if (sandboxInstanceId && previewURL) {
             return { sandboxInstanceId, previewURL, tunnelURL };
         }
 

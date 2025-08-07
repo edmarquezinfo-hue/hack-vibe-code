@@ -233,7 +233,7 @@ export class RealtimeCodeFixer extends Assistant<Env> {
     logger = createObjectLogger(this, 'RealtimeCodeFixer');
     lightMode: boolean;
     altPassModelOverride?: string;
-    user_prompt: string;
+    userPrompt: string;
     modelConfigOverride?: ModelConfig;
 
     constructor(
@@ -242,12 +242,12 @@ export class RealtimeCodeFixer extends Assistant<Env> {
         lightMode: boolean = false,
         altPassModelOverride: string = AIModels.CLAUDE_4_SONNET,
         modelConfigOverride?: ModelConfig,
-        user_prompt: string = USER_PROMPT
+        userPrompt: string = USER_PROMPT
     ) {
         super(env, agentId);
         this.lightMode = lightMode;
         this.altPassModelOverride = altPassModelOverride;
-        this.user_prompt = user_prompt;
+        this.userPrompt = userPrompt;
         this.modelConfigOverride = modelConfigOverride;
     }
 
@@ -275,7 +275,7 @@ export class RealtimeCodeFixer extends Assistant<Env> {
             while (searchBlocks !== 0 && i < passes) {
                 this.logger.info(`Running realtime code fixer for file: ${generatedFile.file_path} (pass ${i + 1}/${passes})`);
                 const messages = this.save([
-                    i === 0 ? createUserMessage(userPromptFormatter(this.user_prompt, context.query, context.previousFiles, generatedFile, currentPhase, issues)) : 
+                    i === 0 ? createUserMessage(userPromptFormatter(this.userPrompt, context.query, context.previousFiles, generatedFile, currentPhase, issues)) : 
                     createUserMessage(`
 Please quickly re-review the entire code for another pass to ensure there are no **critical** issues or bugs remaining and there are no weird unapplied changes or residues (e.g, malformed search/replace blocks or diffs).
 **Look out for serious issues that can cause runtime errors, rendering issues, logical bugs, or things that got broken by previous fixes**

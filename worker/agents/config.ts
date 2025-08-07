@@ -89,7 +89,7 @@ export const AGENT_CONFIG: AgentConfig = {
         fallbackModel: AIModels.GEMINI_2_5_PRO,
     },
     codeReview: {
-        name: AIModels.OPENAI_O3,
+        name: AIModels.GEMINI_2_5_PRO,
         // name: 'o4-mini',
         reasoning_effort: 'medium',
         max_tokens: 32000,
