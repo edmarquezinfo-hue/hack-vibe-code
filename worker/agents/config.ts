@@ -64,14 +64,14 @@ export const AGENT_CONFIG: AgentConfig = {
         reasoning_effort: 'low',
         // max_tokens: 6000,
         max_tokens: 64000,
-        temperature: 0.2,
+        temperature: 0.15,
         fallbackModel: AIModels.GEMINI_2_5_PRO,
     },
     realtimeCodeFixer: {
         name: AIModels.CLAUDE_4_SONNET,
         reasoning_effort: 'medium',
         max_tokens: 32000,
-        temperature: 1,
+        temperature: 0.7,
         fallbackModel: AIModels.GEMINI_2_5_PRO,
     },
     conversationalResponse: {
@@ -89,11 +89,11 @@ export const AGENT_CONFIG: AgentConfig = {
         fallbackModel: AIModels.GEMINI_2_5_PRO,
     },
     codeReview: {
-        name: AIModels.CLAUDE_4_SONNET,
+        name: AIModels.OPENAI_O3,
         // name: 'o4-mini',
         reasoning_effort: 'medium',
         max_tokens: 32000,
-        temperature: 1,
+        temperature: 0.7,
         fallbackModel: AIModels.GEMINI_2_5_PRO,
     },
     fileRegeneration: {
@@ -101,7 +101,7 @@ export const AGENT_CONFIG: AgentConfig = {
         // name: 'o4-mini',
         reasoning_effort: 'low',
         max_tokens: 64000,
-        temperature: 0.1,
+        temperature: 0.05,
         fallbackModel: AIModels.GEMINI_2_5_PRO,
     },
     screenshotAnalysis: {

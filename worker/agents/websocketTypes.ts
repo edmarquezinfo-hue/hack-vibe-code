@@ -95,8 +95,16 @@ type CommandExecutingMessage = {
 	commands: string[];
 };
 
-type CodeReviewMessage = {
-	type: 'code_review';
+type CodeReviewingMessage = {
+	type: 'code_reviewing';
+	message: string;
+	staticAnalysis?: StaticAnalysisResponse;
+	clientErrors: ClientReportedErrorType[];
+	runtimeErrors: RuntimeError[];
+};
+
+type CodeReviewedMessage = {
+	type: 'code_reviewed';
 	message: string;
 	review: CodeReviewOutputType;
 };
@@ -112,13 +120,6 @@ export type CodeFixEdits = {
 	filePath: string;
 	search: string;
 	replacement: string;
-};
-
-type GenerationErrors = {
-	type: 'generation_errors';
-	staticAnalysis?: StaticAnalysisResponse;
-	clientErrors: ClientReportedErrorType[];
-	runtimeErrors: RuntimeError[];
 };
 
 type StaticAnalysisResults = {
@@ -291,11 +292,11 @@ export type WebSocketMessage =
 	| DeploymentStartedMessage
 	| DeploymentCompletedMessage
 	| DeploymentFailedMessage
-	| CodeReviewMessage
+	| CodeReviewingMessage
+	| CodeReviewedMessage
 	| CommandExecutingMessage
 	| RuntimeErrorFoundMessage
 	| CodeFixEdits
-	| GenerationErrors
     | StaticAnalysisResults
 	| PhaseGeneratingMessage
 	| PhaseGeneratedMessage

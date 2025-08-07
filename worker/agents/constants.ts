@@ -1,11 +1,8 @@
 import { WebSocketMessageType } from "./websocketTypes";
 
 export const WebSocketMessageResponses: Record<string, WebSocketMessageType> = {
-    FILE_REGENERATING: 'file_regenerating',
-
     GENERATION_STARTED: 'generation_started',
     GENERATION_COMPLETE: 'generation_complete',
-    GENERATION_ERRORS: 'generation_errors',
 
     PHASE_GENERATING: 'phase_generating',
     PHASE_GENERATED: 'phase_generated',
@@ -19,6 +16,7 @@ export const WebSocketMessageResponses: Record<string, WebSocketMessageType> = {
     FILE_CHUNK_GENERATED: 'file_chunk_generated',
     FILE_GENERATING: 'file_generating',
     FILE_GENERATED: 'file_generated',
+    FILE_REGENERATING: 'file_regenerating',
     FILE_REGENERATED: 'file_regenerated',
 
     RUNTIME_ERROR_FOUND: 'runtime_error_found',
@@ -37,7 +35,8 @@ export const WebSocketMessageResponses: Record<string, WebSocketMessageType> = {
     
     ERROR: 'error',
 
-    CODE_REVIEW: 'code_review',
+    CODE_REVIEWING: 'code_reviewing',
+    CODE_REVIEWED: 'code_reviewed',
     COMMAND_EXECUTING: 'command_executing',
     
     // Generation control messages

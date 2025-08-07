@@ -2,6 +2,7 @@ import { createLogger } from './logger';
 import { setupRouter } from './api/routes/codegenRoutes';
 import { errorResponse } from './api/responses';
 import { SmartCodeGeneratorAgent } from "./agents/core/smartGeneratorAgent";
+import { proxyToSandbox } from '@cloudflare/sandbox';
 
 export class CodeGeneratorAgent extends SmartCodeGeneratorAgent {}
 export { UserAppSandboxService, DeployerService } from './services/sandbox/sandboxSdkClient';
@@ -20,10 +21,12 @@ export default {
         if (!ipRegex.test(hostname)) {
             // Get the immideate subdomain of the hostname
             const subdomain = hostname.split('.')[0];
-            logger.info(`Subdomain: ${subdomain}, Hostname: ${hostname}`);
+            // logger.info(`Subdomain: ${subdomain}, Hostname: ${hostname}`);
             // If the subdomain is not build, or there are less than 3 subdomains, redirect it to dispatcher
             // Thus either the main site should be build.somehost.com or build.something.somehost.com or something.com or www.something.com
-            if (subdomain !== 'www' && subdomain !== 'build' && hostname.split('.').length >= 2) {
+            if (subdomain !== 'localhost' && subdomain !== 'www' && subdomain !== 'build' && hostname.split('.').length >= 2) {
+                const proxyResponse = await proxyToSandbox(request, env);
+                if (proxyResponse) return proxyResponse;
                 logger.info(`Dispatching request to dispatcher`);
                 // Get worker from dispatch namespace
                 const worker = env.DISPATCHER.get(subdomain);
@@ -34,6 +37,12 @@ export default {
                     return response;
                 }
             }
+        }
+
+        // If the request is NOT to /api, redirect it to assets
+        if (!url.pathname.startsWith('/api')) {
+            const response = await env.ASSETS.fetch(request);
+            return response;
         }
 
         logger.info(`Handling the request ${url}`);

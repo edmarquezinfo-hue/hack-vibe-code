@@ -44,7 +44,7 @@ ENV CONTAINER_ENV=docker
 # Reset workdir
 WORKDIR /app
 
-EXPOSE 3000 3001
+EXPOSE 3000
 
 # Run the same command as the original image
 CMD ["bun", "index.ts"]

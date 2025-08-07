@@ -67,8 +67,8 @@
 			"binding": "DB",
 			"database_name": "orange-build-db",
 			"database_id": "3085356f-6009-4a75-a478-66c05a5a532f",
-			"migrations_dir": "migrations",
-			"experimental_remote": true
+			"migrations_dir": "migrations"
+			// "experimental_remote": true
 		}
 	],
 	"durable_objects": {
@@ -83,7 +83,7 @@
 			// },
             {
                 "class_name": "UserAppSandboxService",
-                "name": "SandboxServiceObject"
+                "name": "Sandbox"
             },
             {
                 "class_name": "DeployerService",

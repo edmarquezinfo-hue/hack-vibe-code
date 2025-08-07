@@ -1,4 +1,4 @@
-import { RuntimeError, RuntimeErrorSchema, StaticAnalysisResponse, StaticAnalysisResponseSchema, TemplateDetails, TemplateFileSchema } from "../services/sandbox/sandboxTypes";
+import { RuntimeError, RuntimeErrorSchema, StaticAnalysisResponse, TemplateDetails, TemplateFileSchema } from "../services/sandbox/sandboxTypes";
 import { TemplateRegistry } from "./inferutils/schemaFormatters";
 import z from 'zod';
 import { Blueprint, BlueprintSchema, ClientReportedErrorSchema, ClientReportedErrorType, FileOutputType, PhaseConceptSchema, PhaseConceptType } from "./schemas";
@@ -76,12 +76,12 @@ and provide a preview url for the application.
     },
 
     serializeStaticAnalysis(staticAnalysis: StaticAnalysisResponse): string {
-        const analysisText = TemplateRegistry.markdown.serialize(
-            staticAnalysis,
-            StaticAnalysisResponseSchema
-        );
-
-        return analysisText;
+        return `<lint_issues>
+${staticAnalysis.lint?.rawOutput || 'N/A'}
+</lint_issues>
+<typecheck_issues>
+${staticAnalysis.typecheck?.rawOutput || 'N/A'}
+</typecheck_issues>`
     },
 
     serializeClientReportedErrors(errors: ClientReportedErrorType[]): string {
@@ -150,7 +150,6 @@ and provide a preview url for the application.
 
     **PROPER IMPORTS**:
        - **Importing React and other libraries should be done correctly.**
-       Example: You SHOULD import react in every component file as: \`import * as React from 'react';\` at the top of the file.
 
     **CRITICAL SYNTAX ERRORS - PREVENT AT ALL COSTS:**
     1. **IMPORT SYNTAX**: Always use correct import syntax. NEVER write \`import */styles/globals.css'\` - use \`import './styles/globals.css'\`

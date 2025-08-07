@@ -40,7 +40,7 @@ import { eq } from 'drizzle-orm';
 import { BaseSandboxService } from '../../services/sandbox/BaseSandboxService';
 import { getSandboxService } from '../../services/sandbox/factory';
 import { WebSocketMessageData, WebSocketMessageType } from '../websocketTypes';
-import { ConversationMessage } from '../inferutils/common';
+import { ConversationMessage, looksLikeCommand } from '../inferutils/common';
 
 interface WebhookPayload {
     event: {
@@ -232,9 +232,12 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         this.isGenerating = true;
         let currentDevState = CurrentDevState.PHASE_IMPLEMENTING;
         const generatedPhases = this.state.generatedPhases;
+        const completedPhases = generatedPhases.filter(phase => !phase.completed);
         let phaseConcept : PhaseConceptType | undefined;
-        if (generatedPhases.length > 0) {
-            phaseConcept = generatedPhases[generatedPhases.length - 1];
+        if (completedPhases.length > 0) {
+            phaseConcept = completedPhases[completedPhases.length - 1];
+        } else if (generatedPhases.length > 0) {
+            currentDevState = CurrentDevState.PHASE_GENERATING;
         } else {
             phaseConcept = this.state.blueprint.initialPhase;
             this.setState({
@@ -461,7 +464,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                 this.logger.info("User input received after review, transitioning back to PHASE_GENERATING");
                 return CurrentDevState.PHASE_GENERATING;
             } else {
-                this.logger.info("Review cycles complete, transitioning to FINALIZING");
+                this.logger.info("Review cycles complete, transitioning to IDLE");
                 return CurrentDevState.IDLE;
             }
 
@@ -484,6 +487,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         }
 
         const currentIssues = await this.fetchAllIssues();
+        this.resetIssues();
         
         // Run final review and cleanup phase
         await this.implementPhase({
@@ -518,6 +522,10 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                 fileManager: this.fileManager!
             }
         )
+        // Execute install commands if any
+        if (result.installCommands && result.installCommands.length > 0) {
+            this.executeCommands(result.installCommands);
+        }
         
         if (result.files.length === 0) {
             this.logger.info("No files generated for next phase");
@@ -535,11 +543,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
             ]
         });
 
-        // Execute install commands if any
-        if (result.installCommands && result.installCommands.length > 0) {
-            this.executeCommands(result.installCommands);
-        }
-        
         return result;
     }
 
@@ -628,6 +631,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
     async reviewCode() {
         const context = GenerationContext.from(this.state, this.logger);
         const issues = await this.fetchAllIssues();
+        this.resetIssues();
         const issueReport = IssueReport.from(issues);
         
         const reviewResult = await this.operations.codeReview.execute(
@@ -859,7 +863,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
     private async createNewDeployment(): Promise<{ sandboxInstanceId: string; previewURL: string; tunnelURL: string } | null> {
         // Create new deployment
         const templateName = this.state.templateDetails?.name || 'scratch';
-        const projectName = this.state.blueprint?.projectName || templateName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        // Generate a short unique suffix (6 chars from session ID)
+        const uniqueSuffix = this.state.sessionId.slice(-6).toLowerCase();
+        const projectName = `${this.state.blueprint?.projectName || templateName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${uniqueSuffix}`;
         
         // Generate webhook URL for this agent instance
         const webhookUrl = this.generateWebhookUrl();
@@ -878,7 +884,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         this.logger.info(`Received createInstance response: ${JSON.stringify(createResponse, null, 2)}`)
 
         const sandboxInstanceId = createResponse.runId;
-        const previewURL = createResponse.tunnelURL;
+        const previewURL = createResponse.previewURL;
         const tunnelURL = createResponse.tunnelURL;
         if (sandboxInstanceId && previewURL && tunnelURL) {
             return { sandboxInstanceId, previewURL, tunnelURL };
@@ -1304,7 +1310,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         }
 
         // Sanitize and prepare commands
-        commands = commands.join('\n').split('\n').filter(cmd => cmd.trim() !== '');
+        commands = commands.join('\n').split('\n').filter(cmd => cmd.trim() !== '').filter(cmd => looksLikeCommand(cmd));
         if (commands.length === 0) {
             this.logger.warn("No commands to execute");
             return;
@@ -1325,7 +1331,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         for (const chunk of commandChunks) {
             // Retry failed commands up to 3 times
             let currentChunk = chunk;
-            for (let i = 0; i < 3; i++) {
+            for (let i = 0; i < 3 && currentChunk.length > 0; i++) {
                 try {
                     this.broadcast(WebSocketMessageResponses.COMMAND_EXECUTING, {
                         message: "Executing commands",
@@ -1369,7 +1375,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                             message: "Executing regenerated commands",
                             commands: newCommands.commands
                         });
-                        currentChunk = newCommands.commands;
+                        currentChunk = newCommands.commands.filter(looksLikeCommand);
+                    } else {
+                        break;
                     }
 
                     this.broadcast(WebSocketMessageResponses.ERROR, {

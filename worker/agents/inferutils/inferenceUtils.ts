@@ -6,6 +6,7 @@ import { SchemaFormat } from './schemaFormatters';
 import { ChatCompletionTool, ReasoningEffort } from 'openai/resources.mjs';
 import { AGENT_CONFIG, AgentActionKey } from '../config';
 import { createLogger } from '../../logger';
+import { ModelConfig } from '../config';
 
 const logger = createLogger('InferenceUtils');
 
@@ -35,8 +36,8 @@ interface InferenceParamsBase {
         chunk_size: number;
         onChunk: (chunk: string) => void;
     };
-
     reasoning_effort?: ReasoningEffort;
+    modelConfig?: ModelConfig;
 }
 
 interface InferenceParamsStructured<T extends z.AnyZodObject> extends InferenceParamsBase {
@@ -67,12 +68,13 @@ export async function executeInference<T extends z.AnyZodObject>(   {
     schema,
     schemaName,
     format,
-    modelName
-}: InferenceParamsBase & {
+    modelName,
+    modelConfig
+}: InferenceParamsBase &    {
     schema?: T;
     format?: SchemaFormat;
 }): Promise<InferResponseString | InferResponseObject<T> | null> {
-    const conf = AGENT_CONFIG[schemaName];
+    const conf = modelConfig || AGENT_CONFIG[schemaName];
 
     modelName = modelName || conf.name;
     temperature = temperature || conf.temperature || 0.2;
