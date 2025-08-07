@@ -142,7 +142,7 @@
 	//   }
 	// ],
 	"vars": {
-		"SANDBOX_SERVICE_URL": "https://runner-service.eti-india.workers.dev", 
+		"SANDBOX_SERVICE_URL": "https://sandboxsdk-dev-worker.eti-india.workers.dev", 
 		// // "SANDBOX_SERVICE_URL": "https://sandboxsdk-dev-worker.eti-india.workers.dev",
 		// "CF_ACCOUNT_ID": "7449da25f3a0ed58b1f500c4f1d5a0e4", // "f44999d1ddda7012e9a87729eba250f1",
 		// "CF_GATEWAY_ID": "c-coder",

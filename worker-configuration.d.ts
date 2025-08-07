@@ -8,7 +8,7 @@ declare namespace Cloudflare {
 		TEMPLATES_BUCKET_URL: "https://pub-a087c6e0b61c4f15984726f1f1b40594.r2.dev";
 		TEMPLATES_GATEWAY_URL: "https://templates.coder.eti-india.workers.dev";
 		VITE_PREVIEW_MODE: "tunnel";
-		SANDBOX_SERVICE_TYPE: "sandbox";
+		SANDBOX_SERVICE_TYPE: string;
 		ANTHROPIC_API_KEY: string;
 		OPENAI_API_KEY: string;
 		GEMINI_API_KEY: string;

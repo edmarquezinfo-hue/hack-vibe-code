@@ -537,6 +537,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             return new Promise<string>((resolve, reject) => {
                 const timeout = setTimeout(() => {
                     // reject(new Error('Timeout waiting for cloudflared tunnel URL'));
+                    this.logger.warn('Timeout waiting for cloudflared tunnel URL');
                     resolve('');
                 }, 20000); // 20 second timeout
 
@@ -560,6 +561,7 @@ export class SandboxSdkClient extends BaseSandboxService {
                             }
                         }
                     } catch (error) {
+                        this.logger.error('Cloudflare tunnel process failed', error);
                         clearTimeout(timeout);
                         reject(error);
                     }
