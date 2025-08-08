@@ -10,7 +10,7 @@ import {
     TechnicalInstructionType,
     PhaseImplementationSchemaType,
 } from '../schemas';
-import { StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
+import { CodeIssue, StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
 import { GitHubExportOptions, GitHubExportResult, GitHubInitRequest, GitHubInitResponse, GitHubPushRequest, GitHubPushResponse } from '../../types/github';
 import { CodeGenState, CurrentDevState } from './state';
 import { AllIssues } from './types';
@@ -41,6 +41,8 @@ import { BaseSandboxService } from '../../services/sandbox/BaseSandboxService';
 import { getSandboxService } from '../../services/sandbox/factory';
 import { WebSocketMessageData, WebSocketMessageType } from '../websocketTypes';
 import { ConversationMessage, looksLikeCommand } from '../inferutils/common';
+import { CodeFixResult, FileFetcher, fixProjectIssues } from '../../services/code-fixer';
+import { FileProcessing } from '../domain/pure/FileProcessing';
 
 interface WebhookPayload {
     event: {
@@ -88,7 +90,9 @@ interface Operations {
 export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implements IMessageBroadcaster {
     protected projectSetupAssistant: ProjectSetupAssistant | undefined;
     protected sandboxServiceClient: BaseSandboxService | undefined;
-    protected fileManager: FileManager = new FileManager(new StateManager(() => this.state, (s) => this.setState(s)));
+    protected fileManager: FileManager = new FileManager(
+        new StateManager(() => this.state, (s) => this.setState(s)),
+    );
     protected broadcaster: WebSocketBroadcaster = new WebSocketBroadcaster(this);
 
     protected operations: Operations = {
@@ -247,6 +251,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
             });
         }
 
+        let staticAnalysisCache: StaticAnalysisResponse | undefined;
+
         // Store review cycles for later use
         this.setState({
             ...this.state,
@@ -262,9 +268,10 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                         const executionResults = await this.executePhaseGeneration();
                         currentDevState = executionResults.currentDevState;
                         phaseConcept = executionResults.result;
+                        staticAnalysisCache = executionResults.staticAnalysis;
                         break;
                     case CurrentDevState.PHASE_IMPLEMENTING:
-                        currentDevState = await this.executePhaseImplementation(phaseConcept);
+                        currentDevState = await this.executePhaseImplementation(phaseConcept, staticAnalysisCache);
                         break;
                     case CurrentDevState.REVIEWING:
                         currentDevState = await this.executeReviewCycle();
@@ -386,7 +393,24 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
     
             // Deploy generated files
             if (result.deploymentNeeded && result.files.length > 0) {
-                // await this.deployFiles(result.files);
+                // Get static analysis and do deterministic fixes
+                const staticAnalysis = await this.runStaticAnalysisCode();
+                if (staticAnalysis.typecheck.issues.length > 0) {
+                    this.logger.info("Found typecheck issues, running deterministic fixes");
+                    const allFiles = FileProcessing.getAllFiles(this.state.templateDetails, this.state.generatedFilesMap);
+                    const fixResult = await this.applyDeterministicCodeFixes(allFiles, staticAnalysis.typecheck.issues);
+                    if (fixResult && fixResult.modifiedFiles.length > 0) {
+                        this.logger.info("Applying deterministic fixes to files, Fixes: ", JSON.stringify(fixResult, null, 2));
+                        const fixedFiles = fixResult.modifiedFiles.map(file => ({
+                            file_path: file.file_path,
+                            file_purpose: allFiles.find(file => file.file_path === file.file_path)?.file_purpose || '',
+                            file_contents: file.file_contents
+                        }));
+                        this.fileManager.saveGeneratedFiles(fixedFiles);
+                        // await this.deployToSandbox(fixedFiles);
+                        this.logger.info("Deployed deterministic fixes to sandbox");
+                    }
+                }
                 await this.deployToSandbox(result.files);
             }
     
@@ -803,6 +827,56 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
             // throw new Error(`Failed to lint code: ${errorMessage}`);
             return { success: false, lint: { issues: [], }, typecheck: { issues: [], } };
         }
+    }
+
+    /**
+     * Apply deterministic code fixes using ts-morph for common TypeScript errors
+     */
+    private async applyDeterministicCodeFixes(allFiles: FileOutputType[], typeCheckIssues: CodeIssue[]): Promise<CodeFixResult | null> {
+        try {
+            this.logger.info(`Attempting to fix ${typeCheckIssues.length} TypeScript issues using deterministic code fixer`);
+
+            // Create file fetcher callback
+            const fileFetcher: FileFetcher = async (filePath: string) => {
+                // Fetch a single file from the instance
+                try {
+                    const result = await this.getSandboxServiceClient().getFiles(this.state.sandboxInstanceId!, [filePath]);
+                    if (result.success && result.files.length > 0) {
+                        this.logger.info(`Successfully fetched file: ${filePath}`);
+                        return {
+                            file_path: filePath,
+                            file_contents: result.files[0].file_contents,
+                            file_purpose: `Fetched file: ${filePath}`
+                        };
+                    } else {
+                        this.logger.debug(`File not found: ${filePath}`);
+                    }
+                } catch (error) {
+                    this.logger.debug(`Failed to fetch file ${filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+                return null;
+            };
+            
+            // Use the new functional API
+            const fixResult = await fixProjectIssues(
+                allFiles.map(file => ({
+                    file_path: file.file_path,
+                    file_contents: file.file_contents,
+                    file_purpose: ''
+                })),
+                typeCheckIssues,
+                fileFetcher
+            );
+
+            this.logger.info(`Applied deterministic code fixes: ${JSON.stringify(fixResult, null, 2)}`);
+            return fixResult;
+        } catch (error) {
+            this.logger.error('Error applying deterministic code fixes:', error);
+            this.broadcast(WebSocketMessageResponses.ERROR, {
+                error: `Deterministic code fixer failed: ${error instanceof Error ? error.message : String(error)}`
+            });
+        }
+        return null;
     }
 
 

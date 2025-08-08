@@ -122,7 +122,7 @@ ${staticAnalysis.typecheck?.rawOutput || 'N/A'}
     COMMON_PITFALLS: `<AVOID COMMON PITFALLS>
     **TOP 4 MISSION-CRITICAL RULES (FAILURE WILL CRASH THE APP):**
     1. **DEPENDENCY VALIDATION:** Use ONLY dependencies verifiably installed in the project, as listed in <DEPENDENCIES>. Cross-check every import against available dependencies.
-    2. **IMPORT & EXPORT INTEGRITY:** Ensure every component, function, or variable is correctly defined, imported where used, and exported where needed. Mismatched default/named imports will cause crashes.
+    2. **IMPORT & EXPORT INTEGRITY:** Ensure every component, function, or variable is correctly defined and imported properly (and exported properly). Mismatched default/named imports will cause crashes.
     3. **NO RUNTIME ERRORS:** Write robust, fault-tolerant code. Handle all edge cases gracefully with fallbacks. Never throw uncaught errors that can crash the application.
     4. **NO UNDEFINED VALUES/PROPERTIES/FUNCTIONS/COMPONENTS etc:** Ensure all variables, functions, and components are defined before use. Never use undefined values. If you use something that isn't already defined, you need to define it.
 

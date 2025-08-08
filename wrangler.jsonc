@@ -127,20 +127,20 @@
 			"service": "runner-service"
 		}
 	],
-	// "routes": [
-	// //   {
-	// // 	"pattern": "build.chat.cloudflare.dev",
-	// // 	"custom_domain": true
-	// //   },
+	"routes": [
 	//   {
-	// 	"pattern": "build.cloudflare.dev",
+	// 	"pattern": "build.chat.cloudflare.dev",
 	// 	"custom_domain": true
 	//   },
-	//   {
-	// 	"pattern": "*build.cloudflare.dev/*",
-	// 	"custom_domain": false
-	//   }
-	// ],
+	  {
+		"pattern": "build.cloudflare.dev",
+		"custom_domain": true
+	  },
+	  {
+		"pattern": "*build.cloudflare.dev/*",
+		"custom_domain": false
+	  }
+	],
 	"vars": {
 		"SANDBOX_SERVICE_URL": "https://sandboxsdk-dev-worker.eti-india.workers.dev", 
 		// // "SANDBOX_SERVICE_URL": "https://sandboxsdk-dev-worker.eti-india.workers.dev",
