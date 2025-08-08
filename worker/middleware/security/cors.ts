@@ -135,7 +135,6 @@ function isOriginAllowed(origin: string, allowedOrigins: string[], env: Env): bo
         }
     }
     
-    // Check wildcard patterns (e.g., https://*.v1.dev)
     for (const allowed of allowedOrigins) {
         if (allowed.includes('*')) {
             const pattern = allowed

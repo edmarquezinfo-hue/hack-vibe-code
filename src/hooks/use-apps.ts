@@ -51,17 +51,19 @@ export const useUserApps = useApps;
 
 export function useRecentApps() {
   const { apps, loading, error } = useApps();
+  const TOPK = 10;
   
   // Memoized sorted recent apps (last 10)
   const recentApps = useMemo(() => 
     [...apps].sort((a, b) => 
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    ).slice(0, 10),
+    ).slice(0, TOPK),
     [apps]
   );
 
   return { 
     apps: recentApps, 
+    moreAvailable: apps.length > TOPK,
     loading, 
     error, 
     refetch: () => {} // Recent apps will update when main apps refetch

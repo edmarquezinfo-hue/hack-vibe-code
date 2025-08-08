@@ -15,13 +15,13 @@ export function AppLayout({ children }: AppLayoutProps) {
       style={{
         "--sidebar-width": "320px",
         "--sidebar-width-mobile": "280px",
-        "--sidebar-width-icon": "64px"
+        "--sidebar-width-icon": "52px"
       } as React.CSSProperties}
     >
       <AppSidebar />
       <SidebarInset className="bg-bg-light flex flex-col h-screen">
         <GlobalHeader />
-        <div className="flex-1 overflow-auto bg-bg-light">
+        <div className="flex-1 overflow-auto bg-bg-3">
           {children || <Outlet />}
         </div>
       </SidebarInset>

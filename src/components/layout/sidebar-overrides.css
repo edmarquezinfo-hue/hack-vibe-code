@@ -20,15 +20,6 @@
   margin: 0 !important;
 }
 
-/* Create button - maintain orange styling with perfect centering */
-.group[data-collapsible="icon"] .create-button {
-  width: 44px !important;
-  height: 44px !important;
-  min-width: 44px !important;
-  margin: 0 auto !important;
-  border-radius: 8px !important;
-}
-
 /* Search button - full width for better UX */
 .group[data-collapsible="icon"] .search-button {
   width: 44px !important;

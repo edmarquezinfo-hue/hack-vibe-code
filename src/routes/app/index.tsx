@@ -327,7 +327,7 @@ export default function AppView() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-bg-light flex items-center justify-center">
+      <div className="min-h-screen bg-bg-3 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
           <p className="text-muted-foreground">Loading app...</p>
@@ -338,7 +338,7 @@ export default function AppView() {
 
   if (error || !app) {
     return (
-      <div className="min-h-screen bg-bg-light flex items-center justify-center">
+      <div className="min-h-screen bg-bg-3 flex items-center justify-center">
         <Card className="max-w-md">
           <CardContent className="pt-6">
             <div className="text-center">
@@ -360,7 +360,7 @@ export default function AppView() {
   const createdDate = new Date(app.createdAt);
 
   return (
-    <div className="min-h-screen bg-bg-light">
+    <div className="min-h-screen bg-bg-3">
       <div className="container mx-auto px-4 py-6 space-y-6">
         {/* Back button */}
         <Button 
