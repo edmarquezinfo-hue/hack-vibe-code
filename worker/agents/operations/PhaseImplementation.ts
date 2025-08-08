@@ -1,14 +1,14 @@
 import { PhaseConceptType, FileOutputType, PhaseImplementationSchemaType, PhaseConceptSchema, TechnicalInstructionType } from '../schemas';
 import { IssueReport } from '../domain/values/IssueReport';
-import { createUserMessage, extractCommands } from '../inferutils/common';
+import { createUserMessage } from '../inferutils/common';
 import { executeInference } from '../inferutils/inferenceUtils';
 import { issuesPromptFormatter, PROMPT_UTILS, STRATEGIES } from '../prompts';
 import { WebSocketMessageResponses } from '../constants';
-import { CodeGenerationStreamingState, ParsingState } from '../code-formats/base';
+import { CodeGenerationStreamingState } from '../code-formats/base';
 import { FileProcessing } from '../domain/pure/FileProcessing';
 import { RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
 import { AgentOperation, getSystemPromptWithProjectContext, OperationOptions } from '../operations/common';
-import { SCOFFormat } from '../code-formats/scof';
+import { SCOFFormat, SCOFParsingState } from '../code-formats/scof';
 import { TemplateRegistry } from '../inferutils/schemaFormatters';
 
 export interface PhaseImplementationInputs {
@@ -98,8 +98,6 @@ These are the instructions and quality standards that must be followed to implem
     •   **Try to wrap all essential code in try-catch blocks to isolate errors and prevent application crashes. Treat this project as mission critical**
     •   **In the footer of pages, you can mention the following: "Built with <love emoji> at Cloudflare"**
     •   **Follow DRY principles by heart, Always research and understand the codebase before making changes. Understand the patterns used in the codebase**
-
-    •   **Dependency Check:** Only use dependencies confirmed available in <DEPENDENCIES>. Verify all imports. Using any other libraries, files or dependencies would cause the application to break.
     •   Make sure every component, variable, function, class, and type is defined before it is used. 
     •   Make sure everything that is needed is exported correctly from relevant files. Do not put duplicate 'default' exports.
     •   While rewriting a .tsx file, Make sure you correct any setState calls in useEffect or any other lifecycle method.
@@ -116,8 +114,57 @@ These are the instructions and quality standards that must be followed to implem
     •   **ALWAYS export ALL the components, variables, functions, classes, and types from each and every file**
 </INSTRUCTIONS & CODE QUALITY STANDARDS>
 
+<appendix>
+The most important class of errors is the "Maximum update depth exceeded" error which you definetly need to identify and fix. 
+Common causes and solutions:
+    - Setting state directly in the component body:
+        Problem: Updating state directly in the component body causes a re-render, which again triggers the state update, creating a loop.
+        Solution: Move state updates to event handlers or the useEffect hook, according to tigerabrodi.blog.
+    - Missing or incorrect useEffect dependency array:
+        Problem: If useEffect doesn't have a dependency array or its dependencies change on every render, the effect runs endlessly, leading to state updates and re-renders.
+        Solution: Add the appropriate dependencies to the array, ensuring the effect only runs when necessary.
+    - Circular dependencies:
+        Problem: When state updates in a useEffect indirectly trigger changes in its own dependencies, a circular dependency is created, causing an infinite loop.
+        Solution:
+            - Combine related state: Store related state in a single object and update it atomically.
+            - Use useReducer for complex state: For intricate state logic, useReducer can help manage updates more effectively, says tigerabrodi.blog.
+    - Inefficient component rendering:
+        Problem: Unnecessary re-renders of child components can contribute to the "maximum update depth exceeded" error.
+        Solution: Utilize React.memo() or PureComponent to optimize rendering and prevent unnecessary updates when props or state haven't changed, says Coding Beast.
+    - Incorrectly passing functions as props:
+        Problem: Passing a function call directly to an event handler instead of a function reference can trigger constant re-renders.
+        Solution: Ensure you're passing a function reference (e.g., onClick={this.toggle}) to the handler, not calling the function directly (e.g., onClick={this.toggle()}).
+AI agent code specific considerations:
+    - Carefully review agent-generated code: AI agents, while helpful, can sometimes introduce subtle bugs, particularly when dealing with complex state management.
+    - Look for redundant re-renders and circular updates: Specifically, examine useEffect hooks and state updates within them, especially in components involving dependencies that are themselves modified within the effect.
+Additional tips:
+    - Use memoization: Employ useCallback for functions and useMemo for values to prevent unnecessary re-creations and re-renders, according to DEV Community.
+By understanding these common causes and applying the suggested solutions, especially when working with agent-generated code, you can effectively resolve "Maximum update depth exceeded" errors in your React applications. 
+
+For example, the following piece of code would lead to "Maximum update depth exceeded" error:
+\`\`\`
+export default function App() {
+  const { score, bestScore, startGame, handleMove } = useGameStore((state) => ({
+    score: state.score,
+    bestScore: state.bestScore,
+    startGame: state.startGame,
+    handleMove: state.handleMove,
+  }));
+  ...
+\`\`\`
+here useGameStore is a zustand selector. This creates a new object reference each time, making Zustand think the state changed.
+It can be fixed by simply using individual selectors:
+\`\`\`
+export default function App() {
+    const score = useGameStore((state) => state.score);
+    const bestScore = useGameStore((state) => state.bestScore);
+    const startGame = useGameStore((state) => state.startGame);
+    const handleMove = useGameStore((state) => state.handleMove);
+\`\`\`
+</appendix>
+
 Every single file listed in <CURRENT_PHASE> needs to be implemented in the order its listed, and implemented **ONLY ONCE** in this phase, based on the provided <OUTPUT FORMAT>.
-There shouldn't be any syntax errors or bugs or issues in your implementation and you should only use dependencies confirmed available either the template or the blueprint (see <DEPENDENCIES> for details).
+There shouldn't be any syntax errors or bugs or issues in your implementation.
 
 **MAKE SURE THERE ARE NO COMPONENT RERENDERING INFINITE LOOPS OR setState inside render or without dependencies. IF YOU MISTAKENLY WRITE SUCH CODE, REWRITE THE WHOLE FILE AGAIN**
 **ALSO THIS NEXT PHASE SHOULDN'T BREAK ANYTHING FROM THE PREVIOUS PHASE. ANY FUNCTIONALITY SHOULDN'T BE BROKEN! WE HAVE A LOT OF CASES OF THIS HAPPENING IN THE PAST**
@@ -257,7 +304,7 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
         const streamingState: CodeGenerationStreamingState = {
             accumulator: '',
             completedFiles: new Map(),
-            parsingState: {} as ParsingState
+            parsingState: {} as SCOFParsingState
         };
     
         const fixedFilePromises: Promise<FileOutputType>[] = [];
@@ -276,7 +323,7 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
             }));
     
         // Execute inference with streaming
-        const results = await executeInference({
+        await executeInference({
             id: options.agentId,    
             env: env,
             schemaName: "phaseImplementation",
@@ -352,7 +399,6 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
                                     blueprint: context.blueprint,
                                     template: context.templateDetails
                                 },
-                                undefined,
                                 phase
                             );
                             
@@ -368,9 +414,11 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
             }
         });
 
-        // Extract commands from the generated files
-        const commands = extractCommands(results.string);
-        logger.info("Files generated for phase:", phase.name, "with", fixedFilePromises.length, "files being fixed in real-time");
+        // // Extract commands from the generated files
+        // const commands = extractCommands(results.string, true);
+        const commands = streamingState.parsingState.extractedInstallCommands;
+
+        logger.info("Files generated for phase:", phase.name, "with", fixedFilePromises.length, "files being fixed in real-time and extracted install commands:", commands);
     
         broadcaster!.broadcast(WebSocketMessageResponses.PHASE_VALIDATING, {
             message: `Validating files for phase: ${phase.name}`,

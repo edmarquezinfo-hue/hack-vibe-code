@@ -40,21 +40,21 @@ import z from 'zod';
 export async function runnerFetch(url: string, method: 'GET' | 'POST' | 'DELETE', headers: Headers, body: string | undefined) {
     // console.log('Fetching from runner service.. ', import.meta.env.DEV);
     // If working locally, make a fetch call, else use the service binding
-    if (import.meta.env.DEV) {
+    // if (import.meta.env.DEV) {
         // console.log('Fetching from local...');
-        return await fetch(url, { method, headers, body });
-    }
-    const response = await env.RUNNER_SERVICE.fetch(url, { method, headers, body });
-    // If 400, use fetch
-    if (response.status === 400) {
-        console.log('Falling back to local fetch');
-        return await fetch(url, {
-            method,
-            headers,
-            body,
-        });
-    }
-    return response;
+    return await fetch(url, { method, headers, body });
+    // }
+    // const response = await env.RUNNER_SERVICE.fetch(url, { method, headers, body });
+    // // If 400, use fetch
+    // if (response.status === 400) {
+    //     console.log('Falling back to local fetch');
+    //     return await fetch(url, {
+    //         method,
+    //         headers,
+    //         body,
+    //     });
+    // }
+    // return response;
 }
 
 /**

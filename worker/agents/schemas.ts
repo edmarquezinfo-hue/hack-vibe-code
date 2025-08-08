@@ -59,7 +59,7 @@ export const DocumentationOutput = z.object({
  * Schema for code review output
  */
 export const CodeReviewOutput = z.object({
-    dependencies_already_installed: z.array(z.string()).describe('List of dependencies that are already installed in the project'),
+    // dependencies_already_installed: z.array(z.string()).describe('List of dependencies that are already installed in the project'),
     dependencies_not_met: z.array(z.string()).describe('List of dependencies that are not met in the project'),
     issues_found: z.boolean().describe('Whether any issues were found in the code review'),
     frontend_issues: z.array(z.string()).describe('Issues related to the frontend code'),

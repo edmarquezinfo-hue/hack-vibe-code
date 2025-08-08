@@ -58,7 +58,8 @@ export class CodeGenController extends BaseController {
                 endpoint: '/api/codegen/incremental'
             });
 
-            const hostname = new URL(request.url).hostname;
+            const url = new URL(request.url);
+            const hostname = url.hostname === 'localhost' ? `localhost:${url.port}`: url.hostname;
             // Parse the query from the request body
             let body: CodeGenArgs;
             try {
@@ -88,7 +89,7 @@ export class CodeGenController extends BaseController {
             });
 
             // If no template is selected, fetch available templates
-            const templatesResponse = await SandboxSdkClient.listTemplates(env.TEMPLATES_BUCKET_URL);
+            const templatesResponse = await SandboxSdkClient.listTemplates();
             if (!templatesResponse) {
                 return this.createErrorResponse('Failed to fetch templates from sandbox service', 500);
             }
@@ -131,7 +132,6 @@ export class CodeGenController extends BaseController {
             this.codeGenLogger.info(`Using language: ${language}, frameworks: ${frameworks ? frameworks.join(", ") : "none"}`);
 
             // Construct the response URLs
-            const url = new URL(request.url);
             const websocketUrl = `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/api/codegen/ws/${chatId}`;
             const httpStatusUrl = `${url.origin}/api/codegen/incremental/${chatId}`;
 

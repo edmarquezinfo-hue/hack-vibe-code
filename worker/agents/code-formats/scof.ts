@@ -1,50 +1,10 @@
 import { CodeGenerationFormat, CodeGenerationStreamingState, ParsingState } from './base';
 import { FileGenerationOutputType } from "../schemas";
 import { applyDiff } from '../diff-formats/udiff';
+import { extractCommands } from '../inferutils/common';
 
 // SCOF-specific parsing state with comprehensive tracking
 export interface SCOFParsingState extends ParsingState {
-    // Current parsing mode for the active file
-    currentMode: 'idle' | 'file_creation' | 'diff_patch';
-    
-    // Current file being processed
-    currentFile: string | null;
-    
-    // Format of the current file being processed
-    currentFileFormat: 'full_content' | 'unified_diff' | null;
-    
-    // Buffer for accumulating content within EOF blocks
-    contentBuffer: string;
-    
-    // EOF marker we're looking for to end current block
-    eofMarker: string | null;
-    
-    // Whether we're currently inside an EOF block
-    insideEofBlock: boolean;
-    
-    // Track files that have been opened (to prevent duplicate opens)
-    openedFiles: Set<string>;
-    
-    // Track files that have been closed (to prevent duplicate closes)
-    closedFiles: Set<string>;
-    
-    // Buffer for partial lines that span across chunks
-    partialLineBuffer: string;
-    
-    // Buffer for accumulating incomplete commands across chunks
-    commandBuffer: string;
-    
-    // Track if we're in the middle of parsing a multi-line command
-    parsingMultiLineCommand: boolean;
-    
-    // Track potential EOF marker detection across chunks
-    potentialEofBuffer: string;
-    
-    // Track the last few characters to detect EOF markers that span chunks
-    tailBuffer: string;
-    
-    // Track line state for proper line reconstruction
-    lastChunkEndedWithNewline: boolean;
 }
 
 /**
@@ -100,7 +60,9 @@ export class SCOFFormat extends CodeGenerationFormat {
             parsingMultiLineCommand: false,
             potentialEofBuffer: '',
             tailBuffer: '',
-            lastChunkEndedWithNewline: false
+            lastChunkEndedWithNewline: false,
+            betweenFilesBuffer: '',
+            extractedInstallCommands: []
         };
     }
     
@@ -182,9 +144,23 @@ export class SCOFFormat extends CodeGenerationFormat {
             return;
         }
         
-        // Skip empty lines and comments when not in EOF block
+        // Accumulate content between files for command extraction
         if (trimmedLine === '' || trimmedLine.startsWith('#')) {
+            // Add content (including empty lines and comments) to between-files buffer
+            scofState.betweenFilesBuffer += line + '\n';
             return;
+        }
+        
+        // Process any accumulated content between files before handling new command
+        if (scofState.betweenFilesBuffer.trim()) {
+            this.processAccumulatedBetweenFilesContent(scofState);
+        }
+        
+        // Also accumulate non-empty, non-comment lines that aren't commands
+        // This ensures we capture all potential command content between SCOF blocks
+        const isCommand = this.tryParseCommand(trimmedLine) !== null;
+        if (!isCommand) {
+            scofState.betweenFilesBuffer += line + '\n';
         }
         
         // Try to parse command from current line first
@@ -624,6 +600,28 @@ export class SCOFFormat extends CodeGenerationFormat {
         return Array.from(state.completedFiles.values());
     }
     
+    /**
+     * Process accumulated content between SCOF file blocks to extract install commands
+     */
+    private processAccumulatedBetweenFilesContent(scofState: SCOFParsingState): void {
+        if (!scofState.betweenFilesBuffer.trim()) {
+            return;
+        }
+        
+        // Extract only install commands from the accumulated content
+        const installCommands = extractCommands(scofState.betweenFilesBuffer, true);
+        
+        // Add unique install commands to the extracted commands array
+        for (const command of installCommands) {
+            if (!scofState.extractedInstallCommands.includes(command)) {
+                scofState.extractedInstallCommands.push(command);
+            }
+        }
+        
+        // Clear the buffer after processing
+        scofState.betweenFilesBuffer = '';
+    }
+    
     formatInstructions(): string {
         return `
 <OUTPUT FORMAT>
@@ -647,6 +645,15 @@ cat << 'EOF' | patch filename.ext
 EOF
 \`\`\`
 
+You may optionally suggest install commands if needed for any dependencies (only bun is available)
+
+\`\`\`
+# Optional: Add bash comments to explain the install commands just before the install commands
+# Install well known compatible major versions or simply the latest rather than specific versions. Eg: bun install react react-dom
+# Do not suggest install commands for already installed dependencies
+bun install <dependencies>
+\`\`\`
+
 IMPORTANT RULES:
 1. Command-line paths (cat > filename) ALWAYS override comment paths
 2. Use single quotes around EOF markers for consistency
@@ -655,7 +662,7 @@ IMPORTANT RULES:
 5. Each file can use consistently either full content OR unified diff depending on other instructions.
 6. Write multiple files in sequence, separated by newlines
 7. At the end of the output, there should always be a EOF marker
-8. Do not add any additional bash commands or instructions. This would be parsed by a custom parser, not by the shell. No commands are supported. 
+8. Do not add any additional bash commands or instructions. This would be parsed by a custom parser, not by the shell. No commands are supported other than bun add/install
 </OUTPUT FORMAT>
 `;
     }

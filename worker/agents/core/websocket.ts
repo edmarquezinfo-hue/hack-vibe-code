@@ -69,9 +69,9 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                                 continue;
                             }
                             agent.regenerateFile(
-                                fileToRegenerate.file_path,
-                                fileToRegenerate.file_purpose,
-                                fileToFix.issues.join("\n")
+                                fileToRegenerate,
+                                fileToFix.issues,
+                                0
                             ).catch((error: unknown) => {
                                 logger.error(`Error regenerating file ${fileToRegenerate.file_path}:`, error);
                                 sendError(connection, `Error regenerating file: ${error instanceof Error ? error.message : String(error)}`);

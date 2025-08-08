@@ -14,6 +14,7 @@ import {
 import { getFileType } from '../../../utils/string';
 import { logger } from '../../../utils/logger';
 import { useAuth } from '@/contexts/auth-context';
+import { getPreviewUrl } from '@/lib/utils';
 
 export interface FileType {
 	file_path: string;
@@ -60,7 +61,7 @@ const initialStages: ProjectStage[] = [
 	},
 	{ id: 'code', title: 'Generating code', status: 'pending' },
 	{ id: 'validate', title: 'Reviewing & fixing code', status: 'pending' },
-	// { id: 'fixingErrors', title: 'Fixing errors', status: 'pending' },
+	{ id: 'fix', title: 'Fixing issues', status: 'pending' },
 ];
 
 type ChatMessage = {
@@ -174,7 +175,8 @@ export function useChat({
 			'chat-not-found',
 			'resuming-chat',
 			'chat-welcome',
-            'deployment-status'
+            'deployment-status',
+            'code_reviewed',
 		];
 		
 		// Allow all conversation IDs that start with 'conv-' OR are in the static list
@@ -233,7 +235,7 @@ export function useChat({
 	};
 
 	const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
-		if (message.type !== 'file_chunk_generated' && message.type !== 'cf_agent_state') {
+		if (message.type !== 'file_chunk_generated' && message.type !== 'cf_agent_state' && message.type.length <= 50) {
 			logger.info('received message', message.type, message);
 			// Capture ALL WebSocket messages for debug panel (lightweight when not open)
 			onDebugMessage?.('websocket', 
@@ -363,7 +365,7 @@ export function useChat({
 				}
 
 				// Always handle preview URL updates (this is safe to do repeatedly)
-				const finalPreviewURL = import.meta.env.VITE_PREVIEW_MODE === 'tunnel' ? state.tunnelURL : state.previewURL;
+				const finalPreviewURL = getPreviewUrl(state.previewURL, state.tunnelURL);
 				if (finalPreviewURL && finalPreviewURL !== previewUrl) {
 					setPreviewUrl(finalPreviewURL);
 					// Only send deployment message if this is a new URL
@@ -547,6 +549,7 @@ export function useChat({
 				);
 				updateStage('code', { status: 'completed' });
 				updateStage('validate', { status: 'completed' });
+				updateStage('fix', { status: 'completed' });
 
 				sendMessage({
 					id: 'generation-complete',
@@ -563,7 +566,7 @@ export function useChat({
 
 			case 'deployment_completed': {
 				setIsPreviewDeploying(false);
-				const finalPreviewURL = import.meta.env.VITE_PREVIEW_MODE === 'tunnel' ? message.tunnelURL : message.previewURL;
+				const finalPreviewURL = getPreviewUrl(message.previewURL, message.tunnelURL);
 				setPreviewUrl(finalPreviewURL);
 				sendMessage({
 					id: 'deployment-status',
@@ -573,7 +576,7 @@ export function useChat({
 				break;
 			}
 
-			case 'code_review': {
+			case 'code_reviewed': {
 				const reviewData = message.review;
 				const totalIssues = reviewData?.files_to_fix?.reduce((count, file) => count + file.issues.length, 0) || 0;
 				
@@ -656,7 +659,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 				break;
 			}
 
-			case 'generation_errors': {
+			case 'code_reviewing': {
 				const totalIssues =
 					(message.staticAnalysis?.lint?.issues?.length || 0) +
 					(message.staticAnalysis?.typecheck?.issues?.length || 0) +
@@ -665,15 +668,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 				updateStage('validate', { status: 'active' });
 
 				if (totalIssues > 0) {
-					setProjectStages((list) => [
-						...list,
-						{
-							id: 'fix',
-							title: 'Fixing errors',
-							status: 'active',
-							metadata: `Fixing ${totalIssues} errors`,
-						},
-					]);
+                    updateStage('fix', { status: 'active', metadata: `Fixing ${totalIssues} issues` });
 					
 					// Capture for debug panel
 					const errorDetails = [
@@ -693,6 +688,8 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 			}
 
 			case 'phase_generating': {
+				updateStage('validate', { status: 'completed' });
+				updateStage('fix', { status: 'completed' });
 				sendMessage({
 					id: 'phase_generating',
 					message: message.message,

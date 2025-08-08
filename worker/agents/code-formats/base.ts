@@ -23,7 +23,53 @@ import { FileGenerationOutputType } from "../schemas";
 // }
 
 export interface ParsingState {
-    // Custom parsing state to be implemented
+    // Current parsing mode for the active file
+    currentMode: 'idle' | 'file_creation' | 'diff_patch';
+    
+    // Current file being processed
+    currentFile: string | null;
+    
+    // Format of the current file being processed
+    currentFileFormat: 'full_content' | 'unified_diff' | null;
+    
+    // Buffer for accumulating content within EOF blocks
+    contentBuffer: string;
+    
+    // EOF marker we're looking for to end current block
+    eofMarker: string | null;
+    
+    // Whether we're currently inside an EOF block
+    insideEofBlock: boolean;
+    
+    // Track files that have been opened (to prevent duplicate opens)
+    openedFiles: Set<string>;
+    
+    // Track files that have been closed (to prevent duplicate closes)
+    closedFiles: Set<string>;
+    
+    // Buffer for partial lines that span across chunks
+    partialLineBuffer: string;
+    
+    // Buffer for accumulating incomplete commands across chunks
+    commandBuffer: string;
+    
+    // Track if we're in the middle of parsing a multi-line command
+    parsingMultiLineCommand: boolean;
+    
+    // Track potential EOF marker detection across chunks
+    potentialEofBuffer: string;
+    
+    // Track the last few characters to detect EOF markers that span chunks
+    tailBuffer: string;
+    
+    // Track line state for proper line reconstruction
+    lastChunkEndedWithNewline: boolean;
+    
+    // Buffer for accumulating content between SCOF file blocks
+    betweenFilesBuffer: string;
+    
+    // Extracted install commands from content between files
+    extractedInstallCommands: string[];
 }
 
 export interface CodeGenerationStreamingState {

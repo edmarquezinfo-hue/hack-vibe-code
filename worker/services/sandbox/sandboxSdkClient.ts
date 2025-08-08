@@ -125,7 +125,7 @@ export class SandboxSdkClient extends BaseSandboxService {
 
     private getSandbox(): SandboxType {
         if (!this.sandbox) {
-            this.sandbox = getSandbox(env.SandboxServiceObject, this.sandboxId);
+            this.sandbox = getSandbox(env.Sandbox, this.sandboxId);
         }
         return this.sandbox;
     }
@@ -536,7 +536,9 @@ export class SandboxSdkClient extends BaseSandboxService {
             
             return new Promise<string>((resolve, reject) => {
                 const timeout = setTimeout(() => {
-                    reject(new Error('Timeout waiting for cloudflared tunnel URL'));
+                    // reject(new Error('Timeout waiting for cloudflared tunnel URL'));
+                    this.logger.warn('Timeout waiting for cloudflared tunnel URL');
+                    resolve('');
                 }, 20000); // 20 second timeout
 
                 const processLogs = async () => {
@@ -559,6 +561,7 @@ export class SandboxSdkClient extends BaseSandboxService {
                             }
                         }
                     } catch (error) {
+                        this.logger.error('Cloudflare tunnel process failed', error);
                         clearTimeout(timeout);
                         reject(error);
                     }
@@ -1296,7 +1299,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             // Run ESLint and TypeScript check in parallel
             const [lintResult, tscResult] = await Promise.allSettled([
                 this.executeCommand(instanceId, 'bun run lint'),
-                this.executeCommand(instanceId, 'npx tsc --noEmit --pretty false')
+                this.executeCommand(instanceId, 'bunx tsc -b --incremental --noEmit --pretty false')
             ]);
 
             const results: StaticAnalysisResponse = {
@@ -1322,7 +1325,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             };
             
             // Process ESLint results
-            if (lintResult.status === 'fulfilled' && lintResult.value.stdout) {
+            if (lintResult.status === 'fulfilled') {
                 try {
                     const lintData = JSON.parse(lintResult.value.stdout) as Array<{
                         filePath: string;
@@ -1358,38 +1361,71 @@ export class SandboxSdkClient extends BaseSandboxService {
                     warningCount: lintIssues.filter(issue => issue.severity === 'warning').length,
                     infoCount: lintIssues.filter(issue => issue.severity === 'info').length
                 };
-                results.lint.rawOutput = lintResult.value.stdout;
+                results.lint.rawOutput = `STDOUT: ${lintResult.value.stdout}\nSTDERR: ${lintResult.value.stderr}`;
             } else if (lintResult.status === 'rejected') {
                 this.logger.warn('ESLint analysis failed', lintResult.reason);
             }
             
             // Process TypeScript check results
-            if (tscResult.status === 'fulfilled' && tscResult.value.stderr) {
+            if (tscResult.status === 'fulfilled') {
                 try {
-                    const lines = tscResult.value.stderr.split('\n');
-                    for (const line of lines) {
-                        const match = line.match(/^(.+)\((\d+),(\d+)\): error TS\d+: (.+)$/);
-                        if (match) {
-                            typecheckIssues.push({
-                                message: match[4],
-                                filePath: match[1],
-                                line: parseInt(match[2]),
-                                column: parseInt(match[3]),
-                                severity: 'error',
-                                source: 'typescript'
-                            });
+                    // TypeScript errors can come from either stdout or stderr
+                    const output = tscResult.value.stderr || tscResult.value.stdout;
+                    
+                    if (!output || output.trim() === '') {
+                        this.logger.info('No TypeScript output to parse');
+                    } else {
+                        this.logger.info(`Parsing TypeScript output: ${output.substring(0, 200)}...`);
+                        
+                        // Split by lines and parse each error
+                        const lines = output.split('\n');
+                        let currentError: any = null;
+                        
+                        for (const line of lines) {
+                            // Match TypeScript error format: path(line,col): error TSxxxx: message
+                            const match = line.match(/^(.+?)\((\d+),(\d+)\): error TS(\d+): (.*)$/);
+                            if (match) {
+                                // If we have a previous error being built, add it
+                                if (currentError) {
+                                    typecheckIssues.push(currentError);
+                                }
+                                
+                                // Start building new error
+                                currentError = {
+                                    message: match[5].trim(),
+                                    filePath: match[1].trim(),
+                                    line: parseInt(match[2]),
+                                    column: parseInt(match[3]),
+                                    severity: 'error' as const,
+                                    source: 'typescript',
+                                    ruleId: `TS${match[4]}`
+                                };
+                                
+                                this.logger.info(`Found TypeScript error: ${currentError.filePath}:${currentError.line} - ${currentError.ruleId}`);
+                            } else if (currentError && line.trim() && !line.startsWith('src/') && !line.includes(': error TS')) {
+                                // This might be a continuation of the error message
+                                currentError.message += ' ' + line.trim();
+                            }
                         }
+                        
+                        // Add the last error if it exists
+                        if (currentError) {
+                            typecheckIssues.push(currentError);
+                        }
+                        
+                        this.logger.info(`Parsed ${typecheckIssues.length} TypeScript errors`);
                     }
-                    results.typecheck.issues = typecheckIssues;
-                    results.typecheck.summary = {
-                        errorCount: typecheckIssues.filter(issue => issue.severity === 'error').length,
-                        warningCount: typecheckIssues.filter(issue => issue.severity === 'warning').length,
-                        infoCount: typecheckIssues.filter(issue => issue.severity === 'info').length
-                    };
-                    results.typecheck.rawOutput = tscResult.value.stderr;
                 } catch (error) {
                     this.logger.warn('Failed to parse TypeScript output', error);
                 }
+                
+                results.typecheck.issues = typecheckIssues;
+                results.typecheck.summary = {
+                    errorCount: typecheckIssues.filter(issue => issue.severity === 'error').length,
+                    warningCount: typecheckIssues.filter(issue => issue.severity === 'warning').length,
+                    infoCount: typecheckIssues.filter(issue => issue.severity === 'info').length
+                };
+                results.typecheck.rawOutput = `STDOUT: ${tscResult.value.stdout}\nSTDERR: ${tscResult.value.stderr}`;
             } else if (tscResult.status === 'rejected') {
                 this.logger.warn('TypeScript analysis failed', tscResult.reason);
             }
@@ -1424,19 +1460,6 @@ export class SandboxSdkClient extends BaseSandboxService {
 
     async deployToCloudflareWorkers(instanceId: string): Promise<DeploymentResult> {
         try {
-            
-            // // Build the project first
-            // try {
-            //     const buildCmd = `bun run build`;
-            //     const buildResult = await this.executeCommand(instanceId, buildCmd);
-                
-            //     if (buildResult.exitCode !== 0) {
-            //         throw new Error(`Build failed: ${buildResult.stderr}`);
-            //     }
-            // } catch (error) {
-            //     this.logger.warn('Build step failed or not available', error);
-            // }
-
             const base64Data = await this.packInstance(instanceId, true);
             return deployToCloudflareWorkers({
                 instanceId,
@@ -1564,6 +1587,7 @@ export class SandboxSdkClient extends BaseSandboxService {
         if (build) {
             const buildResult = await this.executeCommand(instanceId, 'bun run build');
             if (buildResult.exitCode !== 0) {
+                this.logger.warn('Build step failed or not available', buildResult.stdout, buildResult.stderr);
                 throw new Error(`Build failed: ${buildResult.stderr}`);
             }
         }
@@ -1820,7 +1844,7 @@ export class SandboxSdkClient extends BaseSandboxService {
     async exposePort(instanceId: string, port: number): Promise<string> {
         try {
             const sandbox = this.getSandbox();
-            const preview = await sandbox.exposePort(port, { hostname: this.hostname });
+            const preview = await sandbox.exposePort(port, { hostname: this.hostname, name: instanceId });
             this.logger.info(`Exposed port ${port} for instance ${instanceId}`, { url: preview.url });
             return preview.url;
         } catch (error) {

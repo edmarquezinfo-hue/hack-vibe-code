@@ -3,7 +3,7 @@ import { GenerationContext } from '../domain/values/GenerationContext';
 import { IssueReport } from '../domain/values/IssueReport';
 import { createSystemMessage, createUserMessage } from '../inferutils/common';
 import { executeInference } from '../inferutils/inferenceUtils';
-import { generalSystemPromptBuilder, PROMPT_UTILS } from '../prompts';
+import { generalSystemPromptBuilder, issuesPromptFormatter, PROMPT_UTILS } from '../prompts';
 import { WebSocketMessageResponses } from '../constants';
 import { TemplateRegistry } from '../inferutils/schemaFormatters';
 import { z } from 'zod';
@@ -18,7 +18,7 @@ const SYSTEM_PROMPT = `<ROLE>
 </ROLE>
 
 <GOAL>
-    Perform a thorough review of the entire provided codebase (<REVIEW: ALL GENERATED FILES>) against the <REFER: APPLICATION BLUEPRINT> and <REFER: APPLICATION DESCRIPTION>. 
+    Perform a thorough review of the entire provided codebase (<ENTIRE CODEBASE>) against the <BLUEPRINT> and <CLIENT REQUEST>. 
     Identify *all urgent* issues that would prevent the application from functioning correctly, rendering properly, or meeting the specified requirements. 
     Provide clear, actionable feedback for fixing the identified issues.
     If there are already runtime errors or linting errors provided, Just focus on resolving them with utmost priority, and provide fixes for only those errors.
@@ -138,34 +138,23 @@ These are the dependencies that came installed in the environment:
 If anything else is used in the project, make sure it is installed in the environment
 </DEPENDENCIES>
 
-{{template}}
-
-<FINAL INSTRUCTION>
-    Analyze the provided code thoroughly. Identify all critical issues preventing correct functionality or rendering based on the blueprint. Provide concise, actionable fixes for each issue identified.
-</FINAL INSTRUCTION>`;
+{{template}}`;
 
 const USER_PROMPT = `
-<CRITICAL RUNTIME ERRORS>
-{{errors}}
-</CRITICAL RUNTIME ERRORS>
-
-<CLIENT REPORTED ERRORS>
-{{clientReportedErrors}}
-</CLIENT REPORTED ERRORS>
-
-<STATIC ANALYSIS RESULTS>
-{{staticAnalysis}}
-</STATIC ANALYSIS RESULTS>
+{{issues}}
 
 <ENTIRE CODEBASE>
 {{context}}
-</ENTIRE CODEBASE>`;
+</ENTIRE CODEBASE>
+
+<FINAL INSTRUCTION>
+    Analyze the provided code thoroughly. Identify all critical issues preventing correct functionality or rendering based on the blueprint. Provide concise, actionable fixes for each issue identified.
+    Please ignore and don't report unnecessary issues such as 'prefer-const', 'no-unused-vars', etc.
+</FINAL INSTRUCTION>`;
 
 const userPromptFormatter = (issues: IssueReport, context: string) => {
     const prompt = USER_PROMPT
-        .replaceAll('{{errors}}', PROMPT_UTILS.serializeErrors(issues.runtimeErrors || []))
-        .replaceAll('{{staticAnalysis}}', PROMPT_UTILS.serializeStaticAnalysis(issues.staticAnalysis))
-        .replaceAll('{{clientReportedErrors}}', PROMPT_UTILS.serializeClientReportedErrors(issues.clientErrors || []))
+        .replaceAll('{{issues}}', issuesPromptFormatter(issues))
         .replaceAll('{{context}}', context);
     return PROMPT_UTILS.verifyPrompt(prompt);
 }
@@ -182,7 +171,8 @@ export class CodeReviewOperation extends AgentOperation<CodeReviewInputs, CodeRe
         logger.info("Running static code analysis via linting...");
 
         // Report discovered issues
-        broadcaster!.broadcast(WebSocketMessageResponses.GENERATION_ERRORS, {
+        broadcaster!.broadcast(WebSocketMessageResponses.CODE_REVIEWING, {
+            message: "Running code review...",
             staticAnalysis: issues.staticAnalysis,
             clientErrors: issues.clientErrors,
             runtimeErrors: issues.runtimeErrors
@@ -222,7 +212,7 @@ export class CodeReviewOperation extends AgentOperation<CodeReviewInputs, CodeRe
             }
 
             // Notify review completion
-            broadcaster!.broadcast(WebSocketMessageResponses.CODE_REVIEW, {
+            broadcaster!.broadcast(WebSocketMessageResponses.CODE_REVIEWED, {
                 review: reviewResult,
                 message: "Code review completed"
             });

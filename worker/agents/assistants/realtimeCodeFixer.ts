@@ -8,6 +8,7 @@ import Assistant from "./assistant";
 import { applySearchReplaceDiff } from "../diff-formats";
 import { AIModels, infer } from "../inferutils/aigateway";
 import { MatchingStrategy, FailedBlock } from "../diff-formats/search-replace";
+import { ModelConfig } from "../config";
 
 export interface RealtimeCodeFixerContext {
     previousFiles: FileOutputType[];
@@ -46,6 +47,8 @@ Purpose: {{filePurpose}}
 <file_contents>
 {{fileContents}}
 </file_contents>
+
+{{issues}}
 </file_to_review>
 
 Review Process:
@@ -58,10 +61,10 @@ Review Process:
    d. Export/import mismatches
    e. Duplicate definitions
    f. Syntax errors
-   g. Undefined variables, values or properties (e.g that can cause \`Cannot read properties of undefined (reading 'some')\`)
-   h. Logical issues in business logic
-   i. UI functionality problems
-   j. JSX/TSX mismatches
+   g. JSX/TSX Tag mismatches (e.g, missing closing tags)
+   h. Undefined variables, values or properties (e.g that can cause \`Cannot read properties of undefined (reading 'some')\`)
+   i. Logical issues in business logic
+   j. UI functionality problems
    k. Incorrect imports
    l. Constant reassignments
    m. CSS, UI rendering and misalignment issues
@@ -108,62 +111,62 @@ Important reminders:
 - The SEARCH section must exactly match a unique existing block of lines, including white space.
 - **Every SEARCH section should be followed by a REPLACE section. The SEARCH section begins with <<<<<<< SEARCH and ends with ===== after which the REPLACE section automatically begins and ends with >>>>>>> REPLACE.**
 - Assume internal imports (like shadcn components or ErrorBoundaries) exist.
-- Pay extra attention to potential "Maximum update depth exceeded" errors, runtime error causing bugs, logical issues and issues that can cause misalignment of UI components.
+- Pay extra attention to potential "Maximum update depth exceeded" errors, runtime error causing bugs, JSX/TSX Tag mismatches, logical issues and issues that can cause misalignment of UI components.
 
 If no issues are found, return a blank response.
 
 Your final output should consist only of the fixes formatted as shown, without duplicating or rehashing any of the work you did in the code review section.`
 
-const EXTRA_JSX_SPECIFIC =`
-<appendix>
-The most important class of errors is the "Maximum update depth exceeded" error which you definetly need to identify and fix. 
-Common causes and solutions:
-    - Setting state directly in the component body:
-        Problem: Updating state directly in the component body causes a re-render, which again triggers the state update, creating a loop.
-        Solution: Move state updates to event handlers or the useEffect hook, according to tigerabrodi.blog.
-    - Missing or incorrect useEffect dependency array:
-        Problem: If useEffect doesn't have a dependency array or its dependencies change on every render, the effect runs endlessly, leading to state updates and re-renders.
-        Solution: Add the appropriate dependencies to the array, ensuring the effect only runs when necessary.
-    - Circular dependencies:
-        Problem: When state updates in a useEffect indirectly trigger changes in its own dependencies, a circular dependency is created, causing an infinite loop.
-        Solution:
-            - Combine related state: Store related state in a single object and update it atomically.
-            - Use useReducer for complex state: For intricate state logic, useReducer can help manage updates more effectively, says tigerabrodi.blog.
-    - Inefficient component rendering:
-        Problem: Unnecessary re-renders of child components can contribute to the "maximum update depth exceeded" error.
-        Solution: Utilize React.memo() or PureComponent to optimize rendering and prevent unnecessary updates when props or state haven't changed, says Coding Beast.
-    - Incorrectly passing functions as props:
-        Problem: Passing a function call directly to an event handler instead of a function reference can trigger constant re-renders.
-        Solution: Ensure you're passing a function reference (e.g., onClick={this.toggle}) to the handler, not calling the function directly (e.g., onClick={this.toggle()}).
-AI agent code specific considerations:
-    - Carefully review agent-generated code: AI agents, while helpful, can sometimes introduce subtle bugs, particularly when dealing with complex state management.
-    - Look for redundant re-renders and circular updates: Specifically, examine useEffect hooks and state updates within them, especially in components involving dependencies that are themselves modified within the effect.
-Additional tips:
-    - Use memoization: Employ useCallback for functions and useMemo for values to prevent unnecessary re-creations and re-renders, according to DEV Community.
-By understanding these common causes and applying the suggested solutions, especially when working with agent-generated code, you can effectively resolve "Maximum update depth exceeded" errors in your React applications. 
+// const EXTRA_JSX_SPECIFIC =`
+// <appendix>
+// The most important class of errors is the "Maximum update depth exceeded" error which you definetly need to identify and fix. 
+// Common causes and solutions:
+//     - Setting state directly in the component body:
+//         Problem: Updating state directly in the component body causes a re-render, which again triggers the state update, creating a loop.
+//         Solution: Move state updates to event handlers or the useEffect hook, according to tigerabrodi.blog.
+//     - Missing or incorrect useEffect dependency array:
+//         Problem: If useEffect doesn't have a dependency array or its dependencies change on every render, the effect runs endlessly, leading to state updates and re-renders.
+//         Solution: Add the appropriate dependencies to the array, ensuring the effect only runs when necessary.
+//     - Circular dependencies:
+//         Problem: When state updates in a useEffect indirectly trigger changes in its own dependencies, a circular dependency is created, causing an infinite loop.
+//         Solution:
+//             - Combine related state: Store related state in a single object and update it atomically.
+//             - Use useReducer for complex state: For intricate state logic, useReducer can help manage updates more effectively, says tigerabrodi.blog.
+//     - Inefficient component rendering:
+//         Problem: Unnecessary re-renders of child components can contribute to the "maximum update depth exceeded" error.
+//         Solution: Utilize React.memo() or PureComponent to optimize rendering and prevent unnecessary updates when props or state haven't changed, says Coding Beast.
+//     - Incorrectly passing functions as props:
+//         Problem: Passing a function call directly to an event handler instead of a function reference can trigger constant re-renders.
+//         Solution: Ensure you're passing a function reference (e.g., onClick={this.toggle}) to the handler, not calling the function directly (e.g., onClick={this.toggle()}).
+// AI agent code specific considerations:
+//     - Carefully review agent-generated code: AI agents, while helpful, can sometimes introduce subtle bugs, particularly when dealing with complex state management.
+//     - Look for redundant re-renders and circular updates: Specifically, examine useEffect hooks and state updates within them, especially in components involving dependencies that are themselves modified within the effect.
+// Additional tips:
+//     - Use memoization: Employ useCallback for functions and useMemo for values to prevent unnecessary re-creations and re-renders, according to DEV Community.
+// By understanding these common causes and applying the suggested solutions, especially when working with agent-generated code, you can effectively resolve "Maximum update depth exceeded" errors in your React applications. 
 
-For example, the following piece of code would lead to "Maximum update depth exceeded" error:
-\`\`\`
-export default function App() {
-  const { score, bestScore, startGame, handleMove } = useGameStore((state) => ({
-    score: state.score,
-    bestScore: state.bestScore,
-    startGame: state.startGame,
-    handleMove: state.handleMove,
-  }));
-  ...
-\`\`\`
-here useGameStore is a zustand selector. This creates a new object reference each time, making Zustand think the state changed.
-It can be fixed by simply using individual selectors:
-\`\`\`
-export default function App() {
-    const score = useGameStore((state) => state.score);
-    const bestScore = useGameStore((state) => state.bestScore);
-    const startGame = useGameStore((state) => state.startGame);
-    const handleMove = useGameStore((state) => state.handleMove);
-\`\`\`
-</appendix>
-`;
+// For example, the following piece of code would lead to "Maximum update depth exceeded" error:
+// \`\`\`
+// export default function App() {
+//   const { score, bestScore, startGame, handleMove } = useGameStore((state) => ({
+//     score: state.score,
+//     bestScore: state.bestScore,
+//     startGame: state.startGame,
+//     handleMove: state.handleMove,
+//   }));
+//   ...
+// \`\`\`
+// here useGameStore is a zustand selector. This creates a new object reference each time, making Zustand think the state changed.
+// It can be fixed by simply using individual selectors:
+// \`\`\`
+// export default function App() {
+//     const score = useGameStore((state) => state.score);
+//     const bestScore = useGameStore((state) => state.bestScore);
+//     const startGame = useGameStore((state) => state.startGame);
+//     const handleMove = useGameStore((state) => state.handleMove);
+// \`\`\`
+// </appendix>
+// `;
 
 const DIFF_FIXER_PROMPT = `You made mistakes in generating the diffs and they failed to match. You need to regenerate them properly.
 
@@ -195,8 +198,8 @@ Just reply with the corrected SEARCH/REPLACE blocks in this format:
 [your intended replacement]
 >>>>>>> REPLACE`
 
-const userPromptFormatter = (query: string, previousFiles: FileOutputType[], file: FileOutputType, currentPhase?: PhaseConceptType) => {
-    let prompt = USER_PROMPT
+const userPromptFormatter = (user_prompt: string, query: string, previousFiles: FileOutputType[], file: FileOutputType, currentPhase?: PhaseConceptType, issues?: string[]) => {
+    let prompt = user_prompt
         .replaceAll('{{query}}', query)
         .replaceAll('{{previousFiles}}', PROMPT_UTILS.serializeFiles(previousFiles))
         .replaceAll('{{filePath}}', file.file_path)
@@ -206,34 +209,55 @@ const userPromptFormatter = (query: string, previousFiles: FileOutputType[], fil
 Current project phase overview:
 <current_phase>
 ${JSON.stringify(currentPhase, null, 2)}
-</current_phase>` : '');
-        if(file.file_path.endsWith('.tsx') || file.file_path.endsWith('.jsx')) {
-            prompt += EXTRA_JSX_SPECIFIC;
-        }
+</current_phase>` : '')
+        .replaceAll('{{issues}}', issues ? `
+<issues>
+${issues.join('\n')}
+</issues>` : '');
+        // if(file.file_path.endsWith('.tsx') || file.file_path.endsWith('.jsx')) {
+        //     prompt += EXTRA_JSX_SPECIFIC;
+        // }
     return PROMPT_UTILS.verifyPrompt(prompt);
 }
 
 const diffPromptFormatter = (currentContent: string, failedBlocks: string, failedBlocksCount: number, successfulBlocksCount: number) => {
-        const prompt = DIFF_FIXER_PROMPT
-            .replaceAll('{{currentContent}}', currentContent)
-            .replaceAll('{{failedBlocks}}', failedBlocks)
-            .replaceAll('{{failedBlocksCount}}', failedBlocksCount.toString())
-            .replaceAll('{{successfulBlocksCount}}', successfulBlocksCount.toString());
-        return PROMPT_UTILS.verifyPrompt(prompt);
-    }
+    const prompt = DIFF_FIXER_PROMPT
+        .replaceAll('{{currentContent}}', currentContent)
+        .replaceAll('{{failedBlocks}}', failedBlocks)
+        .replaceAll('{{failedBlocksCount}}', failedBlocksCount.toString())
+        .replaceAll('{{successfulBlocksCount}}', successfulBlocksCount.toString());
+    return PROMPT_UTILS.verifyPrompt(prompt);
+}
 
 export class RealtimeCodeFixer extends Assistant<Env> {
     logger = createObjectLogger(this, 'RealtimeCodeFixer');
     lightMode: boolean;
     altPassModelOverride?: string;
+    userPrompt: string;
+    modelConfigOverride?: ModelConfig;
 
-    constructor(env: Env, agentId: string, lightMode: boolean = false, altPassModelOverride: string = AIModels.GEMINI_2_5_FLASH) {
+    constructor(
+        env: Env,
+        agentId: string,
+        lightMode: boolean = false,
+        altPassModelOverride: string = AIModels.CLAUDE_4_SONNET,
+        modelConfigOverride?: ModelConfig,
+        userPrompt: string = USER_PROMPT
+    ) {
         super(env, agentId);
         this.lightMode = lightMode;
         this.altPassModelOverride = altPassModelOverride;
+        this.userPrompt = userPrompt;
+        this.modelConfigOverride = modelConfigOverride;
     }
 
-    async run(generatedFile: FileOutputType, context: RealtimeCodeFixerContext, preferredModel?: string, currentPhase?: PhaseConceptType, passes: number = 3): Promise<FileOutputType> {
+    async run(
+        generatedFile: FileOutputType,
+        context: RealtimeCodeFixerContext,
+        currentPhase?: PhaseConceptType,
+        issues?: string[],
+        passes: number = 3
+    ): Promise<FileOutputType> {
         try {
             // Ignore css or json files or *.config.js
             if (generatedFile.file_path.endsWith('.css') || generatedFile.file_path.endsWith('.json') || generatedFile.file_path.endsWith('.config.js')) {
@@ -251,10 +275,11 @@ export class RealtimeCodeFixer extends Assistant<Env> {
             while (searchBlocks !== 0 && i < passes) {
                 this.logger.info(`Running realtime code fixer for file: ${generatedFile.file_path} (pass ${i + 1}/${passes})`);
                 const messages = this.save([
-                    i === 0 ? createUserMessage(userPromptFormatter(context.query, context.previousFiles, generatedFile, currentPhase)) : 
+                    i === 0 ? createUserMessage(userPromptFormatter(this.userPrompt, context.query, context.previousFiles, generatedFile, currentPhase, issues)) : 
                     createUserMessage(`
 Please quickly re-review the entire code for another pass to ensure there are no **critical** issues or bugs remaining and there are no weird unapplied changes or residues (e.g, malformed search/replace blocks or diffs).
 **Look out for serious issues that can cause runtime errors, rendering issues, logical bugs, or things that got broken by previous fixes**
+**Indentations do not cause issues, Please ignore indentation issues**
 **Thoroughly look for \`Maximum update depth exceeded\` and other issues that can crash the app on priority**
 **No need to be verbose or descriptive if you dont see any issues! We need to commit this file as soon as possible so don't waste time nit-picking! But it shouldn't break at any cost!**
 
@@ -279,9 +304,10 @@ Don't be nitpicky, If there are no actual issues, just say "No issues found".
                     id: this.agentId,
                     schemaName: "realtimeCodeFixer",
                     messages,
-                    modelName: (i !== 0 && this.altPassModelOverride) || this.lightMode ? this.altPassModelOverride : preferredModel,
-                    temperature: (i !== 0 && this.altPassModelOverride) || this.lightMode ? 0.1 : 1.0,
-                    reasoning_effort: (i !== 0 && this.altPassModelOverride) || this.lightMode ? 'low' : 'medium'
+                    modelName: (i !== 0 && this.altPassModelOverride) || this.lightMode ? this.altPassModelOverride : undefined,
+                    temperature: (i !== 0 && this.altPassModelOverride) || this.lightMode ? 0.05 : undefined,
+                    reasoning_effort: (i !== 0 && this.altPassModelOverride) || this.lightMode ? 'low' : undefined,
+                    modelConfig: this.modelConfigOverride,
                 });
 
                 if (!fixResult) {
@@ -289,9 +315,7 @@ Don't be nitpicky, If there are no actual issues, just say "No issues found".
                     return generatedFile;
                 }
 
-                this.save([
-                    createAssistantMessage(fixResult)
-                ]);
+                this.save([createAssistantMessage(fixResult)]);
 
                 if (fixResult.includes('<content>')) {
                     // Complete rewrite, extract content between tags

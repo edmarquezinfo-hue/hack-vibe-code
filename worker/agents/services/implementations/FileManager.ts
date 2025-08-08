@@ -49,7 +49,7 @@ export class FileManager implements IFileManager {
                 ...state.generatedFilesMap,
                 [file.file_path]: {
                     ...file,
-                    last_hash: file.file_contents,
+                    last_hash: '',
                     last_modified: Date.now(),
                     unmerged: []
                 }
@@ -64,7 +64,7 @@ export class FileManager implements IFileManager {
         for (const file of files) {
             newFilesMap[file.file_path] = {
                 ...file,
-                last_hash: file.file_contents,
+                last_hash: '',
                 last_modified: Date.now(),
                 unmerged: []
             };
