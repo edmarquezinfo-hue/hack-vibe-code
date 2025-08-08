@@ -393,6 +393,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
     
             // Deploy generated files
             if (result.deploymentNeeded && result.files.length > 0) {
+                let files = result.files;
                 // Get static analysis and do deterministic fixes
                 const staticAnalysis = await this.runStaticAnalysisCode();
                 if (staticAnalysis.typecheck.issues.length > 0) {
@@ -406,12 +407,13 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                             file_purpose: allFiles.find(file => file.file_path === file.file_path)?.file_purpose || '',
                             file_contents: file.file_contents
                         }));
+                        files = fixedFiles;
                         this.fileManager.saveGeneratedFiles(fixedFiles);
                         // await this.deployToSandbox(fixedFiles);
                         this.logger.info("Deployed deterministic fixes to sandbox");
                     }
                 }
-                await this.deployToSandbox(result.files);
+                await this.deployToSandbox(files);
             }
     
             this.logger.info(`Phase ${phaseConcept.name} completed, generating next phase`);
@@ -474,7 +476,28 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                     }
 
                     const fileResults = await Promise.allSettled(promises);
-                    await this.deployToSandbox(fileResults.map(result => result.status === "fulfilled" ? result.value : null).filter((result) => result !== null));
+                    let files: FileOutputType[] = fileResults.map(result => result.status === "fulfilled" ? result.value : null).filter((result) => result !== null);
+
+                    // Get static analysis and do deterministic fixes
+                    const staticAnalysis = await this.runStaticAnalysisCode();
+                    if (staticAnalysis.typecheck.issues.length > 0) {
+                        this.logger.info("Found typecheck issues, running deterministic fixes");
+                        const allFiles = FileProcessing.getAllFiles(this.state.templateDetails, this.state.generatedFilesMap);
+                        const fixResult = await this.applyDeterministicCodeFixes(allFiles, staticAnalysis.typecheck.issues);
+                        if (fixResult && fixResult.modifiedFiles.length > 0) {
+                            this.logger.info("Applying deterministic fixes to files, Fixes: ", JSON.stringify(fixResult, null, 2));
+                            const fixedFiles = fixResult.modifiedFiles.map(file => ({
+                                file_path: file.file_path,
+                                file_purpose: allFiles.find(file => file.file_path === file.file_path)?.file_purpose || '',
+                                file_contents: file.file_contents
+                            }));
+                            this.fileManager.saveGeneratedFiles(fixedFiles);
+                            files = fixedFiles;
+                            // await this.deployToSandbox(fixedFiles);
+                            this.logger.info("Deployed deterministic fixes to sandbox");
+                        }
+                    }
+                    await this.deployToSandbox(files);
 
                     this.logger.info("Completed regeneration for review cycle");
                 } else {
