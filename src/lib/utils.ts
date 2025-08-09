@@ -8,3 +8,10 @@ export function cn(...inputs: ClassValue[]) {
 export function getPreviewUrl(previewURL?: string, tunnelURL?: string): string {
     return import.meta.env.VITE_PREVIEW_MODE === 'tunnel' ? tunnelURL || previewURL || '' : previewURL || tunnelURL || '';
 }
+
+export function capitalizeFirstLetter(str: string) {
+  if (typeof str !== 'string' || str.length === 0) {
+    return str; // Handle non-string input or empty string
+  }
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}

@@ -74,7 +74,7 @@ export default function AppsPage() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div>
       <div className="container mx-auto px-6 py-8 max-w-7xl">
         {/* Header section */}
         <div className="mb-8">
@@ -85,14 +85,6 @@ export default function AppsPage() {
                 {apps.length} app{apps.length !== 1 ? 's' : ''} created
               </p>
             </div>
-            <Button 
-              onClick={() => navigate('/chat/new')} 
-              size="lg"
-              className="bg-gradient-to-r from-[#f48120] to-[#faae42] hover:from-[#faae42] hover:to-[#f48120] text-white shadow-lg transition-all hover:shadow-xl"
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              New App
-            </Button>
           </div>
         </div>
         {/* Filters and Search */}
@@ -249,7 +241,7 @@ export default function AppsPage() {
                     </div>
                   </CardHeader>
                   {app.description && (
-                    <CardContent>
+                    <CardContent className='!px-4'>
                       <p className="text-sm text-muted-foreground line-clamp-3">
                         {app.description}
                       </p>

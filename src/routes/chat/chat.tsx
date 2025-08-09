@@ -7,16 +7,10 @@ import {
 	type FormEvent,
 } from 'react';
 import { ArrowRight } from 'react-feather';
-import { useParams, useSearchParams , useNavigate } from 'react-router';
+import { useParams, useSearchParams, useNavigate } from 'react-router';
 import { MonacoEditor } from '../../components/monaco-editor/monaco-editor';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-	Expand,
-	LoaderCircle,
-	RefreshCw,
-	Save,
-	Github,
-} from 'lucide-react';
+import { Expand, LoaderCircle, RefreshCw } from 'lucide-react';
 import { Blueprint } from './components/blueprint';
 import { FileExplorer } from './components/file-explorer';
 import { UserMessage, AIMessage } from './components/messages';
@@ -47,28 +41,40 @@ export default function Chat() {
 	const { app, loading: appLoading } = useApp(urlChatId);
 
 	// If we have an existing app, use its data
-	const displayQuery = app ? app.originalPrompt || app.title : (userQuery || '');
+	const displayQuery = app
+		? app.originalPrompt || app.title
+		: userQuery || '';
 	const appTitle = app?.title;
 
 	// Manual refresh trigger for preview
 	const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0);
 
 	// Debug message utilities
-	const addDebugMessage = useCallback((type: DebugMessage['type'], message: string, details?: string, source?: string, messageType?: string, rawMessage?: unknown) => {
-		const debugMessage: DebugMessage = {
-			id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-			timestamp: Date.now(),
-			type,
-			message,
-			details,
-			source,
-			messageType,
-			rawMessage
-		};
-		
-		setDebugMessages(prev => [...prev, debugMessage]);
-	}, []);
-	
+	const addDebugMessage = useCallback(
+		(
+			type: DebugMessage['type'],
+			message: string,
+			details?: string,
+			source?: string,
+			messageType?: string,
+			rawMessage?: unknown,
+		) => {
+			const debugMessage: DebugMessage = {
+				id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+				timestamp: Date.now(),
+				type,
+				message,
+				details,
+				source,
+				messageType,
+				rawMessage,
+			};
+
+			setDebugMessages((prev) => [...prev, debugMessage]);
+		},
+		[],
+	);
+
 	const clearDebugMessages = useCallback(() => {
 		setDebugMessages([]);
 	}, []);
@@ -123,7 +129,7 @@ export default function Chat() {
 	const [view, setView] = useState<'editor' | 'preview' | 'blueprint'>(
 		'editor',
 	);
-	
+
 	// Debug panel state
 	const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
 
@@ -162,12 +168,15 @@ export default function Chat() {
 
 	const generatingCount = useMemo(
 		() =>
-			files.reduce((count, file) => (file.isGenerating ? count + 1 : count), 0),
+			files.reduce(
+				(count, file) => (file.isGenerating ? count + 1 : count),
+				0,
+			),
 		[files],
 	);
 
 	const codeGenState = useMemo(() => {
-		return projectStages.find(stage => stage.id === 'code')?.status;
+		return projectStages.find((stage) => stage.id === 'code')?.status;
 	}, [projectStages]);
 
 	const generatingFile = useMemo(() => {
@@ -191,7 +200,9 @@ export default function Chat() {
 		}
 		return (
 			files.find((file) => file.file_path === activeFilePath) ??
-			streamedBootstrapFiles.find((file) => file.file_path === activeFilePath)
+			streamedBootstrapFiles.find(
+				(file) => file.file_path === activeFilePath,
+			)
 		);
 	}, [
 		activeFilePath,
@@ -206,7 +217,10 @@ export default function Chat() {
 	}, [phaseTimeline]);
 
 	const showMainView = useMemo(
-		() => streamedBootstrapFiles.length > 0 || !!blueprint || files.length > 0,
+		() =>
+			streamedBootstrapFiles.length > 0 ||
+			!!blueprint ||
+			files.length > 0,
 		[streamedBootstrapFiles, blueprint, files.length],
 	);
 
@@ -272,7 +286,8 @@ export default function Chat() {
 			onCompleteBootstrap();
 			sendAiMessage({
 				id: 'creating-blueprint',
-				message: 'Bootstrapping complete, now creating a blueprint for you...',
+				message:
+					'Bootstrapping complete, now creating a blueprint for you...',
 				isThinking: true,
 			});
 		}
@@ -286,23 +301,30 @@ export default function Chat() {
 
 	const isRunning = useMemo(() => {
 		return (
-			isBootstrapping || isGeneratingBlueprint// || codeGenState === 'active'
+			isBootstrapping || isGeneratingBlueprint // || codeGenState === 'active'
 		);
 	}, [isBootstrapping, isGeneratingBlueprint]);
 
 	// Check if chat input should be disabled (before blueprint completion and agentId assignment)
 	const isChatDisabled = useMemo(() => {
-		const blueprintStage = projectStages.find(stage => stage.id === 'blueprint');
+		const blueprintStage = projectStages.find(
+			(stage) => stage.id === 'blueprint',
+		);
 		const isBlueprintComplete = blueprintStage?.status === 'completed';
 		const hasAgentId = !!chatId;
-		
+
 		// Disable until both blueprint is complete AND we have an agentId
 		return !isBlueprintComplete || !hasAgentId;
 	}, [projectStages, chatId]);
 
 	// Show welcome message when chat becomes available
 	useEffect(() => {
-		if (wasChatDisabled.current && !isChatDisabled && chatId && !hasShownWelcome.current) {
+		if (
+			wasChatDisabled.current &&
+			!isChatDisabled &&
+			chatId &&
+			!hasShownWelcome.current
+		) {
 			sendAiMessage({
 				id: 'chat-welcome',
 				message: 'You can talk to me while I get your app built',
@@ -318,15 +340,18 @@ export default function Chat() {
 	const onNewMessage = useCallback(
 		(e: FormEvent) => {
 			e.preventDefault();
-			
+
 			// Don't submit if chat is disabled or message is empty
 			if (isChatDisabled || !newMessage.trim()) {
 				return;
 			}
-			
+
 			// When generation is active, send as conversational AI suggestion
 			websocket?.send(
-				JSON.stringify({ type: 'user_suggestion', message: newMessage }),
+				JSON.stringify({
+					type: 'user_suggestion',
+					message: newMessage,
+				}),
 			);
 			sendUserMessage(newMessage);
 			setNewMessage('');
@@ -384,14 +409,25 @@ export default function Chat() {
 							) : (
 								<>
 									{appTitle && (
-										<div className="text-lg font-semibold mb-2">{appTitle}</div>
+										<div className="text-lg font-semibold mb-2">
+											{appTitle}
+										</div>
 									)}
-									<UserMessage message={query ?? displayQuery} />
-									<div className="flex justify-between items-center py-2 border-b border-border/50 mb-4">
-										<AgentModeDisplay 
-											mode={agentMode as 'deterministic' | 'smart'} 
-										/>
-									</div>
+									<UserMessage
+										message={query ?? displayQuery}
+									/>
+									{import.meta.env
+										.VITE_AGENT_MODE_ENABLED && (
+										<div className="flex justify-between items-center py-2 border-b border-border/50 mb-4">
+											<AgentModeDisplay
+												mode={
+													agentMode as
+														| 'deterministic'
+														| 'smart'
+												}
+											/>
+										</div>
+									)}
 								</>
 							)}
 
@@ -402,42 +438,76 @@ export default function Chat() {
 								/>
 							)}
 
-							<motion.div layout="position" className="pl-9 drop-shadow mb-2">
+							<motion.div
+								layout="position"
+								className="pl-9 drop-shadow mb-2"
+							>
 								<div className="px-2 pr-3.5 py-3 flex-1 rounded-xl border border-black/12 bg-bg">
 									{projectStages.map((stage, index) => {
-										const { id, status, title, metadata } = stage;
+										const { id, status, title, metadata } =
+											stage;
 
 										return (
 											<div className="flex relative w-full gap-2 pb-2.5 last:pb-0">
 												<div className="translate-y-px z-20">
 													<AnimatePresence>
-														{status === 'pending' && (
+														{status ===
+															'pending' && (
 															<motion.div
-																initial={{ scale: 0.2, opacity: 0.4 }}
-																animate={{ scale: 1, opacity: 1 }}
-																exit={{ scale: 0.2, opacity: 0.4 }}
+																initial={{
+																	scale: 0.2,
+																	opacity: 0.4,
+																}}
+																animate={{
+																	scale: 1,
+																	opacity: 1,
+																}}
+																exit={{
+																	scale: 0.2,
+																	opacity: 0.4,
+																}}
 																className="size-5 flex items-center justify-center"
 															>
 																<div className="size-2 rounded-full bg-zinc-300" />
 															</motion.div>
 														)}
 
-														{status === 'active' && (
+														{status ===
+															'active' && (
 															<motion.div
-																initial={{ scale: 0.2, opacity: 0.4 }}
-																animate={{ scale: 1, opacity: 1 }}
-																exit={{ scale: 0.2, opacity: 0.4 }}
+																initial={{
+																	scale: 0.2,
+																	opacity: 0.4,
+																}}
+																animate={{
+																	scale: 1,
+																	opacity: 1,
+																}}
+																exit={{
+																	scale: 0.2,
+																	opacity: 0.4,
+																}}
 																className="size-5 bg-bg flex items-center justify-center"
 															>
 																<LoaderCircle className="size-3 text-orange-400 animate-spin" />
 															</motion.div>
 														)}
 
-														{status === 'completed' && (
+														{status ===
+															'completed' && (
 															<motion.div
-																initial={{ scale: 0.2, opacity: 0.4 }}
-																animate={{ scale: 1, opacity: 1 }}
-																exit={{ scale: 0.2, opacity: 0.4 }}
+																initial={{
+																	scale: 0.2,
+																	opacity: 0.4,
+																}}
+																animate={{
+																	scale: 1,
+																	opacity: 1,
+																}}
+																exit={{
+																	scale: 0.2,
+																	opacity: 0.4,
+																}}
 																className="size-5 flex items-center justify-center"
 															>
 																<div className="size-2 rounded-full bg-orange-400" />
@@ -450,55 +520,81 @@ export default function Chat() {
 														<span
 															className={clsx(
 																'font-medium',
-																status === 'pending'
+																status ===
+																	'pending'
 																	? 'text-zinc-400'
 																	: 'text-zinc-700',
 															)}
 														>
 															{title}
 														</span>
-														{id === 'code' && status !== 'pending' && (
-															<motion.div
-																initial={{ x: -120 }}
-																animate={{ x: 0 }}
-															>
-																<span className="text-zinc-300 mx-1">
-																	&bull;
-																</span>
-																<span className="text-zinc-400">
-																	{progress}/{total} files
-																</span>
-															</motion.div>
-														)}
+														{id === 'code' &&
+															status !==
+																'pending' && (
+																<motion.div
+																	initial={{
+																		x: -120,
+																	}}
+																	animate={{
+																		x: 0,
+																	}}
+																>
+																	<span className="text-zinc-300 mx-1">
+																		&bull;
+																	</span>
+																	<span className="text-zinc-400">
+																		{
+																			progress
+																		}
+																		/{total}{' '}
+																		files
+																	</span>
+																</motion.div>
+															)}
 													</div>
 
-													{id === 'blueprint' && status !== 'pending' && (
-														<button
-															onClick={() => {
-																setView('blueprint');
-																hasSwitchedFile.current = true;
-															}}
-															className={`flex items-start ml-0.5 transition-colors font-mono ${
-																view === 'blueprint'
-																	? 'text-brand underline decoration-dotted'
-																	: 'text-text/80 hover:bg-bg-lighter/50 hover:text-text'
-															}`}
-														>
-															<span className="text-xs text-left truncate">
-																Blueprint.md
-															</span>
-														</button>
-													)}
+													{id === 'blueprint' &&
+														status !==
+															'pending' && (
+															<button
+																onClick={() => {
+																	setView(
+																		'blueprint',
+																	);
+																	hasSwitchedFile.current = true;
+																}}
+																className={`flex items-start ml-0.5 transition-colors font-mono ${
+																	view ===
+																	'blueprint'
+																		? 'text-brand underline decoration-dotted'
+																		: 'text-text/80 hover:bg-bg-lighter/50 hover:text-text'
+																}`}
+															>
+																<span className="text-xs text-left truncate">
+																	Blueprint.md
+																</span>
+															</button>
+														)}
 
 													{id === 'code' && (
 														<PhaseTimeline
-															phaseTimeline={phaseTimeline}
+															phaseTimeline={
+																phaseTimeline
+															}
 															files={files}
 															view={view}
-															activeFile={activeFile}
-															onFileClick={handleFileClick}
-															isThinkingNext={isThinking}
-															isPreviewDeploying={isPreviewDeploying}
+															activeFile={
+																activeFile
+															}
+															onFileClick={
+																handleFileClick
+															}
+															isThinkingNext={
+																isThinking
+															}
+															isPreviewDeploying={
+																isPreviewDeploying
+															}
 														/>
 													)}
 
@@ -509,11 +605,14 @@ export default function Chat() {
 													)}
 												</div>
 
-												{index !== projectStages.length - 1 && (
+												{index !==
+													projectStages.length -
+														1 && (
 													<div
 														className={clsx(
 															'absolute left-[9.25px] w-px h-full top-2.5 z-10',
-															status === 'completed'
+															status ===
+																'completed'
 																? 'bg-orange-400'
 																: 'bg-text/5',
 														)}
@@ -540,11 +639,16 @@ export default function Chat() {
 										instanceId={chatId}
 										isRedeployReady={isRedeployReady}
 										deploymentError={deploymentError}
-										isGenerating={isGenerating || isGeneratingBlueprint}
+										isGenerating={
+											isGenerating ||
+											isGeneratingBlueprint
+										}
 										isPaused={isGenerationPaused}
 										onDeploy={handleDeployToCloudflare}
 										onStopGeneration={handleStopGeneration}
-										onResumeGeneration={handleResumeGeneration}
+										onResumeGeneration={
+											handleResumeGeneration
+										}
 									/>
 								</motion.div>
 							)}
@@ -560,7 +664,10 @@ export default function Chat() {
 									);
 								}
 								return (
-									<UserMessage key={message.id} message={message.message} />
+									<UserMessage
+										key={message.id}
+										message={message.message}
+									/>
 								);
 							})}
 						</div>
@@ -579,11 +686,11 @@ export default function Chat() {
 								}}
 								disabled={isChatDisabled}
 								placeholder={
-									isChatDisabled 
-										? "Please wait for blueprint completion..." 
-										: isRunning 
-											? "Chat with AI while generating..." 
-											: "Ask a follow up..."
+									isChatDisabled
+										? 'Please wait for blueprint completion...'
+										: isRunning
+											? 'Chat with AI while generating...'
+											: 'Ask a follow up...'
 								}
 								className="w-full bg-bg-lighter border border-white/10 rounded-xl px-3 pr-10 py-2 text-sm outline-none focus:border-white/20 drop-shadow-2xl text-text placeholder:!text-text/50 disabled:opacity-50 disabled:cursor-not-allowed"
 							/>
@@ -622,13 +729,16 @@ export default function Chat() {
 										<div className="flex items-center justify-center">
 											<div className="flex items-center gap-2">
 												<span className="text-sm font-mono text-text-50/70">
-													{blueprint?.title ?? 'Preview'}
+													{blueprint?.title ??
+														'Preview'}
 												</span>
 												<Copy text={previewUrl} />
 												<button
 													className="p-1 hover:bg-bg-lighter rounded transition-colors"
 													onClick={() => {
-														setManualRefreshTrigger(Date.now());
+														setManualRefreshTrigger(
+															Date.now(),
+														);
 													}}
 													title="Refresh preview"
 												>
@@ -637,7 +747,7 @@ export default function Chat() {
 											</div>
 										</div>
 
-										<div className="flex items-center justify-end gap-1.5">
+										{/* <div className="flex items-center justify-end gap-1.5">
 											<button
 												className="flex items-center gap-1.5 px-2 py-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-md transition-all duration-200 text-xs font-medium shadow-sm"
 												onClick={() => handleDeployToCloudflare(chatId!)}
@@ -668,17 +778,23 @@ export default function Chat() {
 											>
 												<Expand className="size-4 text-text/50" />
 											</button>
-										</div>
+										</div> */}
 									</div>
 									<SmartPreviewIframe
 										src={previewUrl}
 										ref={previewRef}
 										className="flex-1 w-full h-full border-0"
 										title="Preview"
-										shouldRefreshPreview={shouldRefreshPreview}
-										manualRefreshTrigger={manualRefreshTrigger}
+										shouldRefreshPreview={
+											shouldRefreshPreview
+										}
+										manualRefreshTrigger={
+											manualRefreshTrigger
+										}
 										webSocket={websocket}
-										phaseTimelineLength={phaseTimeline.length}
+										phaseTimelineLength={
+											phaseTimeline.length
+										}
 									/>
 								</div>
 							)}
@@ -691,13 +807,18 @@ export default function Chat() {
 											<span className="text-sm text-text-50/70 font-mono">
 												Blueprint.md
 											</span>
-											{previewUrl && <Copy text={previewUrl} />}
+											{previewUrl && (
+												<Copy text={previewUrl} />
+											)}
 										</div>
 									</div>
 									<div className="flex-1 overflow-y-auto bg-bg-light">
 										<div className="py-12 mx-auto">
 											<Blueprint
-												blueprint={blueprint ?? {} as BlueprintType}
+												blueprint={
+													blueprint ??
+													({} as BlueprintType)
+												}
 												className="w-full max-w-2xl mx-auto"
 											/>
 										</div>
@@ -712,8 +833,12 @@ export default function Chat() {
 											<div className="flex items-center">
 												<ViewModeSwitch
 													view={view}
-													onChange={handleViewModeChange}
-													previewAvailable={!!previewUrl}
+													onChange={
+														handleViewModeChange
+													}
+													previewAvailable={
+														!!previewUrl
+													}
 													showTooltip={showTooltip}
 												/>
 											</div>
@@ -723,12 +848,16 @@ export default function Chat() {
 													<span className="text-sm font-mono text-text-50/70">
 														{activeFile.file_path}
 													</span>
-													{previewUrl && <Copy text={previewUrl} />}
+													{previewUrl && (
+														<Copy
+															text={previewUrl}
+														/>
+													)}
 												</div>
 											</div>
 
 											<div className="flex items-center justify-end gap-1.5">
-												<button
+												{/* <button
 													className="flex items-center gap-1.5 px-2 py-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-md transition-all duration-200 text-xs font-medium shadow-sm"
 													onClick={() => handleDeployToCloudflare(chatId!)}
 													disabled={isDeploying}
@@ -748,7 +877,7 @@ export default function Chat() {
 												>
 													<Github className="size-3" />
 													GitHub
-												</button>
+												</button> */}
 												<button
 													className="p-1 hover:bg-bg-lighter rounded transition-colors"
 													onClick={() => {
@@ -762,10 +891,15 @@ export default function Chat() {
 										</div>
 									)}
 									<div className="flex-1 relative">
-										<div className="absolute inset-0 flex" ref={editorRef}>
+										<div
+											className="absolute inset-0 flex"
+											ref={editorRef}
+										>
 											<FileExplorer
 												files={files}
-												bootstrapFiles={streamedBootstrapFiles}
+												bootstrapFiles={
+													streamedBootstrapFiles
+												}
 												currentFile={activeFile}
 												onFileClick={handleFileClick}
 											/>
@@ -773,10 +907,16 @@ export default function Chat() {
 												<MonacoEditor
 													className="h-full"
 													createOptions={{
-														value: activeFile?.file_contents || '',
-														language: activeFile?.language || 'plaintext',
+														value:
+															activeFile?.file_contents ||
+															'',
+														language:
+															activeFile?.language ||
+															'plaintext',
 														readOnly: true,
-														minimap: { enabled: false },
+														minimap: {
+															enabled: false,
+														},
 														lineNumbers: 'on',
 														scrollBeyondLastLine: false,
 														fontSize: 13,
@@ -784,12 +924,16 @@ export default function Chat() {
 														automaticLayout: true,
 													}}
 													find={
-														edit && edit.filePath === activeFile?.file_path
+														edit &&
+														edit.filePath ===
+															activeFile?.file_path
 															? edit.search
 															: undefined
 													}
 													replace={
-														edit && edit.filePath === activeFile?.file_path
+														edit &&
+														edit.filePath ===
+															activeFile?.file_path
 															? edit.replacement
 															: undefined
 													}
@@ -803,14 +947,14 @@ export default function Chat() {
 					)}
 				</AnimatePresence>
 			</div>
-			
+
 			{/* Debug Panel */}
-			<DebugPanel 
-				messages={debugMessages} 
+			<DebugPanel
+				messages={debugMessages}
 				onClear={clearDebugMessages}
 				chatSessionId={chatId}
 			/>
-			
+
 			{/* GitHub Export Modal */}
 			<GitHubExportModal
 				isOpen={githubExport.isModalOpen}
