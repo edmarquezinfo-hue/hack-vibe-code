@@ -234,7 +234,7 @@ export function useChat({
 		});
 	};
 
-	const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
+	const handleWebSocketMessage = (message: WebSocketMessage) => {
 		if (message.type !== 'file_chunk_generated' && message.type !== 'cf_agent_state' && message.type.length <= 50) {
 			logger.info('received message', message.type, message);
 			// Capture ALL WebSocket messages for debug panel (lightweight when not open)
@@ -979,7 +979,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 				console.warn('Unhandled message:', message);
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
+	};
 
 	// Enhanced WebSocket connection with retry logic
 	const connectWithRetry = useCallback(
@@ -1075,7 +1075,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 				handleConnectionFailure(wsUrl, disableGenerate, 'Connection setup failed');
 			}
 		},
-		[handleWebSocketMessage, retryCount, maxRetries, retryTimeouts],
+		[retryCount, maxRetries, retryTimeouts],
 	);
 
 	// Handle connection failures with exponential backoff retry
