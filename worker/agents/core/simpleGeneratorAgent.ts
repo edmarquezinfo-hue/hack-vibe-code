@@ -393,27 +393,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
     
             // Deploy generated files
             if (result.deploymentNeeded && result.files.length > 0) {
-                let files = result.files;
-                // Get static analysis and do deterministic fixes
-                const staticAnalysis = await this.runStaticAnalysisCode();
-                if (staticAnalysis.typecheck.issues.length > 0) {
-                    this.logger.info("Found typecheck issues, running deterministic fixes");
-                    const allFiles = FileProcessing.getAllFiles(this.state.templateDetails, this.state.generatedFilesMap);
-                    const fixResult = await this.applyDeterministicCodeFixes(allFiles, staticAnalysis.typecheck.issues);
-                    if (fixResult && fixResult.modifiedFiles.length > 0) {
-                        this.logger.info("Applying deterministic fixes to files, Fixes: ", JSON.stringify(fixResult, null, 2));
-                        const fixedFiles = fixResult.modifiedFiles.map(file => ({
-                            file_path: file.file_path,
-                            file_purpose: allFiles.find(file => file.file_path === file.file_path)?.file_purpose || '',
-                            file_contents: file.file_contents
-                        }));
-                        files = fixedFiles;
-                        this.fileManager.saveGeneratedFiles(fixedFiles);
-                        // await this.deployToSandbox(fixedFiles);
-                        this.logger.info("Deployed deterministic fixes to sandbox");
-                    }
-                }
-                await this.deployToSandbox(files);
+                await this.deployToSandbox(result.files);
+                await this.applyDeterministicCodeFixes();
             }
     
             this.logger.info(`Phase ${phaseConcept.name} completed, generating next phase`);
@@ -478,26 +459,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                     const fileResults = await Promise.allSettled(promises);
                     let files: FileOutputType[] = fileResults.map(result => result.status === "fulfilled" ? result.value : null).filter((result) => result !== null);
 
-                    // Get static analysis and do deterministic fixes
-                    const staticAnalysis = await this.runStaticAnalysisCode();
-                    if (staticAnalysis.typecheck.issues.length > 0) {
-                        this.logger.info("Found typecheck issues, running deterministic fixes");
-                        const allFiles = FileProcessing.getAllFiles(this.state.templateDetails, this.state.generatedFilesMap);
-                        const fixResult = await this.applyDeterministicCodeFixes(allFiles, staticAnalysis.typecheck.issues);
-                        if (fixResult && fixResult.modifiedFiles.length > 0) {
-                            this.logger.info("Applying deterministic fixes to files, Fixes: ", JSON.stringify(fixResult, null, 2));
-                            const fixedFiles = fixResult.modifiedFiles.map(file => ({
-                                file_path: file.file_path,
-                                file_purpose: allFiles.find(file => file.file_path === file.file_path)?.file_purpose || '',
-                                file_contents: file.file_contents
-                            }));
-                            this.fileManager.saveGeneratedFiles(fixedFiles);
-                            files = fixedFiles;
-                            // await this.deployToSandbox(fixedFiles);
-                            this.logger.info("Deployed deterministic fixes to sandbox");
-                        }
-                    }
                     await this.deployToSandbox(files);
+
+                    await this.applyDeterministicCodeFixes();
 
                     this.logger.info("Completed regeneration for review cycle");
                 } else {
@@ -855,9 +819,17 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
     /**
      * Apply deterministic code fixes using ts-morph for common TypeScript errors
      */
-    private async applyDeterministicCodeFixes(allFiles: FileOutputType[], typeCheckIssues: CodeIssue[]): Promise<CodeFixResult | null> {
+    private async applyDeterministicCodeFixes() {
         try {
+            // Get static analysis and do deterministic fixes
+            const staticAnalysis = await this.runStaticAnalysisCode();
+            if (staticAnalysis.typecheck.issues.length == 0) {
+                this.logger.info("No typecheck issues found, skipping deterministic fixes");
+                return null;
+            }
+            const typeCheckIssues = staticAnalysis.typecheck.issues;
             this.logger.info(`Attempting to fix ${typeCheckIssues.length} TypeScript issues using deterministic code fixer`);
+            const allFiles = FileProcessing.getAllFiles(this.state.templateDetails, this.state.generatedFilesMap);
 
             // Create file fetcher callback
             const fileFetcher: FileFetcher = async (filePath: string) => {
@@ -891,8 +863,19 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                 fileFetcher
             );
 
+            if (fixResult && fixResult.modifiedFiles.length > 0) {
+                this.logger.info("Applying deterministic fixes to files, Fixes: ", JSON.stringify(fixResult, null, 2));
+                const fixedFiles = fixResult.modifiedFiles.map(file => ({
+                    file_path: file.file_path,
+                    file_purpose: allFiles.find(f => f.file_path === file.file_path)?.file_purpose || '',
+                    file_contents: file.file_contents
+                }));
+                this.fileManager.saveGeneratedFiles(fixedFiles);
+                
+                await this.deployToSandbox(fixedFiles);
+                this.logger.info("Deployed deterministic fixes to sandbox");
+            }
             this.logger.info(`Applied deterministic code fixes: ${JSON.stringify(fixResult, null, 2)}`);
-            return fixResult;
         } catch (error) {
             this.logger.error('Error applying deterministic code fixes:', error);
             this.broadcast(WebSocketMessageResponses.ERROR, {

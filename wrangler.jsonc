@@ -40,8 +40,8 @@
 			"image": "./SandboxDockerfile",
 			"max_instances": 10,
             "configuration": {
-              "vcpu": 8,
-              "memory_mib": 6144,
+              "vcpu": 4,
+              "memory_mib": 4096,
               "disk": {
                 "size_mb": 10240
               }
