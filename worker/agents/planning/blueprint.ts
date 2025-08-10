@@ -84,6 +84,7 @@ const SYSTEM_PROMPT = `<ROLE>
 
 ${STRATEGIES.FRONTEND_FIRST_PLANNING}
 
+**Make sure ALL the files needed for the initial phase and are not present in the starting template are explicitly written out in the blueprint.**
 <STARTING TEMPLATE>
 {{template}}
 

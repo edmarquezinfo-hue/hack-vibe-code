@@ -18,11 +18,11 @@ Here is some relevant context:
 {{query}}
 </user_query>
 
-You are only provided with this file to review.
+You are only provided with this file to fix.
 ================================
 
-Here's the file you need to review and fix:
-<file_to_review>
+Here's the file you need to fix:
+<file_to_fix>
 <file_info>
 Path: {{filePath}}
 Purpose: {{filePurpose}}
@@ -31,7 +31,7 @@ Purpose: {{filePurpose}}
 <file_contents>
 {{fileContents}}
 </file_contents>
-</file_to_review>
+</file_to_fix>
 
 **Identified Issues Requiring Patch:**
 {{issues}}
@@ -64,12 +64,12 @@ Format each fix as follows:
     
 Important reminders:
     - Include all necessary fixes in your output.
-    - Only provide fixes for the file provided for review i.e <file_to_review>.
+    - Only provide fixes for the file provided for fix i.e <file_to_fix>.
     - The SEARCH section must exactly match a unique existing block of lines, including white space.
     - **Every SEARCH section should be followed by a REPLACE section. The SEARCH section begins with <<<<<<< SEARCH and ends with ===== after which the REPLACE section automatically begins and ends with >>>>>>> REPLACE.**
     - Assume internal imports (like shadcn components or ErrorBoundaries) exist.
     - Pay extra attention to potential "Maximum update depth exceeded" errors, runtime error causing bugs, JSX/TSX Tag mismatches, logical issues and issues that can cause misalignment of UI components.
-    - Only make the fixes for the issues provided in the <issues> tag. Do not think much of try to find and fix other issues.
+    - Only make the fixes for the issues provided in the <issues> tag. Do not think much of trying to find and fix other issues.
 
 Your final output should consist only of the fixes formatted as shown`;
 

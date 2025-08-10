@@ -4,7 +4,7 @@
  */
 
 import * as t from '@babel/types';
-import { CodeIssue } from '../../sandbox/sandboxTypes';
+import type { CodeIssue } from '../../sandbox/sandboxTypes';
 import { FixerContext, FixResult, FixedIssue, UnfixableIssue, FileObject } from '../types';
 import { generateCode, parseCode } from '../utils/ast';
 import { getFileContent } from '../utils/imports';

@@ -10,7 +10,7 @@ import {
     TechnicalInstructionType,
     PhaseImplementationSchemaType,
 } from '../schemas';
-import { CodeIssue, StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
+import { StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
 import { GitHubExportOptions, GitHubExportResult, GitHubInitRequest, GitHubInitResponse, GitHubPushRequest, GitHubPushResponse } from '../../types/github';
 import { CodeGenState, CurrentDevState } from './state';
 import { AllIssues } from './types';
@@ -41,7 +41,7 @@ import { BaseSandboxService } from '../../services/sandbox/BaseSandboxService';
 import { getSandboxService } from '../../services/sandbox/factory';
 import { WebSocketMessageData, WebSocketMessageType } from '../websocketTypes';
 import { ConversationMessage, looksLikeCommand } from '../inferutils/common';
-import { CodeFixResult, FileFetcher, fixProjectIssues } from '../../services/code-fixer';
+import { FileFetcher, fixProjectIssues } from '../../services/code-fixer';
 import { FileProcessing } from '../domain/pure/FileProcessing';
 
 interface WebhookPayload {
@@ -389,13 +389,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
             }
             
             // Implement the phase
-            const result = await this.implementPhase(phaseConcept, currentIssues, null);
-    
-            // Deploy generated files
-            if (result.deploymentNeeded && result.files.length > 0) {
-                await this.deployToSandbox(result.files);
-                await this.applyDeterministicCodeFixes();
-            }
+            await this.implementPhase(phaseConcept, currentIssues, null);
     
             this.logger.info(`Phase ${phaseConcept.name} completed, generating next phase`);
 
@@ -413,7 +407,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
     async executeReviewCycle(): Promise<CurrentDevState> {
         this.logger.info("Executing REVIEWING state");
 
-        const reviewCycles = 4;
+        const reviewCycles = 2;
         
         try {
             this.logger.info("Starting code review and improvement cycle...");
@@ -461,7 +455,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
 
                     await this.deployToSandbox(files);
 
-                    await this.applyDeterministicCodeFixes();
+                    // await this.applyDeterministicCodeFixes();
 
                     this.logger.info("Completed regeneration for review cycle");
                 } else {
@@ -630,6 +624,12 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         if (result.commands && result.commands.length > 0) {
             this.logger.info("Phase implementation suggested install commands:", result.commands);
             await this.executeCommands(result.commands);
+        }
+    
+        // Deploy generated files
+        if (result.files.length > 0) {
+            await this.deployToSandbox(result.files);
+            await this.applyDeterministicCodeFixes();
         }
         
         return result;
@@ -828,6 +828,11 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                 return null;
             }
             const typeCheckIssues = staticAnalysis.typecheck.issues;
+            this.broadcast(WebSocketMessageResponses.DETERMINISTIC_CODE_FIX_STARTED, {
+                message: `Attempting to fix ${typeCheckIssues.length} TypeScript issues using deterministic code fixer`,
+                issues: typeCheckIssues
+            });
+
             this.logger.info(`Attempting to fix ${typeCheckIssues.length} TypeScript issues using deterministic code fixer`);
             const allFiles = FileProcessing.getAllFiles(this.state.templateDetails, this.state.generatedFilesMap);
 
@@ -863,17 +868,35 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                 fileFetcher
             );
 
-            if (fixResult && fixResult.modifiedFiles.length > 0) {
-                this.logger.info("Applying deterministic fixes to files, Fixes: ", JSON.stringify(fixResult, null, 2));
-                const fixedFiles = fixResult.modifiedFiles.map(file => ({
-                    file_path: file.file_path,
-                    file_purpose: allFiles.find(f => f.file_path === file.file_path)?.file_purpose || '',
-                    file_contents: file.file_contents
-                }));
-                this.fileManager.saveGeneratedFiles(fixedFiles);
-                
-                await this.deployToSandbox(fixedFiles);
-                this.logger.info("Deployed deterministic fixes to sandbox");
+            this.broadcast(WebSocketMessageResponses.DETERMINISTIC_CODE_FIX_COMPLETED, {
+                message: `Fixed ${typeCheckIssues.length} TypeScript issues using deterministic code fixer`,
+                issues: typeCheckIssues
+            });
+
+            if (fixResult) {
+                if (fixResult.modifiedFiles.length > 0) {
+                        this.logger.info("Applying deterministic fixes to files, Fixes: ", JSON.stringify(fixResult, null, 2));
+                        const fixedFiles = fixResult.modifiedFiles.map(file => ({
+                            file_path: file.file_path,
+                            file_purpose: allFiles.find(f => f.file_path === file.file_path)?.file_purpose || '',
+                            file_contents: file.file_contents
+                    }));
+                    this.fileManager.saveGeneratedFiles(fixedFiles);
+                    
+                    await this.deployToSandbox(fixedFiles);
+                    this.logger.info("Deployed deterministic fixes to sandbox");
+                }
+
+                // If there are unfixable issues but of type TS2307, Extract the module that wasnt found and maybe try installing it
+                if (fixResult.unfixableIssues.length > 0) {
+                    const modulesNotFound = fixResult.unfixableIssues.filter(issue => issue.issueCode === 'TS2307');
+                    // Reason would be of type `External package \"xyz\" should be handled by package manager`, extract via regex
+                    const moduleNames = modulesNotFound.map(issue => issue.reason.match(/External package "(.+)"/)?.[1]);
+                    
+                    // Execute command
+                    await this.executeCommands(moduleNames.map(moduleName => `bun install ${moduleName}`));
+                    this.logger.info(`Deterministic code fixer installed missing modules: ${moduleNames.join(', ')}`);
+                }
             }
             this.logger.info(`Applied deterministic code fixes: ${JSON.stringify(fixResult, null, 2)}`);
         } catch (error) {

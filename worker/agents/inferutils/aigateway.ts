@@ -37,6 +37,12 @@ export enum AIModels {
 	OPENAI_O4_MINI = 'openai/o4-mini',
 	OPENAI_CHATGPT_4O_LATEST = 'openai/chatgpt-4o-latest',
 	OPENAI_4_1 = 'openai/gpt-4.1-2025-04-14',
+    OPENAI_5 = 'openai/gpt-5',
+    OPENAI_5_MINI = 'openai/gpt-5-mini',
+    OPENAI_OSS = 'openai/gpt-oss-120b',
+
+    QWEN_3_CODER = 'qwen/qwen3-coder',
+    KIMI_2_5 = 'moonshotai/kimi-k2',
 }
 
 function optimizeInputs(messages: Message[]): Message[] {
@@ -380,9 +386,11 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 		}
 
 		if (!content && !stream && !toolCalls.length) {
-			// Only error if not streaming and no content
-			console.error('No content received from OpenAI', JSON.stringify(response, null, 2));
-			throw new Error('No content received from OpenAI');
+			// // Only error if not streaming and no content
+			// console.error('No content received from OpenAI', JSON.stringify(response, null, 2));
+			// throw new Error('No content received from OpenAI');
+            console.warn('No content received from OpenAI', JSON.stringify(response, null, 2));
+            return { string: "", toolCalls: [] };
 		}
 
         const executedToolCalls = await executeToolCalls(toolCalls);

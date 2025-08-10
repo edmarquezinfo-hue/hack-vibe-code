@@ -60,7 +60,6 @@ export async function executeInference<T extends z.AnyZodObject>(   {
     messages,
     temperature,
     maxTokens,
-    operationName,
     retryLimit = 5, // Increased retry limit for better reliability
     stream,
     tools,
@@ -89,7 +88,7 @@ export async function executeInference<T extends z.AnyZodObject>(   {
 
     for (let attempt = 0; attempt < retryLimit; attempt++) {
         try {
-            logger.info(`Starting ${operationName} operation with model ${modelName} (attempt ${attempt + 1}/${retryLimit})`);
+            logger.info(`Starting ${schemaName} operation with model ${modelName} (attempt ${attempt + 1}/${retryLimit})`);
 
             const result = schema ? await infer<T>({
                 env,
@@ -120,13 +119,13 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 temperature,
                 providerOverride
             });
-            logger.info(`Successfully completed ${operationName} operation`);
+            logger.info(`Successfully completed ${schemaName} operation`);
             // console.log(result);
             return result;
         } catch (error) {
             const isLastAttempt = attempt === retryLimit - 1;
             logger.error(
-                `Error during ${operationName} operation (attempt ${attempt + 1}/${retryLimit}):`,
+                `Error during ${schemaName} operation (attempt ${attempt + 1}/${retryLimit}):`,
                 error
             );
 
