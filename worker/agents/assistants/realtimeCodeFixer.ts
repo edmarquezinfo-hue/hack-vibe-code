@@ -12,13 +12,13 @@ import { ModelConfig } from "../config";
 // import { analyzeTypeScriptFile } from "../../services/code-fixer/analyzer";
 
 export interface RealtimeCodeFixerContext {
-    previousFiles: FileOutputType[];
+    previousFiles?: FileOutputType[];
     query: string;
     blueprint: Blueprint;
     template: TemplateDetails;
 }
 
-const SYSTEM_PROMPT = `You are a seasoned, highly experienced code inspection officier and senior full-stack engineer specializing in React and TypeScript. Your task is to review and verify if the provided typescript code file wouldn't cause any runtime or critical failures, and provide fixes if any. 
+const SYSTEM_PROMPT = `You are a seasoned, highly experienced code inspection officier and senior full-stack engineer specializing in React and TypeScript. Your task is to review and verify if the provided typescript code file wouldn't cause any runtime infinite rendering loops or critical failures, and provide fixes if any. 
 You would only be provided with a single file to review at a time. You are to simulate it's runtime behavior and analyze it for listed issues. Your analysis should be thorough but concise, focusing on critical issues and effective fixes.`
 /*
 <previous_files>
@@ -81,7 +81,7 @@ Review Process:
 8. Ignore indentation, spacing, comments, unused imports/variables/functions, or any code that doesn't affect the functionality of the file. No need to waste time on such things.
 9. If a change wouldn't fix anything or change any behaviour, i.e, its unnecessary, Don't suggest it.
 
-Before providing fixes, conduct your analysis in <code_review> tags inside your thinking block. Be concise but thorough:
+Before providing fixes, think deeply inside <thinking> tags and then conduct your analysis in <code_review> tags inside your thinking block. Be concise but thorough:
 
 <code_review>
 1. Code structure and components
@@ -160,10 +160,10 @@ Just reply with the corrected SEARCH/REPLACE blocks in this format:
 [your intended replacement]
 >>>>>>> REPLACE`
 
-const userPromptFormatter = (user_prompt: string, query: string, previousFiles: FileOutputType[], file: FileOutputType, currentPhase?: PhaseConceptType, issues?: string[]) => {
+const userPromptFormatter = (user_prompt: string, query: string, file: FileOutputType, previousFiles?: FileOutputType[], currentPhase?: PhaseConceptType, issues?: string[]) => {
     let prompt = user_prompt
         .replaceAll('{{query}}', query)
-        .replaceAll('{{previousFiles}}', PROMPT_UTILS.serializeFiles(previousFiles))
+        .replaceAll('{{previousFiles}}', previousFiles ? PROMPT_UTILS.serializeFiles(previousFiles) : '')
         .replaceAll('{{filePath}}', file.file_path)
         .replaceAll('{{filePurpose}}', file.file_purpose)
         .replaceAll('{{fileContents}}', file.file_contents)
@@ -205,7 +205,7 @@ export class RealtimeCodeFixer extends Assistant<Env> {
         env: Env,
         agentId: string,
         lightMode: boolean = false,
-        altPassModelOverride?: string,// = AIModels.QWEN_3_CODER,
+        altPassModelOverride?: string,// = AIModels.GEMINI_2_5_FLASH,
         modelConfigOverride?: ModelConfig,
         userPrompt: string = USER_PROMPT
     ) {
@@ -221,7 +221,7 @@ export class RealtimeCodeFixer extends Assistant<Env> {
         context: RealtimeCodeFixerContext,
         currentPhase?: PhaseConceptType,
         issues: string[] = [],
-        passes: number = 1
+        passes: number = 2
     ): Promise<FileOutputType> {
         try {
             // Ignore css or json files or *.config.js
@@ -243,7 +243,7 @@ export class RealtimeCodeFixer extends Assistant<Env> {
                 // issues = [...issues, ...analysis.issues.map(issue => JSON.stringify(issue, null, 2))];
                 this.logger.info(`Running realtime code fixer for file: ${generatedFile.file_path} (pass ${i + 1}/${passes}), issues: ${JSON.stringify(issues, null, 2)}`);
                 const messages = this.save([
-                    i === 0 ? createUserMessage(userPromptFormatter(this.userPrompt, context.query, context.previousFiles, generatedFile, currentPhase, issues)) : 
+                    i === 0 ? createUserMessage(userPromptFormatter(this.userPrompt, context.query, generatedFile, context.previousFiles, currentPhase, issues)) : 
                     createUserMessage(`
 Please quickly re-review the entire code for another pass to ensure there are no **critical** issues or bugs remaining and there are no weird unapplied changes or residues (e.g, malformed search/replace blocks or diffs).
 **Look out for serious issues that can cause runtime errors, rendering issues, logical bugs, or things that got broken by previous fixes**

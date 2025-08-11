@@ -11,11 +11,13 @@ import { AgentOperation, getSystemPromptWithProjectContext, OperationOptions } f
 import { SCOFFormat, SCOFParsingState } from '../code-formats/scof';
 import { TemplateRegistry } from '../inferutils/schemaFormatters';
 import { RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
+import { AGENT_CONFIG } from '../config';
 
 export interface PhaseImplementationInputs {
     phase: PhaseConceptType
     issues: IssueReport
     technicalInstructions?: TechnicalInstructionType | null
+    isFirstPhase: boolean
 }
 
 export const SYSTEM_PROMPT = `<ROLE>
@@ -262,18 +264,23 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
     
         const fixedFilePromises: Promise<FileOutputType>[] = [];
         
-        // Pre-compute expensive operations outside the callback for efficiency
-        const filesBeingGenerated = new Set(phase.files.map(f => f.path));
-        const allFilesLookup = context.allFiles.reduce((acc, file) => ({ ...acc, [file.file_path]: file }), {});
+        // // Pre-compute expensive operations outside the callback for efficiency
+        // const filesBeingGenerated = new Set(phase.files.map(f => f.path));
+        // const allFilesLookup = context.allFiles.reduce((acc, file) => ({ ...acc, [file.file_path]: file }), {});
         
-        // Pre-filter existing files that won't be generated in this phase
-        const existingFilesNotBeingGenerated = context.allFiles
-            .filter(f => !filesBeingGenerated.has(f.file_path))
-            .map(f => ({
-                file_path: f.file_path,
-                file_contents: f.file_contents,
-                file_purpose: FileProcessing.findFilePurpose(f.file_path, phase, allFilesLookup)
-            }));
+        // // Pre-filter existing files that won't be generated in this phase
+        // const existingFilesNotBeingGenerated = context.allFiles
+        //     .filter(f => !filesBeingGenerated.has(f.file_path))
+        //     .map(f => ({
+        //         file_path: f.file_path,
+        //         file_contents: f.file_contents,
+        //         file_purpose: FileProcessing.findFilePurpose(f.file_path, phase, allFilesLookup)
+        //     }));
+
+        let modelConfig = AGENT_CONFIG.phaseImplementation;
+        if (inputs.isFirstPhase) {
+            modelConfig = AGENT_CONFIG.firstPhaseImplementation;
+        }
     
         // Execute inference with streaming
         await executeInference({
@@ -281,6 +288,7 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
             env: env,
             schemaName: "phaseImplementation",
             messages,
+            modelConfig,
             stream: {
                 chunk_size: 256,
                 onChunk: (chunk: string) => {
@@ -329,25 +337,25 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
                                 )
                             };
     
-                            // Build previousFiles efficiently using pre-computed values
-                            // Get files already generated in this phase (excluding current file)
-                            const generatedFilesInPhase = Array.from(streamingState.completedFiles.values())
-                                .filter(f => f.file_path !== file_path)
-                                .map(f => ({
-                                    file_path: f.file_path,
-                                    file_contents: f.file_contents,
-                                    file_purpose: FileProcessing.findFilePurpose(f.file_path, phase, allFilesLookup)
-                                }));
+                            // // Build previousFiles efficiently using pre-computed values
+                            // // Get files already generated in this phase (excluding current file)
+                            // const generatedFilesInPhase = Array.from(streamingState.completedFiles.values())
+                            //     .filter(f => f.file_path !== file_path)
+                            //     .map(f => ({
+                            //         file_path: f.file_path,
+                            //         file_contents: f.file_contents,
+                            //         file_purpose: FileProcessing.findFilePurpose(f.file_path, phase, allFilesLookup)
+                            //     }));
                             
-                            // Combine pre-computed existing files + already generated files for realtime code fixer
-                            const previousFiles = [...existingFilesNotBeingGenerated, ...generatedFilesInPhase];
+                            // // Combine pre-computed existing files + already generated files for realtime code fixer
+                            // const previousFiles = [...existingFilesNotBeingGenerated, ...generatedFilesInPhase];
 
                             // Call realtime code fixer immediately - this is the "realtime" aspect
                             const realtimeCodeFixer = new RealtimeCodeFixer(env, options.agentId);
                             const fixPromise = realtimeCodeFixer.run(
                                 generatedFile, 
                                 {
-                                    previousFiles: previousFiles,
+                                    // previousFiles: previousFiles,
                                     query: context.query,
                                     blueprint: context.blueprint,
                                     template: context.templateDetails

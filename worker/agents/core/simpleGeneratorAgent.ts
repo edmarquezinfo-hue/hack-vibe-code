@@ -603,7 +603,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         const issues = IssueReport.from(currentIssues);
         
         const result = await this.operations.implementPhase.execute(
-            {phase, issues, technicalInstructions},
+            {phase, issues, technicalInstructions, isFirstPhase: this.state.generatedPhases.filter(p => p.completed).length === 0},
             {
                 env: this.env,
                 agentId: this.state.sessionId,

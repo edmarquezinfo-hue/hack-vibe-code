@@ -71,7 +71,7 @@ Generate the next phase of the application.
 Adhere to the following guidelines: 
 
 <SUGGESTING NEXT PHASE>
-•   Suggest the next phase based on the current progress, the overall application architecture, the blueprint and any user suggestions.
+•   Suggest the next phase based on the current progress, the overall application architecture, the blueprint, current runtime errors/bugs and any user suggestions.
 •   Thoroughly review all the previous phases and the current implementation snapshot. Verify the frontend elements, UI, and backend components.
     - **Understand what has been implemented and what remains** We want a full finished product eventually! No feature should be left unimplemented if its possible to implement it using the current dependencies.
     - Each phase should work towards achieving the final product. **ONLY** mark as last phase if you are sure there is no work left to do.
