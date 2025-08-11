@@ -6,7 +6,7 @@
 	// "$schema": "node_modules/wrangler/config-schema.json",
 	"name": "orange_build_prod",
 	"main": "worker/index.ts",
-	"compatibility_date": "2025-04-10",
+	"compatibility_date": "2025-08-10",
 	"compatibility_flags": ["nodejs_compat"],
 	"assets": {
 		"directory": "dist",

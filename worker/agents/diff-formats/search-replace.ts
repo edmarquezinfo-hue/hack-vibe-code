@@ -352,19 +352,29 @@ function findFuzzyMatch(content: string, searchText: string, threshold: number =
 	const searchLines = searchText.split('\n');
 	const contentLines = content.split('\n');
 	
-	// Use sliding window to find best match
-	let bestMatch = { similarity: 0, startLine: -1, endLine: -1 };
+	// IMPROVED: Analyze search quality and adjust threshold dynamically
+	const quality = analyzeSearchBlockQuality(searchText, content);
+	const adjustedThreshold = Math.max(threshold, quality.recommendedThreshold);
+	
+	// Use sliding window to find best match with context validation
+	let bestMatch = { similarity: 0, contextScore: 0, startLine: -1, endLine: -1, overallScore: 0 };
 	
 	for (let i = 0; i <= contentLines.length - searchLines.length; i++) {
 		const candidate = contentLines.slice(i, i + searchLines.length).join('\n');
 		const similarity = calculateSimilarity(normalizeWhitespace(candidate), normalizeWhitespace(searchText));
 		
-		if (similarity > bestMatch.similarity && similarity >= threshold) {
-			bestMatch = { similarity, startLine: i, endLine: i + searchLines.length };
+		if (similarity >= adjustedThreshold) {
+			// IMPROVED: Validate context for matches above threshold
+			const contextScore = validateMatchContext(content, candidate, i, i + searchLines.length);
+			const overallScore = similarity * 0.7 + contextScore * 0.3; // Weight similarity higher but include context
+			
+			if (overallScore > bestMatch.overallScore) {
+				bestMatch = { similarity, contextScore, startLine: i, endLine: i + searchLines.length, overallScore };
+			}
 		}
 	}
 	
-	if (bestMatch.similarity === 0) {
+	if (bestMatch.overallScore === 0) {
 		return { found: false, startIndex: -1, endIndex: -1, matchedText: '', strategy: MatchingStrategy.FUZZY };
 	}
 	
@@ -501,8 +511,93 @@ function applySearchReplaceBlock(
 }
 
 /**
- * Count similar matches for ambiguity detection
- * FIXED: Removed recursive findMatch call to prevent infinite recursion
+ * Analyze search block quality to prevent ambiguity
+ */
+function analyzeSearchBlockQuality(searchText: string, targetContent: string): {
+	uniquenessScore: number;
+	specificity: number;
+	recommendedThreshold: number;
+	warnings: string[];
+} {
+	const warnings: string[] = [];
+	let uniquenessScore = 1.0;
+	let specificity = 1.0;
+
+	// Check for overly common patterns that cause ambiguity
+	const commonPatterns = [
+		'const ', 'let ', 'if (', 'for (', '} else {', 'return ', 
+		'break;', 'continue;', '&&', '||', '===', '!=='
+	];
+
+	for (const pattern of commonPatterns) {
+		if (searchText.includes(pattern)) {
+			try {
+				const escapedPattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+				const occurrences = (targetContent.match(new RegExp(escapedPattern, 'g')) || []).length;
+				if (occurrences > 3) {
+					uniquenessScore *= 0.85;
+				}
+			} catch (e) {
+				// Skip regex errors
+			}
+		}
+	}
+
+	// Check for repetitive mathematical/algorithmic patterns (your specific issue)
+	const mathPatterns = ['Math.sqrt', 'Math.pow', 'getBoundingClientRect', 'distance', 'minDistance', 'bestCandidate'];
+	let mathPatternCount = 0;
+	for (const pattern of mathPatterns) {
+		if (searchText.includes(pattern)) {
+			mathPatternCount++;
+			try {
+				const escapedPattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+				const occurrences = (targetContent.match(new RegExp(escapedPattern, 'g')) || []).length;
+				if (occurrences > 2) {
+					uniquenessScore *= 0.7;
+					specificity *= 0.8;
+					warnings.push(`Mathematical pattern "${pattern}" may cause ambiguity (${occurrences} occurrences)`);
+				}
+			} catch (e) {
+				// Skip regex errors
+			}
+		}
+	}
+
+	// Check for case/switch statement context (your specific ArrowDown/ArrowUp issue)
+	const hasCaseStatement = /case\s+['"`][^'"`]*['"`]:/.test(searchText);
+	if (hasCaseStatement) {
+		try {
+			const caseCount = (targetContent.match(/case\s+['"`][^'"`]*['"`]:/g) || []).length;
+			if (caseCount > 2) {
+				uniquenessScore *= 0.6;
+				warnings.push('Switch case detected with multiple similar cases - high ambiguity risk');
+			}
+		} catch (e) {
+			// Skip regex errors
+		}
+	}
+
+	// Calculate recommended threshold
+	let recommendedThreshold = 0.8; // Default
+	if (uniquenessScore < 0.4) {
+		recommendedThreshold = 0.95; // Very high threshold for ambiguous content
+	} else if (uniquenessScore < 0.6) {
+		recommendedThreshold = 0.9; // High threshold for moderately ambiguous content
+	} else if (mathPatternCount > 2) {
+		recommendedThreshold = 0.88; // Slightly higher for mathematical patterns
+	}
+
+	return {
+		uniquenessScore: Math.max(0.1, uniquenessScore),
+		specificity: Math.max(0.1, specificity),
+		recommendedThreshold,
+		warnings
+	};
+}
+
+/**
+ * Enhanced context-aware ambiguity detection
+ * IMPROVED: Now includes quality analysis and smart threshold adjustment
  */
 function countSimilarMatches(content: string, searchText: string, strategy: MatchingStrategy, fuzzyThreshold?: number): number {
 	let count = 0;
@@ -531,19 +626,28 @@ function countSimilarMatches(content: string, searchText: string, strategy: Matc
 			break;
 			
 		case MatchingStrategy.FUZZY:
-			// Count fuzzy matches using sliding window
+			// Enhanced fuzzy counting with smart threshold adjustment
+			const quality = analyzeSearchBlockQuality(searchText, content);
+			const adjustedThreshold = Math.max(fuzzyThreshold || 0.85, quality.recommendedThreshold);
+			
 			const lines = content.split('\n');
 			const searchLines = searchText.split('\n');
-			const threshold = fuzzyThreshold || 0.85;
 			
+			// Use higher standards for counting matches in ambiguous scenarios
 			for (let i = 0; i <= lines.length - searchLines.length; i++) {
 				const candidate = lines.slice(i, i + searchLines.length).join('\n');
 				const similarity = calculateSimilarity(
 					normalizeWhitespace(candidate), 
 					normalizeWhitespace(searchText)
 				);
-				if (similarity >= threshold) {
-					count++;
+				
+				// Additional context validation for fuzzy matches
+				if (similarity >= adjustedThreshold) {
+					// Validate that the match doesn't span inappropriate boundaries
+					const contextScore = validateMatchContext(content, candidate, i, i + searchLines.length);
+					if (contextScore > 0.6) { // Only count matches with good context
+						count++;
+					}
 				}
 			}
 			break;
@@ -553,6 +657,53 @@ function countSimilarMatches(content: string, searchText: string, strategy: Matc
 	}
 	
 	return count;
+}
+
+/**
+ * Validate match context to prevent spanning inappropriate boundaries
+ */
+function validateMatchContext(_content: string, matchText: string, _startLine: number, _endLine: number): number {
+	let contextScore = 1.0;
+	
+	// Check for problematic boundary patterns
+	const problematicPatterns = [
+		{ pattern: /^\s*case\s+['"`][^'"`]*['"`]:/, penalty: 0.4 }, // Case boundaries
+		{ pattern: /^\s*function\s+\w+/, penalty: 0.3 }, // Function boundaries
+		{ pattern: /^\s*}/, penalty: 0.5 }, // Closing brace boundaries
+		{ pattern: /{\s*$/, penalty: 0.5 } // Opening brace boundaries
+	];
+	
+	const matchLines = matchText.split('\n');
+	for (let i = 0; i < matchLines.length; i++) {
+		const line = matchLines[i];
+		for (const { pattern, penalty } of problematicPatterns) {
+			try {
+				if (pattern.test(line)) {
+					if (i === 0 || i === matchLines.length - 1) {
+						// Boundary at start/end is less problematic
+						contextScore *= (1 - penalty * 0.5);
+					} else {
+						// Boundary in middle is very problematic
+						contextScore *= (1 - penalty);
+					}
+				}
+			} catch (e) {
+				// Skip regex errors
+			}
+		}
+	}
+	
+	// Check indentation consistency
+	const indentations = matchLines.map(line => (line.match(/^\s*/) || [''])[0].length);
+	const minIndent = Math.min(...indentations);
+	const maxIndent = Math.max(...indentations);
+	const indentRange = maxIndent - minIndent;
+	
+	if (indentRange > 8) {
+		contextScore *= 0.7; // Inconsistent indentation suggests spanning contexts
+	}
+	
+	return Math.max(0.1, contextScore);
 }
 
 export interface FailedBlock {

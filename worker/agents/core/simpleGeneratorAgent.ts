@@ -260,18 +260,21 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         });
 
         try {
+            let executionResults: {currentDevState: CurrentDevState, staticAnalysis?: StaticAnalysisResponse, result?: PhaseConceptType};
             // State machine loop - continues until IDLE state
             while (currentDevState !== CurrentDevState.IDLE) {
                 this.logger.info(`[generateAllFiles] Executing state: ${currentDevState}`);
                 switch (currentDevState) {
                     case CurrentDevState.PHASE_GENERATING:
-                        const executionResults = await this.executePhaseGeneration();
+                        executionResults = await this.executePhaseGeneration();
                         currentDevState = executionResults.currentDevState;
                         phaseConcept = executionResults.result;
                         staticAnalysisCache = executionResults.staticAnalysis;
                         break;
                     case CurrentDevState.PHASE_IMPLEMENTING:
-                        currentDevState = await this.executePhaseImplementation(phaseConcept, staticAnalysisCache);
+                        executionResults = await this.executePhaseImplementation(phaseConcept, staticAnalysisCache);
+                        currentDevState = executionResults.currentDevState;
+                        staticAnalysisCache = executionResults.staticAnalysis;
                         break;
                     case CurrentDevState.REVIEWING:
                         currentDevState = await this.executeReviewCycle();
@@ -353,7 +356,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
     /**
      * Execute phase implementation state - implement current phase
      */
-    async executePhaseImplementation(phaseConcept?: PhaseConceptType, staticAnalysis?: StaticAnalysisResponse): Promise<CurrentDevState> {
+    async executePhaseImplementation(phaseConcept?: PhaseConceptType, staticAnalysis?: StaticAnalysisResponse): Promise<{currentDevState: CurrentDevState, staticAnalysis?: StaticAnalysisResponse}> {
         try {
             this.logger.info("Executing PHASE_IMPLEMENTING state");
     
@@ -365,7 +368,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                     phaseConcept = results.result;
                     if (phaseConcept === undefined) {
                         this.logger.error("No phase concept provided to implement, will return");
-                        return CurrentDevState.FINALIZING;
+                        return {currentDevState: CurrentDevState.FINALIZING};
                     }
                 }
             }
@@ -389,15 +392,21 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
             }
             
             // Implement the phase
-            await this.implementPhase(phaseConcept, currentIssues, null);
+            const result = await this.implementPhase(phaseConcept, currentIssues, null);
+    
+            // Deploy generated files
+            if (result.files.length > 0) {
+                await this.deployToSandbox(result.files);
+                staticAnalysis = await this.applyDeterministicCodeFixes();
+            }
     
             this.logger.info(`Phase ${phaseConcept.name} completed, generating next phase`);
 
-            if (phaseConcept.lastPhase) return CurrentDevState.FINALIZING;
-            return CurrentDevState.PHASE_GENERATING;
+            if (phaseConcept.lastPhase) return {currentDevState: CurrentDevState.FINALIZING, staticAnalysis: staticAnalysis};
+            return {currentDevState: CurrentDevState.PHASE_GENERATING, staticAnalysis: staticAnalysis};
         } catch (error) {
             this.logger.error("Error implementing phase", error);
-            return CurrentDevState.IDLE;
+            return {currentDevState: CurrentDevState.IDLE};
         }
     }
 
@@ -615,21 +624,10 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
 
         this.logger.info("Completed phases:", JSON.stringify(updatedPhases, null, 2));
 
-        // // Check and install dependencies asynchronously
-        // if (result.deploymentNeeded) {
-        //     this.ensureDependencies(result.files);
-        // }
-
         // Execute commands if provided
         if (result.commands && result.commands.length > 0) {
             this.logger.info("Phase implementation suggested install commands:", result.commands);
             await this.executeCommands(result.commands);
-        }
-    
-        // Deploy generated files
-        if (result.files.length > 0) {
-            await this.deployToSandbox(result.files);
-            await this.applyDeterministicCodeFixes();
         }
         
         return result;
@@ -819,13 +817,13 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
     /**
      * Apply deterministic code fixes using ts-morph for common TypeScript errors
      */
-    private async applyDeterministicCodeFixes() {
+    private async applyDeterministicCodeFixes() : Promise<StaticAnalysisResponse | undefined> {
         try {
             // Get static analysis and do deterministic fixes
             const staticAnalysis = await this.runStaticAnalysisCode();
             if (staticAnalysis.typecheck.issues.length == 0) {
                 this.logger.info("No typecheck issues found, skipping deterministic fixes");
-                return null;
+                return staticAnalysis;  // So that static analysis is not repeated again
             }
             const typeCheckIssues = staticAnalysis.typecheck.issues;
             this.broadcast(WebSocketMessageResponses.DETERMINISTIC_CODE_FIX_STARTED, {
@@ -857,7 +855,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                 return null;
             };
             
-            // Use the new functional API
             const fixResult = await fixProjectIssues(
                 allFiles.map(file => ({
                     file_path: file.file_path,
@@ -905,7 +902,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                 error: `Deterministic code fixer failed: ${error instanceof Error ? error.message : String(error)}`
             });
         }
-        return null;
+        // return undefined;
     }
 
 

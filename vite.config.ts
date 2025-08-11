@@ -36,6 +36,8 @@ export default defineConfig({
 		// Ensure proper module definitions for Cloudflare Workers context  
 		'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
 		global: 'globalThis',
+        '__filename': '""',
+        '__dirname': '""',
 	},
 	worker: {
 		// Handle Prisma in worker context for development
@@ -43,5 +45,5 @@ export default defineConfig({
 	},
 	server: {
 		allowedHosts: ['localhost', '127.0.0.1', 'build.chat.cloudflare.dev', 'orange_build.eti-india.workers.dev', 'build.ashishkumarsingh.com', 'build.cloudflare.dev']
-	}
+	},
 });

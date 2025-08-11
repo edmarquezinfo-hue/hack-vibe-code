@@ -310,15 +310,33 @@ Here's how and why it happens most often and what to do about it.
         return <FolderTree folders={allFolders} expanded={expanded} onToggle={handleToggle} />;
       }
       \`\`\`
+    
+    - Some more examples: 
+    \`\`\`
+    // INCORRECT ❌
+    const { items, selectedFolderId, selectFolder } = useFilesStore(state => ({
+        items: state.items,
+        selectedFolderId: state.selectedFolderId,
+        selectFolder: state.selectFolder,
+    }));
+    \`\`\`
+
+    \`\`\`
+    // CORRECT ✅
+    const items = useFilesStore(state => state.items);
+    const selectedFolderId = useFilesStore(state => state.selectedFolderId);
+    const selectFolder = useFilesStore(state => state.selectFolder);
+    \`\`\`
 </REACT_RENDER_LOOP_PREVENTION>`,
 
     COMMON_PITFALLS: `<AVOID COMMON PITFALLS>
-    **TOP 5 MISSION-CRITICAL RULES (FAILURE WILL CRASH THE APP):**
+    **TOP 6 MISSION-CRITICAL RULES (FAILURE WILL CRASH THE APP):**
     1. **DEPENDENCY VALIDATION:** Use ONLY dependencies verifiably installed in the project, as listed in <DEPENDENCIES>. Cross-check every import against available dependencies.
     2. **IMPORT & EXPORT INTEGRITY:** Ensure every component, function, or variable is correctly defined and imported properly (and exported properly). Mismatched default/named imports will cause crashes.
     3. **NO RUNTIME ERRORS:** Write robust, fault-tolerant code. Handle all edge cases gracefully with fallbacks. Never throw uncaught errors that can crash the application.
     4. **NO UNDEFINED VALUES/PROPERTIES/FUNCTIONS/COMPONENTS etc:** Ensure all variables, functions, and components are defined before use. Never use undefined values. If you use something that isn't already defined, you need to define it.
     5. **STATE UPDATE INTEGRITY:** Never call state setters directly during the render phase; all state updates must originate from event handlers or useEffect hooks to prevent infinite loops.
+    6: **STATE SELECTOR STABILITY:** When using state management libraries (Zustand, Redux), always select primitive values individually. Never return a new object or array from a single selector, as this creates unstable references and will cause infinite render loops.
 
     **ENHANCED RELIABILITY PATTERNS:**
     •   **State Management:** Handle loading/success/error states for async operations. Initialize state with proper defaults, never undefined. Use functional updates for dependent state.

@@ -1306,7 +1306,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             // Run ESLint and TypeScript check in parallel
             const [lintResult, tscResult] = await Promise.allSettled([
                 this.executeCommand(instanceId, 'bun run lint'),
-                this.executeCommand(instanceId, 'bunx tsc -b --incremental --noEmit --pretty false')
+                this.executeCommand(instanceId, 'bunx tsc -b --noEmit --pretty false')
             ]);
 
             const results: StaticAnalysisResponse = {
