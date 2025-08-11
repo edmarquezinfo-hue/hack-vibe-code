@@ -36,8 +36,8 @@ export default defineConfig({
 		// Ensure proper module definitions for Cloudflare Workers context  
 		'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
 		global: 'globalThis',
-        '__filename': '""',
-        '__dirname': '""',
+        // '__filename': '""',
+        // '__dirname': '""',
 	},
 	worker: {
 		// Handle Prisma in worker context for development

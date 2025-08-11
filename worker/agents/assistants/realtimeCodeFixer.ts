@@ -9,7 +9,7 @@ import { applySearchReplaceDiff } from "../diff-formats";
 import { AIModels, infer } from "../inferutils/aigateway";
 import { MatchingStrategy, FailedBlock } from "../diff-formats/search-replace";
 import { ModelConfig } from "../config";
-import { analyzeTypeScriptFile } from "../../services/code-fixer/analyzer";
+// import { analyzeTypeScriptFile } from "../../services/code-fixer/analyzer";
 
 export interface RealtimeCodeFixerContext {
     previousFiles: FileOutputType[];
@@ -239,8 +239,8 @@ export class RealtimeCodeFixer extends Assistant<Env> {
             let i = 0;
             while (searchBlocks !== 0 && i < passes) {
                 // Do a static analysis of the file
-                const analysis = await analyzeTypeScriptFile(generatedFile.file_path, content);
-                issues = [...issues, ...analysis.issues.map(issue => JSON.stringify(issue, null, 2))];
+                // const analysis = await analyzeTypeScriptFile(generatedFile.file_path, content);
+                // issues = [...issues, ...analysis.issues.map(issue => JSON.stringify(issue, null, 2))];
                 this.logger.info(`Running realtime code fixer for file: ${generatedFile.file_path} (pass ${i + 1}/${passes}), issues: ${JSON.stringify(issues, null, 2)}`);
                 const messages = this.save([
                     i === 0 ? createUserMessage(userPromptFormatter(this.userPrompt, context.query, context.previousFiles, generatedFile, currentPhase, issues)) : 
