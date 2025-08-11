@@ -10,7 +10,6 @@ import {
 import { zodResponseFormat } from 'openai/helpers/zod.mjs';
 import {
     ChatCompletionMessageFunctionToolCall,
-	ChatCompletionMessageToolCall,
 	ChatCompletionTool,
 	type ReasoningEffort,
 } from 'openai/resources.mjs';
@@ -137,6 +136,7 @@ const claude_thinking_budget_tokens = {
 	medium: 8000,
 	high: 16000,
 	low: 4000,
+    minimal: 1000,
 };
 
 export type InferResponseObject<OutputSchema extends z.AnyZodObject> = {
