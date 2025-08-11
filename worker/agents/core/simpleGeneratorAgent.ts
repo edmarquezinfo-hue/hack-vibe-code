@@ -23,7 +23,7 @@ import { UserSuggestionProcessor } from '../operations/UserSuggestionProcessor';
 import { executeAction } from './actions';
 import { FileManager } from '../services/implementations/FileManager';
 import { StateManager } from '../services/implementations/StateManager';
-import { WebSocketBroadcaster } from '../services/implementations/WebSocketBroadcaster';
+// import { WebSocketBroadcaster } from '../services/implementations/WebSocketBroadcaster';
 import { GenerationContext } from '../domain/values/GenerationContext';
 import { IssueReport } from '../domain/values/IssueReport';
 import { PhaseManagement } from '../domain/pure/PhaseManagement';
@@ -32,7 +32,7 @@ import { CodeReviewOperation } from '../operations/CodeReview';
 import { FileRegenerationOperation } from '../operations/FileRegeneration';
 import { PhaseGenerationOperation } from '../operations/PhaseGeneration';
 import { ScreenshotAnalysisOperation } from '../operations/ScreenshotAnalysis';
-import { ErrorHandler, IMessageBroadcaster } from './utilities/ErrorHandler';
+import { ErrorHandler } from './utilities/ErrorHandler';
 import { DatabaseOperations } from './utilities/DatabaseOperations';
 import { DatabaseService } from '../../database/database';
 import * as schema from '../../database/schema';
@@ -41,6 +41,9 @@ import { BaseSandboxService } from '../../services/sandbox/BaseSandboxService';
 import { getSandboxService } from '../../services/sandbox/factory';
 import { WebSocketMessageData, WebSocketMessageType } from '../websocketTypes';
 import { ConversationMessage, looksLikeCommand } from '../inferutils/common';
+import { FileFetcher, fixProjectIssues } from '../../services/code-fixer';
+import { FileProcessing } from '../domain/pure/FileProcessing';
+import { FastCodeFixerOperation } from '../operations/FastCodeFixer';
 
 interface WebhookPayload {
     event: {
@@ -71,6 +74,7 @@ interface Operations {
     generateNextPhase: PhaseGenerationOperation;
     analyzeScreenshot: ScreenshotAnalysisOperation;
     implementPhase: PhaseImplementationOperation;
+    fastCodeFixer: FastCodeFixerOperation;
     processSuggestions: UserSuggestionProcessor;
     processUserMessage: UserConversationProcessor;
 }
@@ -85,11 +89,13 @@ interface Operations {
  * - Deployment to sandbox service
  * - Review cycles with automated fixes
  */
-export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implements IMessageBroadcaster {
+export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     protected projectSetupAssistant: ProjectSetupAssistant | undefined;
     protected sandboxServiceClient: BaseSandboxService | undefined;
-    protected fileManager: FileManager = new FileManager(new StateManager(() => this.state, (s) => this.setState(s)));
-    protected broadcaster: WebSocketBroadcaster = new WebSocketBroadcaster(this);
+    protected fileManager: FileManager = new FileManager(
+        new StateManager(() => this.state, (s) => this.setState(s)),
+    );
+    // protected broadcaster: WebSocketBroadcaster = new WebSocketBroadcaster(this);
 
     protected operations: Operations = {
         codeReview: new CodeReviewOperation(),
@@ -97,6 +103,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         generateNextPhase: new PhaseGenerationOperation(),
         analyzeScreenshot: new ScreenshotAnalysisOperation(),
         implementPhase: new PhaseImplementationOperation(),
+        fastCodeFixer: new FastCodeFixerOperation(),
         processSuggestions: new UserSuggestionProcessor(),
         processUserMessage: new UserConversationProcessor()
     };
@@ -247,6 +254,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
             });
         }
 
+        let staticAnalysisCache: StaticAnalysisResponse | undefined;
+
         // Store review cycles for later use
         this.setState({
             ...this.state,
@@ -254,17 +263,21 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         });
 
         try {
+            let executionResults: {currentDevState: CurrentDevState, staticAnalysis?: StaticAnalysisResponse, result?: PhaseConceptType};
             // State machine loop - continues until IDLE state
             while (currentDevState !== CurrentDevState.IDLE) {
                 this.logger.info(`[generateAllFiles] Executing state: ${currentDevState}`);
                 switch (currentDevState) {
                     case CurrentDevState.PHASE_GENERATING:
-                        const executionResults = await this.executePhaseGeneration();
+                        executionResults = await this.executePhaseGeneration();
                         currentDevState = executionResults.currentDevState;
                         phaseConcept = executionResults.result;
+                        staticAnalysisCache = executionResults.staticAnalysis;
                         break;
                     case CurrentDevState.PHASE_IMPLEMENTING:
-                        currentDevState = await this.executePhaseImplementation(phaseConcept);
+                        executionResults = await this.executePhaseImplementation(phaseConcept, staticAnalysisCache);
+                        currentDevState = executionResults.currentDevState;
+                        staticAnalysisCache = executionResults.staticAnalysis;
                         break;
                     case CurrentDevState.REVIEWING:
                         currentDevState = await this.executeReviewCycle();
@@ -346,7 +359,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
     /**
      * Execute phase implementation state - implement current phase
      */
-    async executePhaseImplementation(phaseConcept?: PhaseConceptType, staticAnalysis?: StaticAnalysisResponse): Promise<CurrentDevState> {
+    async executePhaseImplementation(phaseConcept?: PhaseConceptType, staticAnalysis?: StaticAnalysisResponse): Promise<{currentDevState: CurrentDevState, staticAnalysis?: StaticAnalysisResponse}> {
         try {
             this.logger.info("Executing PHASE_IMPLEMENTING state");
     
@@ -358,7 +371,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                     phaseConcept = results.result;
                     if (phaseConcept === undefined) {
                         this.logger.error("No phase concept provided to implement, will return");
-                        return CurrentDevState.FINALIZING;
+                        return {currentDevState: CurrentDevState.FINALIZING};
                     }
                 }
             }
@@ -382,21 +395,15 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
             }
             
             // Implement the phase
-            const result = await this.implementPhase(phaseConcept, currentIssues, null);
-    
-            // Deploy generated files
-            if (result.deploymentNeeded && result.files.length > 0) {
-                // await this.deployFiles(result.files);
-                await this.deployToSandbox(result.files);
-            }
+            await this.implementPhase(phaseConcept, currentIssues, null);
     
             this.logger.info(`Phase ${phaseConcept.name} completed, generating next phase`);
 
-            if (phaseConcept.lastPhase) return CurrentDevState.FINALIZING;
-            return CurrentDevState.PHASE_GENERATING;
+            if (phaseConcept.lastPhase) return {currentDevState: CurrentDevState.FINALIZING, staticAnalysis: staticAnalysis};
+            return {currentDevState: CurrentDevState.PHASE_GENERATING, staticAnalysis: staticAnalysis};
         } catch (error) {
             this.logger.error("Error implementing phase", error);
-            return CurrentDevState.IDLE;
+            return {currentDevState: CurrentDevState.IDLE};
         }
     }
 
@@ -406,7 +413,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
     async executeReviewCycle(): Promise<CurrentDevState> {
         this.logger.info("Executing REVIEWING state");
 
-        const reviewCycles = 4;
+        const reviewCycles = 2;
         
         try {
             this.logger.info("Starting code review and improvement cycle...");
@@ -450,7 +457,11 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                     }
 
                     const fileResults = await Promise.allSettled(promises);
-                    await this.deployToSandbox(fileResults.map(result => result.status === "fulfilled" ? result.value : null).filter((result) => result !== null));
+                    let files: FileOutputType[] = fileResults.map(result => result.status === "fulfilled" ? result.value : null).filter((result) => result !== null);
+
+                    await this.deployToSandbox(files);
+
+                    // await this.applyDeterministicCodeFixes();
 
                     this.logger.info("Completed regeneration for review cycle");
                 } else {
@@ -510,16 +521,20 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
     async generateNextPhase(currentIssues: AllIssues, userSuggestions?: string[]): Promise<PhaseConceptGenerationSchemaType | undefined> {
         const context = GenerationContext.from(this.state, this.logger);
         const issues = IssueReport.from(currentIssues);
-
+        // Notify phase generation start
+        this.broadcast(WebSocketMessageResponses.PHASE_GENERATING, {
+            message: userSuggestions && userSuggestions.length > 0
+                ? `Generating next phase incorporating ${userSuggestions.length} user suggestions`
+                : "Generating next phase"
+        });
+        
         const result = await this.operations.generateNextPhase.execute(
             {issues, userSuggestions},
             {
                 env: this.env,
                 agentId: this.state.sessionId,
-                broadcaster: this.broadcaster!,
                 logger: this.logger,
                 context,
-                fileManager: this.fileManager!
             }
         )
         // Execute install commands if any
@@ -541,6 +556,11 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                     completed: false
                 }
             ]
+        });
+        // Notify phase generation complete
+        this.broadcast(WebSocketMessageResponses.PHASE_GENERATED, {
+            message: `Generated next phase: ${result.name}`,
+            phase: result
         });
 
         return result;
@@ -566,10 +586,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                 {
                     env: this.env,
                     agentId: this.state.sessionId,
-                    broadcaster: this.broadcaster!,
                     logger: this.logger,
                     context,
-                    fileManager: this.fileManager!
                 }
             );
 
@@ -588,18 +606,109 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         const context = GenerationContext.from(this.state, this.logger);
         const issues = IssueReport.from(currentIssues);
         
+        this.broadcast(WebSocketMessageResponses.PHASE_IMPLEMENTING, {
+            message: technicalInstructions 
+                ? `Implementing phase: ${phase.name} with ${technicalInstructions.instructions.length} user instructions`
+                : `Implementing phase: ${phase.name}`,
+            phase: phase,
+            technicalInstructions: technicalInstructions
+        });
+            
+        
         const result = await this.operations.implementPhase.execute(
-            {phase, issues, technicalInstructions},
+            {
+                phase, 
+                issues, 
+                technicalInstructions, 
+                isFirstPhase: this.state.generatedPhases.filter(p => p.completed).length === 0,
+                fileGeneratingCallback: (file_path: string, file_purpose: string) => {
+                    this.broadcast(WebSocketMessageResponses.FILE_GENERATING, {
+                        message: `Generating file: ${file_path}`,
+                        file_path: file_path,
+                        file_purpose: file_purpose
+                    });
+                },
+                fileChunkGeneratedCallback: (file_path: string, chunk: string, format: 'full_content' | 'unified_diff') => {
+                    this.broadcast(WebSocketMessageResponses.FILE_CHUNK_GENERATED, {
+                        message: `Generating file: ${file_path}`,
+                        file_path: file_path,
+                        chunk,
+                        format,
+                    });
+                },
+                fileClosedCallback: (file: FileOutputType, message: string) => {
+                    this.broadcast(WebSocketMessageResponses.FILE_GENERATED, {
+                        message,
+                        file,
+                    });
+                }
+            },
             {
                 env: this.env,
                 agentId: this.state.sessionId,
-                broadcaster: this.broadcaster!,
                 logger: this.logger,
                 context,
-                fileManager: this.fileManager!
             }
         );
         
+        this.broadcast(WebSocketMessageResponses.PHASE_VALIDATING, {
+            message: `Validating files for phase: ${phase.name}`,
+            phase: phase,
+        });
+    
+        // Await the already-created realtime code fixer promises
+        const finalFiles = await Promise.allSettled(result.fixedFilePromises).then((results: PromiseSettledResult<FileOutputType>[]) => {
+            return results.map((result) => {
+                if (result.status === 'fulfilled') {
+                    return result.value;
+                } else {
+                    return null;
+                }
+            }).filter((f): f is FileOutputType => f !== null);
+        });
+    
+        // Update state with completed phase
+        this.fileManager.saveGeneratedFiles(finalFiles);
+
+        this.logger.info("Files generated for phase:", phase.name, finalFiles.map(f => f.file_path));
+
+        // Execute commands if provided
+        if (result.commands && result.commands.length > 0) {
+            this.logger.info("Phase implementation suggested install commands:", result.commands);
+            await this.executeCommands(result.commands);
+        }
+    
+        // Deploy generated files
+        if (finalFiles.length > 0) {
+            await this.deployToSandbox(finalFiles);
+            await this.applyDeterministicCodeFixes();
+            // await this.applyFastSmartCodeFixes();
+        }
+
+        // Validation complete
+        this.broadcast(WebSocketMessageResponses.PHASE_VALIDATED, {
+            message: `Files validated for phase: ${phase.name}`,
+            phase: phase
+        });
+    
+        this.logger.info("Files generated for phase:", phase.name, finalFiles.map(f => f.file_path));
+    
+        this.logger.info(`Validation complete for phase: ${phase.name}`);
+    
+        // Notify phase completion
+        this.broadcast(WebSocketMessageResponses.PHASE_IMPLEMENTED, {
+            phase: {
+                name: phase.name,
+                files: finalFiles.map(f => ({
+                    path: f.file_path,
+                    purpose: f.file_purpose,
+                    contents: f.file_contents
+                })),
+                description: phase.description
+            },
+            message: "Files generated successfully for phase"
+        });
+    
         const previousPhases = this.state.generatedPhases;
         // Replace the phase with the new one
         const updatedPhases = previousPhases.map(p => p.name === phase.name ? {...p, completed: true} : p);
@@ -609,19 +718,12 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         });
 
         this.logger.info("Completed phases:", JSON.stringify(updatedPhases, null, 2));
-
-        // // Check and install dependencies asynchronously
-        // if (result.deploymentNeeded) {
-        //     this.ensureDependencies(result.files);
-        // }
-
-        // Execute commands if provided
-        if (result.commands && result.commands.length > 0) {
-            this.logger.info("Phase implementation suggested install commands:", result.commands);
-            await this.executeCommands(result.commands);
-        }
         
-        return result;
+        return {
+            files: finalFiles,
+            deploymentNeeded: result.deploymentNeeded,
+            commands: result.commands
+        };
     }
 
     /**
@@ -633,16 +735,22 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         const issues = await this.fetchAllIssues();
         this.resetIssues();
         const issueReport = IssueReport.from(issues);
-        
+
+        // Report discovered issues
+        this.broadcast(WebSocketMessageResponses.CODE_REVIEWING, {
+            message: "Running code review...",
+            staticAnalysis: issues.staticAnalysis,
+            clientErrors: issues.clientErrors,
+            runtimeErrors: issues.runtimeErrors
+        });
+
         const reviewResult = await this.operations.codeReview.execute(
             {issues: issueReport},
             {
                 env: this.env,
                 agentId: this.state.sessionId,
-                broadcaster: this.broadcaster!,
                 logger: this.logger,
                 context,
-                fileManager: this.fileManager!
             }
         );
         
@@ -656,6 +764,11 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         if (reviewResult.commands && reviewResult.commands.length > 0) {
             this.executeCommands(reviewResult.commands);
         }
+        // Notify review completion
+        this.broadcast(WebSocketMessageResponses.CODE_REVIEWED, {
+            review: reviewResult,
+            message: "Code review completed"
+        });
         
         return reviewResult;
     }
@@ -666,19 +779,30 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
      */
     async regenerateFile(file: FileOutputType, issues: string[], retryIndex: number = 0) {
         const context = GenerationContext.from(this.state, this.logger);
+        this.broadcast(WebSocketMessageResponses.FILE_REGENERATING, {
+            message: `Regenerating file: ${file.file_path}`,
+            file_path: file.file_path,
+            original_issues: issues,
+        });
         
         const result = await this.operations.regenerateFile.execute(
             {file, issues, retryIndex},
             {
                 env: this.env,
                 agentId: this.state.sessionId,
-                broadcaster: this.broadcaster!,
                 logger: this.logger,
                 context,
-                fileManager: this.fileManager!
             }
         );
 
+        this.fileManager.saveGeneratedFile(result);
+
+        this.broadcast(WebSocketMessageResponses.FILE_REGENERATED, {
+            message: `Regenerated file: ${file.file_path}`,
+            file: result,
+            original_issues: issues,
+        });
+        
         return result;
     }
 
@@ -803,6 +927,136 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
             // throw new Error(`Failed to lint code: ${errorMessage}`);
             return { success: false, lint: { issues: [], }, typecheck: { issues: [], } };
         }
+    }
+
+    // private async applyFastSmartCodeFixes() : Promise<void> {
+    //     try {
+    //         const startTime = Date.now();
+    //         this.logger.info("Applying fast smart code fixes");
+    //         // Get static analysis and do deterministic fixes
+    //         const staticAnalysis = await this.runStaticAnalysisCode();
+    //         if (staticAnalysis.typecheck.issues.length + staticAnalysis.lint.issues.length == 0) {
+    //             this.logger.info("No issues found, skipping fast smart code fixes");
+    //             return;
+    //         }
+    //         const issues = staticAnalysis.typecheck.issues.concat(staticAnalysis.lint.issues);
+    //         const allFiles = FileProcessing.getAllFiles(this.state.templateDetails, this.state.generatedFilesMap);
+    //         const context = GenerationContext.from(this.state, this.logger);
+
+    //         const fastCodeFixer = await this.operations.fastCodeFixer.execute({
+    //             query: this.state.query,
+    //             issues,
+    //             allFiles,
+    //         }, {
+    //             env: this.env,
+    //             agentId: this.state.sessionId,
+    //             context,
+    //             logger: this.logger
+    //         });
+
+    //         if (fastCodeFixer.length > 0) {
+    //             this.fileManager.saveGeneratedFiles(fastCodeFixer);
+    //             await this.deployToSandbox(fastCodeFixer);
+    //             this.logger.info("Fast smart code fixes applied successfully");
+    //         }
+    //         this.logger.info(`Fast smart code fixes applied in ${Date.now() - startTime}ms`);            
+    //     } catch (error) {
+    //         this.logger.error("Error applying fast smart code fixes:", error);
+    //         const errorMessage = error instanceof Error ? error.message : String(error);
+    //         this.broadcast(WebSocketMessageResponses.ERROR, { error: `Failed to apply fast smart code fixes: ${errorMessage}` });
+    //         return;
+    //     }
+    // }
+
+    /**
+     * Apply deterministic code fixes for common TypeScript errors
+     */
+    private async applyDeterministicCodeFixes() : Promise<StaticAnalysisResponse | undefined> {
+        try {
+            // Get static analysis and do deterministic fixes
+            const staticAnalysis = await this.runStaticAnalysisCode();
+            if (staticAnalysis.typecheck.issues.length == 0) {
+                this.logger.info("No typecheck issues found, skipping deterministic fixes");
+                return staticAnalysis;  // So that static analysis is not repeated again
+            }
+            const typeCheckIssues = staticAnalysis.typecheck.issues;
+            this.broadcast(WebSocketMessageResponses.DETERMINISTIC_CODE_FIX_STARTED, {
+                message: `Attempting to fix ${typeCheckIssues.length} TypeScript issues using deterministic code fixer`,
+                issues: typeCheckIssues
+            });
+
+            this.logger.info(`Attempting to fix ${typeCheckIssues.length} TypeScript issues using deterministic code fixer`);
+            const allFiles = FileProcessing.getAllFiles(this.state.templateDetails, this.state.generatedFilesMap);
+
+            // Create file fetcher callback
+            const fileFetcher: FileFetcher = async (filePath: string) => {
+                // Fetch a single file from the instance
+                try {
+                    const result = await this.getSandboxServiceClient().getFiles(this.state.sandboxInstanceId!, [filePath]);
+                    if (result.success && result.files.length > 0) {
+                        this.logger.info(`Successfully fetched file: ${filePath}`);
+                        return {
+                            file_path: filePath,
+                            file_contents: result.files[0].file_contents,
+                            file_purpose: `Fetched file: ${filePath}`
+                        };
+                    } else {
+                        this.logger.debug(`File not found: ${filePath}`);
+                    }
+                } catch (error) {
+                    this.logger.debug(`Failed to fetch file ${filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+                return null;
+            };
+            
+            const fixResult = await fixProjectIssues(
+                allFiles.map(file => ({
+                    file_path: file.file_path,
+                    file_contents: file.file_contents,
+                    file_purpose: ''
+                })),
+                typeCheckIssues,
+                fileFetcher
+            );
+
+            this.broadcast(WebSocketMessageResponses.DETERMINISTIC_CODE_FIX_COMPLETED, {
+                message: `Fixed ${typeCheckIssues.length} TypeScript issues using deterministic code fixer`,
+                issues: typeCheckIssues
+            });
+
+            if (fixResult) {
+                if (fixResult.modifiedFiles.length > 0) {
+                        this.logger.info("Applying deterministic fixes to files, Fixes: ", JSON.stringify(fixResult, null, 2));
+                        const fixedFiles = fixResult.modifiedFiles.map(file => ({
+                            file_path: file.file_path,
+                            file_purpose: allFiles.find(f => f.file_path === file.file_path)?.file_purpose || '',
+                            file_contents: file.file_contents
+                    }));
+                    this.fileManager.saveGeneratedFiles(fixedFiles);
+                    
+                    await this.deployToSandbox(fixedFiles);
+                    this.logger.info("Deployed deterministic fixes to sandbox");
+                }
+
+                // If there are unfixable issues but of type TS2307, Extract the module that wasnt found and maybe try installing it
+                if (fixResult.unfixableIssues.length > 0) {
+                    const modulesNotFound = fixResult.unfixableIssues.filter(issue => issue.issueCode === 'TS2307');
+                    // Reason would be of type `External package \"xyz\" should be handled by package manager`, extract via regex
+                    const moduleNames = modulesNotFound.map(issue => issue.reason.match(/External package "(.+)"/)?.[1]);
+                    
+                    // Execute command
+                    await this.executeCommands(moduleNames.map(moduleName => `bun install ${moduleName}`));
+                    this.logger.info(`Deterministic code fixer installed missing modules: ${moduleNames.join(', ')}`);
+                }
+            }
+            this.logger.info(`Applied deterministic code fixes: ${JSON.stringify(fixResult, null, 2)}`);
+        } catch (error) {
+            this.logger.error('Error applying deterministic code fixes:', error);
+            this.broadcast(WebSocketMessageResponses.ERROR, {
+                error: `Deterministic code fixer failed: ${error instanceof Error ? error.message : String(error)}`
+            });
+        }
+        // return undefined;
     }
 
 
@@ -953,6 +1207,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                         await this.executeDeployment([], true);
                     }
                 }, 2000);
+
+                // Launch a static analysis on the codebase in the background to build cache
+                this.runStaticAnalysisCode();
             }
 
             // Deploy files
@@ -1114,9 +1371,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
                 env: this.env,
                 agentId: this.state.sessionId,
                 context,
-                logger: this.logger,
-                broadcaster: this.broadcaster!,
-                fileManager: this.fileManager!
+                logger: this.logger
             }
         );
 
@@ -1647,31 +1902,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
         }
     }
 
-
-    // /**
-    //  * Ensure project dependencies are installed
-    //  * Runs asynchronously without blocking
-    //  */
-    // private ensureDependencies(newFiles: FileOutputType[]): void {
-    //     try {
-    //         const dependencies = this.getDependencies();
-
-    //         // Execute asynchronously
-    //         this.getProjectSetupAssistant().ensureDependencies(
-    //             newFiles,
-    //             dependencies
-    //         ).then(commands => {
-    //             if (commands?.commands) {
-    //                 this.executeCommands(commands.commands);
-    //             }
-    //         }).catch(error => {
-    //             this.logger.error('Error ensuring dependencies:', error);
-    //         });
-    //     } catch (error) {
-    //         this.logger.error('Error ensuring dependencies:', error);
-    //     }
-    // }
-
     /**
      * Update database with generation status
      */
@@ -1690,8 +1920,18 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> implement
 
             // Process the user message using conversational assistant
             const conversationalResponse = await this.operations.processUserMessage.execute(
-                { userMessage, pastMessages: this.state.conversationMessages }, 
-                { env: this.env, agentId: this.state.sessionId, context, logger: this.logger, broadcaster: this.broadcaster }
+                { 
+                    userMessage, 
+                    pastMessages: this.state.conversationMessages,
+                    conversationResponseCallback: (message: string, conversationId: string, isStreaming: boolean) => {
+                        this.broadcast(WebSocketMessageResponses.CONVERSATION_RESPONSE, {
+                            message,
+                            conversationId,
+                            isStreaming,
+                        });
+                    }
+                }, 
+                { env: this.env, agentId: this.state.sessionId, context, logger: this.logger}
             );
 
             const { conversationResponse, newMessages } = conversationalResponse;

@@ -1,6 +1,7 @@
 import type { Blueprint, ClientReportedErrorType, CodeReviewOutputType, FileConceptType, FileOutputType, TechnicalInstructionType } from "./schemas";
 import type { CodeGenState } from "./core/state";
-import type { RuntimeError, StaticAnalysisResponse } from "../services/sandbox/sandboxTypes";
+import type { CodeIssue, RuntimeError, StaticAnalysisResponse } from "../services/sandbox/sandboxTypes";
+import type { CodeFixResult } from "../services/code-fixer";
 
 /**
  * Generation REST API response
@@ -280,6 +281,18 @@ type ConversationResponseMessage = {
 	isStreaming?: boolean;
 };
 
+type DeterministicCodeFixStartedMessage = {
+	type: 'deterministic_code_fix_started';
+	message: string;
+    issues: CodeIssue[];
+};
+
+type DeterministicCodeFixCompletedMessage = {
+	type: 'deterministic_code_fix_completed';
+	message: string;
+    fixResult: CodeFixResult;
+};
+
 export type WebSocketMessage =
 	| StateMessage
 	| GenerationStartedMessage
@@ -317,7 +330,9 @@ export type WebSocketMessage =
 	| ErrorMessage
 	| UserSuggestionsProcessingMessage
 	| UserSuggestionsProcessedMessage
-	| ConversationResponseMessage;
+	| ConversationResponseMessage
+    | DeterministicCodeFixStartedMessage
+    | DeterministicCodeFixCompletedMessage;
 
 // A type representing all possible message type strings (e.g., 'generation_started', 'file_generating', etc.)
 export type WebSocketMessageType = WebSocketMessage['type'];

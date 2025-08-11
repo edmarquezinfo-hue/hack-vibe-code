@@ -65,6 +65,7 @@
 		"@types/html2canvas": "^0.5.35",
 		"@typescript-eslint/eslint-plugin": "^8.38.0",
 		"@typescript-eslint/parser": "^8.38.0",
+		"@typescript-eslint/typescript-estree": "^8.39.0",
 		"@xyflow/react": "12",
 		"agents": "^0.0.109",
 		"algorithms-and-data-structures": "^0.0.6",
@@ -127,6 +128,7 @@
 	"devDependencies": {
 		"@cloudflare/vite-plugin": "^1.11.1",
 		"@cloudflare/vitest-pool-workers": "^0.8.55",
+		"@cloudflare/workers-types": "^4.20250810.0",
 		"@eslint/js": "^9.25.1",
 		"@tailwindcss/typography": "^0.5.16",
 		"@tailwindcss/vite": "^4.1.11",

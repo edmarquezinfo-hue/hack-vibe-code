@@ -13,6 +13,7 @@ import { getToolDefinitions } from "../tools/customTools";
 export interface UserConversationInputs {
     userMessage: string;
     pastMessages: ConversationMessage[];
+    conversationResponseCallback: (message: string, conversationId: string, isStreaming: boolean) => void;
 }
 
 export interface UserConversationOutputs {
@@ -59,45 +60,9 @@ The output format is as follows (Use xml tags):
 {{user_response}}
 </user_response>`;
 
-// const CONVERSATION_USER_PROMPT = `<TASK>
-// The user has provided feedback or a request about their web application project. Your job is to:
-
-// 1. **Understand the user's intent** - What are they trying to achieve or improve?
-// 2. **Provide a helpful response** - Acknowledge their request, explain current status if relevant, and set expectations
-// 3. **Create an enhanced request** - Transform their input into a clear, detailed request for the technical team
-
-// Be friendly and professional. If the user's request is unclear, acknowledge what you understand and ask for clarification in your response.
-// </TASK>
-
-// <PROJECT CONTEXT>
-// <ORIGINAL_QUERY>
-// {{query}}
-// </ORIGINAL_QUERY>
-
-// <BLUEPRINT>
-// {{blueprint}}
-// </BLUEPRINT>
-
-// <CURRENT_PROJECT_STATUS>
-// {{projectStatus}}
-// </CURRENT_PROJECT_STATUS>
-
-// <TEMPLATE_DETAILS>
-// {{template}}
-// </TEMPLATE_DETAILS>
-// </PROJECT_CONTEXT>
-
-// <USER_MESSAGE>
-// {{userMessage}}
-// </USER_MESSAGE>
-
-// Please respond with:
-// 1. A helpful response to send back to the user
-// 2. An enhanced, clarified version of their request for the development team`;
-
 export class UserConversationProcessor extends AgentOperation<UserConversationInputs, UserConversationOutputs> {
     async execute(inputs: UserConversationInputs, options: OperationOptions): Promise<UserConversationOutputs> {
-        const { env, logger, context, broadcaster } = options;
+        const { env, logger, context } = options;
         const { userMessage, pastMessages } = inputs;
         logger.info("Processing user message", { 
             messageLength: inputs.userMessage.length,
@@ -168,11 +133,7 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
                                 const finalContent = buffer.substring(0, endMatch.index);
                                 if (finalContent) {
                                     userResponse += finalContent;
-                                    broadcaster!.broadcast(WebSocketMessageResponses.CONVERSATION_RESPONSE, {
-                                        message: finalContent,
-                                        conversationId: aiConversationId,
-                                        isStreaming: true
-                                    });
+                                    inputs.conversationResponseCallback(finalContent, aiConversationId, true);
                                     logger.info("Streamed final user_response chunk", { length: finalContent.length });
                                 }
                                 isInUserResponse = false;
@@ -181,11 +142,7 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
                                 // Stream current buffer content
                                 if (buffer) {
                                     userResponse += buffer;
-                                    broadcaster!.broadcast(WebSocketMessageResponses.CONVERSATION_RESPONSE, {
-                                        message: buffer,
-                                        conversationId: aiConversationId,
-                                        isStreaming: true
-                                    });
+                                    inputs.conversationResponseCallback(buffer, aiConversationId, true);
                                     logger.info("Streamed user_response chunk", { length: buffer.length });
                                     buffer = ''; // Clear buffer after streaming
                                 }

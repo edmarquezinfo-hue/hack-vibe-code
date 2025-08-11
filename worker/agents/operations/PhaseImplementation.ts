@@ -1,20 +1,32 @@
-import { PhaseConceptType, FileOutputType, PhaseImplementationSchemaType, PhaseConceptSchema, TechnicalInstructionType } from '../schemas';
+import { PhaseConceptType, FileOutputType, PhaseConceptSchema, TechnicalInstructionType } from '../schemas';
 import { IssueReport } from '../domain/values/IssueReport';
 import { createUserMessage } from '../inferutils/common';
 import { executeInference } from '../inferutils/inferenceUtils';
 import { issuesPromptFormatter, PROMPT_UTILS, STRATEGIES } from '../prompts';
-import { WebSocketMessageResponses } from '../constants';
 import { CodeGenerationStreamingState } from '../code-formats/base';
 import { FileProcessing } from '../domain/pure/FileProcessing';
-import { RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
+// import { RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
 import { AgentOperation, getSystemPromptWithProjectContext, OperationOptions } from '../operations/common';
 import { SCOFFormat, SCOFParsingState } from '../code-formats/scof';
 import { TemplateRegistry } from '../inferutils/schemaFormatters';
+import { RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
+import { AGENT_CONFIG } from '../config';
 
 export interface PhaseImplementationInputs {
     phase: PhaseConceptType
     issues: IssueReport
     technicalInstructions?: TechnicalInstructionType | null
+    isFirstPhase: boolean
+    fileGeneratingCallback: (file_path: string, file_purpose: string) => void
+    fileChunkGeneratedCallback: (file_path: string, chunk: string, format: 'full_content' | 'unified_diff') => void
+    fileClosedCallback: (file: FileOutputType, message: string) => void
+}
+
+export interface PhaseImplementationOutputs{
+    // rawFiles: FileOutputType[]
+    fixedFilePromises: Promise<FileOutputType>[]
+    deploymentNeeded: boolean
+    commands: string[]
 }
 
 export const SYSTEM_PROMPT = `<ROLE>
@@ -76,7 +88,7 @@ const USER_PROMPT = `**IMPLEMENT THE FOLLOWING PROJECT PHASE**
 
 <INSTRUCTIONS & CODE QUALITY STANDARDS>
 These are the instructions and quality standards that must be followed to implement this phase.
-    •   **Code Quality:** Write clean, modular, maintainable, and efficient code. Use meaningful names. Keep functions small and focused. Apply modern best practices for the frameworks being used. Use TypeScript types/interfaces diligently.
+    •   **Code Quality:** Write robust, resilient, reliable and efficient code. Use meaningful names. Keep functions small and focused. Define everything before using. Apply modern best practices for the frameworks being used.
     •   **CRITICAL: Define Before Use:** Ensure ALL variables, functions, classes, and components are declared/imported *before* they are referenced within their scope. Avoid Temporal Dead Zone (TDZ) errors religiously. Check function hoisting rules.
     •   **Valid Imports:** Double-check that all imports reference existing files (either from the codebase, previous generation steps, or the file you are currently generating internal helpers for) or installed dependencies (<DEPENDENCIES>). Verify paths are correct.
     •   **Robustness & Error Handling:** Write safe, fault tolerant code that anticipates potential issues. Include necessary error handling (e.g., for API calls, data validation) and sensible fallbacks. Prevent runtime crashes. Handle asynchronous operations correctly.
@@ -86,22 +98,19 @@ These are the instructions and quality standards that must be followed to implem
     •   **Dependency Verification:** **ONLY** use libraries specified in <DEPENDENCIES>. No other libraries are allowed or exist.
     •   **Performance:** Write efficient code. Avoid unnecessary computations or re-renders.
     •   **Styling:** Use the specified CSS approach consistently (e.g., CSS Modules, Tailwind). Ensure class names match CSS definitions.
-    •   **BUG FREE CODE:** Write code that is free of errors and typos. Ensure all syntax is correct and all imports are valid. We cannot afford to release code with errors and you will only be given a single attempt.
+    •   **BUG FREE CODE:** Write good quality bug free code of the highest standards. Ensure all syntax is correct and all imports are valid. 
     •   **Please thorouhgly review the tailwind.config.js file and existing styling css files, and make sure you use only valid defined Tailwind classes in your css. Using a class that is not defined in tailwind.config.js will lead to a crash which is very bad.**
     •   **Ensure there are no syntax errors or typos such as \`border-border\` (undefined) in tailwind instead of \`border\` (real class)**
     •   **You are not permitted to directly interfere or overwrite any of the core config files such as package.json, linting configs, tsconfig etc. except some exceptions**
     •   **Refrain from writing any SVG from scratch. Use existing public svgs or from an asset library installed in the project. Do not use any asset libraries that are not already installed in the project.**
     •   **Don't have other exports with react components in the same file, move the exports to a separate file. Use a named function for your React component. Rename your component name to pascal case.**
     •   **Always review the whole codebase to identify and fix UI issues (spacing, alignment, margins, paddings, etc.), syntax errors, typos, and logical flaws**
-    •   **No touchscreen support required for now. **DO NOT USE LIBRARIES SUCH AS 'react-swipeable', They are simply not installed! **
     •   **Do not use any unicode characters in the code. Stick to only outputing valid ASCII characters. Close strings with appropriate quotes.**
     •   **Try to wrap all essential code in try-catch blocks to isolate errors and prevent application crashes. Treat this project as mission critical**
     •   **In the footer of pages, you can mention the following: "Built with <love emoji> at Cloudflare"**
-    •   **Follow DRY principles by heart, Always research and understand the codebase before making changes. Understand the patterns used in the codebase**
+    •   **Follow DRY principles by heart, Always research and understand the codebase before making changes. Understand the patterns used in the codebase. Do more in less code, be efficient with code**
     •   Make sure every component, variable, function, class, and type is defined before it is used. 
     •   Make sure everything that is needed is exported correctly from relevant files. Do not put duplicate 'default' exports.
-    •   While rewriting a .tsx file, Make sure you correct any setState calls in useEffect or any other lifecycle method.
-        - Mentally simulate the linting rule \`react-hooks/exhaustive-deps\`.
     •   You may need to rewrite a file from a *previous* phase *if* you identify a critical issue or runtime errors in it.
     •   If any previous phase files were not made correctly or were corrupt, You shall also rewrite them in this phase. You are to ensure that the entire codebase is correct and working as expected.
     •   **Write the whole, raw contents for every file (\`full_content\` format). Do not use diff format.**
@@ -112,61 +121,14 @@ These are the instructions and quality standards that must be followed to implem
         - Write all backend code with correct logic, data flow and proper error handling in mind.
         - Always stick to best design practices, DRY principles and SOLID principles.
     •   **ALWAYS export ALL the components, variables, functions, classes, and types from each and every file**
+
+Also understand the following:
+${PROMPT_UTILS.REACT_RENDER_LOOP_PREVENTION}
 </INSTRUCTIONS & CODE QUALITY STANDARDS>
 
-<appendix>
-The most important class of errors is the "Maximum update depth exceeded" error which you definetly need to identify and fix. 
-Common causes and solutions:
-    - Setting state directly in the component body:
-        Problem: Updating state directly in the component body causes a re-render, which again triggers the state update, creating a loop.
-        Solution: Move state updates to event handlers or the useEffect hook, according to tigerabrodi.blog.
-    - Missing or incorrect useEffect dependency array:
-        Problem: If useEffect doesn't have a dependency array or its dependencies change on every render, the effect runs endlessly, leading to state updates and re-renders.
-        Solution: Add the appropriate dependencies to the array, ensuring the effect only runs when necessary.
-    - Circular dependencies:
-        Problem: When state updates in a useEffect indirectly trigger changes in its own dependencies, a circular dependency is created, causing an infinite loop.
-        Solution:
-            - Combine related state: Store related state in a single object and update it atomically.
-            - Use useReducer for complex state: For intricate state logic, useReducer can help manage updates more effectively, says tigerabrodi.blog.
-    - Inefficient component rendering:
-        Problem: Unnecessary re-renders of child components can contribute to the "maximum update depth exceeded" error.
-        Solution: Utilize React.memo() or PureComponent to optimize rendering and prevent unnecessary updates when props or state haven't changed, says Coding Beast.
-    - Incorrectly passing functions as props:
-        Problem: Passing a function call directly to an event handler instead of a function reference can trigger constant re-renders.
-        Solution: Ensure you're passing a function reference (e.g., onClick={this.toggle}) to the handler, not calling the function directly (e.g., onClick={this.toggle()}).
-AI agent code specific considerations:
-    - Carefully review agent-generated code: AI agents, while helpful, can sometimes introduce subtle bugs, particularly when dealing with complex state management.
-    - Look for redundant re-renders and circular updates: Specifically, examine useEffect hooks and state updates within them, especially in components involving dependencies that are themselves modified within the effect.
-Additional tips:
-    - Use memoization: Employ useCallback for functions and useMemo for values to prevent unnecessary re-creations and re-renders, according to DEV Community.
-By understanding these common causes and applying the suggested solutions, especially when working with agent-generated code, you can effectively resolve "Maximum update depth exceeded" errors in your React applications. 
+Every single file listed in <CURRENT_PHASE> needs to be implemented in this phase, based on the provided <OUTPUT FORMAT>.
 
-For example, the following piece of code would lead to "Maximum update depth exceeded" error:
-\`\`\`
-export default function App() {
-  const { score, bestScore, startGame, handleMove } = useGameStore((state) => ({
-    score: state.score,
-    bestScore: state.bestScore,
-    startGame: state.startGame,
-    handleMove: state.handleMove,
-  }));
-  ...
-\`\`\`
-here useGameStore is a zustand selector. This creates a new object reference each time, making Zustand think the state changed.
-It can be fixed by simply using individual selectors:
-\`\`\`
-export default function App() {
-    const score = useGameStore((state) => state.score);
-    const bestScore = useGameStore((state) => state.bestScore);
-    const startGame = useGameStore((state) => state.startGame);
-    const handleMove = useGameStore((state) => state.handleMove);
-\`\`\`
-</appendix>
-
-Every single file listed in <CURRENT_PHASE> needs to be implemented in the order its listed, and implemented **ONLY ONCE** in this phase, based on the provided <OUTPUT FORMAT>.
-There shouldn't be any syntax errors or bugs or issues in your implementation.
-
-**MAKE SURE THERE ARE NO COMPONENT RERENDERING INFINITE LOOPS OR setState inside render or without dependencies. IF YOU MISTAKENLY WRITE SUCH CODE, REWRITE THE WHOLE FILE AGAIN**
+**MAKE SURE THERE ARE NO COMPONENT RERENDERING INFINITE LOOPS OR setState inside render. IF YOU MISTAKENLY WRITE SUCH CODE, REWRITE THE WHOLE FILE AGAIN**
 **ALSO THIS NEXT PHASE SHOULDN'T BREAK ANYTHING FROM THE PREVIOUS PHASE. ANY FUNCTIONALITY SHOULDN'T BE BROKEN! WE HAVE A LOT OF CASES OF THIS HAPPENING IN THE PAST**
 
 ${PROMPT_UTILS.COMMON_DEP_DOCUMENTATION}
@@ -272,13 +234,13 @@ const userPropmtFormatter = (phaseConcept: PhaseConceptType, issues: IssueReport
     return PROMPT_UTILS.verifyPrompt(prompt);
 }
 
-export class PhaseImplementationOperation extends AgentOperation<PhaseImplementationInputs, PhaseImplementationSchemaType> {
+export class PhaseImplementationOperation extends AgentOperation<PhaseImplementationInputs, PhaseImplementationOutputs> {
     async execute(
         inputs: PhaseImplementationInputs,
         options: OperationOptions
-    ): Promise<PhaseImplementationSchemaType> {
+    ): Promise<PhaseImplementationOutputs> {
         const { phase, issues, technicalInstructions } = inputs;
-        const { env, broadcaster, logger, context, fileManager } = options;
+        const { env, logger, context } = options;
         
         const instructionsInfo = technicalInstructions 
             ? `with ${technicalInstructions.instructions.length} technical instructions (${technicalInstructions.priority} priority)`
@@ -287,14 +249,6 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
         logger.info(`Generating files for phase: ${phase.name} ${instructionsInfo}`, phase.description, "files:", phase.files.map(f => f.path));
     
         // Notify phase start
-        broadcaster!.broadcast(WebSocketMessageResponses.PHASE_IMPLEMENTING, {
-            message: technicalInstructions 
-                ? `Implementing phase: ${phase.name} with ${technicalInstructions.instructions.length} user instructions`
-                : `Implementing phase: ${phase.name}`,
-            phase: phase,
-            technicalInstructions: technicalInstructions
-        });
-    
         const codeGenerationFormat = new SCOFFormat();
         // Build messages for generation
         const messages = getSystemPromptWithProjectContext(SYSTEM_PROMPT, context, true);
@@ -309,18 +263,23 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
     
         const fixedFilePromises: Promise<FileOutputType>[] = [];
         
-        // Pre-compute expensive operations outside the callback for efficiency
-        const filesBeingGenerated = new Set(phase.files.map(f => f.path));
-        const allFilesLookup = context.allFiles.reduce((acc, file) => ({ ...acc, [file.file_path]: file }), {});
+        // // Pre-compute expensive operations outside the callback for efficiency
+        // const filesBeingGenerated = new Set(phase.files.map(f => f.path));
+        // const allFilesLookup = context.allFiles.reduce((acc, file) => ({ ...acc, [file.file_path]: file }), {});
         
-        // Pre-filter existing files that won't be generated in this phase
-        const existingFilesNotBeingGenerated = context.allFiles
-            .filter(f => !filesBeingGenerated.has(f.file_path))
-            .map(f => ({
-                file_path: f.file_path,
-                file_contents: f.file_contents,
-                file_purpose: FileProcessing.findFilePurpose(f.file_path, phase, allFilesLookup)
-            }));
+        // // Pre-filter existing files that won't be generated in this phase
+        // const existingFilesNotBeingGenerated = context.allFiles
+        //     .filter(f => !filesBeingGenerated.has(f.file_path))
+        //     .map(f => ({
+        //         file_path: f.file_path,
+        //         file_contents: f.file_contents,
+        //         file_purpose: FileProcessing.findFilePurpose(f.file_path, phase, allFilesLookup)
+        //     }));
+
+        let modelConfig = AGENT_CONFIG.phaseImplementation;
+        if (inputs.isFirstPhase) {
+            modelConfig = AGENT_CONFIG.firstPhaseImplementation;
+        }
     
         // Execute inference with streaming
         await executeInference({
@@ -328,6 +287,7 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
             env: env,
             schemaName: "phaseImplementation",
             messages,
+            modelConfig,
             stream: {
                 chunk_size: 256,
                 onChunk: (chunk: string) => {
@@ -337,18 +297,11 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
                         // File generation started
                         (file_path: string) => {
                             logger.info(`Starting generation of file: ${file_path}`);
-                            broadcaster!.broadcast(WebSocketMessageResponses.FILE_GENERATING, {
-                                file_path,
-                                file_purpose: FileProcessing.findFilePurpose(file_path, phase, context.allFiles.reduce((acc, f) => ({ ...acc, [f.file_path]: f }), {}))
-                            });
+                            inputs.fileGeneratingCallback(file_path, FileProcessing.findFilePurpose(file_path, phase, context.allFiles.reduce((acc, f) => ({ ...acc, [f.file_path]: f }), {})));
                         },
                         // Stream file content chunks
                         (file_path: string, fileChunk: string, format: 'full_content' | 'unified_diff') => {
-                            broadcaster!.broadcast(WebSocketMessageResponses.FILE_CHUNK_GENERATED, {
-                                file_path,
-                                chunk: fileChunk,
-                                format,
-                            });
+                            inputs.fileChunkGeneratedCallback(file_path, fileChunk, format);
                         },
                         // onFileClose callback
                         (file_path: string) => {
@@ -376,38 +329,37 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
                                 )
                             };
     
-                            // Build previousFiles efficiently using pre-computed values
-                            // Get files already generated in this phase (excluding current file)
-                            const generatedFilesInPhase = Array.from(streamingState.completedFiles.values())
-                                .filter(f => f.file_path !== file_path)
-                                .map(f => ({
-                                    file_path: f.file_path,
-                                    file_contents: f.file_contents,
-                                    file_purpose: FileProcessing.findFilePurpose(f.file_path, phase, allFilesLookup)
-                                }));
+                            // // Build previousFiles efficiently using pre-computed values
+                            // // Get files already generated in this phase (excluding current file)
+                            // const generatedFilesInPhase = Array.from(streamingState.completedFiles.values())
+                            //     .filter(f => f.file_path !== file_path)
+                            //     .map(f => ({
+                            //         file_path: f.file_path,
+                            //         file_contents: f.file_contents,
+                            //         file_purpose: FileProcessing.findFilePurpose(f.file_path, phase, allFilesLookup)
+                            //     }));
                             
-                            // Combine pre-computed existing files + already generated files for realtime code fixer
-                            const previousFiles = [...existingFilesNotBeingGenerated, ...generatedFilesInPhase];
+                            // // Combine pre-computed existing files + already generated files for realtime code fixer
+                            // const previousFiles = [...existingFilesNotBeingGenerated, ...generatedFilesInPhase];
 
                             // Call realtime code fixer immediately - this is the "realtime" aspect
                             const realtimeCodeFixer = new RealtimeCodeFixer(env, options.agentId);
                             const fixPromise = realtimeCodeFixer.run(
                                 generatedFile, 
                                 {
-                                    previousFiles: previousFiles,
+                                    // previousFiles: previousFiles,
                                     query: context.query,
                                     blueprint: context.blueprint,
                                     template: context.templateDetails
                                 },
                                 phase
                             );
+
+                            // const fixPromise = Promise.resolve(generatedFile);
                             
                             fixedFilePromises.push(fixPromise);
     
-                            broadcaster!.broadcast(WebSocketMessageResponses.FILE_GENERATED, {
-                                file: generatedFile,
-                                message: `Completed generation of ${file_path}`
-                            });
+                            inputs.fileClosedCallback(generatedFile, `Completed generation of ${file_path}`);
                         }
                     );
                 }
@@ -420,51 +372,10 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
 
         logger.info("Files generated for phase:", phase.name, "with", fixedFilePromises.length, "files being fixed in real-time and extracted install commands:", commands);
     
-        broadcaster!.broadcast(WebSocketMessageResponses.PHASE_VALIDATING, {
-            message: `Validating files for phase: ${phase.name}`,
-            phase: phase
-        });
-    
-        // Await the already-created realtime code fixer promises
-        const fixedFiles = await Promise.allSettled(fixedFilePromises).then((results: PromiseSettledResult<FileOutputType>[]) => {
-            return results.map((result) => {
-                if (result.status === 'fulfilled') {
-                    return result.value;
-                } else {
-                    return null;
-                }
-            }).filter((f): f is FileOutputType => f !== null);
-        });
-    
-        logger.info(`Validation complete for phase: ${phase.name}`);
-        // Validation complete
-        broadcaster!.broadcast(WebSocketMessageResponses.PHASE_VALIDATED, {
-            message: `Files validated for phase: ${phase.name}`,
-            phase: phase
-        });
-    
-        logger.info("Files generated for phase:", phase.name, fixedFiles.map(f => f.file_path));
-    
-        // Update state with completed phase
-        fileManager!.saveGeneratedFiles(fixedFiles);
-    
-        // Notify phase completion
-        broadcaster!.broadcast(WebSocketMessageResponses.PHASE_IMPLEMENTED, {
-            phase: {
-                name: phase.name,
-                files: fixedFiles.map(f => ({
-                    path: f.file_path,
-                    purpose: f.file_purpose,
-                    contents: f.file_contents
-                })),
-                description: phase.description
-            },
-            message: "Files generated successfully for phase"
-        });
-    
         // Return generated files for validation and deployment
         return {
-            files: fixedFiles,
+            // rawFiles: generatedFilesInPhase,
+            fixedFilePromises,
             deploymentNeeded: fixedFilePromises.length > 0,
             commands,
         };

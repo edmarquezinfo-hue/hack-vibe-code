@@ -42,6 +42,9 @@ export const WebSocketMessageResponses: Record<string, WebSocketMessageType> = {
     // Generation control messages
     GENERATION_STOPPED: 'generation_stopped',
     GENERATION_RESUMED: 'generation_resumed',
+
+    DETERMINISTIC_CODE_FIX_STARTED: 'deterministic_code_fix_started',
+    DETERMINISTIC_CODE_FIX_COMPLETED: 'deterministic_code_fix_completed',
     
     // GitHub export messages
     GITHUB_EXPORT_STARTED: 'github_export_started',

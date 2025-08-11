@@ -24,18 +24,17 @@ Frameworks: ${template.frameworks?.join(', ')}
 
 ${forCodegen ? `` : `
 <TEMPLATE_CORE_FILES>
-**SHADCN COMPONENTS ARE PRESENT AND INSTALLED BUT EXCLUDED FROM THESE FILES DUE TO CONTEXT SPAM**
+**SHADCN COMPONENTS, Error boundary components and use-toast hook ARE PRESENT AND INSTALLED BUT EXCLUDED FROM THESE FILES DUE TO CONTEXT SPAM**
 ${filesText}
-</TEMPLATE_CORE_FILES>
+</TEMPLATE_CORE_FILES>`}
 
 <TEMPLATE_FILE_TREE>
-**SHADCN COMPONENTS ARE PRESENT AND INSTALLED BUT EXCLUDED FROM THESE FILES DUE TO CONTEXT SPAM**
+**Use these files as a reference for the file structure, components and hooks that are present**
 ${JSON.stringify(template.fileTree, null, 2)}
 </TEMPLATE_FILE_TREE>
 
 Apart from these files, All SHADCN Components are present in ./src/components/ui/* and can be imported from there, example: import { Button } from "@/components/ui/button";
 **Please do not rewrite these components, just import them and use them**
-`}
 
 Template Usage Instructions: 
 ${template.description.usage}
@@ -119,12 +118,225 @@ ${staticAnalysis.typecheck?.rawOutput || 'N/A'}
         }));
     },
 
+    REACT_RENDER_LOOP_PREVENTION: `<REACT_RENDER_LOOP_PREVENTION>
+In React, “Maximum update depth exceeded” means something in your component tree is setting state in a way that immediately triggers another render, which sets state again… and you've created a render→setState→render loop. React aborts after ~50 nested updates and throws this error.
+Here's how and why it happens most often and what to do about it.
+
+# Why it happens (typical patterns)
+
+  * **State update during render**
+
+    \`\`\`tsx
+    function Bad() {
+        const [n, setN] = useState(0);
+        setN(n + 1); // ❌ runs on every render -> infinite loop
+        return <div>{n}</div>;
+    }
+    \`\`\`
+
+  * **useEffect without a dependency array**
+
+    \`\`\`tsx
+    // BAD CODE ❌ This effect runs after every render, causing an infinite loop.
+    function BadCounter() {
+      const [count, setCount] = useState(0);
+      useEffect(() => {
+        setCount(prevCount => prevCount + 1);
+      }); // No dependency array
+      return <div>{count}</div>;
+    }
+    \`\`\`
+
+  * **useEffect with a self-dependency and unconditional set**
+
+    \`\`\`tsx
+    // BAD CODE ❌ The filters object is a new reference on every render.
+    // The effect runs, calls setFilters, which creates a new reference, which triggers the effect again.
+    useEffect(() => {
+        setFilters({ ...filters }); // new object each time
+    }, [filters]); // ❌ changing filters causes effect, which changes filters again
+    \`\`\`
+
+  * **Parent/child feedback loop via props**
+
+      * Child effect updates parent state → parent rerenders → child gets new props → child effect runs again, etc.
+
+  * **useLayoutEffect that sets state synchronously**
+
+      * Same as useEffect loops, but before paint, so it blows up faster.
+
+  * **Derived state that always changes**
+
+      * This happens when a dependency for a hook is an object or array that is re-created on every single render.
+
+    \`\`\`tsx
+    // BAD CODE ❌ The \`computed\` object is a new identity on every render.
+    const [v, setV] = useState(0);
+    const computed = { v };
+    useEffect(() => { setV(v); }, [computed]);
+    \`\`\`
+
+      * This is very common with state management libraries like Zustand or Redux if not used carefully.
+
+    \`\`\`tsx
+    // BAD CODE ❌ useGameStore selector creates a new object reference on every render.
+    const { score, bestScore } = useGameStore((state) => ({
+      score: state.score,
+      bestScore: state.bestScore,
+    }));
+    \`\`\`
+
+  * **LLM-generated code smells**
+
+      * Unconditional setters in effects, “mirror props to state” patterns, setting state inside \`useMemo\`/\`useCallback\`, or subscribing inside render.
+
+# How to avoid it (quick checklist)
+
+  * **Never set state during render.** Only in event handlers, effects, or async callbacks.
+
+    \`\`\`tsx
+    // GOOD CODE ✅ State is updated inside an event handler, not during render.
+    function GoodButton() {
+      const [toggled, setToggled] = useState(false);
+      const handleClick = () => {
+        setToggled(!toggled); // Safe: only runs on user interaction.
+      };
+      return <button onClick={handleClick}>Toggle</button>;
+    }
+    \`\`\`
+
+  * **Give effects correct dependencies** and make updates **conditional**.
+
+    \`\`\`tsx
+    // GOOD CODE ✅ Effect only runs if \`userId\` changes.
+    function UserData({ userId }) {
+      const [user, setUser] = useState(null);
+      useEffect(() => {
+        if (userId) { // Conditional logic inside the effect
+          fetchUser(userId).then(data => setUser(data));
+        }
+      }, [userId]); // Dependency array prevents the loop
+      return <div>{user ? user.name : 'Loading...'}</div>;
+    }
+    \`\`\`
+
+  * **Avoid “prop → state” mirrors** unless you can prove it stabilizes (or derive on the fly). This anti-pattern often causes loops.
+
+    \`\`\`tsx
+    // BAD CODE ❌ This creates a loop if the parent re-renders for any reason.
+    function BadMirror({ propValue }) {
+      const [localState, setLocalState] = useState(propValue);
+      useEffect(() => {
+        setLocalState(propValue);
+      }, [propValue]);
+      return <div/>;
+    }
+
+    // GOOD CODE ✅ Derive the value directly during render. No state or effects needed.
+    function GoodDerived({ propValue }) {
+      const derivedValue = propValue.toUpperCase();
+      return <div>{derivedValue}</div>;
+    }
+    \`\`\`
+
+  * **Stabilize identities**: memoize objects/arrays passed as props or used as dependencies.
+
+    \`\`\`tsx
+    // GOOD CODE ✅ \`useMemo\` stabilizes the object, \`useCallback\` stabilizes the function.
+    const config = useMemo(() => ({ a, b }), [a, b]);
+    const handleClick = useCallback(() => {
+      // do something
+    }, [dep1, dep2]);
+
+    // GOOD CODE ✅ For Zustand/Redux, select primitive values individually.
+    const score = useGameStore((state) => state.score);
+    const bestScore = useGameStore((state) => state.bestScore);
+    \`\`\`
+
+  * **Use functional updates** and equality guards to prevent no-op loops.
+
+    \`\`\`tsx
+    // GOOD CODE ✅ Prevents a re-render if the next state is the same as the previous.
+    setState(prev => prev === next ? prev : next);
+    \`\`\`
+
+  * **Prefer refs for non-UI data** that shouldn't cause rerenders.
+
+    \`\`\`tsx
+    // GOOD CODE ✅ Updating a ref does not trigger a re-render.
+    const latest = useRef(value);
+    latest.current = value;
+    \`\`\`
+
+  * **Break parent↔child cycles**: lift state to one place, or pass callbacks that are idempotent/guarded.
+
+  * **For layout work**, use \`useEffect\` instead of \`useLayoutEffect\` unless you truly need sync, and still guard updates.
+
+  * **State within Recursive Components**
+
+    - **BAD CODE ❌**: Never initialize state inside a component that calls itself. Each recursive call creates a new, independent state, which can lead to unpredictable behavior and infinite loops when combined with layout-aware parent components.
+      \`\`\`tsx
+      // BAD CODE ❌ Each FolderTree instance has its own state.
+      function FolderTree({ folders }) {
+        const [expanded, setExpanded] = useState(new Set()); // New state on every level!
+        
+        return (
+          <div>
+            {folders.map(f => (
+              <FolderTree key={f.id} folders={f.children} />
+            ))}
+          </div>
+        );
+      }
+      \`\`\`
+
+    - **GOOD CODE ✅**: Lift the state up to the first non-recursive parent component and pass the state and its setter down as props. This creates a single source of truth.
+      \`\`\`tsx
+      // GOOD CODE ✅ State is managed by the parent.
+      function FolderTree({ folders, expanded, onToggle }) {
+        return (
+          <div>
+            {folders.map(f => (
+              <FolderTree key={f.id} folders={f.children} expanded={expanded} onToggle={onToggle} />
+            ))}
+          </div>
+        );
+      }
+
+      function Sidebar() {
+        const [expanded, setExpanded] = useState(new Set()); // ✅ State is here
+        const handleToggle = (id) => { /* logic to update set */ };
+
+        return <FolderTree folders={allFolders} expanded={expanded} onToggle={handleToggle} />;
+      }
+      \`\`\`
+    
+    - Some more examples: 
+    \`\`\`
+    // INCORRECT ❌
+    const { items, selectedFolderId, selectFolder } = useFilesStore(state => ({
+        items: state.items,
+        selectedFolderId: state.selectedFolderId,
+        selectFolder: state.selectFolder,
+    }));
+    \`\`\`
+
+    \`\`\`
+    // CORRECT ✅
+    const items = useFilesStore(state => state.items);
+    const selectedFolderId = useFilesStore(state => state.selectedFolderId);
+    const selectFolder = useFilesStore(state => state.selectFolder);
+    \`\`\`
+</REACT_RENDER_LOOP_PREVENTION>`,
+
     COMMON_PITFALLS: `<AVOID COMMON PITFALLS>
-    **TOP 4 MISSION-CRITICAL RULES (FAILURE WILL CRASH THE APP):**
+    **TOP 6 MISSION-CRITICAL RULES (FAILURE WILL CRASH THE APP):**
     1. **DEPENDENCY VALIDATION:** Use ONLY dependencies verifiably installed in the project, as listed in <DEPENDENCIES>. Cross-check every import against available dependencies.
-    2. **IMPORT & EXPORT INTEGRITY:** Ensure every component, function, or variable is correctly defined, imported where used, and exported where needed. Mismatched default/named imports will cause crashes.
+    2. **IMPORT & EXPORT INTEGRITY:** Ensure every component, function, or variable is correctly defined and imported properly (and exported properly). Mismatched default/named imports will cause crashes.
     3. **NO RUNTIME ERRORS:** Write robust, fault-tolerant code. Handle all edge cases gracefully with fallbacks. Never throw uncaught errors that can crash the application.
     4. **NO UNDEFINED VALUES/PROPERTIES/FUNCTIONS/COMPONENTS etc:** Ensure all variables, functions, and components are defined before use. Never use undefined values. If you use something that isn't already defined, you need to define it.
+    5. **STATE UPDATE INTEGRITY:** Never call state setters directly during the render phase; all state updates must originate from event handlers or useEffect hooks to prevent infinite loops.
+    6: **STATE SELECTOR STABILITY:** When using state management libraries (Zustand, Redux), always select primitive values individually. Never return a new object or array from a single selector, as this creates unstable references and will cause infinite render loops.
 
     **ENHANCED RELIABILITY PATTERNS:**
     •   **State Management:** Handle loading/success/error states for async operations. Initialize state with proper defaults, never undefined. Use functional updates for dependent state.
@@ -154,61 +366,6 @@ ${staticAnalysis.typecheck?.rawOutput || 'N/A'}
     **CRITICAL SYNTAX ERRORS - PREVENT AT ALL COSTS:**
     1. **IMPORT SYNTAX**: Always use correct import syntax. NEVER write \`import */styles/globals.css'\` - use \`import './styles/globals.css'\`
     2. **UNDEFINED VARIABLES**: Always import/define variables before use. \`cn is not defined\` = missing \`import { cn } from './lib/utils'\`
-    3. **INFINITE LOOPS**: NEVER call setState in render or without dependencies. Use useEffect properly with dependency arrays.
-        - Also do not call setState inside componentWillUpdate or componentDidUpdate. React limits the number of nested updates to prevent infinite loops.
-        - Mentally simulate the linting rule \`react-hooks/exhaustive-deps\`.
-    
-    <EXAMPLE>
-    **BAD CODE** This creates an infinite loop because useEffect runs after every render, and calling setCount triggers a new render. **IF YOU EVER SEE SUCH CODE, FIX IT!**
-\`\`\`
-function Counter() {
-  const [count, setCount] = useState(0);
-
-  // DON'T: This effect runs after every render, causing an infinite loop.
-  useEffect(() => {
-    setCount(prevCount => prevCount + 1);
-  }); // No dependency array
-
-  return <div>The count is {count}</div>;
-}
-\`\`\`
-
-    **GOOD CODE:** This is the correct way. The effect only runs when a dependency changes. If it should only run once, use an empty array [].
-\`\`\`
-function UserData({ userId }) {
-  const [user, setUser] = useState(null);
-
-  // DO: This effect only re-runs if \`userId\` changes.
-  useEffect(() => {
-    // Fetch user data and update state
-    fetchUser(userId).then(data => setUser(data));
-  }, [userId]); // Dependency array prevents the loop
-
-  return <div>{user ? user.name : 'Loading...'}</div>;
-}
-\`\`\`
-
-For example, the following piece of code would lead to "Maximum update depth exceeded" error:
-\`\`\`
-export default function App() {
-  const { score, bestScore, startGame, handleMove } = useGameStore((state) => ({
-    score: state.score,
-    bestScore: state.bestScore,
-    startGame: state.startGame,
-    handleMove: state.handleMove,
-  }));
-  ...
-\`\`\`
-here useGameStore is a zustand selector. This creates a new object reference each time, making Zustand think the state changed.
-It can be fixed by simply using individual selectors:
-\`\`\`
-export default function App() {
-    const score = useGameStore((state) => state.score);
-    const bestScore = useGameStore((state) => state.bestScore);
-    const startGame = useGameStore((state) => state.startGame);
-    const handleMove = useGameStore((state) => state.handleMove);
-\`\`\`
-    </EXAMPLE>
 
     **PRE-CODE VALIDATION CHECKLIST:**
     Before writing any code, mentally verify:
@@ -217,7 +374,6 @@ export default function App() {
     - No setState calls in useEffect or any other lifecycle method
     - All Tailwind classes exist in config
     - External dependencies are available
-
 
     # Few more heuristics:
         **IF** you receive a TypeScript error "cannot be used as a JSX component" for a component \`<MyComponent />\`, **AND** the error says its type is \`'typeof import(...)'\`, **THEN** the import statement for \`MyComponent\` is wrong.
@@ -234,7 +390,7 @@ export default function App() {
         \`\`\`
 
         Applying this rule to your situation will fix both the type-check errors and the browser's runtime error.
-            
+
 </AVOID COMMON PITFALLS>`,
     STYLE_GUIDE: `<STYLE_GUIDE>
     • Use 2 spaces for indentation
@@ -442,9 +598,9 @@ export const STRATEGIES_UTILS = {
 
         **Examples**:
             * Building any tic-tac-toe game: Has a single page, simple logic -> **Simple Project** - 1 phase and 1-2 files. Initial phase should yield a perfectly working game.        
-            * Building any themed 2048 game: Has a single page, simple logic -> **Simple Project** - 1 phase and 3 files max. Initial phase should yield a perfectly working game.
-            * Building a full chess platform: Has multiple pages -> **Complex Project** - 5-6 phases and 15-30 files, with initial phase having around 9-11 files and should have the primary homepage working with mockups for all other views.
-            * Building a full e-commerce platform: Has multiple pages -> **Complex Project** - 6-8 phases and 25-35 files, with initial phase having around 12-14 files and should have the primary homepage working with mockups for all other views.
+            * Building any themed 2048 game: Has a single page, simple logic -> **Simple Project** - 1 phase and 2 files max. Initial phase should yield a perfectly working game.
+            * Building a full chess platform: Has multiple pages -> **Complex Project** - 4-5 phases and 5-15 files, with initial phase having around 5-11 files and should have the primary homepage working with mockups for all other views.
+            * Building a full e-commerce platform: Has multiple pages -> **Complex Project** - 4-5 phases and 5-15 files max, with initial phase having around 5-11 files and should have the primary homepage working with mockups for all other views.
     </PHASE GENERATION CONSTRAINTS>`,
 }
 

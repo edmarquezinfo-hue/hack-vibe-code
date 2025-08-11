@@ -9,7 +9,7 @@ import {
 } from './schemaFormatters';
 import { zodResponseFormat } from 'openai/helpers/zod.mjs';
 import {
-	ChatCompletionMessageToolCall,
+    ChatCompletionMessageFunctionToolCall,
 	ChatCompletionTool,
 	type ReasoningEffort,
 } from 'openai/resources.mjs';
@@ -37,6 +37,16 @@ export enum AIModels {
 	OPENAI_O4_MINI = 'openai/o4-mini',
 	OPENAI_CHATGPT_4O_LATEST = 'openai/chatgpt-4o-latest',
 	OPENAI_4_1 = 'openai/gpt-4.1-2025-04-14',
+    OPENAI_5 = 'openai/gpt-5',
+    OPENAI_5_MINI = 'openai/gpt-5-mini',
+    OPENAI_OSS = 'openai/gpt-oss-120b',
+
+    OPENROUTER_QWEN_3_CODER = 'openrouter/qwen/qwen3-coder',
+    OPENROUTER_KIMI_2_5 = 'openrouter/moonshotai/kimi-k2',
+
+    // Cerebras models
+    CEREBRAS_GPT_OSS = 'cerebras/gpt-oss-120b',
+    CEREBRAS_QWEN_3_CODER = 'cerebras/qwen-3-coder-480b',
 }
 
 function optimizeInputs(messages: Message[]): Message[] {
@@ -71,15 +81,15 @@ function optimizeTextContent(content: string): string {
 	// This preserves intentional spacing while removing truly excessive gaps
 	content = content.replace(/\n\s*\n\s*\n\s*\n+/g, '\n\n\n');
 
-	// Convert 4-space indentation to 2-space for non-Python/YAML content
-	content = content.replace(/^( {4})+/gm, (match) =>
-		'  '.repeat(match.length / 4),
-	);
+	// // Convert 4-space indentation to 2-space for non-Python/YAML content
+	// content = content.replace(/^( {4})+/gm, (match) =>
+	// 	'  '.repeat(match.length / 4),
+	// );
 
-	// Convert 8-space indentation to 2-space
-	content = content.replace(/^( {8})+/gm, (match) =>
-		'  '.repeat(match.length / 8),
-	);
+	// // Convert 8-space indentation to 2-space
+	// content = content.replace(/^( {8})+/gm, (match) =>
+	// 	'  '.repeat(match.length / 8),
+	// );
 	// 4. Remove leading/trailing whitespace from the entire content
 	// (but preserve internal structure)
 	content = content.trim();
@@ -126,6 +136,7 @@ const claude_thinking_budget_tokens = {
 	medium: 8000,
 	high: 16000,
 	low: 4000,
+    minimal: 1000,
 };
 
 export type InferResponseObject<OutputSchema extends z.AnyZodObject> = {
@@ -141,7 +152,7 @@ export type InferResponseString = {
 /**
  * Execute all tool calls from OpenAI response
  */
-async function executeToolCalls(openAiToolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]): Promise<ToolCall[]> {
+async function executeToolCalls(openAiToolCalls: ChatCompletionMessageFunctionToolCall[]): Promise<ToolCall[]> {
     return Promise.all(
         openAiToolCalls.map(async (tc) => {
             try {
@@ -207,7 +218,12 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 		let apiKey = env.CF_AI_API_KEY as string;
 		let baseUrl: string | undefined = env.CF_AI_BASE_URL;
 
-		if (!baseUrl || providerOverride === 'direct' || modelName === 'o3') {
+        if (modelName.startsWith('openrouter')) {
+            apiKey = env.OPENROUTER_API_KEY;
+            baseUrl = 'https://openrouter.ai/api/v1';
+            modelName = modelName.replace('openrouter/', '');
+        }
+		else if (!baseUrl || providerOverride === 'direct' || modelName === 'o3') {
 			console.log(
 				`Baseurl: ${baseUrl}, Provider override: ${providerOverride}, Model name: ${modelName}`,
 			);
@@ -294,7 +310,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
         //     console.log("===============================================================================================================================================")
         // });
 
-		console.log(`Running inference with ${modelName} using structured output with ${format} format.`);
+		console.log(`Running inference with ${modelName} using structured output with ${format} format, reasoning effort: ${reasoning_effort}, max tokens: ${maxTokens}, temperature: ${temperature}`);
 		// Optimize messages to reduce token count
 		const optimizedMessages = optimizeInputs(messages);
 		console.log(`Token optimization: Original messages size ~${JSON.stringify(messages).length} chars, optimized size ~${JSON.stringify(optimizedMessages).length} chars`);
@@ -319,8 +335,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
                 })
             }
         });
-
-		let toolCalls: ChatCompletionMessageToolCall[] = [];
+		let toolCalls: ChatCompletionMessageFunctionToolCall[] = [];
 
 		let content = '';
 		if (stream) {
@@ -373,16 +388,18 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 		} else {
 			// If not streaming, get the full response content (response is ChatCompletion)
 			content = (response as OpenAI.ChatCompletion).choices[0]?.message?.content || '';
-            toolCalls = (response as OpenAI.ChatCompletion).choices[0]?.message?.tool_calls || [];
+            toolCalls = (response as OpenAI.ChatCompletion).choices[0]?.message?.tool_calls as ChatCompletionMessageFunctionToolCall[] || [];
 			// Also print the total number of tokens used in the prompt
 			const totalTokens = (response as OpenAI.ChatCompletion).usage?.total_tokens;
 			console.log(`Total tokens used in prompt: ${totalTokens}`);
 		}
 
 		if (!content && !stream && !toolCalls.length) {
-			// Only error if not streaming and no content
-			console.error('No content received from OpenAI', JSON.stringify(response, null, 2));
-			throw new Error('No content received from OpenAI');
+			// // Only error if not streaming and no content
+			// console.error('No content received from OpenAI', JSON.stringify(response, null, 2));
+			// throw new Error('No content received from OpenAI');
+            console.warn('No content received from OpenAI', JSON.stringify(response, null, 2));
+            return { string: "", toolCalls: [] };
 		}
 
         const executedToolCalls = await executeToolCalls(toolCalls);

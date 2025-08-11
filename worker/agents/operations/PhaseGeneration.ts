@@ -3,7 +3,6 @@ import { IssueReport } from '../domain/values/IssueReport';
 import { createUserMessage } from '../inferutils/common';
 import { executeInference } from '../inferutils/inferenceUtils';
 import { issuesPromptFormatter, PROMPT_UTILS, STRATEGIES } from '../prompts';
-import { WebSocketMessageResponses } from '../constants';
 import { Message } from '../inferutils/common';
 import { AgentOperation, getSystemPromptWithProjectContext, OperationOptions } from '../operations/common';
 
@@ -14,7 +13,7 @@ export interface PhaseGenerationInputs {
 
 const SYSTEM_PROMPT = `<ROLE>
     You are a meticulous and seasoned senior software architect at Cloudflare. You are working on our development team to build high performance, elegant, robust and maintainable web applications for our clients.
-    You are responsible for planning and managing the development process, laying out the development strategy and phases for the project at hand.
+    You are responsible for planning and managing the core development process, laying out the development strategy and phases for the project at hand.
 </ROLE>
 
 <TASK>
@@ -71,7 +70,8 @@ Generate the next phase of the application.
 Adhere to the following guidelines: 
 
 <SUGGESTING NEXT PHASE>
-•   Suggest the next phase based on the current progress, the overall application architecture, the blueprint and any user suggestions.
+•   Suggest the next phase based on the current progress, the overall application architecture, the blueprint, current runtime errors/bugs and any user suggestions.
+•   Please ignore non functional or non critical issues. Your primary task is to suggest project development phases, linting and non-critical issues can be fixed later in code review cycles.
 •   Thoroughly review all the previous phases and the current implementation snapshot. Verify the frontend elements, UI, and backend components.
     - **Understand what has been implemented and what remains** We want a full finished product eventually! No feature should be left unimplemented if its possible to implement it using the current dependencies.
     - Each phase should work towards achieving the final product. **ONLY** mark as last phase if you are sure there is no work left to do.
@@ -131,13 +131,9 @@ const userPropmtFormatter = (issues: IssueReport, userSuggestions?: string[] | n
 
 export class PhaseGenerationOperation extends AgentOperation<PhaseGenerationInputs, PhaseConceptGenerationSchemaType> {
     async generateInitialPhase(options: OperationOptions) {
-        const { env, broadcaster, logger, context } = options;
+        const { env, logger, context } = options;
         try {
             logger.info("Generating initial phase");
-            // Notify phase generation start
-            broadcaster!.broadcast(WebSocketMessageResponses.PHASE_GENERATING, {
-                message: "Generating initial phase"
-            });
             const messages: Message[] = [
                 ...getSystemPromptWithProjectContext(SYSTEM_PROMPT, context, false),
                 createUserMessage(INITIAL_PHASE_USER_PROMPT)
@@ -149,13 +145,7 @@ export class PhaseGenerationOperation extends AgentOperation<PhaseGenerationInpu
                 schemaName: "phaseGeneration",
                 schema: PhaseConceptGenerationSchema,
                 operationName: 'generateNextPhase',
-                format: 'markdown',
-            });
-    
-            // Notify phase generation complete
-            broadcaster!.broadcast(WebSocketMessageResponses.PHASE_GENERATED, {
-                message: `Generated initial phase: ${results.name}`,
-                phase: results
+                // format: 'markdown',
             });
     
             logger.info(`Generated initial phase: ${results.name}, ${results.description}`);
@@ -172,7 +162,7 @@ export class PhaseGenerationOperation extends AgentOperation<PhaseGenerationInpu
         options: OperationOptions
     ): Promise<PhaseConceptGenerationSchemaType> {
         const { issues, userSuggestions } = inputs;
-        const { env, broadcaster, logger, context } = options;
+        const { env, logger, context } = options;
         try {
             const suggestionsInfo = userSuggestions && userSuggestions.length > 0
                 ? `with ${userSuggestions.length} user suggestions`
@@ -180,13 +170,6 @@ export class PhaseGenerationOperation extends AgentOperation<PhaseGenerationInpu
             
             logger.info(`Generating next phase ${suggestionsInfo}`);
     
-            // Notify phase generation start
-            broadcaster!.broadcast(WebSocketMessageResponses.PHASE_GENERATING, {
-                message: userSuggestions && userSuggestions.length > 0
-                    ? `Generating next phase incorporating ${userSuggestions.length} user suggestions`
-                    : "Generating next phase"
-            });
-            
             const messages: Message[] = [
                 ...getSystemPromptWithProjectContext(SYSTEM_PROMPT, context, false),
                 createUserMessage(userPropmtFormatter(issues, userSuggestions))
@@ -202,20 +185,11 @@ export class PhaseGenerationOperation extends AgentOperation<PhaseGenerationInpu
                 format: 'markdown',
             });
     
-            // Notify phase generation complete
-            broadcaster!.broadcast(WebSocketMessageResponses.PHASE_GENERATED, {
-                message: `Generated next phase: ${results.name}`,
-                phase: results
-            });
-    
             logger.info(`Generated next phase: ${results.name}, ${results.description}`);
     
             return results;
         } catch (error) {
             logger.error("Error generating next phase:", error);
-            broadcaster!.broadcast(WebSocketMessageResponses.ERROR, {
-                error: `Error generating next phase: ${error instanceof Error ? error.message : String(error)}`
-            });
             throw error;
         }
     }

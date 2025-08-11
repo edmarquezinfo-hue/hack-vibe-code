@@ -1,4 +1,3 @@
-import { AIModels } from '../inferutils/aigateway';
 import { MessageRole } from '../inferutils/common';
 import { TemplateListResponse} from '../../services/sandbox/sandboxTypes';
 import z from 'zod';
@@ -90,7 +89,7 @@ Which template (if any) is the most suitable starting point for this query?`;
             messages,
             schemaName: "templateSelection",
             schema: TemplateSelectionSchema,
-            modelName: AIModels.GEMINI_2_5_FLASH_LITE,
+            // modelName: AIModels.GEMINI_2_5_FLASH_LITE,
             maxTokens: 2000,
         });
 

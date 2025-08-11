@@ -4,7 +4,6 @@ import { IssueReport } from '../domain/values/IssueReport';
 import { createSystemMessage, createUserMessage } from '../inferutils/common';
 import { executeInference } from '../inferutils/inferenceUtils';
 import { generalSystemPromptBuilder, issuesPromptFormatter, PROMPT_UTILS } from '../prompts';
-import { WebSocketMessageResponses } from '../constants';
 import { TemplateRegistry } from '../inferutils/schemaFormatters';
 import { z } from 'zod';
 import { AgentOperation, OperationOptions } from '../operations/common';
@@ -14,7 +13,7 @@ export interface CodeReviewInputs {
 }
 
 const SYSTEM_PROMPT = `<ROLE>
-    You are an extremely meticulous Senior Software Engineer at Cloudflare, acting as a Quality Assurance Lead and root cause analysis expert. Your sole focus is identifying the fundamental reason for any runtime errors, logical flaws, or rendering issues, not just the symptoms. You excel at finding subtle, critical bugs that others miss and understanding why they occur.
+    You are an extremely meticulous Senior Software Engineer at Cloudflare, acting as a Quality Assurance Lead and root cause analysis expert. Your sole focus is identifying the fundamental reasons for any runtime errors, logical flaws, or rendering issues, not just the symptoms. You excel at finding subtle, critical bugs that others miss and understanding why they occur.
 </ROLE>
 
 <GOAL>
@@ -29,6 +28,7 @@ const SYSTEM_PROMPT = `<ROLE>
     •   All listed libraries for which commands have been run, or are listed in package.json (<DEPENDENCIES>) are installed correctly.
     •   Runtime errors (<URGENT FIX: RUNTIME ERRORS>) and Static code analysis may provide clues to existing problems.
     •   This code review would be done in multiple iterations, so focus on the most important and urgent issues first so we can quickly ship a working product.
+    •   All the fixes suggested by you would be made by AI Agents running in parallel. Thus fixes requiring changes across multiple files need to be suggested with detailed instructions as context won't be shared between agents.
 </CONTEXT>
 
 <REVIEW FOCUS & METHODOLOGY>
@@ -51,14 +51,11 @@ const SYSTEM_PROMPT = `<ROLE>
     •   Cross-reference implementation against the \`description\`, \`userFlow\`, \`components\`, \`dataFlow\`, and \`implementationDetails\` sections *constantly*.
     •   Pay *extreme* attention to declaration order within scopes.
     •   Check for any imports that are not defined, installed or are not in the codebase.
-    •   Come up with a the most important and urgent issues to fix first. We will run code reviews in multiple iterations, so focus on the most important issues first.
-
+    
     IF there are any runtime errors or linting errors provided, focus on fixing them first and foremost. No need to provide any minor fixes or improvements to the code. Just focus on fixing the errors.
-
-    Write unified diff for the changes you are making.
 </REVIEW FOCUS & METHODOLOGY>
 
-<ISSUES TO REPORT (Answer these based on your review):>
+<ISSUES TO REPORT (Answer these based on your review if no runtime errors are provided):>
     1.  **Functionality Mismatch:** Does the codebase *fail* to deliver any core functionality described in the blueprint? (Yes/No + Specific examples)
     2.  **Logic Errors:** Are there flaws in the application logic (state transitions, calculations, game rules, etc.) compared to the blueprint? (Yes/No + Specific examples)
     3.  **Interaction Failures:** Do user interactions (clicks, inputs) behave incorrectly based on blueprint requirements? (Yes/No + Specific examples)
@@ -73,7 +70,7 @@ const SYSTEM_PROMPT = `<ROLE>
     If Runtime errors are found, fix them first and foremost, without any other fixes. Just focus on fixing the errors. No need to provide any minor fixes or improvements to the code if there are any runtime errors.
 
     If issues pertain to just dependencies not being installed, please only suggest the necessary \`bun add\` commands to install them. Do not suggest file level fixes.
-</ISSUES TO REPORT (Answer these based on your review):>
+</ISSUES TO REPORT>
 
 <OUTPUT REQUIREMENTS>
     •   **Focus on Problems:** Report *only* bugs, flaws, and critical deviations from the blueprint. Do not comment on working code.
@@ -90,6 +87,7 @@ ${PROMPT_UTILS.COMMANDS}
 
 <AVOID COMMON MISTAKES (Reviewer)>
     ${PROMPT_UTILS.COMMON_PITFALLS}
+    ${PROMPT_UTILS.REACT_RENDER_LOOP_PREVENTION}
     •   Do not suggest major architectural changes. Focus on fixing the current implementation.
     •   Do not nitpick minor code style issues if the code is functional and readable. Prioritize correctness and rendering.
 </AVOID COMMON MISTAKES (Reviewer)>
@@ -120,7 +118,6 @@ Common causes and solutions:
         - Use memoization: Employ useCallback for functions and useMemo for values to prevent unnecessary re-creations and re-renders, according to DEV Community.
 By understanding these common causes and applying the suggested solutions, especially when working with agent-generated code, you can effectively resolve "Maximum update depth exceeded" errors in your React applications. 
 
-
 Do not put actual code blocks in the response. 
 
 <CLIENT REQUEST>
@@ -150,6 +147,7 @@ const USER_PROMPT = `
 <FINAL INSTRUCTION>
     Analyze the provided code thoroughly. Identify all critical issues preventing correct functionality or rendering based on the blueprint. Provide concise, actionable fixes for each issue identified.
     Please ignore and don't report unnecessary issues such as 'prefer-const', 'no-unused-vars', etc.
+    Remember: All the fixes suggested by you would be made by AI Agents running in parallel. Thus fixes requiring changes across multiple files need to be suggested with detailed instructions as context won't be shared between agents.
 </FINAL INSTRUCTION>`;
 
 const userPromptFormatter = (issues: IssueReport, context: string) => {
@@ -165,18 +163,10 @@ export class CodeReviewOperation extends AgentOperation<CodeReviewInputs, CodeRe
         options: OperationOptions
     ): Promise<CodeReviewOutputType> {
         const { issues } = inputs;
-        const { env, broadcaster, logger, context } = options;
+        const { env, logger, context } = options;
         
         logger.info("Performing code review");
         logger.info("Running static code analysis via linting...");
-
-        // Report discovered issues
-        broadcaster!.broadcast(WebSocketMessageResponses.CODE_REVIEWING, {
-            message: "Running code review...",
-            staticAnalysis: issues.staticAnalysis,
-            clientErrors: issues.clientErrors,
-            runtimeErrors: issues.runtimeErrors
-        });
 
         if (issues.runtimeErrors.length > 0) {
             logger.info(`Found ${issues.runtimeErrors.length} runtime errors, will include in code review: ${issues.runtimeErrors.map(e => e.message).join(', ')}`);
@@ -210,13 +200,6 @@ export class CodeReviewOperation extends AgentOperation<CodeReviewInputs, CodeRe
             if (!reviewResult) {
                 throw new Error("Failed to get code review result");
             }
-
-            // Notify review completion
-            broadcaster!.broadcast(WebSocketMessageResponses.CODE_REVIEWED, {
-                review: reviewResult,
-                message: "Code review completed"
-            });
-
             return reviewResult;
         } catch (error) {
             logger.error("Error during code review:", error);

@@ -6,7 +6,7 @@
 	// "$schema": "node_modules/wrangler/config-schema.json",
 	"name": "orange_build_prod",
 	"main": "worker/index.ts",
-	"compatibility_date": "2025-04-10",
+	"compatibility_date": "2025-08-10",
 	"compatibility_flags": ["nodejs_compat"],
 	"assets": {
 		"directory": "dist",
@@ -38,10 +38,10 @@
 		{
 			"class_name": "UserAppSandboxService",
 			"image": "./SandboxDockerfile",
-			"max_instances": 10,
+			"max_instances": 200,
             "configuration": {
-              "vcpu": 8,
-              "memory_mib": 6144,
+              "vcpu": 4,
+              "memory_mib": 4096,
               "disk": {
                 "size_mb": 10240
               }
@@ -127,20 +127,20 @@
 			"service": "runner-service"
 		}
 	],
-	// "routes": [
-	// //   {
-	// // 	"pattern": "build.chat.cloudflare.dev",
-	// // 	"custom_domain": true
-	// //   },
+	"routes": [
 	//   {
-	// 	"pattern": "build.cloudflare.dev",
+	// 	"pattern": "build.chat.cloudflare.dev",
 	// 	"custom_domain": true
 	//   },
-	//   {
-	// 	"pattern": "*build.cloudflare.dev/*",
-	// 	"custom_domain": false
-	//   }
-	// ],
+	  {
+		"pattern": "build.cloudflare.dev",
+		"custom_domain": true
+	  },
+	  {
+		"pattern": "*build.cloudflare.dev/*",
+		"custom_domain": false
+	  }
+	],
 	"vars": {
 		"SANDBOX_SERVICE_URL": "https://sandboxsdk-dev-worker.eti-india.workers.dev", 
 		// // "SANDBOX_SERVICE_URL": "https://sandboxsdk-dev-worker.eti-india.workers.dev",
