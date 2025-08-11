@@ -29,7 +29,7 @@ ${filesText}
 </TEMPLATE_CORE_FILES>`}
 
 <TEMPLATE_FILE_TREE>
-**Use these files as a reference for the file structure and default components and hooks that are present**
+**Use these files as a reference for the file structure, components and hooks that are present**
 ${JSON.stringify(template.fileTree, null, 2)}
 </TEMPLATE_FILE_TREE>
 

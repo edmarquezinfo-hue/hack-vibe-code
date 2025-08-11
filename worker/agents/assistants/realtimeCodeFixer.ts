@@ -81,7 +81,7 @@ Review Process:
 8. Ignore indentation, spacing, comments, unused imports/variables/functions, or any code that doesn't affect the functionality of the file. No need to waste time on such things.
 9. If a change wouldn't fix anything or change any behaviour, i.e, its unnecessary, Don't suggest it.
 
-Before providing fixes, think deeply inside <thinking> tags and then conduct your analysis in <code_review> tags inside your thinking block. Be concise but thorough:
+Before providing fixes, conduct your analysis in <code_review> tags inside your thinking block. Be concise but thorough:
 
 <code_review>
 1. Code structure and components

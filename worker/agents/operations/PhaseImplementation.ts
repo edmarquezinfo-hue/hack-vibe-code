@@ -79,7 +79,7 @@ const USER_PROMPT = `**IMPLEMENT THE FOLLOWING PROJECT PHASE**
 
 <INSTRUCTIONS & CODE QUALITY STANDARDS>
 These are the instructions and quality standards that must be followed to implement this phase.
-    •   **Code Quality:** Write clean, modular, maintainable, and efficient code. Use meaningful names. Keep functions small and focused. Apply modern best practices for the frameworks being used. Use TypeScript types/interfaces diligently.
+    •   **Code Quality:** Write robust, resilient, reliable and efficient code. Use meaningful names. Keep functions small and focused. Define everything before using. Apply modern best practices for the frameworks being used.
     •   **CRITICAL: Define Before Use:** Ensure ALL variables, functions, classes, and components are declared/imported *before* they are referenced within their scope. Avoid Temporal Dead Zone (TDZ) errors religiously. Check function hoisting rules.
     •   **Valid Imports:** Double-check that all imports reference existing files (either from the codebase, previous generation steps, or the file you are currently generating internal helpers for) or installed dependencies (<DEPENDENCIES>). Verify paths are correct.
     •   **Robustness & Error Handling:** Write safe, fault tolerant code that anticipates potential issues. Include necessary error handling (e.g., for API calls, data validation) and sensible fallbacks. Prevent runtime crashes. Handle asynchronous operations correctly.
@@ -89,7 +89,7 @@ These are the instructions and quality standards that must be followed to implem
     •   **Dependency Verification:** **ONLY** use libraries specified in <DEPENDENCIES>. No other libraries are allowed or exist.
     •   **Performance:** Write efficient code. Avoid unnecessary computations or re-renders.
     •   **Styling:** Use the specified CSS approach consistently (e.g., CSS Modules, Tailwind). Ensure class names match CSS definitions.
-    •   **BUG FREE CODE:** Write code that is free of errors and typos. Ensure all syntax is correct and all imports are valid. We cannot afford to release code with errors and you will only be given a single attempt.
+    •   **BUG FREE CODE:** Write good quality bug free code of the highest standards. Ensure all syntax is correct and all imports are valid. 
     •   **Please thorouhgly review the tailwind.config.js file and existing styling css files, and make sure you use only valid defined Tailwind classes in your css. Using a class that is not defined in tailwind.config.js will lead to a crash which is very bad.**
     •   **Ensure there are no syntax errors or typos such as \`border-border\` (undefined) in tailwind instead of \`border\` (real class)**
     •   **You are not permitted to directly interfere or overwrite any of the core config files such as package.json, linting configs, tsconfig etc. except some exceptions**
@@ -102,8 +102,6 @@ These are the instructions and quality standards that must be followed to implem
     •   **Follow DRY principles by heart, Always research and understand the codebase before making changes. Understand the patterns used in the codebase. Be type-safe**
     •   Make sure every component, variable, function, class, and type is defined before it is used. 
     •   Make sure everything that is needed is exported correctly from relevant files. Do not put duplicate 'default' exports.
-    •   While rewriting a .tsx file, Make sure you correct any setState calls in useEffect or any other lifecycle method.
-        - Mentally simulate the linting rule \`react-hooks/exhaustive-deps\`.
     •   You may need to rewrite a file from a *previous* phase *if* you identify a critical issue or runtime errors in it.
     •   If any previous phase files were not made correctly or were corrupt, You shall also rewrite them in this phase. You are to ensure that the entire codebase is correct and working as expected.
     •   **Write the whole, raw contents for every file (\`full_content\` format). Do not use diff format.**
@@ -114,14 +112,14 @@ These are the instructions and quality standards that must be followed to implem
         - Write all backend code with correct logic, data flow and proper error handling in mind.
         - Always stick to best design practices, DRY principles and SOLID principles.
     •   **ALWAYS export ALL the components, variables, functions, classes, and types from each and every file**
+
+Also understand the following:
+${PROMPT_UTILS.REACT_RENDER_LOOP_PREVENTION}
 </INSTRUCTIONS & CODE QUALITY STANDARDS>
 
-${PROMPT_UTILS.REACT_RENDER_LOOP_PREVENTION}
+Every single file listed in <CURRENT_PHASE> needs to be implemented in this phase, based on the provided <OUTPUT FORMAT>.
 
-Every single file listed in <CURRENT_PHASE> needs to be implemented in the order its listed, and implemented **ONLY ONCE** in this phase, based on the provided <OUTPUT FORMAT>.
-There shouldn't be any syntax errors or bugs or issues in your implementation.
-
-**MAKE SURE THERE ARE NO COMPONENT RERENDERING INFINITE LOOPS OR setState inside render or without dependencies. IF YOU MISTAKENLY WRITE SUCH CODE, REWRITE THE WHOLE FILE AGAIN**
+**MAKE SURE THERE ARE NO COMPONENT RERENDERING INFINITE LOOPS OR setState inside render. IF YOU MISTAKENLY WRITE SUCH CODE, REWRITE THE WHOLE FILE AGAIN**
 **ALSO THIS NEXT PHASE SHOULDN'T BREAK ANYTHING FROM THE PREVIOUS PHASE. ANY FUNCTIONALITY SHOULDN'T BE BROKEN! WE HAVE A LOT OF CASES OF THIS HAPPENING IN THE PAST**
 
 ${PROMPT_UTILS.COMMON_DEP_DOCUMENTATION}
