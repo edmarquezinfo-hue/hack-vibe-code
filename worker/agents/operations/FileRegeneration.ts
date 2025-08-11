@@ -2,7 +2,6 @@ import { FileGenerationOutputType } from '../schemas';
 import { AgentOperation, OperationOptions } from '../operations/common';
 import { RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
 import { FileOutputType } from '../schemas';
-import { WebSocketMessageResponses } from '../constants';
 import { AGENT_CONFIG } from '../config';
 
 export interface FileRegenerationInputs {
@@ -10,6 +9,8 @@ export interface FileRegenerationInputs {
     issues: string[];
     retryIndex: number;
 }
+
+const SYSTEM_PROMPT = `You are a senior software engineer at Cloudflare, currently on our Incident response team. There have been several bugs and issues identified in our codebase. You are to fix them in isolation.`
 
 const USER_PROMPT = `<PATCH FILE: {{filePath}}>
 ================================
@@ -79,14 +80,9 @@ export class FileRegenerationOperation extends AgentOperation<FileRegenerationIn
         options: OperationOptions
     ): Promise<FileGenerationOutputType> {
         try {
-            options.broadcaster?.broadcast(WebSocketMessageResponses.FILE_REGENERATING, {
-                message: `Regenerating file: ${inputs.file.file_path}`,
-                file_path: inputs.file.file_path,
-                original_issues: inputs.issues,
-            });
             
             // Use realtime code fixer to fix the file
-            const realtimeCodeFixer = new RealtimeCodeFixer(options.env, options.agentId, false, undefined, AGENT_CONFIG.fileRegeneration, USER_PROMPT);
+            const realtimeCodeFixer = new RealtimeCodeFixer(options.env, options.agentId, false, undefined, AGENT_CONFIG.fileRegeneration, SYSTEM_PROMPT, USER_PROMPT);
             const fixedFile = await realtimeCodeFixer.run(
                 inputs.file, {
                     previousFiles: options.context.allFiles,
@@ -96,15 +92,8 @@ export class FileRegenerationOperation extends AgentOperation<FileRegenerationIn
                 },
                 undefined,
                 inputs.issues,
+                5
             );
-
-            options.broadcaster?.broadcast(WebSocketMessageResponses.FILE_REGENERATED, {
-                message: `Regenerated file: ${inputs.file.file_path}`,
-                file: fixedFile,
-                original_issues: inputs.issues,
-            });
-            
-            options.fileManager!.saveGeneratedFile(fixedFile);
 
             return {
                 ...fixedFile,

@@ -598,9 +598,9 @@ export const STRATEGIES_UTILS = {
 
         **Examples**:
             * Building any tic-tac-toe game: Has a single page, simple logic -> **Simple Project** - 1 phase and 1-2 files. Initial phase should yield a perfectly working game.        
-            * Building any themed 2048 game: Has a single page, simple logic -> **Simple Project** - 1 phase and 3 files max. Initial phase should yield a perfectly working game.
-            * Building a full chess platform: Has multiple pages -> **Complex Project** - 5-6 phases and 15-30 files, with initial phase having around 9-11 files and should have the primary homepage working with mockups for all other views.
-            * Building a full e-commerce platform: Has multiple pages -> **Complex Project** - 6-8 phases and 25-35 files, with initial phase having around 12-14 files and should have the primary homepage working with mockups for all other views.
+            * Building any themed 2048 game: Has a single page, simple logic -> **Simple Project** - 1 phase and 2 files max. Initial phase should yield a perfectly working game.
+            * Building a full chess platform: Has multiple pages -> **Complex Project** - 4-5 phases and 5-15 files, with initial phase having around 5-11 files and should have the primary homepage working with mockups for all other views.
+            * Building a full e-commerce platform: Has multiple pages -> **Complex Project** - 4-5 phases and 5-15 files max, with initial phase having around 5-11 files and should have the primary homepage working with mockups for all other views.
     </PHASE GENERATION CONSTRAINTS>`,
 }
 

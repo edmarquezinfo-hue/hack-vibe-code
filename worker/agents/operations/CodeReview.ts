@@ -4,7 +4,6 @@ import { IssueReport } from '../domain/values/IssueReport';
 import { createSystemMessage, createUserMessage } from '../inferutils/common';
 import { executeInference } from '../inferutils/inferenceUtils';
 import { generalSystemPromptBuilder, issuesPromptFormatter, PROMPT_UTILS } from '../prompts';
-import { WebSocketMessageResponses } from '../constants';
 import { TemplateRegistry } from '../inferutils/schemaFormatters';
 import { z } from 'zod';
 import { AgentOperation, OperationOptions } from '../operations/common';
@@ -164,18 +163,10 @@ export class CodeReviewOperation extends AgentOperation<CodeReviewInputs, CodeRe
         options: OperationOptions
     ): Promise<CodeReviewOutputType> {
         const { issues } = inputs;
-        const { env, broadcaster, logger, context } = options;
+        const { env, logger, context } = options;
         
         logger.info("Performing code review");
         logger.info("Running static code analysis via linting...");
-
-        // Report discovered issues
-        broadcaster!.broadcast(WebSocketMessageResponses.CODE_REVIEWING, {
-            message: "Running code review...",
-            staticAnalysis: issues.staticAnalysis,
-            clientErrors: issues.clientErrors,
-            runtimeErrors: issues.runtimeErrors
-        });
 
         if (issues.runtimeErrors.length > 0) {
             logger.info(`Found ${issues.runtimeErrors.length} runtime errors, will include in code review: ${issues.runtimeErrors.map(e => e.message).join(', ')}`);
@@ -209,13 +200,6 @@ export class CodeReviewOperation extends AgentOperation<CodeReviewInputs, CodeRe
             if (!reviewResult) {
                 throw new Error("Failed to get code review result");
             }
-
-            // Notify review completion
-            broadcaster!.broadcast(WebSocketMessageResponses.CODE_REVIEWED, {
-                review: reviewResult,
-                message: "Code review completed"
-            });
-
             return reviewResult;
         } catch (error) {
             logger.error("Error during code review:", error);
