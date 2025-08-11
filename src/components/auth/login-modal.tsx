@@ -8,11 +8,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, AlertCircle } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
-import {
-	validateEmail,
-	validatePassword,
-	validateDisplayName,
-} from '../../utils/validationUtils';
+// import {
+// 	validateEmail,
+// 	validatePassword,
+// 	validateDisplayName,
+// } from '../../utils/validationUtils';
 
 interface LoginModalProps {
 	isOpen: boolean;
@@ -49,31 +49,31 @@ export function LoginModal({
 	onClearError,
 }: LoginModalProps) {
 	const [mode, setMode] = useState<AuthMode>('login');
-	const [showPassword, setShowPassword] = useState(false);
-	const [isLoading, setIsLoading] = useState(false);
+	// const [showPassword, setShowPassword] = useState(false);
+	// const [isLoading, setIsLoading] = useState(false);
 
 	// Form state
-	const [email, setEmail] = useState('');
-	const [password, setPassword] = useState('');
-	const [name, setName] = useState('');
-	const [confirmPassword, setConfirmPassword] = useState('');
+	// const [email, setEmail] = useState('');
+	// const [password, setPassword] = useState('');
+	// const [name, setName] = useState('');
+	// const [confirmPassword, setConfirmPassword] = useState('');
 
 	// Validation errors
-	const [validationErrors, setValidationErrors] = useState<
-		Record<string, string>
-	>({});
+	// const [validationErrors, setValidationErrors] = useState<
+	// 	Record<string, string>
+	// >({});
 
 	// Determine if enhanced features are available
 	const hasEmailAuth = !!onEmailLogin;
 	const hasRegistration = !!onRegister;
 
 	const resetForm = () => {
-		setEmail('');
-		setPassword('');
-		setName('');
-		setConfirmPassword('');
-		setValidationErrors({});
-		setShowPassword(false);
+		// setEmail('');
+		// setPassword('');
+		// setName('');
+		// setConfirmPassword('');
+		// setValidationErrors({});
+		// setShowPassword(false);
 		if (onClearError) onClearError();
 	};
 
@@ -87,61 +87,61 @@ export function LoginModal({
 		resetForm();
 	};
 
-	const validateForm = (): boolean => {
-		const errors: Record<string, string> = {};
+	// const validateForm = (): boolean => {
+	// 	const errors: Record<string, string> = {};
 
-		// Email validation using centralized utility
-		const emailValidation = validateEmail(email);
-		if (!emailValidation.valid) {
-			errors.email = emailValidation.error || 'Invalid email format';
-		}
+	// 	// Email validation using centralized utility
+	// 	const emailValidation = validateEmail(email);
+	// 	if (!emailValidation.valid) {
+	// 		errors.email = emailValidation.error || 'Invalid email format';
+	// 	}
 
-		// Password validation using centralized utility
-		const passwordValidation = validatePassword(password, {
-			email: email,
-			name: name,
-		});
-		if (!passwordValidation.valid && passwordValidation.errors) {
-			errors.password = passwordValidation.errors[0]; // Show first error
-		}
+	// 	// Password validation using centralized utility
+	// 	const passwordValidation = validatePassword(password, {
+	// 		email: email,
+	// 		name: name,
+	// 	});
+	// 	if (!passwordValidation.valid && passwordValidation.errors) {
+	// 		errors.password = passwordValidation.errors[0]; // Show first error
+	// 	}
 
-		// Additional validation for registration
-		if (mode === 'register') {
-			// Name validation using centralized utility
-			const nameValidation = validateDisplayName(name);
-			if (!nameValidation.valid) {
-				errors.name = nameValidation.error || 'Invalid name';
-			}
+	// 	// Additional validation for registration
+	// 	if (mode === 'register') {
+	// 		// Name validation using centralized utility
+	// 		const nameValidation = validateDisplayName(name);
+	// 		if (!nameValidation.valid) {
+	// 			errors.name = nameValidation.error || 'Invalid name';
+	// 		}
 
-			// Confirm password validation
-			if (password !== confirmPassword) {
-				errors.confirmPassword = 'Passwords do not match';
-			}
-		}
+	// 		// Confirm password validation
+	// 		if (password !== confirmPassword) {
+	// 			errors.confirmPassword = 'Passwords do not match';
+	// 		}
+	// 	}
 
-		setValidationErrors(errors);
-		return Object.keys(errors).length === 0;
-	};
+	// 	setValidationErrors(errors);
+	// 	return Object.keys(errors).length === 0;
+	// };
 
-	const handleSubmit = async (e: React.FormEvent) => {
-		e.preventDefault();
+	// const handleSubmit = async (e: React.FormEvent) => {
+	// 	e.preventDefault();
 
-		if (!validateForm()) return;
+	// 	if (!validateForm()) return;
 
-		setIsLoading(true);
-		try {
-			if (mode === 'login' && onEmailLogin) {
-				await onEmailLogin({ email, password });
-			} else if (mode === 'register' && onRegister) {
-				await onRegister({ email, password, name: name.trim() });
-			}
-			// Don't auto-close here - let the parent handle success/error
-		} catch (err) {
-			// Error handling is done in the auth context
-		} finally {
-			setIsLoading(false);
-		}
-	};
+	// 	setIsLoading(true);
+	// 	try {
+	// 		if (mode === 'login' && onEmailLogin) {
+	// 			await onEmailLogin({ email, password });
+	// 		} else if (mode === 'register' && onRegister) {
+	// 			await onRegister({ email, password, name: name.trim() });
+	// 		}
+	// 		// Don't auto-close here - let the parent handle success/error
+	// 	} catch (err) {
+	// 		// Error handling is done in the auth context
+	// 	} finally {
+	// 		setIsLoading(false);
+	// 	}
+	// };
 
 	const handleOAuthClick = (provider: 'google' | 'github') => {
 		// Use the new interface if available, otherwise fall back to original
@@ -230,7 +230,7 @@ export function LoginModal({
 								<motion.button
 									whileTap={{ scale: 0.98 }}
 									onClick={() => handleOAuthClick('github')}
-									disabled={isLoading}
+									// disabled={isLoading}
 									className="w-full group relative overflow-hidden rounded-xl bg-gray-900 dark:bg-[#24292e] p-4 text-white transition-all hover:bg-gray-800 dark:hover:bg-[#1a1e22] border border-gray-800 dark:border-border disabled:opacity-50 disabled:cursor-not-allowed"
 								>
 									<div className="relative z-10 flex items-center justify-center gap-3">
@@ -256,7 +256,7 @@ export function LoginModal({
 								<motion.button
 									whileTap={{ scale: 0.98 }}
 									onClick={() => handleOAuthClick('google')}
-									disabled={isLoading}
+									// disabled={isLoading}
 									className="w-full group relative overflow-hidden rounded-xl bg-white dark:bg-card p-4 text-gray-800 dark:text-foreground transition-all hover:bg-gray-50 dark:hover:bg-card/80 border border-gray-200 dark:border-border disabled:opacity-50 disabled:cursor-not-allowed"
 								>
 									<div className="relative z-10 flex items-center justify-center gap-3">

@@ -10,7 +10,7 @@ import {
 	Globe,
 	Lock,
 	Users2,
-	LayoutGrid,
+	// LayoutGrid,
 	Compass,
 } from 'lucide-react';
 import './sidebar-overrides.css';
@@ -499,7 +499,7 @@ export function AppSidebar() {
 				<SidebarFooter>
 					{user && (
 						<SidebarMenu>
-							<SidebarMenuItem>
+							{/* <SidebarMenuItem>
 								<SidebarMenuButton
 									onClick={() => navigate('/dashboard')}
 									tooltip="Dashboard"
@@ -512,7 +512,7 @@ export function AppSidebar() {
 										</span>
 									)}
 								</SidebarMenuButton>
-							</SidebarMenuItem>
+							</SidebarMenuItem> */}
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									onClick={() => navigate('/discover')}
