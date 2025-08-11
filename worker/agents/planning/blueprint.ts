@@ -65,6 +65,7 @@ const SYSTEM_PROMPT = `<ROLE>
     • **Example-Based Logic Clarification:** For the most critical function (e.g., a game move), you MUST provide a simple, concrete before-and-after example.
         - **Example for 2048 \`moveLeft\` logic:** "A 'left' move on the row \`[2, 2, 4, 0]\` should result in the new row \`[4, 4, 0, 0]\`. Note that the two '2's merge into a '4', and the existing '4' slides next to it."
         - This provides a clear, verifiable test case for the core algorithm.
+    • **Domain relevant pitfalls:** Provide domain specific and relevant pitfalls so the coder can avoid them. Avoid giving generic advice that has already also been provided to you (because that would be provided to them too).
 </INSTRUCTIONS>
 
 <KEY GUIDELINES>

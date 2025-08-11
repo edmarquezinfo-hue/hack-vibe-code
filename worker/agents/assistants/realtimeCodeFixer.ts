@@ -221,7 +221,7 @@ export class RealtimeCodeFixer extends Assistant<Env> {
         context: RealtimeCodeFixerContext,
         currentPhase?: PhaseConceptType,
         issues: string[] = [],
-        passes: number = 2
+        passes: number = 1
     ): Promise<FileOutputType> {
         try {
             // Ignore css or json files or *.config.js
