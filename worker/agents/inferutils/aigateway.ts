@@ -41,8 +41,8 @@ export enum AIModels {
     OPENAI_5_MINI = 'openai/gpt-5-mini',
     OPENAI_OSS = 'openai/gpt-oss-120b',
 
-    QWEN_3_CODER = 'qwen/qwen3-coder',
-    KIMI_2_5 = 'moonshotai/kimi-k2',
+    OPENROUTER_QWEN_3_CODER = 'openrouter/qwen/qwen3-coder',
+    OPENROUTER_KIMI_2_5 = 'openrouter/moonshotai/kimi-k2',
 
     // Cerebras models
     CEREBRAS_GPT_OSS = 'cerebras/gpt-oss-120b',
@@ -218,7 +218,12 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 		let apiKey = env.CF_AI_API_KEY as string;
 		let baseUrl: string | undefined = env.CF_AI_BASE_URL;
 
-		if (!baseUrl || providerOverride === 'direct' || modelName === 'o3') {
+        if (modelName.startsWith('openrouter')) {
+            apiKey = env.OPENROUTER_API_KEY;
+            baseUrl = 'https://openrouter.ai/api/v1';
+            modelName = modelName.replace('openrouter/', '');
+        }
+		else if (!baseUrl || providerOverride === 'direct' || modelName === 'o3') {
 			console.log(
 				`Baseurl: ${baseUrl}, Provider override: ${providerOverride}, Model name: ${modelName}`,
 			);

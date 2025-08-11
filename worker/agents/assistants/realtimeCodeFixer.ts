@@ -115,7 +115,7 @@ Important reminders:
 - The SEARCH section must exactly match a unique existing block of lines, including white space.
 - **Every SEARCH section should be followed by a REPLACE section. The SEARCH section begins with <<<<<<< SEARCH and ends with ===== after which the REPLACE section automatically begins and ends with >>>>>>> REPLACE.**
 - Assume internal imports (like shadcn components or ErrorBoundaries) exist.
-- Please ignore non functional or non critical issues. You are not doing a code quality check, You are performing code validation.
+- Please ignore non functional or non critical issues. You are not doing a code quality check, You are performing code validation and issues that can cause runtime errors.
 - Pay extra attention to potential "Maximum update depth exceeded" errors, runtime error causing bugs, JSX/TSX Tag mismatches, logical issues and issues that can cause misalignment of UI components.
 
 If no issues are found, return a blank response.
@@ -199,6 +199,7 @@ export class RealtimeCodeFixer extends Assistant<Env> {
     lightMode: boolean;
     altPassModelOverride?: string;
     userPrompt: string;
+    systemPrompt: string;
     modelConfigOverride?: ModelConfig;
 
     constructor(
@@ -207,12 +208,14 @@ export class RealtimeCodeFixer extends Assistant<Env> {
         lightMode: boolean = false,
         altPassModelOverride?: string,// = AIModels.GEMINI_2_5_FLASH,
         modelConfigOverride?: ModelConfig,
+        systemPrompt: string = SYSTEM_PROMPT,
         userPrompt: string = USER_PROMPT
     ) {
         super(env, agentId);
         this.lightMode = lightMode;
         this.altPassModelOverride = altPassModelOverride;
         this.userPrompt = userPrompt;
+        this.systemPrompt = systemPrompt;
         this.modelConfigOverride = modelConfigOverride;
     }
 
@@ -232,7 +235,7 @@ export class RealtimeCodeFixer extends Assistant<Env> {
 
             let content = generatedFile.file_contents;
 
-            this.save([createSystemMessage(SYSTEM_PROMPT)]);
+            this.save([createSystemMessage(this.systemPrompt)]);
 
             const startTime = Date.now();
             let searchBlocks = -1;

@@ -2,7 +2,6 @@ import { TechnicalInstructionSchema, TechnicalInstructionType } from '../schemas
 import { createUserMessage } from '../inferutils/common';
 import { executeInference } from '../inferutils/inferenceUtils';
 import { PROMPT_UTILS } from '../prompts';
-import { WebSocketMessageResponses } from '../constants';
 import { AgentOperation, getSystemPromptWithProjectContext, OperationOptions } from '../operations/common';
 import { IssueReport } from '../domain/values/IssueReport';
 
@@ -140,7 +139,7 @@ export class UserSuggestionProcessor extends AgentOperation<UserSuggestionProces
         options: OperationOptions
     ): Promise<TechnicalInstructionType> {
         const { suggestions } = inputs;
-        const { env, broadcaster, logger, context } = options;
+        const { env, logger, context } = options;
 
         // If no user suggestions, return empty instructions
         if (!suggestions || suggestions.length === 0) {
@@ -156,10 +155,10 @@ export class UserSuggestionProcessor extends AgentOperation<UserSuggestionProces
             logger.info(`Processing user suggestions ${suggestions}`);
 
             // Notify processing start
-            broadcaster!.broadcast(WebSocketMessageResponses.USER_SUGGESTIONS_PROCESSING, {
-                message: "Analyzing user suggestions and generating technical instructions",
-                suggestions
-            });
+            // broadcaster!.broadcast(WebSocketMessageResponses.USER_SUGGESTIONS_PROCESSING, {
+            //     message: "Analyzing user suggestions and generating technical instructions",
+            //     suggestions
+            // });
 
             const messages = [
                 ...getSystemPromptWithProjectContext(SYSTEM_PROMPT, context, false),
@@ -192,24 +191,16 @@ export class UserSuggestionProcessor extends AgentOperation<UserSuggestionProces
             });
 
             // Notify processing complete
-            broadcaster!.broadcast(WebSocketMessageResponses.USER_SUGGESTIONS_PROCESSED, {
-                message: `Generated ${result.instructions.length} technical instructions from user suggestions`,
-                ...result
-            });
+            // broadcaster!.broadcast(WebSocketMessageResponses.USER_SUGGESTIONS_PROCESSED, {
+            //     message: `Generated ${result.instructions.length} technical instructions from user suggestions`,
+            //     ...result
+            // });
 
             return result;
         } catch (error) {
             logger.error("Error processing user suggestions:", error);
-            broadcaster!.broadcast(WebSocketMessageResponses.ERROR, {
-                error: `Error processing user suggestions: ${error instanceof Error ? error.message : String(error)}`
-            });
-            
             // Return empty instructions on error
-            return {
-                instructions: [],
-                priority: 'low',
-                affectedFiles: []
-            };
+            throw error;
         }
     }
 }

@@ -1,10 +1,8 @@
 import { StructuredLogger } from "../../logger";
 import { GenerationContext } from "../domain/values/GenerationContext";
-import { IMessageBroadcaster } from "../services/interfaces/IMessageBroadcaster";
 import { Message } from "../inferutils/common";
 import { createUserMessage, createSystemMessage, createAssistantMessage } from "../inferutils/common";
 import { generalSystemPromptBuilder, USER_PROMPT_FORMATTER } from "../prompts";
-import { IFileManager } from "../services/interfaces/IFileManager";
 
 export function getSystemPromptWithProjectContext(
     systemPrompt: string,
@@ -37,8 +35,6 @@ export interface OperationOptions {
     env: Env;
     agentId: string;
     context: GenerationContext;
-    broadcaster?: IMessageBroadcaster;
-    fileManager?: IFileManager;
     logger: StructuredLogger;
 }
 

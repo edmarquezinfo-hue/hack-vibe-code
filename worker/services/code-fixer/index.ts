@@ -23,6 +23,7 @@ import { fixModuleIsNotModule } from './fixers/ts2613';
 import { fixUndefinedName } from './fixers/ts2304';
 import { fixMissingExportedMember } from './fixers/ts2305';
 import { fixImportExportTypeMismatch } from './fixers/ts2614';
+import { fixIncorrectNamedImport } from './fixers/ts2724';
 
 // ============================================================================
 // MAIN ENTRY POINT
@@ -128,6 +129,7 @@ function createFixerRegistry(): FixerRegistry {
     registry.set('TS2304', fixUndefinedName);
     registry.set('TS2305', fixMissingExportedMember);
     registry.set('TS2614', fixImportExportTypeMismatch);
+    registry.set('TS2724', fixIncorrectNamedImport);
     
     return registry;
 }

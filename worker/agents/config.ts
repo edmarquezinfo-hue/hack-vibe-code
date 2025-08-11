@@ -21,6 +21,7 @@ export interface AgentConfig {
     fileRegeneration: ModelConfig;
     screenshotAnalysis: ModelConfig;
     realtimeCodeFixer: ModelConfig;
+    fastCodeFixer: ModelConfig;
     conversationalResponse: ModelConfig;
     userSuggestionProcessor: ModelConfig;
 }
@@ -44,7 +45,7 @@ export const AGENT_CONFIG: AgentConfig = {
     // },
     blueprint: {
         name: AIModels.OPENAI_5_MINI,
-        providerOverride: 'direct',
+        // providerOverride: 'direct',
         // name: AIModels.OPENAI_O4_MINI,
         // reasoning_effort: 'low',
         reasoning_effort: 'medium',
@@ -53,19 +54,19 @@ export const AGENT_CONFIG: AgentConfig = {
         temperature: 1,
     },
     projectSetup: {
-        name: AIModels.CLAUDE_4_SONNET,
+        name: AIModels.OPENAI_5_MINI,
         reasoning_effort: 'medium',
         max_tokens: 10000,
-        temperature: 0.5,
+        temperature: 1,
         fallbackModel: AIModels.GEMINI_2_5_FLASH,
     },
     phaseGeneration: {
-        name: AIModels.CLAUDE_4_SONNET,
+        name: AIModels.OPENAI_5_MINI,
         reasoning_effort: 'medium',
         // max_tokens: 64000,
         // name: 'chatgpt-4o-latest',
         max_tokens: 32000,
-        temperature: 0.8,
+        temperature: 1,
         fallbackModel: AIModels.GEMINI_2_5_FLASH,
     },
     // phaseGeneration: {
@@ -114,7 +115,7 @@ export const AGENT_CONFIG: AgentConfig = {
         fallbackModel: AIModels.GEMINI_2_5_PRO,
     },
     // realtimeCodeFixer: {
-    //     name: AIModels.QWEN_3_CODER,
+    //     name: AIModels.CEREBRAS_QWEN_3_CODER,
     //     reasoning_effort: undefined,
     //     max_tokens: 10000,
     //     temperature: 0.0,
@@ -128,6 +129,13 @@ export const AGENT_CONFIG: AgentConfig = {
     //     temperature: 0.7,
     //     fallbackModel: AIModels.OPENAI_OSS,
     // },
+    fastCodeFixer: {
+        name: AIModels.CEREBRAS_QWEN_3_CODER,
+        reasoning_effort: undefined,
+        max_tokens: 64000,
+        temperature: 0.0,
+        fallbackModel: AIModels.OPENROUTER_QWEN_3_CODER,
+    },
     conversationalResponse: {
         name: AIModels.GEMINI_2_5_FLASH,
         reasoning_effort: 'low',
@@ -151,11 +159,11 @@ export const AGENT_CONFIG: AgentConfig = {
         fallbackModel: AIModels.GEMINI_2_5_PRO,
     },
     fileRegeneration: {
-        name: AIModels.CEREBRAS_QWEN_3_CODER,
+        name: AIModels.CLAUDE_4_SONNET,
         reasoning_effort: undefined,
         max_tokens: 64000,
-        temperature: 0.7,
-        fallbackModel: AIModels.GEMINI_2_5_PRO,
+        temperature: 0.0,
+        fallbackModel: AIModels.CLAUDE_4_SONNET,
     },
     screenshotAnalysis: {
         name: AIModels.GEMINI_2_5_PRO,

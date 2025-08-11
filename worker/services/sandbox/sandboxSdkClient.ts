@@ -65,7 +65,7 @@ export interface StreamEvent {
     timestamp: Date;
 }
   
-const NUM_CONTAINER_POOLS = 2;
+const NUM_CONTAINER_POOLS = 200;
 function getAutoAllocatedSandbox(sessionId: string): string {
     // We have N containers and we can have M sessionIds at once. M >> N
     // So we algorithmically assign sessionId to containerId

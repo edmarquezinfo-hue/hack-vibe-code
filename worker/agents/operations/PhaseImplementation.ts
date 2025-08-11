@@ -1,9 +1,8 @@
-import { PhaseConceptType, FileOutputType, PhaseImplementationSchemaType, PhaseConceptSchema, TechnicalInstructionType } from '../schemas';
+import { PhaseConceptType, FileOutputType, PhaseConceptSchema, TechnicalInstructionType } from '../schemas';
 import { IssueReport } from '../domain/values/IssueReport';
 import { createUserMessage } from '../inferutils/common';
 import { executeInference } from '../inferutils/inferenceUtils';
 import { issuesPromptFormatter, PROMPT_UTILS, STRATEGIES } from '../prompts';
-import { WebSocketMessageResponses } from '../constants';
 import { CodeGenerationStreamingState } from '../code-formats/base';
 import { FileProcessing } from '../domain/pure/FileProcessing';
 // import { RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
@@ -18,6 +17,16 @@ export interface PhaseImplementationInputs {
     issues: IssueReport
     technicalInstructions?: TechnicalInstructionType | null
     isFirstPhase: boolean
+    fileGeneratingCallback: (file_path: string, file_purpose: string) => void
+    fileChunkGeneratedCallback: (file_path: string, chunk: string, format: 'full_content' | 'unified_diff') => void
+    fileClosedCallback: (file: FileOutputType, message: string) => void
+}
+
+export interface PhaseImplementationOutputs{
+    // rawFiles: FileOutputType[]
+    fixedFilePromises: Promise<FileOutputType>[]
+    deploymentNeeded: boolean
+    commands: string[]
 }
 
 export const SYSTEM_PROMPT = `<ROLE>
@@ -99,7 +108,7 @@ These are the instructions and quality standards that must be followed to implem
     •   **Do not use any unicode characters in the code. Stick to only outputing valid ASCII characters. Close strings with appropriate quotes.**
     •   **Try to wrap all essential code in try-catch blocks to isolate errors and prevent application crashes. Treat this project as mission critical**
     •   **In the footer of pages, you can mention the following: "Built with <love emoji> at Cloudflare"**
-    •   **Follow DRY principles by heart, Always research and understand the codebase before making changes. Understand the patterns used in the codebase. Be type-safe**
+    •   **Follow DRY principles by heart, Always research and understand the codebase before making changes. Understand the patterns used in the codebase. Do more in less code, be efficient with code**
     •   Make sure every component, variable, function, class, and type is defined before it is used. 
     •   Make sure everything that is needed is exported correctly from relevant files. Do not put duplicate 'default' exports.
     •   You may need to rewrite a file from a *previous* phase *if* you identify a critical issue or runtime errors in it.
@@ -225,13 +234,13 @@ const userPropmtFormatter = (phaseConcept: PhaseConceptType, issues: IssueReport
     return PROMPT_UTILS.verifyPrompt(prompt);
 }
 
-export class PhaseImplementationOperation extends AgentOperation<PhaseImplementationInputs, PhaseImplementationSchemaType> {
+export class PhaseImplementationOperation extends AgentOperation<PhaseImplementationInputs, PhaseImplementationOutputs> {
     async execute(
         inputs: PhaseImplementationInputs,
         options: OperationOptions
-    ): Promise<PhaseImplementationSchemaType> {
+    ): Promise<PhaseImplementationOutputs> {
         const { phase, issues, technicalInstructions } = inputs;
-        const { env, broadcaster, logger, context, fileManager } = options;
+        const { env, logger, context } = options;
         
         const instructionsInfo = technicalInstructions 
             ? `with ${technicalInstructions.instructions.length} technical instructions (${technicalInstructions.priority} priority)`
@@ -240,14 +249,6 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
         logger.info(`Generating files for phase: ${phase.name} ${instructionsInfo}`, phase.description, "files:", phase.files.map(f => f.path));
     
         // Notify phase start
-        broadcaster!.broadcast(WebSocketMessageResponses.PHASE_IMPLEMENTING, {
-            message: technicalInstructions 
-                ? `Implementing phase: ${phase.name} with ${technicalInstructions.instructions.length} user instructions`
-                : `Implementing phase: ${phase.name}`,
-            phase: phase,
-            technicalInstructions: technicalInstructions
-        });
-    
         const codeGenerationFormat = new SCOFFormat();
         // Build messages for generation
         const messages = getSystemPromptWithProjectContext(SYSTEM_PROMPT, context, true);
@@ -296,18 +297,11 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
                         // File generation started
                         (file_path: string) => {
                             logger.info(`Starting generation of file: ${file_path}`);
-                            broadcaster!.broadcast(WebSocketMessageResponses.FILE_GENERATING, {
-                                file_path,
-                                file_purpose: FileProcessing.findFilePurpose(file_path, phase, context.allFiles.reduce((acc, f) => ({ ...acc, [f.file_path]: f }), {}))
-                            });
+                            inputs.fileGeneratingCallback(file_path, FileProcessing.findFilePurpose(file_path, phase, context.allFiles.reduce((acc, f) => ({ ...acc, [f.file_path]: f }), {})));
                         },
                         // Stream file content chunks
                         (file_path: string, fileChunk: string, format: 'full_content' | 'unified_diff') => {
-                            broadcaster!.broadcast(WebSocketMessageResponses.FILE_CHUNK_GENERATED, {
-                                file_path,
-                                chunk: fileChunk,
-                                format,
-                            });
+                            inputs.fileChunkGeneratedCallback(file_path, fileChunk, format);
                         },
                         // onFileClose callback
                         (file_path: string) => {
@@ -365,10 +359,7 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
                             
                             fixedFilePromises.push(fixPromise);
     
-                            broadcaster!.broadcast(WebSocketMessageResponses.FILE_GENERATED, {
-                                file: generatedFile,
-                                message: `Completed generation of ${file_path}`
-                            });
+                            inputs.fileClosedCallback(generatedFile, `Completed generation of ${file_path}`);
                         }
                     );
                 }
@@ -381,51 +372,10 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
 
         logger.info("Files generated for phase:", phase.name, "with", fixedFilePromises.length, "files being fixed in real-time and extracted install commands:", commands);
     
-        broadcaster!.broadcast(WebSocketMessageResponses.PHASE_VALIDATING, {
-            message: `Validating files for phase: ${phase.name}`,
-            phase: phase
-        });
-    
-        // Await the already-created realtime code fixer promises
-        const fixedFiles = await Promise.allSettled(fixedFilePromises).then((results: PromiseSettledResult<FileOutputType>[]) => {
-            return results.map((result) => {
-                if (result.status === 'fulfilled') {
-                    return result.value;
-                } else {
-                    return null;
-                }
-            }).filter((f): f is FileOutputType => f !== null);
-        });
-    
-        logger.info(`Validation complete for phase: ${phase.name}`);
-        // Validation complete
-        broadcaster!.broadcast(WebSocketMessageResponses.PHASE_VALIDATED, {
-            message: `Files validated for phase: ${phase.name}`,
-            phase: phase
-        });
-    
-        logger.info("Files generated for phase:", phase.name, fixedFiles.map(f => f.file_path));
-    
-        // Update state with completed phase
-        fileManager!.saveGeneratedFiles(fixedFiles);
-    
-        // Notify phase completion
-        broadcaster!.broadcast(WebSocketMessageResponses.PHASE_IMPLEMENTED, {
-            phase: {
-                name: phase.name,
-                files: fixedFiles.map(f => ({
-                    path: f.file_path,
-                    purpose: f.file_purpose,
-                    contents: f.file_contents
-                })),
-                description: phase.description
-            },
-            message: "Files generated successfully for phase"
-        });
-    
         // Return generated files for validation and deployment
         return {
-            files: fixedFiles,
+            // rawFiles: generatedFilesInPhase,
+            fixedFilePromises,
             deploymentNeeded: fixedFilePromises.length > 0,
             commands,
         };
