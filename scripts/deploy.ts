@@ -318,6 +318,28 @@ class CloudflareDeploymentManager {
   }
 
   /**
+   * Builds the project (clean dist and run build)
+   */
+  private async buildProject(): Promise<void> {
+    console.log('🔨 Building project...');
+    
+    try {
+      // Clean dist directory and run build
+      execSync('rm -rf dist && bun run build', {
+        stdio: 'inherit',
+        cwd: PROJECT_ROOT
+      });
+      
+      console.log('✅ Project build completed');
+    } catch (error) {
+      throw new DeploymentError(
+        'Failed to build project',
+        error instanceof Error ? error : new Error(String(error))
+      );
+    }
+  }
+
+  /**
    * Main deployment orchestration method
    */
   public async deploy(): Promise<void> {
@@ -326,23 +348,28 @@ class CloudflareDeploymentManager {
     const startTime = Date.now();
     
     try {
-      // Step 1: Ensure Workers for Platforms namespace exists
-      console.log('📋 Step 1: Setting up Workers for Platforms...');
-      await this.ensureDispatchNamespace();
+      // Steps 1, 2 & 3: Run all setup operations in parallel
+      console.log('📋 Steps 1-3: Running all setup operations in parallel...');
+      console.log('   🔄 Workers for Platforms namespace setup');
+      console.log('   🔄 Templates repository deployment');
+      console.log('   🔄 Project build (clean + compile)');
       
-      // Step 2: Deploy templates to R2
-      console.log('\n📋 Step 2: Deploying templates...');
-      await this.deployTemplates();
+      await Promise.all([
+        this.ensureDispatchNamespace(),
+        this.deployTemplates(),
+        this.buildProject()
+      ]);
       
-      // Step 3: Update container configuration if needed
-      console.log('\n📋 Step 3: Updating container configuration...');
+      console.log('✅ Parallel setup and build completed!');
+      
+      // Step 4: Update container configuration if needed
+      console.log('\n📋 Step 4: Updating container configuration...');
       this.updateContainerConfiguration();
       
       // Deployment complete
       const duration = Math.round((Date.now() - startTime) / 1000);
       console.log(`\n🎉 Deployment completed successfully in ${duration}s!`);
       console.log('\nNext steps:');
-      console.log('- Run: npm run build');
       console.log('- Run: wrangler deploy');
       console.log('- Your Cloudflare Orange Build platform will be ready! 🚀');
       
@@ -363,6 +390,7 @@ class CloudflareDeploymentManager {
       console.error('   - Check your Cloudflare API token has required permissions');
       console.error('   - Ensure your account has access to Workers for Platforms');
       console.error('   - Verify the templates repository is accessible');
+      console.error('   - Check that bun is installed and build script works');
       
       process.exit(1);
     }
