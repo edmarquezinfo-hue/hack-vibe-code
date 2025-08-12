@@ -2,7 +2,7 @@ import { FileGenerationOutputType } from '../schemas';
 import { AgentOperation, OperationOptions } from '../operations/common';
 import { RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
 import { FileOutputType } from '../schemas';
-import { AGENT_CONFIG } from '../config';
+import { AGENT_CONFIG } from '../inferutils/config';
 
 export interface FileRegenerationInputs {
     file: FileOutputType;

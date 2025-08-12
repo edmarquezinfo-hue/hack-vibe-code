@@ -2,13 +2,13 @@ import { TemplateDetails } from "../../services/sandbox/sandboxTypes";
 import { createAssistantMessage, createSystemMessage, createUserMessage } from "../inferutils/common";
 import { Blueprint, FileOutputType, PhaseConceptType } from "../schemas";
 import { createObjectLogger } from "../../logger";
-import { executeInference } from "../inferutils/inferenceUtils";
+import { executeInference } from "../inferutils/infer";
 import { PROMPT_UTILS } from "../prompts";
 import Assistant from "./assistant";
 import { applySearchReplaceDiff } from "../diff-formats";
-import { AIModels, infer } from "../inferutils/aigateway";
+import { infer } from "../inferutils/core";
 import { MatchingStrategy, FailedBlock } from "../diff-formats/search-replace";
-import { ModelConfig } from "../config";
+import { AIModels, ModelConfig } from "../inferutils/config";
 // import { analyzeTypeScriptFile } from "../../services/code-fixer/analyzer";
 
 export interface RealtimeCodeFixerContext {
@@ -273,7 +273,7 @@ Don't be nitpicky, If there are no actual issues, just say "No issues found".
                 const { string: fixResult } = await executeInference({
                     env: this.env,
                     id: this.agentId,
-                    schemaName: "realtimeCodeFixer",
+                    agentActionName: "realtimeCodeFixer",
                     messages,
                     modelName: (i !== 0 && this.altPassModelOverride) || this.lightMode ? this.altPassModelOverride : undefined,
                     temperature: (i !== 0 && this.altPassModelOverride) || this.lightMode ? 0.0 : undefined,

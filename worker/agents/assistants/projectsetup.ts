@@ -2,10 +2,11 @@ import { TemplateDetails } from "../../services/sandbox/sandboxTypes";
 import { FileOutputType, SetupCommandsType, type Blueprint } from "../schemas";
 import { createObjectLogger, StructuredLogger } from '../../logger';
 import { generalSystemPromptBuilder, PROMPT_UTILS } from '../prompts';
-import { createAssistantMessage, createSystemMessage, createUserMessage, extractCommands } from "../inferutils/common";
-import { executeInference } from "../inferutils/inferenceUtils";
+import { createAssistantMessage, createSystemMessage, createUserMessage } from "../inferutils/common";
+import { executeInference } from "../inferutils/infer";
 import Assistant from "./assistant";
-import { AIModels } from "../inferutils/aigateway";
+import { AIModels } from "../inferutils/config";
+import { extractCommands } from "../utils/common";
 
 interface GenerateSetupCommandsArgs {
     env: Env;
@@ -123,10 +124,7 @@ ${error}`);
                 env: this.env,
                 id: this.agentId,
                 messages,
-                schemaName: "projectSetup",
-                // schema: SetupCommandsSchema,
-                operationName: 'generateSetupCommands',
-                // format: 'markdown',
+                agentActionName: "projectSetup",
                 modelName: error? AIModels.GEMINI_2_5_FLASH : undefined,
             });
             if (!results.string) {
@@ -159,8 +157,7 @@ ${error}`);
                 env: this.env,
                 id: this.agentId,
                 messages,
-                schemaName: "projectSetup",
-                operationName: 'generateSetupCommands',
+                agentActionName: "projectSetup",
             });
             if (!results) {
                 this.logger.info(`Failed to generate setup commands`);

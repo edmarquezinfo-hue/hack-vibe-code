@@ -2,7 +2,7 @@ import { MessageRole } from '../inferutils/common';
 import { TemplateListResponse} from '../../services/sandbox/sandboxTypes';
 import z from 'zod';
 import { createLogger } from '../../logger';
-import { executeInference } from '../inferutils/inferenceUtils';
+import { executeInference } from '../inferutils/infer';
 
 const logger = createLogger('TemplateSelector');
 
@@ -74,22 +74,12 @@ Which template (if any) is the most suitable starting point for this query?`;
             { role: "user" as MessageRole, content: userPrompt }
         ];
 
-        // const selection = await infer<typeof TemplateSelectionSchema>({
-        //     env,
-        //     messages,
-        //     schemaName: "templateSelection",
-        //     schema: TemplateSelectionSchema,
-        //     modelName: AIModels.GEMINI_2_5_FLASH_LITE,
-        //     maxTokens: 2000,
-        //     providerOverride: 'direct'
-        // });
         const { object: selection } = await executeInference({
             id: agentId,
             env,
             messages,
-            schemaName: "templateSelection",
+            agentActionName: "templateSelection",
             schema: TemplateSelectionSchema,
-            // modelName: AIModels.GEMINI_2_5_FLASH_LITE,
             maxTokens: 2000,
         });
 

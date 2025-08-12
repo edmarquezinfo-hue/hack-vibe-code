@@ -17,7 +17,7 @@ import { execSync } from 'child_process';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { parse } from 'jsonc-parser';
+import { parse, modify, applyEdits } from 'jsonc-parser';
 import Cloudflare from 'cloudflare';
 
 // Get current directory for ES modules
@@ -58,8 +58,9 @@ interface EnvironmentConfig {
   CLOUDFLARE_API_TOKEN: string;
   CLOUDFLARE_ACCOUNT_ID: string;
   TEMPLATES_REPOSITORY: string;
-  CF_AI_BASE_URL: string;
-  CF_AI_API_KEY: string;
+  CLOUDFLARE_AI_GATEWAY?: string;
+  CLOUDFLARE_AI_GATEWAY_URL?: string;
+  CLOUDFLARE_AI_GATEWAY_TOKEN?: string;
   MAX_SANDBOX_INSTANCES?: string;
 }
 
@@ -74,6 +75,7 @@ class CloudflareDeploymentManager {
   private config: WranglerConfig;
   private env: EnvironmentConfig;
   private cloudflare: Cloudflare;
+  private aiGatewayCloudflare?: Cloudflare; // Separate SDK instance for AI Gateway operations
 
   constructor() {
     this.validateEnvironment();
@@ -91,9 +93,7 @@ class CloudflareDeploymentManager {
     const requiredVars = [
       'CLOUDFLARE_API_TOKEN',
       'CLOUDFLARE_ACCOUNT_ID', 
-      'TEMPLATES_REPOSITORY',
-      'CF_AI_BASE_URL',
-      'CF_AI_API_KEY'
+      'TEMPLATES_REPOSITORY'
     ];
 
     const missingVars = requiredVars.filter(varName => !process.env[varName]);
@@ -139,8 +139,9 @@ class CloudflareDeploymentManager {
       CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN!,
       CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID!,
       TEMPLATES_REPOSITORY: process.env.TEMPLATES_REPOSITORY!,
-      CF_AI_BASE_URL: process.env.CF_AI_BASE_URL!,
-      CF_AI_API_KEY: process.env.CF_AI_API_KEY!,
+      CLOUDFLARE_AI_GATEWAY: process.env.CLOUDFLARE_AI_GATEWAY,
+      CLOUDFLARE_AI_GATEWAY_URL: process.env.CLOUDFLARE_AI_GATEWAY_URL,
+      CLOUDFLARE_AI_GATEWAY_TOKEN: process.env.CLOUDFLARE_AI_GATEWAY_TOKEN,
       MAX_SANDBOX_INSTANCES: process.env.MAX_SANDBOX_INSTANCES
     };
   }
@@ -188,6 +189,198 @@ class CloudflareDeploymentManager {
         error instanceof Error ? error : new Error(String(error))
       );
     }
+  }
+
+  /**
+   * Creates or ensures AI Gateway exists (non-blocking)
+   */
+  private async ensureAIGateway(): Promise<void> {
+    if (!this.env.CLOUDFLARE_AI_GATEWAY) {
+      console.log('ℹ️  AI Gateway setup skipped (CLOUDFLARE_AI_GATEWAY not provided)');
+      return;
+    }
+
+    const gatewayName = this.env.CLOUDFLARE_AI_GATEWAY;
+    console.log(`🔍 Checking AI Gateway: ${gatewayName}`);
+
+    try {
+      // Step 1: Check main token permissions and create AI Gateway token if needed
+      console.log('🔍 Checking API token permissions...');
+      const tokenCheck = await this.checkTokenPermissions();
+      const aiGatewayToken = await this.ensureAIGatewayToken();
+
+      // Step 2: Check if gateway exists first using appropriate SDK
+      const aiGatewaySDK = this.getAIGatewaySDK();
+      
+      try {
+        await aiGatewaySDK.aiGateway.get(
+          gatewayName,
+          { account_id: this.env.CLOUDFLARE_ACCOUNT_ID }
+        );
+        console.log(`✅ AI Gateway '${gatewayName}' already exists`);
+        return;
+      } catch (error: any) {
+        // If error is not 404, log but continue
+        if (error?.status !== 404 && !error?.message?.includes('not found')) {
+          console.warn(`⚠️  Could not check AI Gateway '${gatewayName}': ${error.message}`);
+          return;
+        }
+        // Gateway doesn't exist, continue to create it
+      }
+
+      // Validate gateway name length (64 character limit)
+      if (gatewayName.length > 64) {
+        console.warn(`⚠️  AI Gateway name too long (${gatewayName.length} > 64 chars), skipping creation`);
+        return;
+      }
+      
+      // Step 3: Create AI Gateway with authentication based on token availability
+      console.log(`📦 Creating AI Gateway: ${gatewayName}`);
+      
+      await aiGatewaySDK.aiGateway.create({
+        account_id: this.env.CLOUDFLARE_ACCOUNT_ID,
+        id: gatewayName,
+        cache_invalidate_on_update: true,
+        cache_ttl: 3600,
+        collect_logs: true,
+        rate_limiting_interval: 0,
+        rate_limiting_limit: 0,
+        rate_limiting_technique: 'sliding',
+        authentication: !!aiGatewayToken, // Enable authentication only if we have a token
+      });
+
+      console.log(`✅ Successfully created AI Gateway: ${gatewayName} (authentication: ${aiGatewayToken ? 'enabled' : 'disabled'})`);
+      
+    } catch (error) {
+      // Non-blocking: Log warning but continue deployment
+      console.warn(`⚠️  Could not create AI Gateway '${gatewayName}': ${error instanceof Error ? error.message : String(error)}`);
+      console.warn('   Continuing deployment without AI Gateway setup...');
+    }
+  }
+
+  /**
+   * Verifies if the current API token has AI Gateway permissions
+   */
+  private async checkTokenPermissions(): Promise<{ hasAIGatewayAccess: boolean; tokenInfo?: any }> {
+    try {
+      const verifyResponse = await fetch(
+        'https://api.cloudflare.com/client/v4/user/tokens/verify',
+        {
+          headers: {
+            'Authorization': `Bearer ${this.env.CLOUDFLARE_API_TOKEN}`
+          }
+        }
+      );
+
+      if (!verifyResponse.ok) {
+        console.warn('⚠️  Could not verify API token permissions');
+        return { hasAIGatewayAccess: false };
+      }
+
+      const verifyData = await verifyResponse.json();
+      if (!verifyData.success) {
+        console.warn('⚠️  API token verification failed');
+        return { hasAIGatewayAccess: false };
+      }
+
+      // For now, assume we need to create a separate token for AI Gateway operations
+      // This is a conservative approach since permission checking is complex
+      console.log('ℹ️  Main API token verified, but will create dedicated AI Gateway token');
+      return { hasAIGatewayAccess: false, tokenInfo: verifyData.result };
+      
+    } catch (error) {
+      console.warn(`⚠️  Token verification failed: ${error instanceof Error ? error.message : String(error)}`);
+      return { hasAIGatewayAccess: false };
+    }
+  }
+
+  /**
+   * Creates AI Gateway authentication token if needed (non-blocking)
+   * Returns the token if created/available, null otherwise
+   */
+  private async ensureAIGatewayToken(): Promise<string | null> {
+    const currentToken = this.env.CLOUDFLARE_AI_GATEWAY_TOKEN;
+    
+    // Check if token is already set and not the default placeholder
+    if (currentToken && currentToken !== 'optional-your-cf-ai-gateway-token') {
+      console.log('✅ AI Gateway token already configured');
+      // Initialize separate AI Gateway SDK instance
+      this.aiGatewayCloudflare = new Cloudflare({ apiToken: currentToken });
+      return currentToken;
+    }
+
+    try {
+      console.log(`🔐 Creating AI Gateway authentication token...`);
+      
+      // Create API token with required permissions for AI Gateway including RUN
+      const tokenResponse = await fetch(
+        `https://api.cloudflare.com/client/v4/user/tokens`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.env.CLOUDFLARE_API_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: `AI Gateway Token - ${new Date().toISOString().split('T')[0]}`,
+            policies: [
+              {
+                effect: 'allow',
+                resources: {
+                  [`com.cloudflare.api.account.${this.env.CLOUDFLARE_ACCOUNT_ID}`]: '*'
+                },
+                permission_groups: [
+                  // Note: Using descriptive names, actual IDs would need to be fetched from the API
+                  { name: 'AI Gateway Read' },
+                  { name: 'AI Gateway Edit' },
+                  { name: 'AI Gateway Run' }, // This is the key permission for authentication
+                  { name: 'Workers AI Read' },
+                  { name: 'Workers AI Edit' }
+                ]
+              }
+            ],
+            condition: {
+              request_ip: { in: [], not_in: [] }
+            },
+            expires_on: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year
+          })
+        }
+      );
+
+      if (!tokenResponse.ok) {
+        const errorData = await tokenResponse.json().catch(() => ({ errors: [{ message: 'Unknown error' }] }));
+        throw new Error(`API token creation failed: ${errorData.errors?.[0]?.message || tokenResponse.statusText}`);
+      }
+
+      const tokenData = await tokenResponse.json();
+      
+      if (tokenData.success && tokenData.result?.value) {
+        const newToken = tokenData.result.value;
+        console.log('✅ AI Gateway authentication token created successfully');
+        console.log(`   Token ID: ${tokenData.result.id}`);
+        console.warn('⚠️  Please save this token and add it to CLOUDFLARE_AI_GATEWAY_TOKEN:');
+        console.warn(`   ${newToken}`);
+        
+        // Initialize separate AI Gateway SDK instance
+        this.aiGatewayCloudflare = new Cloudflare({ apiToken: newToken });
+        return newToken;
+      } else {
+        throw new Error('Token creation succeeded but no token value returned');
+      }
+      
+    } catch (error) {
+      // Non-blocking: Log warning but continue
+      console.warn(`⚠️  Could not create AI Gateway token: ${error instanceof Error ? error.message : String(error)}`);
+      console.warn('   AI Gateway will be created without authentication...');
+      return null;
+    }
+  }
+
+  /**
+   * Gets the appropriate Cloudflare SDK instance for AI Gateway operations
+   */
+  private getAIGatewaySDK(): Cloudflare {
+    return this.aiGatewayCloudflare || this.cloudflare;
   }
 
   /**
@@ -293,22 +486,47 @@ class CloudflareDeploymentManager {
       const wranglerPath = join(PROJECT_ROOT, 'wrangler.jsonc');
       const content = readFileSync(wranglerPath, 'utf-8');
       
-      // Update the UserAppSandboxService max_instances value
-      // This regex finds the UserAppSandboxService container and updates its max_instances
-      const updatedContent = content.replace(
-        /("class_name":\s*"UserAppSandboxService"[\s\S]*?"max_instances":\s*)\d+/,
-        `$1${maxInstancesNum}`
-      );
-
-      if (updatedContent === content) {
-        console.warn('⚠️  Could not find UserAppSandboxService container configuration to update');
+      // Parse the JSONC file to validate structure and find container index
+      const config = parse(content) as WranglerConfig;
+      
+      if (!config.containers || !Array.isArray(config.containers)) {
+        console.warn('⚠️  No containers configuration found in wrangler.jsonc');
         return;
       }
+
+      // Find the index of UserAppSandboxService container
+      const sandboxContainerIndex = config.containers.findIndex(
+        container => container.class_name === 'UserAppSandboxService'
+      );
+
+      if (sandboxContainerIndex === -1) {
+        console.warn('⚠️  UserAppSandboxService container not found in wrangler.jsonc');
+        return;
+      }
+
+      const oldMaxInstances = config.containers[sandboxContainerIndex].max_instances;
+      
+      // Use jsonc-parser's modify function to properly edit the file
+      // Path to the max_instances field: ['containers', index, 'max_instances']
+      const edits = modify(
+        content,
+        ['containers', sandboxContainerIndex, 'max_instances'],
+        maxInstancesNum,
+        {
+        //   keepComments: true,
+        //   keepSpace: true,
+        //   insertSpaces: true,
+        //   tabSize: 2
+        }
+      );
+
+      // Apply the edits to get the updated content
+      const updatedContent = applyEdits(content, edits);
 
       // Write back the updated configuration
       writeFileSync(wranglerPath, updatedContent, 'utf-8');
       
-      console.log(`✅ Updated UserAppSandboxService max_instances to ${maxInstancesNum}`);
+      console.log(`✅ Updated UserAppSandboxService max_instances: ${oldMaxInstances} → ${maxInstancesNum}`);
     } catch (error) {
       throw new DeploymentError(
         'Failed to update container configuration',
@@ -340,6 +558,129 @@ class CloudflareDeploymentManager {
   }
 
   /**
+   * Deploys the project using Wrangler
+   */
+  private async wranglerDeploy(): Promise<void> {
+    console.log('🚀 Deploying to Cloudflare Workers...');
+    
+    try {
+      execSync('wrangler deploy', {
+        stdio: 'inherit',
+        cwd: PROJECT_ROOT
+      });
+      
+      console.log('✅ Wrangler deployment completed');
+    } catch (error) {
+      throw new DeploymentError(
+        'Failed to deploy with Wrangler',
+        error instanceof Error ? error : new Error(String(error))
+      );
+    }
+  }
+
+  /**
+   * Creates .prod.vars file with current environment variables
+   */
+  private createProdVarsFile(): void {
+    const prodVarsPath = join(PROJECT_ROOT, '.prod.vars');
+    
+    console.log('📝 Creating .prod.vars file from environment variables...');
+    
+    // Map of environment variables to include in production secrets
+    const secretVars = [
+      'CLOUDFLARE_API_TOKEN',
+      'CLOUDFLARE_ACCOUNT_ID',
+      'TEMPLATES_REPOSITORY',
+      'CLOUDFLARE_AI_GATEWAY',
+      'CLOUDFLARE_AI_GATEWAY_URL',
+      'CLOUDFLARE_AI_GATEWAY_TOKEN',
+      'ANTHROPIC_API_KEY',
+      'OPENAI_API_KEY',
+      'GEMINI_API_KEY',
+      'OPENROUTER_API_KEY',
+      'GROQ_API_KEY',
+      'GOOGLE_CLIENT_SECRET',
+      'GOOGLE_CLIENT_ID',
+      'GITHUB_CLIENT_ID',
+      'GITHUB_CLIENT_SECRET',
+      'JWT_SECRET',
+      'WEBHOOK_SECRET',
+      'MAX_SANDBOX_INSTANCES'
+    ];
+    
+    const prodVarsContent: string[] = [
+      '# Production environment variables for Cloudflare Orange Build',
+      '# Generated automatically during deployment',
+      '',
+      '# Essential Secrets:',
+    ];
+    
+    // Add environment variables that are set
+    secretVars.forEach(varName => {
+      const value = process.env[varName];
+      if (value && value !== '') {
+        // Skip placeholder values
+        if (value.startsWith('optional-') || value.startsWith('your-')) {
+          prodVarsContent.push(`# ${varName}="${value}" # Placeholder - update with actual value`);
+        } else {
+          prodVarsContent.push(`${varName}="${value}"`);
+        }
+      } else {
+        prodVarsContent.push(`# ${varName}="" # Not set in current environment`);
+      }
+    });
+    
+    // Add environment marker
+    prodVarsContent.push('');
+    prodVarsContent.push('ENVIRONMENT="production"');
+    
+    try {
+      writeFileSync(prodVarsPath, prodVarsContent.join('\n') + '\n', 'utf-8');
+      console.log(`✅ Created .prod.vars file with ${secretVars.length} environment variables`);
+    } catch (error) {
+      console.warn(`⚠️  Could not create .prod.vars file: ${error instanceof Error ? error.message : String(error)}`);
+      throw new DeploymentError(
+        'Failed to create .prod.vars file',
+        error instanceof Error ? error : new Error(String(error))
+      );
+    }
+  }
+
+  /**
+   * Updates secrets using Wrangler (non-blocking)
+   */
+  private async updateSecrets(): Promise<void> {
+    console.log('🔐 Updating production secrets...');
+    
+    try {
+      const prodVarsPath = join(PROJECT_ROOT, '.prod.vars');
+      
+      // Check if .prod.vars file exists, create it if not
+      if (!existsSync(prodVarsPath)) {
+        console.log('📋 .prod.vars file not found, creating from environment variables...');
+        this.createProdVarsFile();
+      }
+
+      // Verify file exists after creation attempt
+      if (!existsSync(prodVarsPath)) {
+        console.warn('⚠️  Could not create .prod.vars file, skipping secret update');
+        return;
+      }
+
+      execSync('wrangler secret bulk .prod.vars', {
+        stdio: 'inherit',
+        cwd: PROJECT_ROOT
+      });
+      
+      console.log('✅ Production secrets updated successfully');
+    } catch (error) {
+      // Non-blocking: Log warning but don't fail deployment
+      console.warn(`⚠️  Could not update secrets: ${error instanceof Error ? error.message : String(error)}`);
+      console.warn('   You may need to update secrets manually if required');
+    }
+  }
+
+  /**
    * Main deployment orchestration method
    */
   public async deploy(): Promise<void> {
@@ -348,30 +689,50 @@ class CloudflareDeploymentManager {
     const startTime = Date.now();
     
     try {
-      // Steps 1, 2 & 3: Run all setup operations in parallel
-      console.log('📋 Steps 1-3: Running all setup operations in parallel...');
-      console.log('   🔄 Workers for Platforms namespace setup');
-      console.log('   🔄 Templates repository deployment');
-      console.log('   🔄 Project build (clean + compile)');
+      // Steps 1-5: Run all setup operations in parallel
+    //   const operations: Promise<void>[] = [
+    //     this.ensureDispatchNamespace(),
+    //     this.deployTemplates(),
+    //     this.buildProject(),
+    //   ];
       
-      await Promise.all([
-        this.ensureDispatchNamespace(),
-        this.deployTemplates(),
-        this.buildProject()
-      ]);
+    //   // Add AI Gateway setup if gateway name is provided
+    //   if (this.env.CLOUDFLARE_AI_GATEWAY) {
+    //     operations.push(this.ensureAIGateway());
+    //     console.log('📋 Steps 1-5: Running all setup operations in parallel...');
+    //     console.log('   🔄 Workers for Platforms namespace setup');
+    //     console.log('   🔄 Templates repository deployment');
+    //     console.log('   🔄 Project build (clean + compile)');
+    //     console.log('   🔄 Database migrations (generate + apply)');
+    //     console.log('   🔄 AI Gateway setup and configuration');
+    //   } else {
+    //     console.log('📋 Steps 1-4: Running all setup operations in parallel...');
+    //     console.log('   🔄 Workers for Platforms namespace setup');
+    //     console.log('   🔄 Templates repository deployment');
+    //     console.log('   🔄 Project build (clean + compile)');
+    //     console.log('   🔄 Database migrations (generate + apply)');
+    //   }
       
-      console.log('✅ Parallel setup and build completed!');
+    //   await Promise.all(operations);
       
-      // Step 4: Update container configuration if needed
-      console.log('\n📋 Step 4: Updating container configuration...');
+    //   console.log('✅ Parallel setup, build, and database migrations completed!');
+      
+      // Step 6: Update container configuration if needed
+      console.log('\n📋 Step 6: Updating container configuration...');
       this.updateContainerConfiguration();
+      
+    //   // Step 7: Deploy with Wrangler
+      console.log('\n📋 Step 7: Deploying to Cloudflare Workers...');
+      await this.wranglerDeploy();
+      
+      // Step 8: Update secrets (non-blocking)
+      console.log('\n📋 Step 8: Updating production secrets...');
+      await this.updateSecrets();
       
       // Deployment complete
       const duration = Math.round((Date.now() - startTime) / 1000);
-      console.log(`\n🎉 Deployment completed successfully in ${duration}s!`);
-      console.log('\nNext steps:');
-      console.log('- Run: wrangler deploy');
-      console.log('- Your Cloudflare Orange Build platform will be ready! 🚀');
+      console.log(`\n🎉 Complete deployment finished successfully in ${duration}s!`);
+      console.log('✅ Your Cloudflare Orange Build platform is now live! 🚀');
       
     } catch (error) {
       console.error('\n❌ Deployment failed:');

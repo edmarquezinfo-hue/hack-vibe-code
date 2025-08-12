@@ -16,38 +16,7 @@ import {
 import { Message, MessageContent, MessageRole } from './common';
 import { ToolCall } from '../tools/types';
 import { executeTool } from '../tools/customTools';
-
-export enum AIModels {
-	GEMINI_2_5_PRO = 'google-ai-studio/gemini-2.5-pro',
-	GEMINI_2_5_FLASH = 'google-ai-studio/gemini-2.5-flash',
-	GEMINI_2_5_FLASH_PREVIEW = 'google-ai-studio/gemini-2.5-flash-preview-05-20',
-	GEMINI_2_5_FLASH_LITE = 'gemini-2.5-flash-lite-preview-06-17',
-	GEMINI_2_5_PRO_PREVIEW_05_06 = 'google-ai-studio/gemini-2.5-pro-preview-05-06',
-	GEMINI_2_5_FLASH_PREVIEW_04_17 = 'google-ai-studio/gemini-2.5-flash-preview-04-17',
-	GEMINI_2_5_FLASH_PREVIEW_05_20 = 'google-ai-studio/gemini-2.5-flash-preview-05-20',
-	GEMINI_2_5_PRO_PREVIEW_06_05 = 'google-ai-studio/gemini-2.5-pro-preview-06-05',
-	GEMINI_2_5_PRO_PREVIEW = 'google-ai-studio/gemini-2.5-pro-preview-06-05',
-	GEMINI_2_0_FLASH = 'google-ai-studio/gemini-2.0-flash',
-	GEMINI_1_5_FLASH_8B = 'google-ai-studio/gemini-1.5-flash-8b-latest',
-	CLAUDE_3_5_SONNET_LATEST = 'anthropic/claude-3-5-sonnet-latest',
-	CLAUDE_3_7_SONNET_20250219 = 'anthropic/claude-3-7-sonnet-20250219',
-	CLAUDE_4_OPUS = 'anthropic/claude-opus-4-20250514',
-	CLAUDE_4_SONNET = 'anthropic/claude-sonnet-4-20250514',
-	OPENAI_O3 = 'o3',
-	OPENAI_O4_MINI = 'openai/o4-mini',
-	OPENAI_CHATGPT_4O_LATEST = 'openai/chatgpt-4o-latest',
-	OPENAI_4_1 = 'openai/gpt-4.1-2025-04-14',
-    OPENAI_5 = 'openai/gpt-5',
-    OPENAI_5_MINI = 'openai/gpt-5-mini',
-    OPENAI_OSS = 'openai/gpt-oss-120b',
-
-    OPENROUTER_QWEN_3_CODER = 'openrouter/qwen/qwen3-coder',
-    OPENROUTER_KIMI_2_5 = 'openrouter/moonshotai/kimi-k2',
-
-    // Cerebras models
-    CEREBRAS_GPT_OSS = 'cerebras/gpt-oss-120b',
-    CEREBRAS_QWEN_3_CODER = 'cerebras/qwen-3-coder-480b',
-}
+import { AIModels } from './config';
 
 function optimizeInputs(messages: Message[]): Message[] {
 	return messages.map((message) => ({
@@ -95,6 +64,76 @@ function optimizeTextContent(content: string): string {
 	content = content.trim();
 
 	return content;
+}
+
+
+
+export async function buildGatewayUrl(env: Env, providerOverride?: AIGatewayProviders): Promise<string> {
+    // If CLOUDFLARE_AI_GATEWAY_URL is set, we use it directly
+    if (env.CLOUDFLARE_AI_GATEWAY_URL) {
+        const url = new URL(env.CLOUDFLARE_AI_GATEWAY_URL);
+        // Add 'providerOverride' as a segment to the URL
+        url.pathname = providerOverride ? `${url.pathname.replace(/\/$/, '')}/${providerOverride}` : `${url.pathname.replace(/\/$/, '')}/compat`;
+        return url.toString();
+    }
+    
+    // Build the url via bindings
+    const gateway = env.AI.gateway(env.CLOUDFLARE_AI_GATEWAY);
+    const baseUrl = providerOverride ? await gateway.getUrl(providerOverride) : `${await gateway.getUrl()}/compat`;
+    return baseUrl;
+}
+
+const providerAliasMap: Record<string, string> = {
+    'google-ai-studio': 'gemini',
+}
+
+export async function getConfigurationForModel(model: AIModels | string, env: Env): Promise<{
+    baseURL: string,
+    apiKey: string,
+    defaultHeaders?: Record<string, string>,
+}> {
+    let providerForcedOverride: AIGatewayProviders | undefined;
+    // Check if provider forceful-override is set
+    const match = model.match(/\[(.*?)\]/);
+    if (match) {
+        const provider = match[1];
+        if (provider === 'openrouter') {
+            return {
+                baseURL: 'https://openrouter.ai/api/v1',
+                apiKey: env.OPENROUTER_API_KEY,
+            };
+        } else if (provider === 'gemini') {
+            return {
+                baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+                apiKey: env.GEMINI_API_KEY,
+            };
+        } else if (provider === 'claude') {
+            return {
+                baseURL: 'https://api.anthropic.com/v1/',
+                apiKey: env.ANTHROPIC_API_KEY,
+            };
+        }
+        providerForcedOverride = provider as AIGatewayProviders;
+    }
+
+    const baseURL = await buildGatewayUrl(env, providerForcedOverride);
+
+    // Extract the provider name from model name. Model name is of type `provider/model_name`
+    const provider = providerForcedOverride || model.split('/')[0];
+    // Try to find API key of type <PROVIDER>_API_KEY else default to CLOUDFLARE_AI_GATEWAY_TOKEN
+    // `env` is an interface of type `Env`
+    const providerKeyString = (providerAliasMap[provider] || provider).toUpperCase().replaceAll('-', '_');
+    const envKey = `${providerKeyString}_API_KEY` as keyof Env;
+    const apiKey: string = env[envKey] as string || env.CLOUDFLARE_AI_GATEWAY_TOKEN;
+    // AI Gateway Wholesaling checks
+    const defaultHeaders = env.CLOUDFLARE_AI_GATEWAY_TOKEN && apiKey !== env.CLOUDFLARE_AI_GATEWAY_TOKEN ? {
+        'cf-aig-authorization': `Bearer ${env.CLOUDFLARE_AI_GATEWAY_TOKEN}`,
+    } : undefined;
+    return {
+        baseURL,
+        apiKey,
+        defaultHeaders
+    };
 }
 
 type InferArgsBase = {
@@ -214,41 +253,13 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 	formatOptions?: FormatterOptions;
 }): Promise<InferResponseObject<OutputSchema> | InferResponseString> {
 	try {
-		/** 1. ————————————————— credentials & baseURL */
-		let apiKey = env.CF_AI_API_KEY as string;
-		let baseUrl: string | undefined = env.CF_AI_BASE_URL;
+        const { apiKey, baseURL, defaultHeaders } = await getConfigurationForModel(modelName, env);
+		console.log(`baseUrl: ${baseURL}, providerOverride: ${providerOverride}, modelName: ${modelName}`);
 
-        if (modelName.startsWith('openrouter')) {
-            apiKey = env.OPENROUTER_API_KEY;
-            baseUrl = 'https://openrouter.ai/api/v1';
-            modelName = modelName.replace('openrouter/', '');
-        }
-		else if (!baseUrl || providerOverride === 'direct' || modelName === 'o3') {
-			console.log(
-				`Baseurl: ${baseUrl}, Provider override: ${providerOverride}, Model name: ${modelName}`,
-			);
-			apiKey = env.OPENAI_API_KEY;
-			baseUrl = undefined;
-			// If a baseurl override is not present, do the default thing
-			if (modelName.startsWith('gemini')) {
-				apiKey = env.GEMINI_API_KEY;
-				baseUrl =
-					'https://generativelanguage.googleapis.com/v1beta/openai/';
-			} else if (modelName.startsWith('claude')) {
-				apiKey = env.ANTHROPIC_API_KEY;
-				baseUrl = 'https://api.anthropic.com/v1/';
-			} else if (modelName.includes('/')) {
-				apiKey = env.OPENROUTER_API_KEY;
-				baseUrl = 'https://openrouter.ai/api/v1';
-			}
-		}
-		if (!apiKey) throw new Error(`Missing API key for selected provider: ${modelName}, baseUrl: ${baseUrl}, providerOverride: ${providerOverride}`);
+        // Remove [*.] from model name
+        modelName = modelName.replace(/\[.*?\]/, '');
 
-		console.log(`baseUrl: ${baseUrl}, providerOverride: ${providerOverride}, modelName: ${modelName}`);
-
-        
-
-		const client = new OpenAI({ apiKey, baseURL: baseUrl });
+		const client = new OpenAI({ apiKey, baseURL: baseURL, defaultHeaders });
 		const schemaObj =
 			schema && schemaName && !format
 				? { response_format: zodResponseFormat(schema, schemaName) }

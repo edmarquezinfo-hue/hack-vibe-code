@@ -38,7 +38,7 @@
 		{
 			"class_name": "UserAppSandboxService",
 			"image": "./SandboxDockerfile",
-			"max_instances": 200,
+			"max_instances": 100,
             "configuration": {
               "vcpu": 4,
               "memory_mib": 4096,

@@ -10,7 +10,7 @@
 		"build": "tsc -b && vite build",
 		"lint": "eslint .",
 		"preview": "npm run build && vite preview",
-		"deploy": "bun run scripts/deploy.ts && wrangler deploy && wrangler secret bulk .prod.vars",
+		"deploy": "bun --env-file .prod.vars scripts/deploy.ts && bun run db:generate && bun run db:migrate:remote",
 		"local": "wrangler dev --experimental-vectorize-bind-to-prod --local",
 		"cf-typegen": "wrangler types",
 		"test": "vitest run",
