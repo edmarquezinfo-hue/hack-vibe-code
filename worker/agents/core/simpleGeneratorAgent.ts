@@ -44,6 +44,7 @@ import { ConversationMessage, looksLikeCommand } from '../inferutils/common';
 import { FileFetcher, fixProjectIssues } from '../../services/code-fixer';
 import { FileProcessing } from '../domain/pure/FileProcessing';
 import { FastCodeFixerOperation } from '../operations/FastCodeFixer';
+import { getProtocolForHost } from '../../utils/urls';
 
 interface WebhookPayload {
     event: {
@@ -1454,11 +1455,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         // Use the agent's session ID as the agent identifier
         const agentId = this.state.sessionId || 'unknown';
         
-        // Try to get base URL from environment, fallback to default
-        const baseUrl = this.env?.BASE_URL || 'https://build.chat.cloudflare.dev';
-        
         // Generate webhook URL with agent ID for routing
-        return `${baseUrl}/api/webhook/sandbox/${agentId}/runtime_error`;
+        return `${getProtocolForHost(this.state.hostname)}://${this.state.hostname}/api/webhook/sandbox/${agentId}/runtime_error`;
     }
 
     /**

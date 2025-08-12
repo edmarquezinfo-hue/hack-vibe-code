@@ -1998,7 +1998,7 @@ export class SandboxSdkClient extends BaseSandboxService {
     private async setAuthEnvironmentVariables(jwtToken: string): Promise<void> {
         const authEnvVars = {
             CF_AI_API_KEY: jwtToken,
-            CF_AI_BASE_URL: env.TEMPLATES_GATEWAY_URL || 'https://templates.coder.eti-india.workers.dev'
+            CF_AI_BASE_URL: env.AI_GATEWAY_PROXY_FOR_TEMPLATES_URL || 'https://templates.coder.eti-india.workers.dev'
         };
         
         // Merge with existing environment variables

@@ -22,9 +22,9 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                 // Check if generation is already active to avoid duplicate processes
                 if (agent.isGenerating) {
                     logger.info('Generation already in progress, skipping duplicate request');
-                    sendToConnection(connection, WebSocketMessageResponses.GENERATION_STARTED, {
-                        message: 'Code generation is already in progress'
-                    });
+                    // sendToConnection(connection, WebSocketMessageResponses.GENERATION_STARTED, {
+                    //     message: 'Code generation is already in progress'
+                    // });
                     return;
                 }
                 
@@ -154,9 +154,9 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                         sendError(connection, `Error resuming generation: ${error instanceof Error ? error.message : String(error)}`);
                     });
                 } else {
-                    sendToConnection(connection, WebSocketMessageResponses.GENERATION_STARTED, {
-                        message: 'Code generation is already in progress'
-                    });
+                    // sendToConnection(connection, WebSocketMessageResponses.GENERATION_STARTED, {
+                    //     message: 'Code generation is already in progress'
+                    // });
                 }
                 break;
             case WebSocketMessageRequests.GITHUB_EXPORT:

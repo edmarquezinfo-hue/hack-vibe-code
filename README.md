@@ -21,8 +21,8 @@ Ready to deploy your own Cloudflare Orange Build platform? The process takes abo
 **Step 1: Click Deploy Button** 🔗  
 Click the deploy button above to start the process
 
-**Step 2: Connect Accounts** ☁️  
-Connect your GitHub and Cloudflare accounts  
+**Step 2: Connect Git Account** ☁️  
+Connect your GitHub/Gitlab account to Cloudflare  
 
 **Step 3: Configure Services** ⚙️  
 You'll be prompted to configure the required services below
@@ -120,10 +120,6 @@ For user authentication (can skip for testing):
 6. Configure these environment variables:
    - `GITHUB_CLIENT_ID` - Your GitHub Client ID
    - `GITHUB_CLIENT_SECRET` - Your GitHub Client Secret
-
-**Base URL Configuration:**
-- `BASE_URL` - Your deployed worker URL (e.g., `https://your-worker-name.workers.dev`)
-
 ---
 
 ## 📋 Configuration Checklist
@@ -135,7 +131,6 @@ Before clicking deploy, ensure you have:
 - ✅ **CF_AI_BASE_URL** and **CF_AI_API_KEY** from AI Gateway setup
 - ✅ **JWT_SECRET** generated using openssl
 - ✅ **OAuth credentials** (GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID, etc.) - optional
-- ✅ **BASE_URL** for your deployment domain
 
 ---
 

@@ -15,7 +15,8 @@ export function setupAuthRoutes(router: Router): Router {
     // Create auth controller functions that capture env
     const createAuthHandler = (method: keyof AuthController) => {
         return async (request: Request, env: Env, _ctx: ExecutionContext) => {
-            const controller = new AuthController(env);
+            const url = new URL(request.url);
+            const controller = new AuthController(env, url.origin);
             return controller[method](request);
         };
     };
@@ -23,7 +24,8 @@ export function setupAuthRoutes(router: Router): Router {
     // Protected route handler (auth is handled by controller methods themselves)
     const createProtectedHandler = (method: keyof AuthController) => {
         return async (request: Request, env: Env, _ctx: ExecutionContext) => {
-            const controller = new AuthController(env);
+            const url = new URL(request.url);
+            const controller = new AuthController(env, url.origin);
             return controller[method](request);
         };
     };

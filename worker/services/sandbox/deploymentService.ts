@@ -2,6 +2,7 @@ import { getSandbox } from '@cloudflare/sandbox';
 import { StructuredLogger } from '../../logger';
 import { env } from 'cloudflare:workers'
 import { DeploymentCredentials, DeploymentResult } from './sandboxTypes';
+import { getProtocolForHost } from '../../utils/urls';
 
 export interface CFDeploymentArgs {
     credentials?: DeploymentCredentials;
@@ -35,7 +36,7 @@ export async function deployToCloudflareWorkers(args: CFDeploymentArgs): Promise
         // Extract deployed URL from output
         // const urlMatch = deployResult.stdout.match(/https:\/\/[^\s]+\.workers\.dev/g);
         // const deployedUrl = urlMatch ? urlMatch[0] : undefined;
-        const deployedUrl = `${args.hostname === 'localhost' ? 'http' : 'https'}://${args.projectName}.${args.hostname}`;
+        const deployedUrl = `${getProtocolForHost(args.hostname)}://${args.projectName}.${args.hostname}`;
         args.logger.info(`[deployToCloudflareWorkers] Successfully deployed instance ${args.instanceId}`, { deployedUrl });
         
         return {
