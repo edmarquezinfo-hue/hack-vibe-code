@@ -138,8 +138,7 @@
 	  }
 	],
 	"vars": {
-		// "SANDBOX_SERVICE_URL": "https://sandboxsdk-dev-worker.eti-india.workers.dev", 
-        // "TEMPLATES_BUCKET_URL": "https://pub-a087c6e0b61c4f15984726f1f1b40594.r2.dev"
+		"SANDBOX_SERVICE_URL": "https://sandboxsdk-dev-worker.eti-india.workers.dev", 
         "TEMPLATES_REPOSITORY":"https://github.com/AshishKumar4/cloudflare-build-templates",
         "CLOUDFLARE_AI_GATEWAY_URL":"optional-url-to-overwrite-ai-gateway-url",
         "CLOUDFLARE_AI_GATEWAY":"orange-build-gateway",
