@@ -325,29 +325,8 @@ export function useChat({
 						if (filteredMessages.length > 0) {
 							console.log('💬 Replacing messages with restored conversation:', filteredMessages.length);
 							setMessages(filteredMessages);
-						} else {
-							console.log('💬 No conversation messages to restore, preserving initial state for welcome message');
-							// For restored chats with no conversation history, trigger welcome message manually
-							setTimeout(() => {
-								sendMessage({
-									id: 'chat-welcome',
-									message: 'You can talk to me while I get your app built',
-									isThinking: false,
-								});
-							}, 100); // Small delay to ensure state is properly updated
 						}
-					} else if (state.blueprint && !state.conversationMessages) {
-						// If we have a blueprint but no conversation messages at all, show welcome message
-						console.log('💬 No conversation messages in state, showing welcome message for functional chat');
-						setTimeout(() => {
-							sendMessage({
-								id: 'chat-welcome',
-								message: 'You can talk to me while I get your app built',
-								isThinking: false,
-							});
-						}, 100); // Small delay to ensure state is properly updated
 					}
-
 					// Update project stages based on current state
 					updateStage('bootstrap', { status: 'completed' });
 					
@@ -568,10 +547,10 @@ export function useChat({
 				setIsPreviewDeploying(false);
 				const finalPreviewURL = getPreviewUrl(message.previewURL, message.tunnelURL);
 				setPreviewUrl(finalPreviewURL);
-				sendMessage({
-					id: 'deployment-status',
-					message: 'Your project has been deployed to ' + finalPreviewURL,
-				});
+				// sendMessage({
+				// 	id: 'deployment-status',
+				// 	message: 'Your project has been deployed to ' + finalPreviewURL,
+				// });
 
 				break;
 			}
