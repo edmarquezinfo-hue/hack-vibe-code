@@ -138,10 +138,10 @@
 	  }
 	],
 	"vars": {
-        "CLOUDFLARE_ACCOUNT_ID":"your-cf-account-id",
+        "CLOUDFLARE_ACCOUNT_ID":"",
 		"SANDBOX_SERVICE_URL": "https://sandboxsdk-dev-worker.eti-india.workers.dev", 
         "TEMPLATES_REPOSITORY":"https://github.com/AshishKumar4/cloudflare-build-templates",
-        "CLOUDFLARE_AI_GATEWAY_URL":"optional-url-to-overwrite-ai-gateway-url",
+        "CLOUDFLARE_AI_GATEWAY_URL":"",
         "CLOUDFLARE_AI_GATEWAY":"orange-build-gateway",
         "MAX_SANDBOX_INSTANCES":"2",
         "SANDBOX_SERVICE_TYPE":"sandbox"
