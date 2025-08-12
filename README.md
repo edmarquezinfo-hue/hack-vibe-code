@@ -371,9 +371,9 @@ The deploy button automatically creates:
 
 ---
 
-## 🏠 Local Development (For Contributors)
+## 🏠 Local Development
 
-Want to contribute to Cloudflare Orange Build? Here's how to run it locally:
+Here's how to run it locally:
 
 ### Prerequisites
 - Node.js 18+, Cloudflare account with Workers paid plan
@@ -381,24 +381,26 @@ Want to contribute to Cloudflare Orange Build? Here's how to run it locally:
 ### Quick Setup
 ```bash
 git clone https://github.com/your-username/cloudflare-vibecoding-starter-kit.git
-cd cloudflare-vibecoding-starter-kit && npm install
+cd cloudflare-vibecoding-starter-kit && bun install
 
 cp .dev.vars.example .dev.vars
-# Edit .dev.vars with your Cloudflare credentials
+# Edit .dev.vars with proper values
 
-npm run db:migrate:local && npm run db:setup
-npm run dev          # Frontend
-npm run local        # Worker (separate terminal)
+bun run install
+bun run db:generate && bun run db:migrate:local
+bun run dev
+
+# To deploy
+bun run deploy
 ```
 
 ### Development Commands
 ```bash
-npm run dev              # Start development servers
-npm run build            # Build for production
-npm run deploy           # Deploy to Cloudflare
-npm run db:studio        # Open database GUI
-npm run lint             # Run code quality checks
-npm run test             # Run test suites
+bun run dev              # Start development servers
+bun run build            # Build for production
+bun run deploy           # Deploy to Cloudflare
+bun run db:generate && bun run db:migrate:local
+bun run lint             # Run code quality checks
 ```
 
 ---
@@ -422,7 +424,7 @@ Love Cloudflare Orange Build? Here's how to contribute:
 
 1. **🍴 Fork** via the Deploy button (creates your own instance!)
 2. **💻 Develop** new features or improvements  
-3. **✅ Test** thoroughly with `npm run test`
+3. **✅ Test** thoroughly with `bun run test`
 4. **📤 Submit** Pull Request to the main repository
 
 ### Development Focus Areas
