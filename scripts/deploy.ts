@@ -13,11 +13,12 @@
  * Used by the "Deploy to Cloudflare" button for one-click deployment.
  */
 
-import { execSync, spawn } from 'child_process';
+import { execSync } from 'child_process';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { parse } from 'jsonc-parser';
+import Cloudflare from 'cloudflare';
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -72,11 +73,15 @@ class DeploymentError extends Error {
 class CloudflareDeploymentManager {
   private config: WranglerConfig;
   private env: EnvironmentConfig;
+  private cloudflare: Cloudflare;
 
   constructor() {
     this.validateEnvironment();
     this.config = this.parseWranglerConfig();
     this.env = this.getEnvironmentVariables();
+    this.cloudflare = new Cloudflare({
+      apiToken: this.env.CLOUDFLARE_API_TOKEN
+    });
   }
 
   /**
@@ -99,20 +104,7 @@ class CloudflareDeploymentManager {
         `Please ensure all required secrets are configured in your deployment.`
       );
     }
-
-    // Validate API token format
-    const apiToken = process.env.CLOUDFLARE_API_TOKEN!;
-    if (!apiToken.match(/^[A-Za-z0-9_-]{40}$/)) {
-      console.warn('Warning: Cloudflare API token format may be incorrect');
-    }
-
-    // Validate account ID format
-    const accountId = process.env.CLOUDFLARE_ACCOUNT_ID!;
-    if (!accountId.match(/^[a-f0-9]{32}$/)) {
-      console.warn('Warning: Cloudflare Account ID format may be incorrect');
-    }
-
-    console.log(' Environment variables validation passed');
+    console.log('✅ Environment variables validation passed');
   }
 
   /**
@@ -129,7 +121,7 @@ class CloudflareDeploymentManager {
       const content = readFileSync(wranglerPath, 'utf-8');
       const config = parse(content) as WranglerConfig;
       
-      console.log(` Parsed wrangler.jsonc - Project: ${config.name}`);
+      console.log(`✅ Parsed wrangler.jsonc - Project: ${config.name}`);
       return config;
     } catch (error) {
       throw new DeploymentError(
@@ -163,54 +155,33 @@ class CloudflareDeploymentManager {
     }
 
     const namespaceName = dispatchConfig.namespace;
-    console.log(`=
- Checking dispatch namespace: ${namespaceName}`);
+    console.log(`🔍 Checking dispatch namespace: ${namespaceName}`);
 
     try {
-      // Check if namespace exists
-      const checkResponse = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${this.env.CLOUDFLARE_ACCOUNT_ID}/workers/dispatch/namespaces/${namespaceName}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${this.env.CLOUDFLARE_API_TOKEN}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      if (checkResponse.ok) {
-        console.log(` Dispatch namespace '${namespaceName}' already exists`);
-        return;
-      }
-
-      if (checkResponse.status === 404) {
-        // Namespace doesn't exist, create it
-        console.log(`=� Creating dispatch namespace: ${namespaceName}`);
-        
-        const createResponse = await fetch(
-          `https://api.cloudflare.com/client/v4/accounts/${this.env.CLOUDFLARE_ACCOUNT_ID}/workers/dispatch/namespaces`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${this.env.CLOUDFLARE_API_TOKEN}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ name: namespaceName })
-          }
+      // Check if namespace exists using Cloudflare SDK
+      try {
+        await this.cloudflare.workersForPlatforms.dispatch.namespaces.get(
+          namespaceName,
+          { account_id: this.env.CLOUDFLARE_ACCOUNT_ID }
         );
-
-        if (!createResponse.ok) {
-          const errorData = await createResponse.json().catch(() => ({}));
-          throw new Error(`Failed to create namespace: ${createResponse.status} ${createResponse.statusText} - ${JSON.stringify(errorData)}`);
+        console.log(`✅ Dispatch namespace '${namespaceName}' already exists`);
+        return;
+      } catch (error: any) {
+        // If error is not 404, re-throw it
+        if (error?.status !== 404 && error?.message?.indexOf('not found') === -1) {
+          throw error;
         }
-
-        console.log(` Successfully created dispatch namespace: ${namespaceName}`);
-      } else {
-        // Unexpected error
-        const errorData = await checkResponse.json().catch(() => ({}));
-        throw new Error(`Failed to check namespace: ${checkResponse.status} ${checkResponse.statusText} - ${JSON.stringify(errorData)}`);
+        // Namespace doesn't exist, continue to create it
       }
+
+      console.log(`📦 Creating dispatch namespace: ${namespaceName}`);
+      
+      await this.cloudflare.workersForPlatforms.dispatch.namespaces.create({
+        account_id: this.env.CLOUDFLARE_ACCOUNT_ID,
+        name: namespaceName
+      });
+
+      console.log(`✅ Successfully created dispatch namespace: ${namespaceName}`);
     } catch (error) {
       throw new DeploymentError(
         `Failed to ensure dispatch namespace: ${namespaceName}`,
@@ -226,7 +197,7 @@ class CloudflareDeploymentManager {
     const templatesDir = join(PROJECT_ROOT, 'templates');
     const templatesRepo = this.env.TEMPLATES_REPOSITORY;
     
-    console.log(`=� Setting up templates from: ${templatesRepo}`);
+    console.log(`📥 Setting up templates from: ${templatesRepo}`);
 
     try {
       // Create templates directory if it doesn't exist
@@ -236,19 +207,23 @@ class CloudflareDeploymentManager {
 
       // Clone repository if not already present
       if (!existsSync(join(templatesDir, '.git'))) {
-        console.log(`= Cloning templates repository...`);
+        console.log(`🔄 Cloning templates repository...`);
         execSync(`git clone "${templatesRepo}" "${templatesDir}"`, {
           stdio: 'pipe',
           cwd: PROJECT_ROOT
         });
-        console.log(' Templates repository cloned successfully');
+        console.log('✅ Templates repository cloned successfully');
       } else {
-        console.log('=� Templates repository already exists, pulling latest changes...');
-        execSync('git pull origin main', {
-          stdio: 'pipe',
-          cwd: templatesDir
-        });
-        console.log(' Templates repository updated');
+        console.log('📁 Templates repository already exists, pulling latest changes...');
+        try {
+          execSync('git pull origin main || git pull origin master', {
+            stdio: 'pipe',
+            cwd: templatesDir
+          });
+          console.log('✅ Templates repository updated');
+        } catch (pullError) {
+          console.warn('⚠️  Could not pull latest changes, continuing with existing templates');
+        }
       }
 
       // Find R2 bucket name from config
@@ -263,19 +238,21 @@ class CloudflareDeploymentManager {
       // Check if deploy script exists
       const deployScript = join(templatesDir, 'deploy_templates.sh');
       if (!existsSync(deployScript)) {
-        throw new Error('deploy_templates.sh not found in templates repository');
+        console.warn('⚠️  deploy_templates.sh not found in templates repository, skipping template deployment');
+        return;
       }
 
       // Make script executable
       execSync(`chmod +x "${deployScript}"`, { cwd: templatesDir });
 
       // Run deployment script with environment variables
-      console.log(`=� Deploying templates to R2 bucket: ${templatesBucket.bucket_name}`);
+      console.log(`🚀 Deploying templates to R2 bucket: ${templatesBucket.bucket_name}`);
       
       const deployEnv = {
         ...process.env,
         CLOUDFLARE_API_TOKEN: this.env.CLOUDFLARE_API_TOKEN,
         CLOUDFLARE_ACCOUNT_ID: this.env.CLOUDFLARE_ACCOUNT_ID,
+        BUCKET_NAME: templatesBucket.bucket_name,
         R2_BUCKET_NAME: templatesBucket.bucket_name
       };
 
@@ -285,12 +262,11 @@ class CloudflareDeploymentManager {
         env: deployEnv
       });
 
-      console.log(' Templates deployed successfully to R2');
+      console.log('✅ Templates deployed successfully to R2');
     } catch (error) {
-      throw new DeploymentError(
-        'Failed to deploy templates',
-        error instanceof Error ? error : new Error(String(error))
-      );
+      // Don't fail the entire deployment if templates fail
+      console.warn('⚠️  Templates deployment failed, but continuing with main deployment:');
+      console.warn(`   ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -301,17 +277,17 @@ class CloudflareDeploymentManager {
     const maxInstances = this.env.MAX_SANDBOX_INSTANCES;
     
     if (!maxInstances) {
-      console.log('9 MAX_SANDBOX_INSTANCES not set, skipping container configuration update');
+      console.log('ℹ️  MAX_SANDBOX_INSTANCES not set, skipping container configuration update');
       return;
     }
 
     const maxInstancesNum = parseInt(maxInstances, 10);
     if (isNaN(maxInstancesNum) || maxInstancesNum <= 0) {
-      console.warn(`� Invalid MAX_SANDBOX_INSTANCES value: ${maxInstances}, skipping update`);
+      console.warn(`⚠️  Invalid MAX_SANDBOX_INSTANCES value: ${maxInstances}, skipping update`);
       return;
     }
 
-    console.log(`=' Updating container configuration: MAX_SANDBOX_INSTANCES=${maxInstancesNum}`);
+    console.log(`🔧 Updating container configuration: MAX_SANDBOX_INSTANCES=${maxInstancesNum}`);
 
     try {
       const wranglerPath = join(PROJECT_ROOT, 'wrangler.jsonc');
@@ -325,14 +301,14 @@ class CloudflareDeploymentManager {
       );
 
       if (updatedContent === content) {
-        console.warn('� Could not find UserAppSandboxService container configuration to update');
+        console.warn('⚠️  Could not find UserAppSandboxService container configuration to update');
         return;
       }
 
       // Write back the updated configuration
       writeFileSync(wranglerPath, updatedContent, 'utf-8');
       
-      console.log(` Updated UserAppSandboxService max_instances to ${maxInstancesNum}`);
+      console.log(`✅ Updated UserAppSandboxService max_instances to ${maxInstancesNum}`);
     } catch (error) {
       throw new DeploymentError(
         'Failed to update container configuration',
@@ -345,33 +321,33 @@ class CloudflareDeploymentManager {
    * Main deployment orchestration method
    */
   public async deploy(): Promise<void> {
-    console.log('>� Cloudflare Orange Build - Automated Deployment Starting...\n');
+    console.log('🧡 Cloudflare Orange Build - Automated Deployment Starting...\n');
     
     const startTime = Date.now();
     
     try {
       // Step 1: Ensure Workers for Platforms namespace exists
-      console.log('=� Step 1: Setting up Workers for Platforms...');
+      console.log('📋 Step 1: Setting up Workers for Platforms...');
       await this.ensureDispatchNamespace();
       
       // Step 2: Deploy templates to R2
-      console.log('\n=� Step 2: Deploying templates...');
+      console.log('\n📋 Step 2: Deploying templates...');
       await this.deployTemplates();
       
       // Step 3: Update container configuration if needed
-      console.log('\n=� Step 3: Updating container configuration...');
+      console.log('\n📋 Step 3: Updating container configuration...');
       this.updateContainerConfiguration();
       
       // Deployment complete
       const duration = Math.round((Date.now() - startTime) / 1000);
-      console.log(`\n<� Deployment completed successfully in ${duration}s!`);
+      console.log(`\n🎉 Deployment completed successfully in ${duration}s!`);
       console.log('\nNext steps:');
       console.log('- Run: npm run build');
       console.log('- Run: wrangler deploy');
-      console.log('- Your Cloudflare Orange Build platform will be ready! =�');
+      console.log('- Your Cloudflare Orange Build platform will be ready! 🚀');
       
     } catch (error) {
-      console.error('\nL Deployment failed:');
+      console.error('\n❌ Deployment failed:');
       
       if (error instanceof DeploymentError) {
         console.error(`   ${error.message}`);
@@ -382,7 +358,7 @@ class CloudflareDeploymentManager {
         console.error(`   ${error}`);
       }
       
-      console.error('\n=L Troubleshooting tips:');
+      console.error('\n🔍 Troubleshooting tips:');
       console.error('   - Verify all environment variables are correctly set');
       console.error('   - Check your Cloudflare API token has required permissions');
       console.error('   - Ensure your account has access to Workers for Platforms');
