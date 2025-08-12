@@ -1,19 +1,19 @@
 # Essential Secrets:
-#CLOUDFLARE_API_TOKEN="your-workers-access-token"
-#CLOUDFLARE_ACCOUNT_ID="your-cf-account-id"
+#CLOUDFLARE_API_TOKEN=""
+#CLOUDFLARE_ACCOUNT_ID=""
 
-CLOUDFLARE_AI_GATEWAY_TOKEN="optional-your-cf-ai-gateway-token"
+CLOUDFLARE_AI_GATEWAY_TOKEN=""
 
 # Provider specific secrets:
-ANTHROPIC_API_KEY="your-anthropic-api-key"
-OPENAI_API_KEY="your-openai-api-key"
-GEMINI_API_KEY="your-gemini-api-key"
-OPENROUTER_API_KEY="optional-your-openrouter-api-key"
-GROQ_API_KEY="optional-your-groq-api-key"
+ANTHROPIC_API_KEY=""
+OPENAI_API_KEY=""
+GEMINI_API_KEY=""
+OPENROUTER_API_KEY=""
+GROQ_API_KEY=""
 
 # Stuff for Oauths:
-GOOGLE_CLIENT_SECRET="optional-your-google-client-secret"
-GOOGLE_CLIENT_ID="optional-your-google-client-id"
+GOOGLE_CLIENT_SECRET=""
+GOOGLE_CLIENT_ID=""
 
 # GitHub OAuth
 GITHUB_CLIENT_ID="optional-your-github-client-id"
