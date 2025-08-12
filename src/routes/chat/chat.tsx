@@ -135,8 +135,8 @@ export default function Chat() {
 
 	const hasSeenPreview = useRef(false);
 	const hasSwitchedFile = useRef(false);
-	const wasChatDisabled = useRef(true);
-	const hasShownWelcome = useRef(false);
+	// const wasChatDisabled = useRef(true);
+	// const hasShownWelcome = useRef(false);
 
 	const editorRef = useRef<HTMLDivElement>(null);
 	const previewRef = useRef<HTMLIFrameElement>(null);
@@ -227,14 +227,14 @@ export default function Chat() {
 	const [mainMessage, ...otherMessages] = useMemo(() => messages, [messages]);
 
 	useEffect(() => {
-		if (previewUrl && !hasSeenPreview.current) {
+		if (previewUrl && !hasSeenPreview.current && isPhase1Complete) {
 			setView('preview');
 			setShowTooltip(true);
 			setTimeout(() => {
 				setShowTooltip(false);
 			}, 3000);
 		}
-	}, [previewUrl]);
+	}, [previewUrl, isPhase1Complete]);
 
 	useEffect(() => {
 		if (chatId) {
@@ -316,26 +316,6 @@ export default function Chat() {
 		// Disable until both blueprint is complete AND we have an agentId
 		return !isBlueprintComplete || !hasAgentId;
 	}, [projectStages, chatId]);
-
-	// Show welcome message when chat becomes available
-	useEffect(() => {
-		if (
-			wasChatDisabled.current &&
-			!isChatDisabled &&
-			chatId &&
-			!hasShownWelcome.current
-		) {
-			sendAiMessage({
-				id: 'chat-welcome',
-				message: 'You can talk to me while I get your app built',
-				isThinking: false,
-			});
-			wasChatDisabled.current = false;
-			hasShownWelcome.current = true;
-		} else if (isChatDisabled) {
-			wasChatDisabled.current = true;
-		}
-	}, [isChatDisabled, chatId, sendAiMessage]);
 
 	const onNewMessage = useCallback(
 		(e: FormEvent) => {
