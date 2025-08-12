@@ -1,6 +1,6 @@
 import { ConversationalResponseSchema, ConversationalResponseType } from "../schemas";
 import { createAssistantMessage, createUserMessage } from "../inferutils/common";
-import { executeInference } from "../inferutils/inferenceUtils";
+import { executeInference } from "../inferutils/infer";
 import { getSystemPromptWithProjectContext } from "./common";
 import { TemplateRegistry } from "../inferutils/schemaFormatters";
 import { WebSocketMessageResponses } from "../constants";
@@ -90,8 +90,7 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
                 id: options.agentId,
                 env: env,
                 messages: [...systemPrompts, ...messages],
-                schemaName: "conversationalResponse",
-                operationName: 'processUserMessage',
+                agentActionName: "conversationalResponse",
                 tools, // Enable tools for the conversational AI
                 stream: {
                     onChunk: (chunk) => {

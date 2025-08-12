@@ -1,6 +1,6 @@
 import { TechnicalInstructionSchema, TechnicalInstructionType } from '../schemas';
 import { createUserMessage } from '../inferutils/common';
-import { executeInference } from '../inferutils/inferenceUtils';
+import { executeInference } from '../inferutils/infer';
 import { PROMPT_UTILS } from '../prompts';
 import { AgentOperation, getSystemPromptWithProjectContext, OperationOptions } from '../operations/common';
 import { IssueReport } from '../domain/values/IssueReport';
@@ -169,9 +169,8 @@ export class UserSuggestionProcessor extends AgentOperation<UserSuggestionProces
                 id: options.agentId,
                 env: env,
                 messages,
-                schemaName: "userSuggestionProcessor",
+                agentActionName: "userSuggestionProcessor",
                 schema: TechnicalInstructionSchema,
-                operationName: 'processUserSuggestions',
                 format: 'markdown',
             });
 

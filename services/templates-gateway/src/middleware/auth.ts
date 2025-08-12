@@ -38,7 +38,7 @@ export async function authMiddleware(c: AppContext, next: Next) {
     }
 
     // Verify JWT token
-    const payload = await verifyJWT(jwtToken, c.env.TEMPLATES_GATEWAY_JWT_SECRET);
+    const payload = await verifyJWT(jwtToken, c.env.AI_GATEWAY_PROXY_FOR_TEMPLATES_JWT_SECRET);
     if (!payload) {
       return c.json({ 
         error: "Invalid or expired JWT token" 

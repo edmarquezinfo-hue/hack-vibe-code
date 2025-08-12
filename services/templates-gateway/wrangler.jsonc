@@ -37,7 +37,7 @@
 		"CF_AI_API_KEY": "your-cloudflare-api-key",
         "AUTH_PRIVATE_KEY": "your-auth-private-key",
         "AUTH_SECRET": "your-auth-secret",
-        "TEMPLATES_GATEWAY_JWT_SECRET": "your-templates-gateway-jwt-secret-here"
+        "AI_GATEWAY_PROXY_FOR_TEMPLATES_JWT_SECRET": "your-templates-gateway-jwt-secret-here"
 	}
 	/**
 	 * Smart Placement

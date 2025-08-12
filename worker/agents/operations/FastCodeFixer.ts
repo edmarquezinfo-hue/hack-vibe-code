@@ -1,5 +1,5 @@
 import { createSystemMessage, createUserMessage } from '../inferutils/common';
-import { executeInference } from '../inferutils/inferenceUtils';
+import { executeInference } from '../inferutils/infer';
 import { PROMPT_UTILS } from '../prompts';
 import { AgentOperation, OperationOptions } from '../operations/common';
 import { FileOutputType, PhaseConceptType } from '../schemas';
@@ -83,7 +83,7 @@ export class FastCodeFixerOperation extends AgentOperation<FastCodeFixerInputs, 
             id: options.agentId,    
             env: env,
             messages,
-            schemaName: "fastCodeFixer",
+            agentActionName: "fastCodeFixer",
         });
 
         const files = codeGenerationFormat.deserialize(result.string);

@@ -1,7 +1,7 @@
 import { PhaseConceptType, FileOutputType, PhaseConceptSchema, TechnicalInstructionType } from '../schemas';
 import { IssueReport } from '../domain/values/IssueReport';
 import { createUserMessage } from '../inferutils/common';
-import { executeInference } from '../inferutils/inferenceUtils';
+import { executeInference } from '../inferutils/infer';
 import { issuesPromptFormatter, PROMPT_UTILS, STRATEGIES } from '../prompts';
 import { CodeGenerationStreamingState } from '../code-formats/base';
 import { FileProcessing } from '../domain/pure/FileProcessing';
@@ -10,7 +10,7 @@ import { AgentOperation, getSystemPromptWithProjectContext, OperationOptions } f
 import { SCOFFormat, SCOFParsingState } from '../code-formats/scof';
 import { TemplateRegistry } from '../inferutils/schemaFormatters';
 import { RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
-import { AGENT_CONFIG } from '../config';
+import { AGENT_CONFIG } from '../inferutils/config';
 
 export interface PhaseImplementationInputs {
     phase: PhaseConceptType
@@ -285,7 +285,7 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
         await executeInference({
             id: options.agentId,    
             env: env,
-            schemaName: "phaseImplementation",
+            agentActionName: "phaseImplementation",
             messages,
             modelConfig,
             stream: {

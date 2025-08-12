@@ -107,12 +107,11 @@ export class GitHubOAuthProvider extends BaseOAuthProvider {
     /**
      * Create GitHub OAuth provider instance
      */
-    static create(env: Env): GitHubOAuthProvider {
+    static create(env: Env, baseUrl: string): GitHubOAuthProvider {
         if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
             throw new Error('GitHub OAuth credentials not configured');
         }
         
-        const baseUrl = env.BASE_URL || 'http://localhost:8787';
         const redirectUri = `${baseUrl}/api/auth/callback/github`;
         
         return new GitHubOAuthProvider(

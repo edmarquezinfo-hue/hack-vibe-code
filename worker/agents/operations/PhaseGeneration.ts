@@ -1,7 +1,7 @@
 import { PhaseConceptGenerationSchema, PhaseConceptGenerationSchemaType } from '../schemas';
 import { IssueReport } from '../domain/values/IssueReport';
 import { createUserMessage } from '../inferutils/common';
-import { executeInference } from '../inferutils/inferenceUtils';
+import { executeInference } from '../inferutils/infer';
 import { issuesPromptFormatter, PROMPT_UTILS, STRATEGIES } from '../prompts';
 import { Message } from '../inferutils/common';
 import { AgentOperation, getSystemPromptWithProjectContext, OperationOptions } from '../operations/common';
@@ -142,9 +142,8 @@ export class PhaseGenerationOperation extends AgentOperation<PhaseGenerationInpu
                 id: options.agentId,
                 env: env,
                 messages,
-                schemaName: "phaseGeneration",
+                agentActionName: "phaseGeneration",
                 schema: PhaseConceptGenerationSchema,
-                operationName: 'generateNextPhase',
                 // format: 'markdown',
             });
     
@@ -179,9 +178,8 @@ export class PhaseGenerationOperation extends AgentOperation<PhaseGenerationInpu
                 id: options.agentId,
                 env: env,
                 messages,
-                schemaName: "phaseGeneration",
+                agentActionName: "phaseGeneration",
                 schema: PhaseConceptGenerationSchema,
-                operationName: 'generateNextPhase',
                 format: 'markdown',
             });
     

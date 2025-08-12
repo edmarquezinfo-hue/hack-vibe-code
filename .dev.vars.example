@@ -1,0 +1,30 @@
+# Essential Secrets:
+#CLOUDFLARE_API_TOKEN="your-workers-access-token"
+#CLOUDFLARE_ACCOUNT_ID="your-cf-account-id"
+
+TEMPLATES_REPOSITORY="https://github.com/AshishKumar4/cloudflare-build-templates"
+
+CLOUDFLARE_AI_GATEWAY_URL="optional-url-to-overwrite-ai-gateway-url"
+CLOUDFLARE_AI_GATEWAY="orange-build-gateway"
+CLOUDFLARE_AI_GATEWAY_TOKEN="optional-your-cf-ai-gateway-token"
+
+# Provider specific secrets:
+ANTHROPIC_API_KEY="your-anthropic-api-key"
+OPENAI_API_KEY="your-openai-api-key"
+GEMINI_API_KEY="your-gemini-api-key"
+OPENROUTER_API_KEY="optional-your-openrouter-api-key"
+GROQ_API_KEY="optional-your-groq-api-key"
+
+# Stuff for Oauths:
+GOOGLE_CLIENT_SECRET="optional-your-google-client-secret"
+GOOGLE_CLIENT_ID="optional-your-google-client-id"
+
+# GitHub OAuth
+GITHUB_CLIENT_ID="optional-your-github-client-id"
+GITHUB_CLIENT_SECRET="optional-your-github-secret"
+
+# Secrets for various internal services of this platform
+JWT_SECRET="your-super-secret-for-jwt-auth"
+WEBHOOK_SECRET="your-webhook-secret"
+
+MAX_SANDBOX_INSTANCES="2"

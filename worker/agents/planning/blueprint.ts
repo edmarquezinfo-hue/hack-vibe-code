@@ -1,6 +1,6 @@
 import { TemplateDetails } from '../../services/sandbox/sandboxTypes'; // Import the type
 import { STRATEGIES, PROMPT_UTILS, generalSystemPromptBuilder } from '../prompts';
-import { executeInference } from '../inferutils/inferenceUtils';
+import { executeInference } from '../inferutils/infer';
 import { Blueprint, BlueprintSchema } from '../schemas';
 import { TemplateSelection } from './templateSelector';
 import { createLogger } from '../../logger';
@@ -153,10 +153,8 @@ export async function generateBlueprint({ env, agentId, query, language, framewo
             id: agentId,
             env,
             messages,
-            schemaName: "blueprint",
+            agentActionName: "blueprint",
             schema: BlueprintSchema,
-            operationName: 'generateBlueprint',
-            // format: 'markdown', 
             stream: stream,
         });
 

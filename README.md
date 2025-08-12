@@ -21,8 +21,8 @@ Ready to deploy your own Cloudflare Orange Build platform? The process takes abo
 **Step 1: Click Deploy Button** 🔗  
 Click the deploy button above to start the process
 
-**Step 2: Connect Accounts** ☁️  
-Connect your GitHub and Cloudflare accounts  
+**Step 2: Connect Git Account** ☁️  
+Connect your GitHub/Gitlab account to Cloudflare  
 
 **Step 3: Configure Services** ⚙️  
 You'll be prompted to configure the required services below
@@ -60,9 +60,15 @@ Create an API token with these specific permissions:
 5. Click **Continue to Summary** → **Create Token**
 6. **Save this token** - you'll need it during deployment
 
-### 🤖 2. AI Gateway Setup (Required)
+### 🤖 2. AI Gateway Setup (Conditional)
 
-Cloudflare Orange Build requires an authenticated AI Gateway:
+Cloudflare Orange Build requires an authenticated AI Gateway, but **setup is automatic if you provide the right token**:
+
+#### Option A: Automatic Setup (Recommended)
+If you have a `CLOUDFLARE_AI_GATEWAY_TOKEN` with **Read, Edit, and Run** permissions, the deployment script will automatically create and configure the AI Gateway for you. **No manual setup required!**
+
+#### Option B: Manual Setup (If no token provided)
+Only if you **don't** have an AI Gateway token, manually create one:
 
 1. Go to [AI Gateway Dashboard](https://dash.cloudflare.com/ai/ai-gateway)
 2. Click **Create Gateway**
@@ -81,17 +87,31 @@ You'll need to provide these exact environment variable names during deployment:
 **Cloudflare Configuration:**
 - `CLOUDFLARE_API_TOKEN` - Your Cloudflare API token (from step 1)
 - `CLOUDFLARE_ACCOUNT_ID` - Your Cloudflare Account ID  
-- `CLOUDFLARE_D1_ID` - D1 database ID (auto-generated during deployment)
-- `CLOUDFLARE_D1_TOKEN` - D1 access token (usually same as API token)
+
+**AI Provider API Keys (Required):**
+> **⚠️ Currently Required**: The following AI provider API keys are mandatory for the platform to function. We are actively working to make these optional and easily configurable in future releases.
+
+- `OPENAI_API_KEY` - Your OpenAI API key for GPT models
+- `ANTHROPIC_API_KEY` - Your Anthropic API key for Claude models  
+- `GEMINI_API_KEY` - Your Google Gemini API key for Gemini models
+
+> **💡 AI Gateway Wholesaling Alternative**: If you have **AI Gateway Wholesaling** enabled on your Cloudflare account, you can skip the individual provider API keys above. Instead, you'll need your AI Gateway token with proper Run permissions.
 
 **AI Gateway Configuration:**
-- `CF_AI_BASE_URL` - Your AI Gateway endpoint (from step 2)
-- `CF_AI_API_KEY` - Your AI Gateway authentication token (from step 2)
+- `CLOUDFLARE_AI_GATEWAY_TOKEN` - **HIGHLY RECOMMENDED** - AI Gateway token with Read, Edit, and **Run** permissions
+  
+> **💡 Automatic vs Manual Setup**: 
+> - **With token**: Deployment automatically creates and configures AI Gateway for you
+> - **Without token**: You must manually create AI Gateway named `orange-build-gateway` (or custom name) before deployment
+
+**Optional AI Gateway Settings:**
+- `CLOUDFLARE_AI_GATEWAY` - Gateway name (default: `orange-build-gateway`)
+- `CLOUDFLARE_AI_GATEWAY_URL` - Custom gateway URL (auto-generated if not provided)
 
 **Required Secrets:**
 ```bash
 # Generate these secrets
-JWT_SECRET='some-secret'
+JWT_SECRET='some-secure-random-string'
 ```
 
 **Environment:**
@@ -120,22 +140,30 @@ For user authentication (can skip for testing):
 6. Configure these environment variables:
    - `GITHUB_CLIENT_ID` - Your GitHub Client ID
    - `GITHUB_CLIENT_SECRET` - Your GitHub Client Secret
-
-**Base URL Configuration:**
-- `BASE_URL` - Your deployed worker URL (e.g., `https://your-worker-name.workers.dev`)
-
 ---
 
 ## 📋 Configuration Checklist
 
 Before clicking deploy, ensure you have:
 
+**Essential Requirements:**
 - ✅ **CLOUDFLARE_API_TOKEN** with all required permissions
 - ✅ **CLOUDFLARE_ACCOUNT_ID** from your dashboard
-- ✅ **CF_AI_BASE_URL** and **CF_AI_API_KEY** from AI Gateway setup
-- ✅ **JWT_SECRET** generated using openssl
-- ✅ **OAuth credentials** (GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID, etc.) - optional
-- ✅ **BASE_URL** for your deployment domain
+- ✅ **AI Provider API Keys** (all three required):
+  - `OPENAI_API_KEY` - OpenAI API access
+  - `ANTHROPIC_API_KEY` - Anthropic Claude API access  
+  - `GEMINI_API_KEY` - Google Gemini API access
+- ✅ **JWT_SECRET** - Secure random string
+
+**Highly Recommended:**
+- ✅ **CLOUDFLARE_AI_GATEWAY_TOKEN** - AI Gateway token with Read, Edit, and **Run** permissions
+  - *Without this, you must manually create the AI Gateway before deployment*
+
+**Optional:**
+- ⚪ **OAuth credentials** (GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID, etc.)
+- ⚪ **Custom AI Gateway settings** (CLOUDFLARE_AI_GATEWAY, CLOUDFLARE_AI_GATEWAY_URL)
+
+> **💡 AI Gateway Wholesaling Users**: If you have AI Gateway Wholesaling enabled, you can skip the individual AI provider API keys and just use your AI Gateway token with Run permissions.
 
 ---
 
@@ -319,10 +347,21 @@ The deploy button automatically creates:
 - Wait a few minutes and retry - D1 resources may take time to provision
 
 **🔐 "Missing Required Environment Variables"**
-- `JWT_SECRET` is required and must be properly base64 encoded
-- Verify all Cloudflare variables are set: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
-- Check AI Gateway variables: `CF_AI_BASE_URL`, `CF_AI_API_KEY`
-- Ensure `ENVIRONMENT` is set to "production" for deployment
+- **AI Provider API Keys**: Verify all three are set: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`
+- **Cloudflare Variables**: Ensure `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are set
+- **JWT Secret**: `JWT_SECRET` is required - generate a secure random string
+- **AI Gateway Token**: `CLOUDFLARE_AI_GATEWAY_TOKEN` is highly recommended for automatic setup
+
+**🤖 "AI Gateway Not Found"**
+- **With AI Gateway Token**: The deployment script should automatically create the gateway. Check that your token has Read, Edit, and **Run** permissions.
+- **Without AI Gateway Token**: You must manually create an AI Gateway before deployment:
+  1. Go to [AI Gateway Dashboard](https://dash.cloudflare.com/ai/ai-gateway)
+  2. Create gateway named `orange-build-gateway` (or your custom name)
+  3. Enable authentication and create a token with **Run** permissions
+
+**💡 "AI Gateway Wholesaling"**
+- Users with AI Gateway Wholesaling can skip individual provider API keys
+- Ensure your AI Gateway token has proper Run permissions for all providers
 
 ### Need Help?
 

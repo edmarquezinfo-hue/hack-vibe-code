@@ -32,10 +32,10 @@ import { eq, and, desc, ne } from 'drizzle-orm';
 export class AuthController extends BaseController {
     private authService: AuthService;
     
-    constructor(private env: Env) {
+    constructor(private env: Env, baseUrl: string) {
         super();
         const db = this.createDbService(env);
-        this.authService = new AuthService(db, env);
+        this.authService = new AuthService(db, env, baseUrl);
     }
     
     /**

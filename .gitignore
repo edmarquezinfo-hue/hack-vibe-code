@@ -26,8 +26,8 @@ dist-ssr
 
 # wrangler files
 .wrangler
-.dev.vars*
-.prod.vars*
+.dev.vars
+.prod.vars
 .env
 .env.*
 
@@ -37,3 +37,6 @@ runner/downloads
 /generated/prisma
 test.ts
 temp/
+
+/templates/
+debugging.ipynb

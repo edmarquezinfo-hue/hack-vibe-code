@@ -1,12 +1,12 @@
-import { AIModels, infer, InferError, InferResponseString, InferResponseObject } from './aigateway';
+import { infer, InferError, InferResponseString, InferResponseObject } from './core';
 import { createAssistantMessage, createUserMessage, Message } from './common';
 import z from 'zod';
 // import { CodeEnhancementOutput, CodeEnhancementOutputType } from '../codegen/phasewiseGenerator';
 import { SchemaFormat } from './schemaFormatters';
 import { ChatCompletionTool, ReasoningEffort } from 'openai/resources.mjs';
-import { AGENT_CONFIG, AgentActionKey } from '../config';
+import { AGENT_CONFIG, AgentActionKey, AIModels } from './config';
 import { createLogger } from '../../logger';
-import { ModelConfig } from '../config';
+import { ModelConfig } from './config';
 
 const logger = createLogger('InferenceUtils');
 
@@ -28,9 +28,8 @@ interface InferenceParamsBase {
     maxTokens?: number;
     temperature?: number;
     modelName?: AIModels | string;
-    operationName?: string;
     retryLimit?: number;
-    schemaName: AgentActionKey;
+    agentActionName: AgentActionKey;
     tools?: ChatCompletionTool[];
     stream?: {
         chunk_size: number;
@@ -65,7 +64,7 @@ export async function executeInference<T extends z.AnyZodObject>(   {
     tools,
     reasoning_effort,
     schema,
-    schemaName,
+    agentActionName,
     format,
     modelName,
     modelConfig
@@ -73,7 +72,7 @@ export async function executeInference<T extends z.AnyZodObject>(   {
     schema?: T;
     format?: SchemaFormat;
 }): Promise<InferResponseString | InferResponseObject<T> | null> {
-    const conf = modelConfig || AGENT_CONFIG[schemaName];
+    const conf = modelConfig || AGENT_CONFIG[agentActionName];
 
     modelName = modelName || conf.name;
     temperature = temperature || conf.temperature || 0.2;
@@ -88,14 +87,14 @@ export async function executeInference<T extends z.AnyZodObject>(   {
 
     for (let attempt = 0; attempt < retryLimit; attempt++) {
         try {
-            logger.info(`Starting ${schemaName} operation with model ${modelName} (attempt ${attempt + 1}/${retryLimit})`);
+            logger.info(`Starting ${agentActionName} operation with model ${modelName} (attempt ${attempt + 1}/${retryLimit})`);
 
             const result = schema ? await infer<T>({
                 env,
                 id,
                 messages,
                 schema,
-                schemaName,
+                schemaName: agentActionName,
                 format,
                 maxTokens,
                 modelName: useCheaperModel ? AIModels.GEMINI_2_5_FLASH : modelName,
@@ -119,13 +118,13 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 temperature,
                 providerOverride
             });
-            logger.info(`Successfully completed ${schemaName} operation`);
+            logger.info(`Successfully completed ${agentActionName} operation`);
             // console.log(result);
             return result;
         } catch (error) {
             const isLastAttempt = attempt === retryLimit - 1;
             logger.error(
-                `Error during ${schemaName} operation (attempt ${attempt + 1}/${retryLimit}):`,
+                `Error during ${agentActionName} operation (attempt ${attempt + 1}/${retryLimit}):`,
                 error
             );
 

@@ -65,7 +65,8 @@ export class AuthService {
     
     constructor(
         private db: DatabaseService,
-        private env: Env
+        private env: Env,
+        baseUrl: string
     ) {
         this.tokenService = new TokenService(env);
         this.sessionService = new SessionService(db, this.tokenService);
@@ -75,13 +76,13 @@ export class AuthService {
         this.oauthProviders = new Map();
         
         try {
-            this.oauthProviders.set('google', GoogleOAuthProvider.create(env));
+            this.oauthProviders.set('google', GoogleOAuthProvider.create(env, baseUrl));
         } catch {
             logger.warn('Google OAuth provider not configured');
         }
         
         try {
-            this.oauthProviders.set('github', GitHubOAuthProvider.create(env));
+            this.oauthProviders.set('github', GitHubOAuthProvider.create(env, baseUrl));
         } catch {
             logger.warn('GitHub OAuth provider not configured');
         }

@@ -38,7 +38,7 @@
 		{
 			"class_name": "UserAppSandboxService",
 			"image": "./SandboxDockerfile",
-			"max_instances": 200,
+			"max_instances": 100,
             "configuration": {
               "vcpu": 4,
               "memory_mib": 4096,
@@ -128,10 +128,6 @@
 		}
 	],
 	"routes": [
-	//   {
-	// 	"pattern": "build.chat.cloudflare.dev",
-	// 	"custom_domain": true
-	//   },
 	  {
 		"pattern": "build.cloudflare.dev",
 		"custom_domain": true
@@ -143,20 +139,8 @@
 	],
 	"vars": {
 		"SANDBOX_SERVICE_URL": "https://sandboxsdk-dev-worker.eti-india.workers.dev", 
-		// // "SANDBOX_SERVICE_URL": "https://sandboxsdk-dev-worker.eti-india.workers.dev",
-		// "CF_ACCOUNT_ID": "7449da25f3a0ed58b1f500c4f1d5a0e4", // "f44999d1ddda7012e9a87729eba250f1",
-		// "CF_GATEWAY_ID": "c-coder",
-        "TEMPLATES_BUCKET_URL": "https://pub-a087c6e0b61c4f15984726f1f1b40594.r2.dev",
-        "TEMPLATES_GATEWAY_URL": "https://templates.coder.eti-india.workers.dev",
-        "VITE_PREVIEW_MODE": "tunnel",
-        "SANDBOX_SERVICE_TYPE": "sandbox"
-		// "ANTHROPIC_API_KEY": "",
-		// "OPENAI_API_KEY": "",
-		// "GEMINI_API_KEY": "",
-		// "OPENROUTER_API_KEY": "",
-		// "RUNNER_SERVICE_API_KEY": "",
+        "TEMPLATES_BUCKET_URL": "https://pub-a087c6e0b61c4f15984726f1f1b40594.r2.dev"
 		// "JWT_SECRET": "",
-		// "BASE_URL": "https://build.ashishkumarsingh.com",
 		// "GITHUB_CLIENT_ID": "",
 		// "GITHUB_CLIENT_SECRET": "",
 		// "GOOGLE_CLIENT_ID": "",
