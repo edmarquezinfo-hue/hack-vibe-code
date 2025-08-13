@@ -79,7 +79,8 @@ export async function buildGatewayUrl(env: Env, providerOverride?: AIGatewayProv
             // Validate it's actually an HTTP/HTTPS URL
             if (url.protocol === 'http:' || url.protocol === 'https:') {
                 // Add 'providerOverride' as a segment to the URL
-                url.pathname = providerOverride ? `${url.pathname.replace(/\/$/, '')}/${providerOverride}` : `${url.pathname.replace(/\/$/, '')}/compat`;
+                const cleanPathname = url.pathname.replace(/\/$/, ''); // Remove trailing slash
+                url.pathname = providerOverride ? `${cleanPathname}/${providerOverride}` : `${cleanPathname}/compat`;
                 return url.toString();
             }
         } catch (error) {

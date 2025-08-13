@@ -920,6 +920,43 @@ class CloudflareDeploymentManager {
 	}
 
 	/**
+	 * Cleans Wrangler cache and build artifacts
+	 */
+	private cleanWranglerCache(): void {
+		console.log('🧹 Cleaning Wrangler cache and build artifacts...');
+
+		try {
+			// Remove .wrangler directory (contains wrangler cache and state)
+			execSync('rm -rf .wrangler', {
+				stdio: 'pipe',
+				cwd: PROJECT_ROOT,
+			});
+			console.log('   ✅ Removed .wrangler directory');
+
+			// Remove wrangler.json files from dist/* directories
+			// Use find to locate and remove any wrangler.json files in dist subdirectories
+			try {
+				execSync('find dist -name "wrangler.json" -type f -delete 2>/dev/null || true', {
+					stdio: 'pipe',
+					cwd: PROJECT_ROOT,
+				});
+				console.log('   ✅ Removed cached wrangler.json files from dist');
+			} catch (findError) {
+				// Non-critical - continue if find fails
+				console.log('   ℹ️  No cached wrangler.json files found in dist');
+			}
+
+			console.log('✅ Cache cleanup completed');
+		} catch (error) {
+			// Non-blocking - log warning but continue
+			console.warn(
+				`⚠️  Cache cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+			);
+			console.warn('   Continuing with deployment...');
+		}
+	}
+
+	/**
 	 * Builds the project (clean dist and run build)
 	 */
 	private async buildProject(): Promise<void> {
@@ -1277,8 +1314,9 @@ class CloudflareDeploymentManager {
 
 			let deploymentSucceeded = false;
 			try {
-				// Step 5: Deploy with Wrangler (now without conflicts)
-				console.log('\n📋 Step 5: Deploying to Cloudflare Workers...');
+				// Step 5: Clean cache and Deploy with Wrangler (now without conflicts)
+				console.log('\n📋 Step 5: Cleaning cache and deploying to Cloudflare Workers...');
+				this.cleanWranglerCache();
 				await this.wranglerDeploy();
 
 				// Step 6: Update secrets (now no conflicts)

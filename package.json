@@ -19,7 +19,7 @@
 		"db:generate": "drizzle-kit generate --config=drizzle.config.local.ts",
 		"db:generate:remote": "drizzle-kit generate --config=drizzle.config.remote.ts",
 		"db:migrate:local": "wrangler d1 migrations apply orange-build-db --local",
-		"db:migrate:remote": "wrangler d1 migrations apply orange-build-db --remote",
+		"db:migrate:remote": "CI=true wrangler d1 migrations apply orange-build-db --remote",
 		"db:push:local": "drizzle-kit push --config=drizzle.config.local.ts",
 		"db:push:remote": "drizzle-kit push --config=drizzle.config.remote.ts",
 		"db:studio": "drizzle-kit studio --config=drizzle.config.local.ts",

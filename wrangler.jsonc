@@ -142,7 +142,7 @@
         "CLOUDFLARE_AI_GATEWAY": "c-coder",
         "CUSTOM_DOMAIN": "build.cloudflare.dev",
         "MAX_SANDBOX_INSTANCES": "2",
-        "CLOUDFLARE_AI_GATEWAY_URL": "none"
+        "CLOUDFLARE_AI_GATEWAY_URL": "https://staging.gateway.ai.cfdata.org/v1/a2def15ee67677660388b40204bc3d86/c-coder"
     },
 	"workers_dev": false,
 	"preview_urls": false
