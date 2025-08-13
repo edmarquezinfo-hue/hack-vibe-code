@@ -121,12 +121,12 @@
             "tag": "v2"
         }
 	],
-	"services": [
-		{
-			"binding": "RUNNER_SERVICE",
-			"service": "runner-service"
-		}
-	],
+	// "services": [
+	// 	{
+	// 		"binding": "RUNNER_SERVICE",
+	// 		"service": "runner-service"
+	// 	}
+	// ],
 	"routes": [
 	  {
 		"pattern": "build.cloudflare.dev",
