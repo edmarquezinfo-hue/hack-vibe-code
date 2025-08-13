@@ -8,17 +8,20 @@ CLOUDFLARE_AI_GATEWAY_TOKEN=""
 ANTHROPIC_API_KEY=""
 OPENAI_API_KEY=""
 GEMINI_API_KEY=""
-#OPENROUTER_API_KEY="default" # Leave as-is if not going to set it
-#GROQ_API_KEY="default" # Leave as-is if not going to set it
-
+#OPENROUTER_API_KEY="default" 
+#GROQ_API_KEY="default" 
+ 
 # Stuff for Oauths:
-GOOGLE_CLIENT_SECRET="default" # Leave as-is if not going to set it
-GOOGLE_CLIENT_ID="default" # Leave as-is if not going to set it
+#GOOGLE_CLIENT_SECRET=""
+#GOOGLE_CLIENT_ID="" 
 
 # GitHub OAuth
-GITHUB_CLIENT_ID="default" # Leave as-is if not going to set it
-GITHUB_CLIENT_SECRET="default" # Leave as-is if not going to set it
+#GITHUB_CLIENT_ID=""
+#GITHUB_CLIENT_SECRET=""
 
 # Secrets for various internal services of this platform
-JWT_SECRET="default" # Leave as-is if not going to set it
-WEBHOOK_SECRET="default" # Leave as-is if not going to set it
+JWT_SECRET="default" 
+WEBHOOK_SECRET="default" 
+
+# AI Gateway URL Override (Leave as-is if not going to set it)
+#CLOUDFLARE_AI_GATEWAY_URL=""
