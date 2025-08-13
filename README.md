@@ -66,29 +66,19 @@ Once configured, deployment happens automatically
 
 During deployment, you'll need to configure these **mandatory** services. Have them ready before clicking deploy:
 
-### 🔑 1. Cloudflare API Token (Required)
+### 🔐 1. Automatic Authentication (No Setup Required)
 
-Create an API token with these specific permissions:
+The "Deploy to Cloudflare" button automatically handles authentication for you:
 
-1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com) → **My Profile** → **API Tokens**
-2. Click **Create Token** → **Custom Token**
-3. Add these **exact permissions**:
+- **API Token**: Automatically provisioned with all required permissions
+- **Account ID**: Automatically detected and configured
+- **Resource Access**: Automatically granted for Workers, D1, R2, KV, and AI services
 
-   **Account permissions:**
-   - `Workers Scripts: Edit`
-   - `Workers AI: Edit` 
-   - `D1: Edit`
-   - `Workers KV Storage: Edit`
-   - `Workers R2 Storage: Edit`
-   - `Account Settings: Read`
-   - `User Details: Read`
-
-   **Zone permissions (for all zones):**
-   - `Workers Routes: Edit`
-
-4. Set **Account Resources** to `Include: All accounts`
-5. Click **Continue to Summary** → **Create Token**
-6. **Save this token** - you'll need it during deployment
+**What this means for you:**
+- ✅ No manual token creation required
+- ✅ No permission configuration needed
+- ✅ Secure access automatically managed
+- ✅ All Cloudflare resources available immediately
 
 ### 🤖 2. AI Gateway Setup (Conditional)
 
@@ -110,15 +100,12 @@ Only if you **don't** have an AI Gateway token, manually create one:
    - Gateway URL: `https://gateway.ai.cloudflare.com/v1/{account-id}/{gateway-name}`
    - Authentication token
 
-### 🔐 3. Required Variables (Required)
+### 🔐 2. Required Variables (Required)
 
 The "Deploy to Cloudflare" button configures two types of variables:
 
 #### Build Variables (Available to deploy.ts script)
 These are needed during deployment and must be provided as build variables:
-
-**Essential Build Variables:**
-- `CLOUDFLARE_API_TOKEN` - Your Cloudflare API token (from step 1)
 
 **AI Gateway Build Variable (Highly Recommended):**
 - `CLOUDFLARE_AI_GATEWAY_TOKEN` - AI Gateway token with Read, Edit, and **Run** permissions
@@ -159,7 +146,7 @@ These are configured automatically in `wrangler.jsonc` and don't need manual set
 > - **With `CLOUDFLARE_AI_GATEWAY_TOKEN`**: Deployment automatically creates and configures AI Gateway for you
 > - **Without token**: You must manually create AI Gateway named `orange-build-gateway` before deployment
 
-### 🔗 4. OAuth Setup (Optional)
+### 🔗 3. OAuth Setup (Optional)
 
 For user authentication (can skip for testing):
 
@@ -187,9 +174,6 @@ For user authentication (can skip for testing):
 ## 📋 Configuration Checklist
 
 Before clicking deploy, ensure you have:
-
-**Build Variables (Required):**
-- ✅ **CLOUDFLARE_API_TOKEN** - API token with all required permissions
 
 **Worker Secrets (Required):**
 - ✅ **AI Provider API Keys** (all three required):
@@ -382,9 +366,9 @@ The deploy button automatically creates:
 ### Common Deploy Issues
 
 **🚫 "Insufficient Permissions" Error**
-- Ensure your API token has ALL required permissions listed above
-- Check that token hasn't expired
-- Verify account access is set to "Include all accounts"
+- Authentication is handled automatically during deployment
+- If you see this error, try redeploying - permissions are auto-granted
+- Contact Cloudflare support if the issue persists
 
 **🤖 "AI Gateway Authentication Failed"**  
 - Confirm AI Gateway is set to **Authenticated** mode
@@ -392,15 +376,15 @@ The deploy button automatically creates:
 - Check that gateway URL format is correct
 
 **🗄️ "Database Migration Failed"**
-- Ensure API token has **D1 Edit** permissions
-- Check that account has D1 access enabled
-- Wait a few minutes and retry - D1 resources may take time to provision
+- D1 resources may take time to provision automatically
+- Wait a few minutes and retry - resource creation is handled automatically
+- Check that your account has D1 access enabled
 
 **🔐 "Missing Required Variables"**
-- **Build Variables**: Ensure `CLOUDFLARE_API_TOKEN` is provided as a build variable
 - **Worker Secrets**: Verify all required secrets are set: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `JWT_SECRET`
 - **AI Gateway Token**: `CLOUDFLARE_AI_GATEWAY_TOKEN` should be set as BOTH build variable and worker secret
 - **Environment Variables**: These are automatically loaded from wrangler.jsonc - no manual setup needed
+- **Authentication**: API tokens and account IDs are automatically provided by Workers Builds
 
 **🤖 "AI Gateway Not Found"**
 - **With AI Gateway Token**: The deployment script should automatically create the gateway. Check that your token has Read, Edit, and **Run** permissions.
@@ -483,18 +467,17 @@ bun scripts/undeploy.ts all --force
 
 ### Authentication Requirements
 
-**For Container Deletion**: The script requires **API Token authentication** (not OAuth) to delete containers. If you see authentication errors:
+**For Container Deletion**: The script uses your existing Cloudflare authentication. If you encounter authentication errors:
 
-1. **Option A**: Use API token authentication
+1. **Option A**: Ensure you're logged into Wrangler
    ```bash
-   wrangler logout
-   export CLOUDFLARE_API_TOKEN="your-api-token-here"
+   wrangler auth login  # Will use your Cloudflare account authentication
    bun scripts/undeploy.ts
    ```
 
-2. **Option B**: Use wrangler login with API token
+2. **Option B**: Use API token if needed
    ```bash
-   wrangler login  # Choose API token option when prompted
+   export CLOUDFLARE_API_TOKEN="your-api-token-here"  # Only if manual token needed
    bun scripts/undeploy.ts
    ```
 
@@ -529,8 +512,8 @@ bun run deploy           # Then redeploy fresh
 
 **"DELETE method not allowed" for containers:**
 ```bash
-# Switch to API token authentication:
-export CLOUDFLARE_API_TOKEN="your-token"
+# Ensure proper authentication:
+wrangler auth login  # Use your account authentication
 bun scripts/undeploy.ts
 ```
 
@@ -580,10 +563,11 @@ These are **encrypted secrets** stored securely by Cloudflare Workers. They cont
 
 #### Essential Secrets (Required)
 
-**Cloudflare Authentication:**
+**Cloudflare Authentication** (Automatically Configured):
 ```bash
-CLOUDFLARE_API_TOKEN="your-cf-api-token-with-workers-ai-d1-permissions"
-CLOUDFLARE_ACCOUNT_ID="your-cloudflare-account-id"
+# These are automatically provided by Workers Builds - no manual setup needed
+# CLOUDFLARE_API_TOKEN="auto-provisioned"
+# CLOUDFLARE_ACCOUNT_ID="auto-detected"
 ```
 
 **AI Gateway Authentication:**
@@ -633,8 +617,9 @@ These variables are available during deployment and should be configured as **Bu
 
 | Variable | Purpose | Required |
 |----------|---------|----------|
-| `CLOUDFLARE_API_TOKEN` | API access for resource creation during deployment | ✅ Required |
 | `CLOUDFLARE_AI_GATEWAY_TOKEN` | Enables automatic AI Gateway setup during deployment | 🟡 Recommended |
+
+> **Note**: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are automatically provided by Workers Builds and don't need to be configured manually.
 
 ### Cloudflare Resource Bindings (wrangler.jsonc)
 
