@@ -130,6 +130,7 @@ class CloudflareDeploymentManager {
 
 	/**
 	 * Checks for required system dependencies and installs them if needed
+	 * Cloudflare Workers Builds run on Ubuntu 24.04 with many pre-installed packages
 	 */
 	private checkAndInstallDependencies(): void {
 		console.log('🔍 Checking system dependencies...');
@@ -139,48 +140,32 @@ class CloudflareDeploymentManager {
 			execSync('which zip', { stdio: 'pipe' });
 			console.log('✅ zip utility found');
 		} catch (error) {
-			console.log('⚠️  zip utility not found, attempting to install...');
+			console.log('⚠️  zip utility not found, installing via apt...');
 			
-			// Detect operating system
-			const platform = process.platform;
-			
-			if (platform === 'linux') {
-				try {
-					console.log('🔧 Installing zip via apt (Linux detected)...');
-					
-					// Update package list first
-					execSync('apt-get update -qq', { 
-						stdio: 'pipe',
-						timeout: 60000 // 60 second timeout
-					});
-					
-					// Install zip package
-					execSync('apt-get install -y zip', { 
-						stdio: 'pipe',
-						timeout: 120000 // 2 minute timeout
-					});
-					
-					// Verify installation
-					execSync('which zip', { stdio: 'pipe' });
-					console.log('✅ zip successfully installed via apt');
-					
-				} catch (installError) {
-					console.warn('⚠️  Failed to install zip via apt:', installError instanceof Error ? installError.message : String(installError));
-					console.warn('   Continuing deployment - zip may be required for some operations');
-					console.warn('   Please ensure zip is available if deployment fails');
-				}
-			} else if (platform === 'darwin') {
-				console.warn('⚠️  zip not found on macOS - it should be available by default');
-				console.warn('   Please install Command Line Tools: xcode-select --install');
-				console.warn('   Continuing deployment...');
-			} else if (platform === 'win32') {
-				console.warn('⚠️  zip not found on Windows');
-				console.warn('   Please install zip utility or use WSL for deployment');
-				console.warn('   Continuing deployment...');
-			} else {
-				console.warn(`⚠️  zip not found on ${platform} platform`);
-				console.warn('   Please install zip utility manually if needed');
-				console.warn('   Continuing deployment...');
+			try {
+				// Cloudflare Workers Builds run on Ubuntu 24.04
+				// Try installing zip package (should work without sudo in build environment)
+				console.log('🔧 Installing zip via apt (Ubuntu build environment)...');
+				
+				execSync('apt-get update -qq', { 
+					stdio: 'pipe',
+					timeout: 60000 // 60 second timeout
+				});
+				
+				execSync('apt-get install -y zip', { 
+					stdio: 'pipe',
+					timeout: 120000 // 2 minute timeout
+				});
+				
+				// Verify installation
+				execSync('which zip', { stdio: 'pipe' });
+				console.log('✅ zip successfully installed via apt');
+				
+			} catch (installError) {
+				console.warn('⚠️  Failed to install zip via apt:', installError instanceof Error ? installError.message : String(installError));
+				console.warn('   This is unexpected in Cloudflare Workers build environment (Ubuntu 24.04)');
+				console.warn('   Continuing deployment - zip may be required for some operations');
+				console.warn('   If deployment fails, please report this as a build environment issue');
 			}
 		}
 		
@@ -1247,7 +1232,7 @@ class CloudflareDeploymentManager {
 
 		// Add environment marker
 		prodVarsContent.push('');
-		prodVarsContent.push('ENVIRONMENT="production"');
+		// prodVarsContent.push('ENVIRONMENT="production"');
 
 		try {
 			writeFileSync(

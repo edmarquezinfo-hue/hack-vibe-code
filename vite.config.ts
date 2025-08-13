@@ -7,15 +7,15 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 // https://vite.dev/config/
 export default defineConfig({
-    build: {
-        rollupOptions: {
-          output: {
-                advancedChunks: {
-                    groups: [{name: 'vendor', test: /node_modules/}]
-                }
-            }
-        }
-    },
+    // build: {
+    //     rollupOptions: {
+    //       output: {
+    //             advancedChunks: {
+    //                 groups: [{name: 'vendor', test: /node_modules/}]
+    //             }
+    //         }
+    //     }
+    // },
 	plugins: [react(),  
         cloudflare({
           configPath: "wrangler.jsonc",
