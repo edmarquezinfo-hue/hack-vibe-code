@@ -43,7 +43,7 @@
               "vcpu": 4,
               "memory_mib": 4096,
               "disk": {
-                "size_mb": 10240
+                "size_mb": 4000
               }
             },
             "rollout_step_percentage": 100
@@ -54,10 +54,7 @@
           "max_instances": 1,
           "configuration": {
             "vcpu": 4,
-            "memory_mib": 2048,
-            "disk": {
-              "size": "20GB"
-            }
+            "memory_mib": 2048
           },
           "rollout_step_percentage": 100
         }
