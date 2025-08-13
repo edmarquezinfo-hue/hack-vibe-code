@@ -963,8 +963,8 @@ class CloudflareDeploymentManager {
 		console.log('🔨 Building project...');
 
 		try {
-			// Clean dist directory and run build
-			execSync('rm -rf dist && bun run build', {
+			// Run build
+			execSync('bun run build', {
 				stdio: 'inherit',
 				cwd: PROJECT_ROOT,
 			});
@@ -1263,6 +1263,7 @@ class CloudflareDeploymentManager {
 
 		try {
 			// Step 1: Early Configuration Updates (must happen before any wrangler commands)
+            this.cleanWranglerCache();
 			console.log('\n📋 Step 1: Updating configuration files...');
 			console.log('   🔧 Updating package.json database commands');
 			this.updatePackageJsonDatabaseCommands();
@@ -1272,18 +1273,26 @@ class CloudflareDeploymentManager {
 
 			console.log('✅ Configuration files updated successfully!\n');
 
+			// Step 2: Update container configuration if needed
+			console.log('\n📋 Step 2: Updating container configuration...');
+			this.updateContainerConfiguration();
+
+			// Step 3: Resolve var/secret conflicts before deployment
+			console.log('\n📋 Step 3: Resolving var/secret conflicts...');
+			const conflictingVars = await this.removeConflictingVars();
+
 			// Steps 2-4: Run all setup operations in parallel
 			const operations: Promise<void>[] = [
 				this.ensureDispatchNamespace(),
 				this.deployTemplates(),
-				// this.buildProject(),
+				this.buildProject(),
 			];
 
 			// Add AI Gateway setup if gateway name is provided
 			if (this.env.CLOUDFLARE_AI_GATEWAY) {
 				operations.push(this.ensureAIGateway());
 				console.log(
-					'📋 Step 2: Running all setup operations in parallel...',
+					'📋 Step 4: Running all setup operations in parallel...',
 				);
 				console.log('   🔄 Workers for Platforms namespace setup');
 				console.log('   🔄 Templates repository deployment');
@@ -1291,7 +1300,7 @@ class CloudflareDeploymentManager {
 				console.log('   🔄 AI Gateway setup and configuration');
 			} else {
 				console.log(
-					'📋 Step 2: Running all setup operations in parallel...',
+					'📋 Step 4: Running all setup operations in parallel...',
 				);
 				console.log('   🔄 Workers for Platforms namespace setup');
 				console.log('   🔄 Templates repository deployment');
@@ -1304,19 +1313,10 @@ class CloudflareDeploymentManager {
 				'✅ Parallel setup and build operations completed!',
 			);
 
-			// Step 3: Update container configuration if needed
-			console.log('\n📋 Step 3: Updating container configuration...');
-			this.updateContainerConfiguration();
-
-			// Step 4: Resolve var/secret conflicts before deployment
-			console.log('\n📋 Step 4: Resolving var/secret conflicts...');
-			const conflictingVars = await this.removeConflictingVars();
-
 			let deploymentSucceeded = false;
 			try {
-				// Step 5: Clean cache and Deploy with Wrangler (now without conflicts)
-				console.log('\n📋 Step 5: Cleaning cache and deploying to Cloudflare Workers...');
-				this.cleanWranglerCache();
+				// Step 5: Deploy with Wrangler (now without conflicts)
+				console.log('\n📋 Step 5: Deploying to Cloudflare Workers...');
 				await this.wranglerDeploy();
 
 				// Step 6: Update secrets (now no conflicts)
