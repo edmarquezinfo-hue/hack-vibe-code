@@ -100,6 +100,7 @@ class CloudflareDeploymentManager {
 
 	constructor() {
 		this.validateEnvironment();
+		this.checkAndInstallDependencies();
 		this.config = this.parseWranglerConfig();
 		this.extractConfigurationValues();
 		this.env = this.getEnvironmentVariables();
@@ -125,6 +126,65 @@ class CloudflareDeploymentManager {
 			);
 		}
 		console.log('✅ Build variables validation passed');
+	}
+
+	/**
+	 * Checks for required system dependencies and installs them if needed
+	 */
+	private checkAndInstallDependencies(): void {
+		console.log('🔍 Checking system dependencies...');
+		
+		try {
+			// Check if zip is installed
+			execSync('which zip', { stdio: 'pipe' });
+			console.log('✅ zip utility found');
+		} catch (error) {
+			console.log('⚠️  zip utility not found, attempting to install...');
+			
+			// Detect operating system
+			const platform = process.platform;
+			
+			if (platform === 'linux') {
+				try {
+					console.log('🔧 Installing zip via apt (Linux detected)...');
+					
+					// Update package list first
+					execSync('apt-get update -qq', { 
+						stdio: 'pipe',
+						timeout: 60000 // 60 second timeout
+					});
+					
+					// Install zip package
+					execSync('apt-get install -y zip', { 
+						stdio: 'pipe',
+						timeout: 120000 // 2 minute timeout
+					});
+					
+					// Verify installation
+					execSync('which zip', { stdio: 'pipe' });
+					console.log('✅ zip successfully installed via apt');
+					
+				} catch (installError) {
+					console.warn('⚠️  Failed to install zip via apt:', installError instanceof Error ? installError.message : String(installError));
+					console.warn('   Continuing deployment - zip may be required for some operations');
+					console.warn('   Please ensure zip is available if deployment fails');
+				}
+			} else if (platform === 'darwin') {
+				console.warn('⚠️  zip not found on macOS - it should be available by default');
+				console.warn('   Please install Command Line Tools: xcode-select --install');
+				console.warn('   Continuing deployment...');
+			} else if (platform === 'win32') {
+				console.warn('⚠️  zip not found on Windows');
+				console.warn('   Please install zip utility or use WSL for deployment');
+				console.warn('   Continuing deployment...');
+			} else {
+				console.warn(`⚠️  zip not found on ${platform} platform`);
+				console.warn('   Please install zip utility manually if needed');
+				console.warn('   Continuing deployment...');
+			}
+		}
+		
+		console.log('✅ Dependency check completed');
 	}
 
 	/**
