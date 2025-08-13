@@ -38,7 +38,7 @@ runner/downloads
 test.ts
 temp/
 
-/templates/
+templates
 debugging.ipynb
 
 bun.lock
