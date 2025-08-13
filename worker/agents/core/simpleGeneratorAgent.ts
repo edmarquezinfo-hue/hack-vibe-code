@@ -233,6 +233,11 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             return;
         }
 
+        if (this.state.generatedPhases.find(phase => phase.name === "Finalization and Review") && this.state.pendingUserInputs.length === 0) {
+            this.logger.info("Code generation already completed and no user inputs pending");
+            return;
+        }
+
         this.broadcast(WebSocketMessageResponses.GENERATION_STARTED, {
             message: 'Starting code generation',
             totalFiles: this.getTotalFiles()
@@ -499,16 +504,29 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             return CurrentDevState.REVIEWING;
         }
 
-        const currentIssues = await this.fetchAllIssues();
-        this.resetIssues();
-        
-        // Run final review and cleanup phase
-        await this.implementPhase({
+        const phaseConcept = {
             name: "Finalization and Review",
             description: FINAL_CODE_PHASE_DESCRIPTION,
             files: [],
             lastPhase: true
-        }, currentIssues, null);
+        }
+        
+        this.setState({
+            ...this.state,
+            generatedPhases: [
+                ...this.state.generatedPhases,
+                {
+                    ...phaseConcept,
+                    completed: false
+                }
+            ]
+        });
+
+        const currentIssues = await this.fetchAllIssues();
+        this.resetIssues();
+        
+        // Run final review and cleanup phase
+        await this.implementPhase(phaseConcept, currentIssues, null);
 
         const numFilesGenerated = Object.keys(this.state.generatedFilesMap).length;
         this.logger.info(`Finalization complete. Generated ${numFilesGenerated}/${this.getTotalFiles()} files.`);
