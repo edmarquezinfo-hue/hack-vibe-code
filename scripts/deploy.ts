@@ -100,7 +100,6 @@ class CloudflareDeploymentManager {
 
 	constructor() {
 		this.validateEnvironment();
-		this.checkAndInstallDependencies();
 		this.config = this.parseWranglerConfig();
 		this.extractConfigurationValues();
 		this.env = this.getEnvironmentVariables();
@@ -128,49 +127,6 @@ class CloudflareDeploymentManager {
 		console.log('✅ Build variables validation passed');
 	}
 
-	/**
-	 * Checks for required system dependencies and installs them if needed
-	 * Cloudflare Workers Builds run on Ubuntu 24.04 with many pre-installed packages
-	 */
-	private checkAndInstallDependencies(): void {
-		console.log('🔍 Checking system dependencies...');
-		
-		try {
-			// Check if zip is installed
-			execSync('which zip', { stdio: 'pipe' });
-			console.log('✅ zip utility found');
-		} catch (error) {
-			console.log('⚠️  zip utility not found, installing via apt...');
-			
-			try {
-				// Cloudflare Workers Builds run on Ubuntu 24.04
-				// Try installing zip package (should work without sudo in build environment)
-				console.log('🔧 Installing zip via apt (Ubuntu build environment)...');
-				
-				execSync('apt-get update -qq', { 
-					stdio: 'pipe',
-					timeout: 60000 // 60 second timeout
-				});
-				
-				execSync('apt-get install -y zip', { 
-					stdio: 'pipe',
-					timeout: 120000 // 2 minute timeout
-				});
-				
-				// Verify installation
-				execSync('which zip', { stdio: 'pipe' });
-				console.log('✅ zip successfully installed via apt');
-				
-			} catch (installError) {
-				console.warn('⚠️  Failed to install zip via apt:', installError instanceof Error ? installError.message : String(installError));
-				console.warn('   This is unexpected in Cloudflare Workers build environment (Ubuntu 24.04)');
-				console.warn('   Continuing deployment - zip may be required for some operations');
-				console.warn('   If deployment fails, please report this as a build environment issue');
-			}
-		}
-		
-		console.log('✅ Dependency check completed');
-	}
 
 	/**
 	 * Extracts and validates key configuration values from wrangler.jsonc

@@ -257,8 +257,6 @@ export class SandboxSdkClient extends BaseSandboxService {
             // Download and extract template
             this.logger.info(`Template doesnt exist, Downloading template from: ${templateName}`);
             
-            // const downloadCmd = `mkdir -p ${templateName} && wget -q "${templateUrl}" -O "${templateName}.zip" && unzip -o -q "${templateName}.zip" -d ${templateName}`;
-
             const zipData = await this.downloadTemplate(templateName, downloadDir);
 
             const zipBuffer = new Uint8Array(zipData);
