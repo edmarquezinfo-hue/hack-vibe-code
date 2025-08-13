@@ -69,12 +69,23 @@ function optimizeTextContent(content: string): string {
 
 
 export async function buildGatewayUrl(env: Env, providerOverride?: AIGatewayProviders): Promise<string> {
-    // If CLOUDFLARE_AI_GATEWAY_URL is set, we use it directly
-    if (env.CLOUDFLARE_AI_GATEWAY_URL) {
-        const url = new URL(env.CLOUDFLARE_AI_GATEWAY_URL);
-        // Add 'providerOverride' as a segment to the URL
-        url.pathname = providerOverride ? `${url.pathname.replace(/\/$/, '')}/${providerOverride}` : `${url.pathname.replace(/\/$/, '')}/compat`;
-        return url.toString();
+    // If CLOUDFLARE_AI_GATEWAY_URL is set and is a valid URL, use it directly
+    if (env.CLOUDFLARE_AI_GATEWAY_URL && 
+        env.CLOUDFLARE_AI_GATEWAY_URL !== 'none' && 
+        env.CLOUDFLARE_AI_GATEWAY_URL.trim() !== '') {
+        
+        try {
+            const url = new URL(env.CLOUDFLARE_AI_GATEWAY_URL);
+            // Validate it's actually an HTTP/HTTPS URL
+            if (url.protocol === 'http:' || url.protocol === 'https:') {
+                // Add 'providerOverride' as a segment to the URL
+                url.pathname = providerOverride ? `${url.pathname.replace(/\/$/, '')}/${providerOverride}` : `${url.pathname.replace(/\/$/, '')}/compat`;
+                return url.toString();
+            }
+        } catch (error) {
+            // Invalid URL, fall through to use bindings
+            console.warn(`Invalid CLOUDFLARE_AI_GATEWAY_URL provided: ${env.CLOUDFLARE_AI_GATEWAY_URL}. Falling back to AI bindings.`);
+        }
     }
     
     // Build the url via bindings

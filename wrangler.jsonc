@@ -142,7 +142,7 @@
         "CLOUDFLARE_AI_GATEWAY": "c-coder",
         "CUSTOM_DOMAIN": "build.cloudflare.dev",
         "MAX_SANDBOX_INSTANCES": "2",
-        "CLOUDFLARE_AI_GATEWAY_URL": ""
+        "CLOUDFLARE_AI_GATEWAY_URL": "none"
     },
 	"workers_dev": false,
 	"preview_urls": false
