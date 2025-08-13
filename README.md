@@ -1,12 +1,12 @@
-# 🧡 Cloudflare Vibecoding Starter Kit
+# 🧡 Cloudflare Orange Build
 
-> **Transform ideas into apps with just text** – Deploy your own instance of Cloudflare Orange Build, the next-generation AI platform that turns your thoughts into fully deployed web applications.
+> **An open source full-stack AI webapp generator** – Deploy your own instance of Cloudflare Orange Build, an alternative to platforms like Lovable, V0, and Bolt that you can run and customize yourself.
 
 <div align="center">
 
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/AshishKumar4/cloudflare-orange-build)
 
-**👆 Click to deploy your own Cloudflare Orange Build instance!**
+**👆 Click to deploy your own Vibe coding platform!**
 
 *Follow the setup guide below to configure required services*
 
@@ -14,9 +14,39 @@
 
 ---
 
+## 📚 Table of Contents
+
+### Quick Start
+- [🚀 Deploy to Cloudflare](#-deploy-to-cloudflare)
+- [⚙️ Required Configuration](#️-required-configuration)
+- [📋 Configuration Checklist](#-configuration-checklist)
+
+### Platform Overview
+- [✨ What is Cloudflare Orange Build?](#-what-is-cloudflare-orange-build)
+- [💡 Try These Example Prompts](#-try-these-example-prompts)
+- [🎨 How It Works](#-how-it-works)
+
+### Architecture & Features
+- [🌍 Architecture Deep Dive](#-architecture-deep-dive)
+- [🎯 Perfect For](#-perfect-for)
+- [📊 System Requirements](#-system-requirements)
+
+### Development & Management
+- [🏠 Local Development](#-local-development)
+- [🗑️ Undeployment Guide](#️-undeployment-guide)
+- [🔐 Complete Secrets & Variables Reference](#-complete-secrets--variables-reference)
+
+### Support & Community
+- [❓ Troubleshooting](#-troubleshooting)
+- [🔒 Security & Privacy](#-security--privacy)
+- [🤝 Contributing](#-contributing)
+- [📚 Resources](#-resources)
+
+---
+
 ## 🚀 Deploy to Cloudflare
 
-Ready to deploy your own Cloudflare Orange Build platform? The process takes about 5 minutes with proper setup:
+Deploy your own Cloudflare Orange Build instance. The process takes about 5 minutes with proper setup:
 
 **Step 1: Click Deploy Button** 🔗  
 Click the deploy button above to start the process
@@ -80,42 +110,54 @@ Only if you **don't** have an AI Gateway token, manually create one:
    - Gateway URL: `https://gateway.ai.cloudflare.com/v1/{account-id}/{gateway-name}`
    - Authentication token
 
-### 🔐 3. Required Environment Variables (Required)
+### 🔐 3. Required Variables (Required)
 
-You'll need to provide these exact environment variable names during deployment:
+The "Deploy to Cloudflare" button configures two types of variables:
 
-**Cloudflare Configuration:**
+#### Build Variables (Available to deploy.ts script)
+These are needed during deployment and must be provided as build variables:
+
+**Essential Build Variables:**
 - `CLOUDFLARE_API_TOKEN` - Your Cloudflare API token (from step 1)
-- `CLOUDFLARE_ACCOUNT_ID` - Your Cloudflare Account ID  
+
+**AI Gateway Build Variable (Highly Recommended):**
+- `CLOUDFLARE_AI_GATEWAY_TOKEN` - AI Gateway token with Read, Edit, and **Run** permissions
+  - **Important**: Also add this as a Worker Secret (see below) for runtime access
+
+#### Worker Secrets (Available to your deployed app)
+These are encrypted secrets available to your running Worker:
 
 **AI Provider API Keys (Required):**
 > **⚠️ Currently Required**: The following AI provider API keys are mandatory for the platform to function. We are actively working to make these optional and easily configurable in future releases.
 
-- `OPENAI_API_KEY` - Your OpenAI API key for GPT models
-- `ANTHROPIC_API_KEY` - Your Anthropic API key for Claude models  
+- `ANTHROPIC_API_KEY` - Your Anthropic API key for Claude models
+- `OPENAI_API_KEY` - Your OpenAI API key for GPT models  
 - `GEMINI_API_KEY` - Your Google Gemini API key for Gemini models
 
 > **💡 AI Gateway Wholesaling Alternative**: If you have **AI Gateway Wholesaling** enabled on your Cloudflare account, you can skip the individual provider API keys above. Instead, you'll need your AI Gateway token with proper Run permissions.
 
-**AI Gateway Configuration:**
-- `CLOUDFLARE_AI_GATEWAY_TOKEN` - **HIGHLY RECOMMENDED** - AI Gateway token with Read, Edit, and **Run** permissions
-  
+**Authentication Secrets:**
+- `JWT_SECRET` - Secure random string for session management
+- `CLOUDFLARE_AI_GATEWAY_TOKEN` - AI Gateway token (also needed as build variable above)
+
+**Optional OAuth Secrets:**
+- `GOOGLE_CLIENT_ID` - Google OAuth client ID
+- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
+- `GITHUB_CLIENT_ID` - GitHub OAuth client ID
+- `GITHUB_CLIENT_SECRET` - GitHub OAuth client secret
+- `WEBHOOK_SECRET` - Webhook authentication secret
+
+#### Environment Variables (Set in wrangler.jsonc)
+These are configured automatically in `wrangler.jsonc` and don't need manual setup:
+
+- `CLOUDFLARE_ACCOUNT_ID` - Your Cloudflare Account ID
+- `TEMPLATES_REPOSITORY` - GitHub repository for app templates
+- `CLOUDFLARE_AI_GATEWAY` - AI Gateway name (default: `orange-build-gateway`)
+- `MAX_SANDBOX_INSTANCES` - Maximum container instances (default: `2`)
+
 > **💡 Automatic vs Manual Setup**: 
-> - **With token**: Deployment automatically creates and configures AI Gateway for you
-> - **Without token**: You must manually create AI Gateway named `orange-build-gateway` (or custom name) before deployment
-
-**Optional AI Gateway Settings:**
-- `CLOUDFLARE_AI_GATEWAY` - Gateway name (default: `orange-build-gateway`)
-- `CLOUDFLARE_AI_GATEWAY_URL` - Custom gateway URL (auto-generated if not provided)
-
-**Required Secrets:**
-```bash
-# Generate these secrets
-JWT_SECRET='some-secure-random-string'
-```
-
-**Environment:**
-- `ENVIRONMENT=production` (for production deployment)
+> - **With `CLOUDFLARE_AI_GATEWAY_TOKEN`**: Deployment automatically creates and configures AI Gateway for you
+> - **Without token**: You must manually create AI Gateway named `orange-build-gateway` before deployment
 
 ### 🔗 4. OAuth Setup (Optional)
 
@@ -146,35 +188,43 @@ For user authentication (can skip for testing):
 
 Before clicking deploy, ensure you have:
 
-**Essential Requirements:**
-- ✅ **CLOUDFLARE_API_TOKEN** with all required permissions
-- ✅ **CLOUDFLARE_ACCOUNT_ID** from your dashboard
-- ✅ **AI Provider API Keys** (all three required):
-  - `OPENAI_API_KEY` - OpenAI API access
-  - `ANTHROPIC_API_KEY` - Anthropic Claude API access  
-  - `GEMINI_API_KEY` - Google Gemini API access
-- ✅ **JWT_SECRET** - Secure random string
+**Build Variables (Required):**
+- ✅ **CLOUDFLARE_API_TOKEN** - API token with all required permissions
 
-**Highly Recommended:**
+**Worker Secrets (Required):**
+- ✅ **AI Provider API Keys** (all three required):
+  - `ANTHROPIC_API_KEY` - Anthropic Claude API access  
+  - `OPENAI_API_KEY` - OpenAI API access
+  - `GEMINI_API_KEY` - Google Gemini API access
+- ✅ **JWT_SECRET** - Secure random string for session management
+
+**Highly Recommended (Both Build Variable AND Worker Secret):**
 - ✅ **CLOUDFLARE_AI_GATEWAY_TOKEN** - AI Gateway token with Read, Edit, and **Run** permissions
+  - Add as **Build Variable** for automatic AI Gateway creation during deployment
+  - Add as **Worker Secret** for runtime access to AI Gateway
   - *Without this, you must manually create the AI Gateway before deployment*
 
-**Optional:**
-- ⚪ **OAuth credentials** (GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID, etc.)
-- ⚪ **Custom AI Gateway settings** (CLOUDFLARE_AI_GATEWAY, CLOUDFLARE_AI_GATEWAY_URL)
+**Optional Worker Secrets:**
+- ⚪ **OAuth credentials** (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET)
+- ⚪ **WEBHOOK_SECRET** - For webhook authentication
+
+**Automatic Configuration (No manual setup needed):**
+- 🔧 **Environment Variables** - Pre-configured in wrangler.jsonc (CLOUDFLARE_ACCOUNT_ID, TEMPLATES_REPOSITORY, etc.)
 
 > **💡 AI Gateway Wholesaling Users**: If you have AI Gateway Wholesaling enabled, you can skip the individual AI provider API keys and just use your AI Gateway token with Run permissions.
+
+> **🔑 Important**: `CLOUDFLARE_AI_GATEWAY_TOKEN` should be provided as BOTH a build variable and a worker secret for full functionality.
 
 ---
 
 ## ✨ What is Cloudflare Orange Build?
 
-Cloudflare Orange Build is a revolutionary **text-to-app** platform that demonstrates the full power of Cloudflare's developer ecosystem. Simply describe what you want to build in plain English, and watch as AI agents create, deploy, and iterate on complete web applications in real-time.
+Cloudflare Orange Build is an open source **text-to-app** platform built on Cloudflare's developer ecosystem. It provides an alternative to proprietary platforms like Lovable, V0, and Bolt that you can deploy and customize yourself. Describe what you want to build in plain English, and AI agents create, deploy, and iterate on complete web applications.
 
 ### 🎯 Key Features
 
 🤖 **AI Code Generation** – Phase-wise development with intelligent error correction  
-⚡ **Live Previews** – See your app running instantly in sandboxed containers  
+⚡ **Live Previews** – App previews running in sandboxed containers  
 💬 **Interactive Chat** – Guide development through natural conversation  
 📱 **Modern Stack** – Generates React + TypeScript + Tailwind apps  
 🚀 **One-Click Deploy** – Deploy generated apps to Workers for Platforms  
@@ -182,7 +232,7 @@ Cloudflare Orange Build is a revolutionary **text-to-app** platform that demonst
 
 ### 🏗️ Built on Cloudflare's Platform
 
-Cloudflare Orange Build showcases the entire Cloudflare developer ecosystem:
+Cloudflare Orange Build utilizes the full Cloudflare developer ecosystem:
 
 - **Frontend**: React + Vite with modern UI components
 - **Backend**: Workers with Durable Objects for AI agents  
@@ -241,15 +291,15 @@ graph TD
     D --> G[Deploy to Workers for Platforms]
 ```
 
-### The Magic Behind the Scenes
+### How It Works
 
-1. **🧠 AI Analysis**: Advanced language models process your description
+1. **🧠 AI Analysis**: Language models process your description
 2. **📋 Blueprint Creation**: System architecture and file structure planned
-3. **⚡ Phase Generation**: Code generated incrementally with smart dependency management
+3. **⚡ Phase Generation**: Code generated incrementally with dependency management
 4. **🔍 Quality Assurance**: Automated linting, type checking, and error correction
-5. **📱 Live Preview**: Instant app execution in isolated Cloudflare Containers
+5. **📱 Live Preview**: App execution in isolated Cloudflare Containers
 6. **🔄 Real-time Iteration**: Chat interface enables continuous refinements
-7. **🚀 One-Click Deploy**: Generated apps deploy instantly to Workers for Platforms
+7. **🚀 One-Click Deploy**: Generated apps deploy to Workers for Platforms
 
 ---
 
@@ -293,19 +343,19 @@ Cloudflare Orange Build generates apps in intelligent phases:
 ## 🎯 Perfect For
 
 ### 🚀 **Rapid Prototyping**
-Turn ideas into working apps in minutes, not days
+Turn ideas into working apps quickly
 
 ### 📚 **Learning Web Development** 
 See modern React patterns generated and explained in real-time
 
 ### 🏢 **Client Demos**
-Create impressive proof-of-concepts for stakeholders instantly
+Create proof-of-concepts for stakeholders
 
 ### ⚡ **Hackathons**
-Build and deploy complete applications faster than anyone else
+Build and deploy complete applications efficiently
 
 ### 🔬 **Platform Exploration**
-Experience the full power of Cloudflare's developer platform
+Experience Cloudflare's developer platform capabilities
 
 ---
 
@@ -346,11 +396,11 @@ The deploy button automatically creates:
 - Check that account has D1 access enabled
 - Wait a few minutes and retry - D1 resources may take time to provision
 
-**🔐 "Missing Required Environment Variables"**
-- **AI Provider API Keys**: Verify all three are set: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`
-- **Cloudflare Variables**: Ensure `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are set
-- **JWT Secret**: `JWT_SECRET` is required - generate a secure random string
-- **AI Gateway Token**: `CLOUDFLARE_AI_GATEWAY_TOKEN` is highly recommended for automatic setup
+**🔐 "Missing Required Variables"**
+- **Build Variables**: Ensure `CLOUDFLARE_API_TOKEN` is provided as a build variable
+- **Worker Secrets**: Verify all required secrets are set: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `JWT_SECRET`
+- **AI Gateway Token**: `CLOUDFLARE_AI_GATEWAY_TOKEN` should be set as BOTH build variable and worker secret
+- **Environment Variables**: These are automatically loaded from wrangler.jsonc - no manual setup needed
 
 **🤖 "AI Gateway Not Found"**
 - **With AI Gateway Token**: The deployment script should automatically create the gateway. Check that your token has Read, Edit, and **Run** permissions.
@@ -405,6 +455,292 @@ bun run lint             # Run code quality checks
 
 ---
 
+## 🗑️ Undeployment Guide
+
+When you need to clean up or remove your Cloudflare Orange Build instance, use the automated undeployment script:
+
+### Standard Cleanup (Recommended)
+```bash
+bun scripts/undeploy.ts
+```
+**What it does:**
+- ✅ Deletes Worker and all containers
+- ✅ Removes all container images
+- ✅ Deletes KV namespaces and R2 buckets
+- ⚪ **Preserves** D1 database (your data stays safe)
+- ⚪ **Preserves** dispatch namespace (for future deployments)
+
+### Complete Destruction (Use with Caution)
+```bash
+bun scripts/undeploy.ts all --force
+```
+**What it does:**
+- ✅ Everything from standard cleanup, PLUS:
+- ⚠️ **PERMANENTLY DELETES** D1 database and all data
+- ⚠️ **PERMANENTLY DELETES** dispatch namespace
+
+> **⚠️ WARNING**: The `all --force` mode will **permanently delete ALL your data**. This cannot be undone. Only use this when you're completely sure you want to destroy everything.
+
+### Authentication Requirements
+
+**For Container Deletion**: The script requires **API Token authentication** (not OAuth) to delete containers. If you see authentication errors:
+
+1. **Option A**: Use API token authentication
+   ```bash
+   wrangler logout
+   export CLOUDFLARE_API_TOKEN="your-api-token-here"
+   bun scripts/undeploy.ts
+   ```
+
+2. **Option B**: Use wrangler login with API token
+   ```bash
+   wrangler login  # Choose API token option when prompted
+   bun scripts/undeploy.ts
+   ```
+
+### What Resources Are Deleted
+
+| Resource Type | Standard Mode | Complete Mode (`all --force`) |
+|---------------|---------------|-------------------------------|
+| Worker | ✅ Deleted | ✅ Deleted |
+| Containers | ✅ Deleted | ✅ Deleted |
+| Container Images | ✅ Deleted | ✅ Deleted |
+| KV Namespaces | ✅ Deleted | ✅ Deleted |
+| R2 Buckets | ✅ Deleted | ✅ Deleted |
+| D1 Database | ⚪ Preserved | ⚠️ **DELETED** |
+| Dispatch Namespace | ⚪ Preserved | ⚠️ **DELETED** |
+
+### Safety Features
+
+- **Parallel Processing**: Multiple resources are deleted simultaneously for faster cleanup
+- **Non-Interactive Mode**: Automatic confirmation handling prevents hanging prompts  
+- **Error Resilience**: Failed deletions don't stop the entire process
+- **Clear Feedback**: Detailed progress reporting and final summary
+- **Safe Defaults**: Standard mode preserves critical data by default
+
+### Troubleshooting Common Issues
+
+**"Binding name already in use" during redeployment:**
+```bash
+# After undeployment, if you see this error during next deployment:
+bun scripts/undeploy.ts  # Clean up first
+bun run deploy           # Then redeploy fresh
+```
+
+**"DELETE method not allowed" for containers:**
+```bash
+# Switch to API token authentication:
+export CLOUDFLARE_API_TOKEN="your-token"
+bun scripts/undeploy.ts
+```
+
+**Resources already deleted manually:**
+- The script safely handles resources that don't exist
+- Check the final summary to see what was actually deleted vs. already missing
+
+---
+
+## 🔐 Complete Secrets & Variables Reference
+
+This section provides comprehensive documentation for all configuration variables used in Cloudflare Orange Build, organized by their purpose and location.
+
+### Environment Variables (wrangler.jsonc `vars` section)
+
+These variables are configured in `wrangler.jsonc` and are available to your Worker at runtime. They are **not encrypted** and should only contain non-sensitive configuration.
+
+#### Core Platform Configuration
+```jsonc
+"vars": {
+  "TEMPLATES_REPOSITORY": "https://github.com/AshishKumar4/cloudflare-build-templates",
+  "CLOUDFLARE_AI_GATEWAY": "c-coder",
+  "CUSTOM_DOMAIN": "build.cloudflare.dev", 
+  "MAX_SANDBOX_INSTANCES": "2",
+  "CLOUDFLARE_AI_GATEWAY_URL": ""
+}
+```
+
+| Variable | Default Value | Description | Required |
+|----------|---------------|-------------|----------|
+| `TEMPLATES_REPOSITORY` | `"https://github.com/AshishKumar4/cloudflare-build-templates"` | GitHub repository containing app templates for code generation | ✅ Yes |
+| `CLOUDFLARE_AI_GATEWAY` | `"c-coder"` | Name of your Cloudflare AI Gateway for AI provider routing | ✅ Yes |
+| `CUSTOM_DOMAIN` | `"build.cloudflare.dev"` | Custom domain for your Orange Build instance | ⚪ Optional |
+| `MAX_SANDBOX_INSTANCES` | `"2"` | Maximum number of concurrent container instances for app previews | ⚪ Optional |
+| `CLOUDFLARE_AI_GATEWAY_URL` | `""` | Full URL to your AI Gateway (auto-generated if empty) | ⚪ Optional |
+
+#### Additional Auto-Configured Variables
+These are typically set automatically by the deployment script:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare Account ID | `"abc123def456789..."` |
+
+### Worker Secrets (.dev.vars / .prod.vars)
+
+These are **encrypted secrets** stored securely by Cloudflare Workers. They contain sensitive API keys and tokens.
+
+#### Essential Secrets (Required)
+
+**Cloudflare Authentication:**
+```bash
+CLOUDFLARE_API_TOKEN="your-cf-api-token-with-workers-ai-d1-permissions"
+CLOUDFLARE_ACCOUNT_ID="your-cloudflare-account-id"
+```
+
+**AI Gateway Authentication:**
+```bash
+CLOUDFLARE_AI_GATEWAY_TOKEN="your-ai-gateway-token-with-run-permissions"
+```
+
+**AI Provider API Keys** (All Required):
+```bash
+ANTHROPIC_API_KEY="sk-ant-api03-..."        # Claude models access
+OPENAI_API_KEY="sk-..."                     # GPT models access  
+GEMINI_API_KEY="AIzaSy..."                  # Google Gemini models access
+```
+
+**Session Security:**
+```bash
+JWT_SECRET="secure-random-string-for-sessions"
+```
+
+#### Optional Secrets
+
+**Additional AI Providers:**
+```bash
+OPENROUTER_API_KEY="sk-or-..."              # OpenRouter API access (optional)
+GROQ_API_KEY="gsk_..."                      # Groq API access (optional)
+```
+
+**OAuth Authentication Providers:**
+```bash
+# Google OAuth (for user login)
+GOOGLE_CLIENT_ID="your-google-oauth-client-id"
+GOOGLE_CLIENT_SECRET="your-google-oauth-client-secret"
+
+# GitHub OAuth (for user login)
+GITHUB_CLIENT_ID="your-github-oauth-app-id"
+GITHUB_CLIENT_SECRET="your-github-oauth-app-secret"
+```
+
+**Webhook Security:**
+```bash
+WEBHOOK_SECRET="secure-random-string-for-webhook-validation"
+```
+
+### Build-Time Variables
+
+These variables are available during deployment and should be configured as **Build Variables** in your deployment environment:
+
+| Variable | Purpose | Required |
+|----------|---------|----------|
+| `CLOUDFLARE_API_TOKEN` | API access for resource creation during deployment | ✅ Required |
+| `CLOUDFLARE_AI_GATEWAY_TOKEN` | Enables automatic AI Gateway setup during deployment | 🟡 Recommended |
+
+### Cloudflare Resource Bindings (wrangler.jsonc)
+
+These are automatically configured by Wrangler and don't require manual setup:
+
+#### Database & Storage Bindings
+```jsonc
+"d1_databases": [
+  {
+    "binding": "DB",                          // Access via env.DB
+    "database_name": "orange-build-db",
+    "database_id": "auto-generated"
+  }
+],
+"r2_buckets": [
+  {
+    "binding": "TEMPLATES_BUCKET",           // Access via env.TEMPLATES_BUCKET  
+    "bucket_name": "orange-build-templates"
+  }
+],
+"kv_namespaces": [
+  {
+    "binding": "INSTANCE_REGISTRY",          // Access via env.INSTANCE_REGISTRY
+    "id": "auto-generated"
+  }
+]
+```
+
+#### AI & Container Bindings
+```jsonc
+"ai": {
+  "binding": "AI"                           // Access via env.AI
+},
+"containers": [
+  {
+    "class_name": "UserAppSandboxService",   // Access via env.UserAppSandboxService
+    "image": "./SandboxDockerfile",
+    "max_instances": 200
+  },
+  {
+    "class_name": "DeployerService",         // Access via env.DeployerService
+    "image": "./DeployerDockerfile", 
+    "max_instances": 1
+  }
+]
+```
+
+#### Durable Objects & Services
+```jsonc
+"durable_objects": {
+  "bindings": [
+    {
+      "class_name": "CodeGeneratorAgent",    // Access via env.CodeGenObject
+      "name": "CodeGenObject"
+    },
+    {
+      "class_name": "UserAppSandboxService", // Access via env.Sandbox
+      "name": "Sandbox"
+    }
+  ]
+},
+"services": [
+  {
+    "binding": "RUNNER_SERVICE",            // Access via env.RUNNER_SERVICE
+    "service": "runner-service"
+  }
+]
+```
+
+### Setting Up Your Configuration
+
+#### For Local Development (.dev.vars)
+1. Copy the example file: `cp .dev.vars.example .dev.vars`
+2. Fill in your API keys and tokens
+3. Leave optional values as `"default"` if not needed
+
+#### For Production Deployment
+1. **Build Variables**: Set in your deployment platform (GitHub Actions, etc.)
+2. **Worker Secrets**: Automatically handled by deployment script or set manually:
+   ```bash
+   wrangler secret put ANTHROPIC_API_KEY
+   wrangler secret put OPENAI_API_KEY
+   wrangler secret put GEMINI_API_KEY
+   # ... etc
+   ```
+
+#### Environment Variable Priority
+The deployment system follows this priority order:
+1. **Environment Variables** (highest priority)
+2. **wrangler.jsonc vars**
+3. **Default values** (lowest priority)
+
+Example: If `MAX_SANDBOX_INSTANCES` is set both as an environment variable (`export MAX_SANDBOX_INSTANCES=5`) and in wrangler.jsonc (`"MAX_SANDBOX_INSTANCES": "2"`), the environment variable value (`5`) will be used.
+
+### Security Best Practices
+
+- ✅ **Never commit secrets** to version control
+- ✅ **Use separate configurations** for development and production  
+- ✅ **Rotate API keys regularly**, especially for production
+- ✅ **Set minimal required permissions** for API tokens
+- ✅ **Use strong random strings** for JWT_SECRET and WEBHOOK_SECRET
+- ⚠️ **Store secrets in encrypted worker secrets**, not environment variables
+- ⚠️ **Validate all secrets are set** before deployment
+
+---
+
 ## 🔒 Security & Privacy
 
 Cloudflare Orange Build implements enterprise-grade security:
@@ -420,7 +756,7 @@ Cloudflare Orange Build implements enterprise-grade security:
 
 ## 🤝 Contributing
 
-Love Cloudflare Orange Build? Here's how to contribute:
+Want to contribute to Cloudflare Orange Build? Here's how:
 
 1. **🍴 Fork** via the Deploy button (creates your own instance!)
 2. **💻 Develop** new features or improvements  
@@ -464,9 +800,9 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 <div align="center">
 
-### 🧡 Ready to Build the Future?
+### 🧡 Ready to Deploy Your Own Instance?
 
-**Transform your ideas into reality with proper setup**
+**Set up your own AI webapp generator with proper configuration**
 
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/your-org/cloudflare-vibecoding-starter-kit)
 

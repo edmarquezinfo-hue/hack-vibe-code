@@ -40,3 +40,6 @@ temp/
 
 /templates/
 debugging.ipynb
+
+bun.lock
+*.lock
