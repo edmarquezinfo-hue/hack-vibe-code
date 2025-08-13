@@ -676,33 +676,69 @@ class CloudflareDeploymentManager {
 	}
 
 	/**
-	 * Updates wrangler.jsonc routes with custom domain patterns
+	 * Updates wrangler.jsonc routes and deployment settings based on CUSTOM_DOMAIN
 	 */
 	private updateCustomDomainRoutes(): void {
 		const customDomain = this.config.vars?.CUSTOM_DOMAIN;
-
-		if (!customDomain) {
-			console.log(
-				'ℹ️  CUSTOM_DOMAIN not set in wrangler.jsonc vars, skipping route update',
-			);
-			return;
-		}
-
-		console.log(
-			`🔧 Updating wrangler.jsonc routes with custom domain: ${customDomain}`,
-		);
 
 		try {
 			const wranglerPath = join(PROJECT_ROOT, 'wrangler.jsonc');
 			const content = readFileSync(wranglerPath, 'utf-8');
 
-			// Parse the JSONC file
-			const config = parse(content) as WranglerConfig;
+			if (!customDomain) {
+				console.log(
+					'ℹ️  CUSTOM_DOMAIN not set - removing routes and enabling workers.dev',
+				);
 
-			if (!config.routes || !Array.isArray(config.routes)) {
-				console.warn('⚠️  No routes array found in wrangler.jsonc');
+				// Remove routes if they exist and set workers_dev=true, preview_urls=true
+				let updatedContent = content;
+				
+				// Remove routes property if it exists
+				const removeRoutesEdits = modify(content, ['routes'], undefined, {
+					formattingOptions: {
+						insertSpaces: true,
+						keepLines: true,
+						tabSize: 4
+					}
+				});
+				updatedContent = applyEdits(updatedContent, removeRoutesEdits);
+				
+				// Set workers_dev = true
+				const workersDevEdits = modify(updatedContent, ['workers_dev'], true, {
+					formattingOptions: {
+						insertSpaces: true,
+						keepLines: true,
+						tabSize: 4
+					}
+				});
+				updatedContent = applyEdits(updatedContent, workersDevEdits);
+				
+				// Set preview_urls = true
+				const previewUrlsEdits = modify(updatedContent, ['preview_urls'], true, {
+					formattingOptions: {
+						insertSpaces: true,
+						keepLines: true,
+						tabSize: 4
+					}
+				});
+				updatedContent = applyEdits(updatedContent, previewUrlsEdits);
+
+				// Write back the updated configuration
+				writeFileSync(wranglerPath, updatedContent, 'utf-8');
+
+				console.log('✅ Updated wrangler.jsonc for workers.dev deployment:');
+				console.log('   - Removed routes configuration');
+				console.log('   - Set workers_dev: true');
+				console.log('   - Set preview_urls: true');
 				return;
 			}
+
+			console.log(
+				`🔧 Updating wrangler.jsonc routes with custom domain: ${customDomain}`,
+			);
+
+			// Parse the JSONC file
+			const config = parse(content) as WranglerConfig;
 
 			// Define the expected routes based on custom domain
 			const expectedRoutes = [
@@ -713,7 +749,9 @@ class CloudflareDeploymentManager {
 			// Check if routes need updating
 			let needsUpdate = false;
 
-			if (config.routes.length !== expectedRoutes.length) {
+			if (!config.routes || !Array.isArray(config.routes)) {
+				needsUpdate = true;
+			} else if (config.routes.length !== expectedRoutes.length) {
 				needsUpdate = true;
 			} else {
 				for (let i = 0; i < expectedRoutes.length; i++) {
@@ -737,26 +775,46 @@ class CloudflareDeploymentManager {
 				return;
 			}
 
-			// Update routes using jsonc-parser modify function
-			const edits = modify(content, ['routes'], expectedRoutes, {
-                formattingOptions: {
-                    insertSpaces: true,
-                    keepLines: true,
-                    tabSize: 4
-                }
-            });
+			let updatedContent = content;
 
-			// Apply the edits
-			const updatedContent = applyEdits(content, edits);
+			// Update routes using jsonc-parser modify function
+			const routesEdits = modify(content, ['routes'], expectedRoutes, {
+				formattingOptions: {
+					insertSpaces: true,
+					keepLines: true,
+					tabSize: 4
+				}
+			});
+			updatedContent = applyEdits(updatedContent, routesEdits);
+
+			// Set workers_dev = false for custom domain
+			const workersDevEdits = modify(updatedContent, ['workers_dev'], false, {
+				formattingOptions: {
+					insertSpaces: true,
+					keepLines: true,
+					tabSize: 4
+				}
+			});
+			updatedContent = applyEdits(updatedContent, workersDevEdits);
+
+			// Set preview_urls = false for custom domain
+			const previewUrlsEdits = modify(updatedContent, ['preview_urls'], false, {
+				formattingOptions: {
+					insertSpaces: true,
+					keepLines: true,
+					tabSize: 4
+				}
+			});
+			updatedContent = applyEdits(updatedContent, previewUrlsEdits);
 
 			// Write back the updated configuration
 			writeFileSync(wranglerPath, updatedContent, 'utf-8');
 
 			console.log(`✅ Updated wrangler.jsonc routes:`);
 			console.log(`   Route 1: ${customDomain} (custom_domain: true)`);
-			console.log(
-				`   Route 2: *${customDomain}/* (custom_domain: false)`,
-			);
+			console.log(`   Route 2: *${customDomain}/* (custom_domain: false)`);
+			console.log('   Set workers_dev: false');
+			console.log('   Set preview_urls: false');
 		} catch (error) {
 			console.warn(
 				`⚠️  Could not update custom domain routes: ${error instanceof Error ? error.message : String(error)}`,
