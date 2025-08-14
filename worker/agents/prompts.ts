@@ -595,6 +595,7 @@ export const STRATEGIES_UTILS = {
         * The number of files in the project should be proportional to the number of views/pages that the project has.
         * Keep the size of codebase as small as possible, write encapsulated and abstracted code that can be reused, maximize code and component reuse and modularity. If a function/component is to be used in multiple files, it should be defined in a shared file.
         **DO NOT WRITE/MODIFY README FILES, LICENSES, ESSENTIAL CONFIG, OR OTHER NON-APPLICATION FILES as they are already configured in the final deployment. You are allowed to modify tailwind.config.js, vite.config.js etc if necessary**
+            - Be very careful while working on vite.config.js, tailwind.config.js, etc. as any wrong changes can break the application.
         **DO NOT WRITE pdf files, images, or any other non-text files as they are not supported by the deployment.**
 
         **Examples**:

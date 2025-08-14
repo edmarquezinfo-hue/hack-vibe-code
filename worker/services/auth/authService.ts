@@ -180,7 +180,7 @@ export class AuthService {
                 user: mapUserResponse(newUser),
                 accessToken,
                 refreshToken,
-                expiresIn: 3600
+                expiresIn: 24 * 3600 // 24 hours
             };
         } catch (error) {
             await this.logAuthAttempt(data.email, 'register', false, request);
@@ -254,7 +254,7 @@ export class AuthService {
                 user: mapUserResponse(user),
                 accessToken,
                 refreshToken,
-                expiresIn: 3600
+                expiresIn: 24 * 3600 // 24 hours
             };
         } catch (error) {
             if (error instanceof SecurityError) {
@@ -456,7 +456,7 @@ export class AuthService {
                 },
                 accessToken: sessionAccessToken,
                 refreshToken: sessionRefreshToken,
-                expiresIn: 3600
+                expiresIn: 24 * 3600 // 24 hours
             };
         } catch (error) {
             await this.logAuthAttempt('', `oauth_${provider}`, false, request);

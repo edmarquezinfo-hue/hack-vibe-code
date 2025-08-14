@@ -49,7 +49,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Token refresh interval - refresh every 10 minutes
-const TOKEN_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes
+const TOKEN_REFRESH_INTERVAL = 60 * 60 * 1000; // 1 hour (check less frequently since tokens last 24h)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setToken(null); // Profile endpoint doesn't return token, cookies are used
           setSession({
             id: data.data.sessionId || data.data.user.id,
-            expiresAt: new Date(Date.now() + 15 * 60 * 1000), // Assume 15 min expiry
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours expiry
           });
           
           // Setup token refresh
@@ -184,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(null); // Using cookies for authentication
         setSession({
           id: data.data.session?.id || data.data.user.id,
-          expiresAt: new Date(Date.now() + (data.data.expiresIn || 900) * 1000),
+          expiresAt: new Date(Date.now() + (data.data.expiresIn || 24 * 60 * 60) * 1000),
         });
         setupTokenRefresh();
         navigate('/');
@@ -221,7 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(null); // Using cookies for authentication
         setSession({
           id: responseData.data.session?.id || responseData.data.user.id,
-          expiresAt: new Date(Date.now() + (responseData.data.expiresIn || 900) * 1000),
+          expiresAt: new Date(Date.now() + (responseData.data.expiresIn || 24 * 60 * 60) * 1000),
         });
         setupTokenRefresh();
         navigate('/');

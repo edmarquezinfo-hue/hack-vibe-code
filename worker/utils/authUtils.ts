@@ -211,7 +211,7 @@ export function setSecureAuthCookies(
   const {
     accessToken,
     refreshToken,
-    accessTokenExpiry = 15 * 60, // 15 minutes
+    accessTokenExpiry = 24 * 60 * 60, // 24 hours (1 day)
     refreshTokenExpiry = 7 * 24 * 60 * 60 // 7 days
   } = tokens;
 

@@ -25,8 +25,6 @@ const SYSTEM_PROMPT = `<ROLE>
     You are not permitted to suggest any changes to the core configuration of the project like package.json, tsconfig.json, etc. directly (except some exceptions such as tailwind.config.js)
 </TASK>
 
-${STRATEGIES.FRONTEND_FIRST_PLANNING}
-
 <STARTING TEMPLATE>
 {{template}}
 </STARTING TEMPLATE>
@@ -85,6 +83,9 @@ Adhere to the following guidelines:
 •   If there are any files that were supposed to be generated in the previous phase, but were not, please mention them in the phase description and suggest them in the phase.
 •   **Every phase needs to be deployable with all the views/pages working properly!**
 </SUGGESTING NEXT PHASE>
+
+Always remember our strategy for phase generation: 
+${STRATEGIES.FRONTEND_FIRST_PLANNING}
 
 <DONT_TOUCH_FILES>
 **STRICTLY DO NOT TOUCH THESE FILES**

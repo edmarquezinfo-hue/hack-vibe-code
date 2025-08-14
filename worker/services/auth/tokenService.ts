@@ -35,7 +35,7 @@ export class TokenService {
     /**
      * Create a new JWT token
      */
-    async createToken(payload: Omit<TokenPayload, 'iat' | 'exp'>, expiresIn: number = 3600): Promise<string> {
+    async createToken(payload: Omit<TokenPayload, 'iat' | 'exp'>, expiresIn: number = 24 * 3600): Promise<string> {
         try {
             const now = Math.floor(Date.now() / 1000);
             
@@ -95,7 +95,7 @@ export class TokenService {
         refreshToken: string;
         expiresIn: number;
     }> {
-        const accessTokenExpiry = 3600; // 1 hour
+        const accessTokenExpiry = 24 * 3600; // 24 hours (1 day)
         const refreshTokenExpiry = 7 * 24 * 3600; // 7 days
         
         const [accessToken, refreshToken] = await Promise.all([
@@ -143,7 +143,7 @@ export class TokenService {
         
         return {
             accessToken,
-            expiresIn: 3600
+            expiresIn: 24 * 3600 // 24 hours
         };
     }
     

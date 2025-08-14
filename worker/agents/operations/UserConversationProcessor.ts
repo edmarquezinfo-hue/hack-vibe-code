@@ -194,7 +194,7 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
 
     processProjectUpdates<T extends ProjectUpdateType>(updateType: T, data: WebSocketMessageData<T>, logger: StructuredLogger) : ConversationMessage[] {
         try {
-            logger.info("Processing project update", { updateType, data });
+            logger.info("Processing project update", { updateType });
 
             // Just save it as an assistant message
             const preparedMessage = `**<Internal Memo>**
