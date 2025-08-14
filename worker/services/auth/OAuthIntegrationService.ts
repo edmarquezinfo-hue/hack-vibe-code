@@ -4,6 +4,14 @@
  */
 
 import { createLogger } from '../../logger';
+import { 
+    createGitHubHeaders, 
+    isValidGitHubToken, 
+    encodeOAuthState, 
+    decodeOAuthState, 
+    extractGitHubErrorText,
+    validateGitHubScopes,
+} from '../../utils/authUtils';
 
 interface GitHubTokenResponse {
     access_token?: string;
@@ -72,9 +80,9 @@ export class OAuthIntegrationService {
 
         const tokenData = await response.json() as GitHubTokenResponse;
         
-        if (!tokenData.access_token) {
-            this.logger.error('No access token received from provider', { provider });
-            throw new Error('No access token received from OAuth provider');
+        if (!isValidGitHubToken(tokenData.access_token)) {
+            this.logger.error('No valid access token received from provider', { provider });
+            throw new Error('No valid access token received from OAuth provider');
         }
 
         return tokenData;
@@ -89,11 +97,7 @@ export class OAuthIntegrationService {
         };
 
         const headers = {
-            github: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'User-Agent': 'Cloudflare-OrangeBuild-OAuth-Integration/1.0',
-            }
+            github: createGitHubHeaders(accessToken)
         };
 
         // Retry logic for rate limiting
@@ -105,7 +109,7 @@ export class OAuthIntegrationService {
                 });
 
                 if (!response.ok) {
-                    const errorText = await response.text().catch(() => 'Unable to read error response');
+                    const errorText = await extractGitHubErrorText(response).catch(() => 'Unable to read error response');
                     
                     // Handle rate limiting (status 403 with specific message or status 429)
                     if (response.status === 403 || response.status === 429) {
@@ -173,10 +177,11 @@ export class OAuthIntegrationService {
             // Fetch user information
             const userData = await this.fetchUserInfo(tokenData.access_token!, provider);
             
-            // Process scopes
-            const scopes = tokenData.scope ? 
+            // Process and validate scopes
+            const rawScopes = tokenData.scope ? 
                 tokenData.scope.split(',').map(s => s.trim()) : 
                 ['repo', 'user:email', 'read:user'];
+            const scopes = validateGitHubScopes(rawScopes);
 
             return {
                 githubUserId: userData.id.toString(),
@@ -217,7 +222,7 @@ export class OAuthIntegrationService {
             client_id: providerConfig.clientId,
             redirect_uri: providerConfig.redirectUri,
             scope: scopeList.join(' '),
-            state: Buffer.from(state).toString('base64'),
+            state: encodeOAuthState(JSON.parse(state)),
             response_type: 'code'
         });
 
@@ -229,8 +234,7 @@ export class OAuthIntegrationService {
      */
     parseOAuthState(state: string): { type?: string; userId?: string; timestamp?: number } | null {
         try {
-            const decodedState = Buffer.from(state, 'base64').toString();
-            return JSON.parse(decodedState);
+            return decodeOAuthState<{ type?: string; userId?: string; timestamp?: number }>(state);
         } catch (error) {
             this.logger.warn('Failed to parse OAuth state', { 
                 error: error instanceof Error ? error.message : 'Unknown error' 

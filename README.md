@@ -4,9 +4,13 @@
 
 <div align="center">
 
+**🌟 [Try the Live Demo](https://build.cloudflare.dev) 🌟**
+
+*See Orange Build in action before deploying your own instance*
+
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/AshishKumar4/cloudflare-orange-build)
 
-**👆 Click to deploy your own Vibe coding platform!**
+**👆 Click to deploy your own instance!**
 
 *Follow the setup guide below to configure required services*
 
@@ -255,6 +259,8 @@ OAuth setup is **not** shown during initial deployment. To add user login featur
 
 Cloudflare Orange Build is an open source **text-to-app** platform built on Cloudflare's developer ecosystem. It provides an alternative to proprietary platforms like Lovable, V0, and Bolt that you can deploy and customize yourself. Describe what you want to build in plain English, and AI agents create, deploy, and iterate on complete web applications.
 
+**🌐 [Experience it live at build.cloudflare.dev](https://build.cloudflare.dev)** – Try building apps with AI before setting up your own instance!
+
 ### 🎯 Key Features
 
 🤖 **AI Code Generation** – Phase-wise development with intelligent error correction  
@@ -280,7 +286,7 @@ Cloudflare Orange Build utilizes the full Cloudflare developer ecosystem:
 
 ## 💡 Try These Example Prompts
 
-Once deployed, try these prompts to see Cloudflare Orange Build in action:
+Want to see these prompts in action? **[Visit the live demo at build.cloudflare.dev](https://build.cloudflare.dev)** first, then try them on your own instance once deployed:
 
 **🎮 Fun Apps**
 > "Create a todo list with drag and drop and dark mode"
@@ -879,13 +885,13 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Set up your own AI webapp generator with proper configuration**
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/your-org/cloudflare-vibecoding-starter-kit)
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/AshishKumar4/cloudflare-orange-build)
 
 *Make sure to complete the configuration steps above first*
 
 ---
 
-[🌟 Star on GitHub](https://github.com/your-org/cloudflare-vibecoding-starter-kit) • [📖 Documentation](./CLAUDE.md) • [💬 Community](https://discord.gg/cloudflaredev) • [🚀 Live Demo](https://build.cloudflare.dev)
+[🌟 Star on GitHub](https://github.com/AshishKumar4/cloudflare-orange-build) • [📖 Documentation](./CLAUDE.md) • [💬 Community](https://discord.gg/cloudflaredev) • [🚀 Live Demo](https://build.cloudflare.dev)
 
 **Built with ❤️ on Cloudflare's Developer Platform**
 

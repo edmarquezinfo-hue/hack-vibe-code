@@ -7,6 +7,7 @@ import { BaseController } from './BaseController';
 import { githubIntegrations } from '../../database/schema';
 import { eq } from 'drizzle-orm';
 import { OAuthIntegrationService } from '../../services/auth/OAuthIntegrationService';
+import { isValidGitHubToken, validateGitHubScopes } from '../../utils/authUtils';
 
 export class GitHubIntegrationController extends BaseController {
     
@@ -98,17 +99,15 @@ export class GitHubIntegrationController extends BaseController {
                 throw new Error('Invalid GitHub username');
             }
             
-            // Validate access token format - GitHub tokens can have various formats
-            if (!githubData.accessToken || 
-                githubData.accessToken.length < 20 ||
-                !/^[a-zA-Z0-9_-]+$/.test(githubData.accessToken)) {
+            // Validate access token using consolidated utility
+            if (!isValidGitHubToken(githubData.accessToken)) {
                 throw new Error('Invalid GitHub access token format');
             }
             
-            // Validate scopes array
-            const validScopes = ['read:user', 'user:email', 'public_repo', 'repo'];
-            const invalidScopes = githubData.scopes.filter(scope => !validScopes.includes(scope));
-            if (invalidScopes.length > 0) {
+            // Validate scopes using consolidated utility
+            const validatedScopes = validateGitHubScopes(githubData.scopes);
+            if (validatedScopes.length !== githubData.scopes.length) {
+                const invalidScopes = githubData.scopes.filter(scope => !validatedScopes.includes(scope as any));
                 throw new Error(`Invalid OAuth scopes: ${invalidScopes.join(', ')}`);
             }
 

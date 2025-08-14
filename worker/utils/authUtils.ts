@@ -393,3 +393,109 @@ export function formatAuthResponse(
   
   return response;
 }
+
+// ==========================================
+// GITHUB-SPECIFIC UTILITIES
+// ==========================================
+
+/**
+ * Create standardized GitHub API headers with consistent User-Agent
+ * Consolidates GitHub header creation to eliminate duplication
+ */
+export function createGitHubHeaders(accessToken: string): Record<string, string> {
+  return {
+    'Authorization': `token ${accessToken}`,
+    'Content-Type': 'application/json',
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'Cloudflare-OrangeBuild-OAuth-Integration/1.0'
+  };
+}
+
+/**
+ * Validate GitHub token format and presence
+ * Consolidates token validation logic to eliminate duplication
+ */
+export function isValidGitHubToken(token: string | undefined): token is string {
+  return !!(token && 
+           typeof token === 'string' && 
+           token.trim().length > 0 && 
+           token.length > 10); // GitHub tokens are much longer than 10 chars
+}
+
+// ==========================================
+// OAUTH STATE UTILITIES
+// ==========================================
+
+/**
+ * Encode OAuth state object to base64 string
+ * Consolidates state encoding logic to eliminate duplication
+ */
+export function encodeOAuthState(state: Record<string, unknown>): string {
+  try {
+    const stateString = JSON.stringify(state);
+    return btoa(stateString);
+  } catch (error) {
+    throw new Error('Failed to encode OAuth state');
+  }
+}
+
+/**
+ * Decode base64 OAuth state string to object
+ * Consolidates state decoding logic to eliminate duplication
+ */
+export function decodeOAuthState<T = Record<string, unknown>>(encodedState: string): T {
+  try {
+    const stateString = atob(encodedState);
+    return JSON.parse(stateString) as T;
+  } catch (error) {
+    throw new Error('Failed to decode OAuth state');
+  }
+}
+
+// ==========================================
+// GITHUB API ERROR HANDLING
+// ==========================================
+
+/**
+ * Extract error text from GitHub API response
+ * Consolidates error response handling to eliminate duplication
+ */
+export async function extractGitHubErrorText(response: Response): Promise<string> {
+  try {
+    // Try to parse as JSON first (GitHub usually returns JSON errors)
+    const contentType = response.headers.get('content-type') || '';
+    
+    if (contentType.includes('application/json')) {
+      const errorData = await response.json() as { message?: string; error?: string };
+      return errorData.message || errorData.error || `HTTP ${response.status}`;
+    } else {
+      // Fallback to plain text
+      const errorText = await response.text();
+      return errorText || `HTTP ${response.status}`;
+    }
+  } catch (parseError) {
+    // If parsing fails, return generic error
+    return `HTTP ${response.status}`;
+  }
+}
+
+// ==========================================
+// GITHUB SCOPES VALIDATION
+// ==========================================
+
+/**
+ * Valid GitHub OAuth scopes with proper TypeScript typing
+ */
+export type GitHubScope = 'repo' | 'user:email' | 'read:user' | 'user' | 'gist' | 'admin:org';
+
+/**
+ * Validate GitHub scopes array with proper TypeScript typing
+ * Consolidates scopes validation to eliminate duplication and ensure type safety
+ */
+export function validateGitHubScopes(scopes: string[]): GitHubScope[] {
+  const validScopes: GitHubScope[] = ['repo', 'user:email', 'read:user', 'user', 'gist', 'admin:org'];
+  
+  return scopes.filter((scope): scope is GitHubScope => {
+    return validScopes.includes(scope as GitHubScope);
+  });
+}

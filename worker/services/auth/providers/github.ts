@@ -6,6 +6,7 @@
 import { BaseOAuthProvider, OAuthUserInfo } from './base';
 import { OAuthProvider } from '../../../types/auth-types';
 import { createLogger } from '../../../logger';
+import { createGitHubHeaders, extractGitHubErrorText } from '../../../utils/authUtils';
 
 const logger = createLogger('GitHubOAuth');
 
@@ -31,15 +32,11 @@ export class GitHubOAuthProvider extends BaseOAuthProvider {
         try {
             // Get basic user info
             const userResponse = await fetch(this.userInfoUrl, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Accept': 'application/json',
-                    'User-Agent': 'Cloudflare-OrangeBuild-OAuth-Integration/1.0' // GitHub requires User-Agent
-                }
+                headers: createGitHubHeaders(accessToken)
             });
             
             if (!userResponse.ok) {
-                const error = await userResponse.text();
+                const error = await extractGitHubErrorText(userResponse);
                 logger.error('Failed to get user info', { 
                     status: userResponse.status, 
                     error: error.substring(0, 200) // Log only first 200 chars
@@ -61,11 +58,7 @@ export class GitHubOAuthProvider extends BaseOAuthProvider {
             if (!email) {
                 // Fetch email from emails endpoint
                 const emailsResponse = await fetch(this.emailsUrl, {
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Accept': 'application/json',
-                        'User-Agent': 'Cloudflare-OrangeBuild-OAuth-Integration/1.0'
-                    }
+                    headers: createGitHubHeaders(accessToken)
                 });
                 
                 if (emailsResponse.ok) {

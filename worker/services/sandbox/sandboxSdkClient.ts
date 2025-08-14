@@ -37,6 +37,7 @@ import { deployToCloudflareWorkers } from './deploymentService';
 import { TokenService } from '../auth/tokenService';
 import { CodeFixResult, FileFetcher, fixProjectIssues } from '../code-fixer';
 import { FileObject } from '../code-fixer/types';
+import { createGitHubHeaders } from '../../utils/authUtils';
 // Export the Sandbox class in your Worker
 export { Sandbox as UserAppSandboxService, Sandbox as DeployerService} from "@cloudflare/sandbox";
 
@@ -1637,11 +1638,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             
             const repoResponse = await fetch('https://api.github.com/user/repos', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `token ${request.token}`,
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'Cloudflare-OrangeBuild-GitHub-Export/1.0'
-                },
+                headers: createGitHubHeaders(request.token),
                 body: JSON.stringify({
                     name: request.repositoryName,
                     description: request.description,
@@ -1661,11 +1658,7 @@ export class SandboxSdkClient extends BaseSandboxService {
                 // Use the transformed repository name for the API path
                 const getRepoResponse = await fetch(`https://api.github.com/repos/${request.username}/${actualRepoName}`, {
                     method: 'GET',
-                    headers: {
-                        'Authorization': `token ${request.token}`,
-                        'Content-Type': 'application/json',
-                        'User-Agent': 'Cloudflare-OrangeBuild-GitHub-Export/1.0'
-                    }
+                    headers: createGitHubHeaders(request.token)
                 });
                 
                 if (!getRepoResponse.ok) {
