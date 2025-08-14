@@ -128,6 +128,9 @@ export default function SettingsPage() {
     }>;
     loading: boolean;
   }>({ secrets: [], loading: true });
+
+  // Model configurations state - moved from inline IIFE to component level
+  const [agentConfigs, setAgentConfigs] = useState<Array<{key: string, name: string, description: string}>>([]);
   
   // Templates state
   const [secretTemplates, setSecretTemplates] = useState<Array<{
@@ -157,6 +160,34 @@ export default function SettingsPage() {
   });
   const [showSecretValue, setShowSecretValue] = useState(false);
   const [isSavingSecret, setIsSavingSecret] = useState(false);
+
+  // Helper function to format camelCase to human readable
+  const formatAgentConfigName = (key: string) => {
+    return key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .trim();
+  };
+
+  // Helper function to provide descriptions based on key patterns
+  const getAgentConfigDescription = (key: string) => {
+    const descriptions: Record<string, string> = {
+      templateSelection: 'AI model for selecting project templates',
+      blueprint: 'Initial project planning and structure creation',
+      projectSetup: 'Setting up project scaffolding and initial files',
+      phaseGeneration: 'Breaking down work into manageable phases',
+      firstPhaseImplementation: 'Implementing the initial phase of development',
+      phaseImplementation: 'Implementing subsequent development phases',
+      realtimeCodeFixer: 'Real-time code analysis and fixing',
+      fastCodeFixer: 'Quick code fixes and optimizations',
+      conversationalResponse: 'Chat interactions and user communication',
+      userSuggestionProcessor: 'Processing and implementing user suggestions',
+      codeReview: 'Reviewing and improving generated code',
+      fileRegeneration: 'Regenerating or updating existing files',
+      screenshotAnalysis: 'Analyzing screenshots for UI/design implementation'
+    };
+    return descriptions[key] || `AI model configuration for ${formatAgentConfigName(key)}`;
+  };
 
   const handleSaveProfile = async () => {
     if (isSaving) return;
@@ -547,6 +578,25 @@ export default function SettingsPage() {
   }, [user]);
 
 
+  // Load agent configurations dynamically from API
+  React.useEffect(() => {
+    fetch('/api/model-configs/defaults')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data.defaults) {
+          const configs = Object.keys(data.data.defaults).map(key => ({
+            key,
+            name: formatAgentConfigName(key),
+            description: getAgentConfigDescription(key)
+          }));
+          setAgentConfigs(configs);
+        }
+      })
+      .catch(error => {
+        console.error('Failed to load agent configurations:', error);
+      });
+  }, [formatAgentConfigName, getAgentConfigDescription]);
+
   // Load GitHub integration, sessions, API keys, and user secrets on component mount
   React.useEffect(() => {
     loadGithubIntegration();
@@ -577,7 +627,7 @@ export default function SettingsPage() {
 
   // Scroll spy functionality
   React.useEffect(() => {
-    const sections = ['profile', 'appearance', 'notifications', 'privacy', 'integrations', 'secrets', 'security'];
+    const sections = ['profile', 'appearance', 'notifications', 'privacy', 'integrations', 'model-configs', 'secrets', 'security'];
     
     const handleScroll = () => {
       const scrollPosition = window.scrollY + 100; // Offset for better UX
@@ -616,6 +666,7 @@ export default function SettingsPage() {
             { id: 'notifications', icon: Bell, label: 'Notifications' },  
             { id: 'privacy', icon: Shield, label: 'Privacy' },
             { id: 'integrations', icon: Link, label: 'Integrations' },
+            { id: 'model-configs', icon: Settings, label: 'Model Configs' },
             { id: 'secrets', icon: Key, label: 'API Keys' },
             { id: 'security', icon: Shield, label: 'Security' }
           ].map(({ id, icon: Icon, label }) => (
@@ -990,6 +1041,153 @@ export default function SettingsPage() {
                       </ul>
                     </div>
                   </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Model Configuration Section */}
+          <Card id="model-configs">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Settings className="h-5 w-5" />
+                <div>
+                  <CardTitle>AI Model Configurations</CardTitle>
+                  <CardDescription>Customize AI model settings and API keys for different operations</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Provider API Keys Section */}
+              <div className="space-y-4">
+                <h4 className="font-medium">Provider API Keys</h4>
+                <p className="text-sm text-muted-foreground">
+                  Configure your own API keys for AI providers. These will override the default environment keys.
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { provider: 'openai', name: 'OpenAI', icon: '🤖', description: 'GPT models and APIs' },
+                    { provider: 'anthropic', name: 'Anthropic', icon: '🧠', description: 'Claude models' },
+                    { provider: 'google-ai-studio', name: 'Google AI', icon: '🔷', description: 'Gemini models' },
+                    { provider: 'openrouter', name: 'OpenRouter', icon: '🔀', description: 'Multiple AI providers' },
+                  ].map((provider) => (
+                    <div key={provider.provider} className="p-4 border rounded-lg bg-card">
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="text-2xl">{provider.icon}</span>
+                        <div>
+                          <h5 className="font-medium">{provider.name}</h5>
+                          <p className="text-xs text-muted-foreground">{provider.description}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Input 
+                            type="password" 
+                            placeholder="sk-..." 
+                            className="flex-1 h-8 text-sm"
+                          />
+                          <Button size="sm" variant="outline" className="h-8 px-2">
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" className="h-7 text-xs">
+                            Test
+                          </Button>
+                          <Badge variant="outline" className="text-xs">
+                            Not configured
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Model Configuration Settings */}
+              <div className="space-y-4">
+                <h4 className="font-medium">Model Configuration Overrides</h4>
+                <p className="text-sm text-muted-foreground">
+                  Customize model settings for different AI operations. Leave blank to use system defaults.
+                </p>
+                
+                <div className="space-y-4">
+                  {agentConfigs.map((config) => (
+                    <div key={config.key} className="p-4 border rounded-lg bg-card">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h5 className="font-medium">{config.name}</h5>
+                          <p className="text-xs text-muted-foreground">{config.description}</p>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          Default
+                        </Badge>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <Label className="text-xs">Model</Label>
+                          <Select>
+                            <SelectTrigger className="h-8">
+                              <SelectValue placeholder="Use default" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="default">Use default</SelectItem>
+                              <SelectItem value="gpt-4">GPT-4</SelectItem>
+                              <SelectItem value="claude-3">Claude 3</SelectItem>
+                              <SelectItem value="gemini">Gemini Pro</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div>
+                          <Label className="text-xs">Temperature</Label>
+                          <Input 
+                            type="number" 
+                            min="0" 
+                            max="2" 
+                            step="0.1" 
+                            placeholder="0.7" 
+                            className="h-8"
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label className="text-xs">Max Tokens</Label>
+                          <Input 
+                            type="number" 
+                            min="1" 
+                            max="100000" 
+                            placeholder="4000" 
+                            className="h-8"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 mt-3">
+                        <Button size="sm" variant="outline" className="h-7 text-xs">
+                          Test Config
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground">
+                          Reset to Default
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline">
+                    Reset All to Defaults
+                  </Button>
+                  <Button className="bg-gradient-to-r from-[#f48120] to-[#faae42] hover:from-[#faae42] hover:to-[#f48120] text-white">
+                    Save Configuration
+                  </Button>
                 </div>
               </div>
             </CardContent>

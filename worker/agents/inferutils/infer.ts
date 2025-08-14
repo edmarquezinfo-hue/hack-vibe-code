@@ -37,6 +37,7 @@ interface InferenceParamsBase {
     };
     reasoning_effort?: ReasoningEffort;
     modelConfig?: ModelConfig;
+    userId?: string; // Optional user ID for fetching user configurations
 }
 
 interface InferenceParamsStructured<T extends z.AnyZodObject> extends InferenceParamsBase {
@@ -67,18 +68,69 @@ export async function executeInference<T extends z.AnyZodObject>(   {
     agentActionName,
     format,
     modelName,
-    modelConfig
+    modelConfig,
+    userId
 }: InferenceParamsBase &    {
     schema?: T;
     format?: SchemaFormat;
 }): Promise<InferResponseString | InferResponseObject<T> | null> {
-    const conf = modelConfig || AGENT_CONFIG[agentActionName];
+    let conf: ModelConfig | undefined;
+    
+    if (modelConfig) {
+        // Use explicitly provided model config
+        conf = modelConfig;
+    } else if (userId) {
+        // Try to get user-specific configuration (returns null if no overrides)
+        try {
+            const { ModelConfigService } = await import('../../services/modelConfig/ModelConfigService');
+            const { DatabaseService } = await import('../../database/database');
+            
+            const db = new DatabaseService(env);
+            const modelConfigService = new ModelConfigService(db);
+            const userConfig = await modelConfigService.getRawUserModelConfig(userId, agentActionName);
+            
+            conf = userConfig || undefined; // Pass undefined if user has no custom config
+            if (userConfig) {
+                logger.info(`Using user configuration for ${agentActionName}: ${JSON.stringify(userConfig)}`);
+            } else {
+                logger.info(`No user configuration for ${agentActionName}, using AGENT_CONFIG defaults`);
+            }
+        } catch (error) {
+            logger.warn(`Failed to load user configuration for ${agentActionName}, using defaults:`, error);
+            conf = undefined; // Let defaults rule on error too
+        }
+    } else {
+        // No userId provided, let AGENT_CONFIG defaults rule
+        conf = undefined;
+    }
 
-    modelName = modelName || conf.name;
-    temperature = temperature || conf.temperature || 0.2;
-    maxTokens = maxTokens || conf.max_tokens || 16000;
-    reasoning_effort = reasoning_effort || conf.reasoning_effort;
-    const providerOverride = conf.providerOverride;
+    // Use the final config or fall back to AGENT_CONFIG defaults
+    const finalConf = conf || AGENT_CONFIG[agentActionName];
+
+    modelName = modelName || finalConf.name;
+    temperature = temperature || finalConf.temperature || 0.2;
+    maxTokens = maxTokens || finalConf.max_tokens || 16000;
+    reasoning_effort = reasoning_effort || finalConf.reasoning_effort;
+    const providerOverride = finalConf.providerOverride;
+
+    // Load user API keys if userId is provided
+    let userApiKeys: Map<string, string> | undefined;
+    if (userId) {
+        try {
+            const { ProviderKeyService } = await import('../../services/modelConfig/ProviderKeyService');
+            const { DatabaseService } = await import('../../database/database');
+            
+            const db = new DatabaseService(env);
+            const providerKeyService = new ProviderKeyService(db, env);
+            userApiKeys = await providerKeyService.getUserProviderKeysMap(userId);
+            
+            if (userApiKeys.size > 0) {
+                logger.info(`Loaded ${userApiKeys.size} user API keys for inference`);
+            }
+        } catch (error) {
+            logger.warn(`Failed to load user API keys, using environment variables:`, error);
+        }
+    }
 
     // Exponential backoff for retries
     const backoffMs = (attempt: number) => Math.min(100 * Math.pow(2, attempt), 10000);
@@ -105,7 +157,8 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 stream,
                 reasoning_effort: useCheaperModel ? undefined : reasoning_effort,
                 temperature,
-                providerOverride
+                providerOverride,
+                userApiKeys: useCheaperModel ? undefined : userApiKeys
             }) : await infer({
                 env,
                 id,
@@ -116,7 +169,8 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 stream,
                 reasoning_effort: useCheaperModel ? undefined : reasoning_effort,
                 temperature,
-                providerOverride
+                providerOverride,
+                userApiKeys: useCheaperModel ? undefined : userApiKeys
             });
             logger.info(`Successfully completed ${agentActionName} operation`);
             // console.log(result);
@@ -136,8 +190,8 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                     useCheaperModel = true;
                 }
             } else {
-                // Try using fallback model
-                modelName = conf.fallbackModel || modelName;
+                // Try using fallback model if available
+                modelName = conf?.fallbackModel || modelName;
             }
 
             if (!isLastAttempt) {

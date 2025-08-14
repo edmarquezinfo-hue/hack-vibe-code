@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, or, desc, count, sql, lt } from 'drizzle-orm';
 import * as schema from './schema';
+import { generateId } from '../utils/idGenerator';
 
 // Type-safe database environment interface
 export interface DatabaseEnv {
@@ -40,7 +41,7 @@ export class DatabaseService {
     async createUser(userData: schema.NewUser): Promise<schema.User> {
         const [user] = await this.db
             .insert(schema.users)
-            .values({ ...userData, id: crypto.randomUUID() })
+            .values({ ...userData, id: generateId() })
             .returning();
         return user;
     }
@@ -92,7 +93,7 @@ export class DatabaseService {
     async createSession(sessionData: schema.NewSession): Promise<schema.Session> {
         const [session] = await this.db
             .insert(schema.sessions)
-            .values({ ...sessionData, id: crypto.randomUUID() })
+            .values({ ...sessionData, id: generateId() })
             .returning();
         return session;
     }
@@ -125,7 +126,7 @@ export class DatabaseService {
             .insert(schema.teams)
             .values({
                 ...teamData,
-                id: crypto.randomUUID(),
+                id: generateId(),
                 slug: this.generateSlug(teamData.name),
             })
             .returning();
@@ -139,7 +140,7 @@ export class DatabaseService {
         await this.db
             .insert(schema.teamMembers)
             .values({
-                id: crypto.randomUUID(),
+                id: generateId(),
                 teamId,
                 userId,
                 role: role as 'owner' | 'admin' | 'member' | 'viewer',
@@ -184,7 +185,7 @@ export class DatabaseService {
             .insert(schema.apps)
             .values({
                 ...appData,
-                id: crypto.randomUUID(),
+                id: generateId(),
                 slug: appData.title ? this.generateSlug(appData.title) : undefined,
             })
             .returning();
@@ -267,7 +268,7 @@ export class DatabaseService {
     async createCodeGenInstance(instanceData: Omit<schema.NewCodeGenInstance, 'id'>): Promise<schema.CodeGenInstance> {
         const [instance] = await this.db
             .insert(schema.codeGenInstances)
-            .values({ ...instanceData, id: crypto.randomUUID() })
+            .values({ ...instanceData, id: generateId() })
             .returning();
         return instance;
     }
@@ -298,7 +299,7 @@ export class DatabaseService {
     async addCloudflareAccount(accountData: Omit<schema.NewCloudflareAccount, 'id'>): Promise<schema.CloudflareAccount> {
         const [account] = await this.db
             .insert(schema.cloudflareAccounts)
-            .values({ ...accountData, id: crypto.randomUUID() })
+            .values({ ...accountData, id: generateId() })
             .returning();
         return account;
     }
@@ -337,7 +338,7 @@ export class DatabaseService {
             .insert(schema.boards)
             .values({
                 ...boardData,
-                id: crypto.randomUUID(),
+                id: generateId(),
                 slug: this.generateSlug(boardData.name),
             })
             .returning();
@@ -403,7 +404,7 @@ export class DatabaseService {
         // Just record the view - no need to update denormalized counters
         await this.db
             .insert(schema.appViews)
-            .values({ ...viewData, id: crypto.randomUUID() });
+            .values({ ...viewData, id: generateId() });
     }
 
     async getAppAnalytics(appId: string, days: number = 30): Promise<{
