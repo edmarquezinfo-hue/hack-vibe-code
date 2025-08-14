@@ -81,7 +81,7 @@ export class OAuthIntegrationService {
     }
 
     /**
-     * Fetch user information from OAuth provider
+     * Fetch user information from OAuth provider with retry logic
      */
     async fetchUserInfo(accessToken: string, provider: 'github'): Promise<GitHubUserResponse> {
         const endpoints = {
@@ -92,32 +92,74 @@ export class OAuthIntegrationService {
             github: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Accept': 'application/vnd.github.v3+json',
+                'User-Agent': 'Cloudflare-OrangeBuild-OAuth-Integration/1.0',
             }
         };
 
-        const response = await fetch(endpoints[provider], {
-            headers: headers[provider],
-        });
+        // Retry logic for rate limiting
+        let lastError: Error;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                const response = await fetch(endpoints[provider], {
+                    headers: headers[provider],
+                });
 
-        if (!response.ok) {
-            this.logger.error('Failed to fetch user info from provider', { 
-                provider, 
-                status: response.status 
-            });
-            throw new Error(`Failed to fetch user info: ${response.status}`);
+                if (!response.ok) {
+                    const errorText = await response.text().catch(() => 'Unable to read error response');
+                    
+                    // Handle rate limiting (status 403 with specific message or status 429)
+                    if (response.status === 403 || response.status === 429) {
+                        const retryAfter = response.headers.get('retry-after');
+                        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
+                        
+                        if (attempt < 2) { // Don't wait on the last attempt
+                            this.logger.warn(`Rate limited, retrying in ${waitTime}ms`, { 
+                                provider, 
+                                attempt: attempt + 1,
+                                status: response.status 
+                            });
+                            await new Promise(resolve => setTimeout(resolve, waitTime));
+                            continue;
+                        }
+                    }
+
+                    this.logger.error('Failed to fetch user info from provider', { 
+                        provider, 
+                        status: response.status,
+                        statusText: response.statusText,
+                        errorBody: errorText,
+                        attempt: attempt + 1
+                    });
+                    lastError = new Error(`Failed to fetch user info: ${response.status} - ${errorText}`);
+                    continue;
+                }
+
+                const userData = await response.json() as GitHubUserResponse;
+                
+                if (!userData.id || !userData.login) {
+                    this.logger.error('Invalid user data received from provider', { 
+                        provider, 
+                        userData 
+                    });
+                    throw new Error('Invalid user data received from OAuth provider');
+                }
+
+                return userData;
+
+            } catch (error) {
+                lastError = error instanceof Error ? error : new Error('Unknown error occurred');
+                if (attempt === 2) break; // Last attempt, don't continue
+                
+                this.logger.warn('Retrying user info fetch due to error', {
+                    provider,
+                    attempt: attempt + 1,
+                    error: lastError.message
+                });
+                await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+            }
         }
 
-        const userData = await response.json() as GitHubUserResponse;
-        
-        if (!userData.id || !userData.login) {
-            this.logger.error('Invalid user data received from provider', { 
-                provider, 
-                userData 
-            });
-            throw new Error('Invalid user data received from OAuth provider');
-        }
-
-        return userData;
+        throw lastError!;
     }
 
     /**

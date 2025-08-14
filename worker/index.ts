@@ -16,27 +16,31 @@ export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
         const url = new URL(request.url);
         const hostname = url.hostname;
-        // Check if hostname is an ip address via regex
-        const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/;
-        if (!ipRegex.test(hostname)) {
-            // Get the immideate subdomain of the hostname
-            const subdomain = hostname.split('.')[0];
-            // logger.info(`Subdomain: ${subdomain}, Hostname: ${hostname}`);
-            // If the subdomain is not build, or there are less than 3 subdomains, redirect it to dispatcher
-            // Thus either the main site should be build.somehost.com or build.something.somehost.com or something.com or www.something.com
-            if (subdomain !== 'localhost' && subdomain !== 'www' && subdomain !== 'build' && hostname.split('.').length >= 2) {
-                const proxyResponse = await proxyToSandbox(request, env);
-                if (proxyResponse) return proxyResponse;
-                logger.info(`Dispatching request to dispatcher`);
-                // Get worker from dispatch namespace
-                const worker = env.DISPATCHER.get(subdomain);
-                if (worker) {
-                    logger.info(`Dispatching request to worker ${subdomain}`);
-                    // Dispatch request to worker
-                    const response = await worker.fetch(request);
-                    return response;
+        try {
+            // Check if hostname is an ip address via regex
+            const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/;
+            if (!ipRegex.test(hostname)) {
+                // Get the immideate subdomain of the hostname
+                const subdomain = hostname.split('.')[0];
+                // logger.info(`Subdomain: ${subdomain}, Hostname: ${hostname}`);
+                // If the subdomain is not build, or there are less than 3 subdomains, redirect it to dispatcher
+                // Thus either the main site should be build.somehost.com or build.something.somehost.com or something.com or www.something.com
+                if (subdomain !== 'localhost' && subdomain !== 'www' && subdomain !== 'build' && hostname.split('.').length >= 2) {
+                    const proxyResponse = await proxyToSandbox(request, env);
+                    if (proxyResponse) return proxyResponse;
+                    logger.info(`Dispatching request to dispatcher`);
+                    // Get worker from dispatch namespace
+                    const worker = env.DISPATCHER.get(subdomain);
+                    if (worker) {
+                        logger.info(`Dispatching request to worker ${subdomain}`);
+                        // Dispatch request to worker
+                        const response = await worker.fetch(request);
+                        return response;
+                    }
                 }
             }
+        } catch (error) {
+            logger.warn(`Error dispatching request to dispatcher ${error}, will try to serve it from main worker`);
         }
 
         // If the request is NOT to /api, redirect it to assets

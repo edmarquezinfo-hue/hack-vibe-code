@@ -234,7 +234,7 @@ export function useChat({
 		});
 	};
 
-	const handleWebSocketMessage = (message: WebSocketMessage) => {
+	const handleWebSocketMessage = (websocket: WebSocket, message: WebSocketMessage) => {
 		if (message.type !== 'file_chunk_generated' && message.type !== 'cf_agent_state' && message.type.length <= 50) {
 			logger.info('received message', message.type, message);
 			// Capture ALL WebSocket messages for debug panel (lightweight when not open)
@@ -341,6 +341,18 @@ export function useChat({
 
 					// Mark initial restoration as complete
 					setIsInitialStateRestored(true);
+
+					// Request preview deployment for existing chats with files
+					// This ensures the preview is deployed when navigating to existing chats or reconnecting
+					if (state.generatedFilesMap && Object.keys(state.generatedFilesMap).length > 0 && 
+						websocket && websocket.readyState === WebSocket.OPEN && 
+						urlChatId !== 'new') {
+						console.log('🚀 Requesting preview deployment for existing chat with files');
+						websocket.send(JSON.stringify({ type: 'preview' }));
+					} else {
+                        // Print all the arguments to check
+                        console.log('🚀 Requesting preview deployment for existing chat with files', state.generatedFilesMap, Object.keys(state.generatedFilesMap).length, websocket, urlChatId);
+                    }
 				}
 
 				// Always handle preview URL updates (this is safe to do repeatedly)
@@ -1020,7 +1032,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 				ws.addEventListener('message', (event) => {
 					try {
 						const message: WebSocketMessage = JSON.parse(event.data);
-						handleWebSocketMessage(message);
+						handleWebSocketMessage(ws, message);
 					} catch (parseError) {
 						console.error('❌ Error parsing WebSocket message:', parseError, event.data);
 					}

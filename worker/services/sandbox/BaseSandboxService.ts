@@ -2,279 +2,229 @@ import {
     // Template types
     TemplateListResponse,
     TemplateDetailsResponse,
+    
     GetInstanceResponse,
     BootstrapStatusResponse,
     ShutdownResponse,
-
+    
     // File operation types
     WriteFilesRequest,
     WriteFilesResponse,
     GetFilesResponse,
+    
     ExecuteCommandsResponse,
-
+    
     // Error management types
     RuntimeErrorResponse,
     ClearErrorsResponse,
-
+    
     // Analysis types
     StaticAnalysisResponse,
-
+    
     // Deployment types
     DeploymentCredentials,
     DeploymentResult,
     BootstrapResponse,
-    GitHubInitRequest,
-    GitHubInitResponse,
-    GitHubPushRequest,
-    GitHubPushResponse,
+    
     GetLogsResponse,
     ListInstancesResponse,
     SaveInstanceResponse,
     ResumeInstanceResponse,
-} from './sandboxTypes';
-import { env } from 'cloudflare:workers';
-
-import { createObjectLogger, StructuredLogger } from '../../logger';
-/**
- * Streaming event for enhanced command execution
- */
-export interface StreamEvent {
+    GitHubExportRequest,
+    GitHubExportResponse
+  } from './sandboxTypes';
+  
+  import { createObjectLogger, StructuredLogger } from '../../logger';
+  import { env } from 'cloudflare:workers'
+  /**
+   * Streaming event for enhanced command execution
+   */
+  export interface StreamEvent {
     type: 'stdout' | 'stderr' | 'exit' | 'error';
     data?: string;
     code?: number;
     error?: string;
     timestamp: Date;
-}
-
-export interface TemplateInfo {
-    name: string;
-    language?: string;
-    frameworks?: string[];
-    description: {
-        selection: string;
-        usage: string;
-    };
-}
-
-/**
- * Abstract base class providing complete RunnerService API compatibility
- * All implementations MUST support every method defined here
- */
-export abstract class BaseSandboxService {
+  }
+  
+  export interface TemplateInfo {
+      name: string;
+      language?: string;
+      frameworks?: string[];
+      description: {
+          selection: string;
+          usage: string;
+      };
+  }
+  
+  /**
+   * Abstract base class providing complete RunnerService API compatibility
+   * All implementations MUST support every method defined here
+   */
+  export abstract class BaseSandboxService {
     protected logger: StructuredLogger;
     protected sandboxId: string;
-
+  
     constructor(sandboxId: string) {
-        this.logger = createObjectLogger(this, 'BaseSandboxService');
-        this.sandboxId = sandboxId;
+      this.logger = createObjectLogger(this, 'BaseSandboxService');
+      this.sandboxId = sandboxId;
     }
-
+  
     // Any async startup tasks should be done here
     abstract initialize(): Promise<void>;
-
+  
     // ==========================================
     // TEMPLATE MANAGEMENT (Required)
     // ==========================================
-
+  
     /**
      * List all available templates
      * Returns: { success: boolean, templates: [...], count: number, error?: string }
      */
     static async listTemplates(): Promise<TemplateListResponse> {
         try {
-            const response = await env.TEMPLATES_BUCKET.get(
-                'template_catalog.json',
-            );
-            
-            console.log(`Template catalog found: ${JSON.stringify(response, null, 2)}`);
-
+            const response = await env.TEMPLATES_BUCKET.get('template_catalog.json');
             if (response === null) {
-                throw new Error(
-                    `Failed to fetch template catalog: Template catalog not found`,
-                );
+                throw new Error(`Failed to fetch template catalog: Template catalog not found`);
             }
-            const templates = (await response.json()) as TemplateInfo[];
+            
+            const templates = await response.json() as TemplateInfo[];
 
             // For now, just filter out *next* templates
-            const filteredTemplates = templates.filter(
-                (t) => !t.name.includes('next'),
-            );
+            const filteredTemplates = templates.filter(t => !t.name.includes('next'));
 
             return {
                 success: true,
-                templates: filteredTemplates.map((t) => ({
+                templates: filteredTemplates.map(t => ({
                     name: t.name,
                     language: t.language,
                     frameworks: t.frameworks || [],
-                    description: t.description,
+                    description: t.description
                 })),
-                count: filteredTemplates.length,
+                count: filteredTemplates.length
             };
         } catch (error) {
             return {
                 success: false,
                 templates: [],
                 count: 0,
-                error: `Failed to fetch templates: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                error: `Failed to fetch templates: ${error instanceof Error ? error.message : 'Unknown error'}`
             };
         }
     }
-
-    /**
-     * Get details for a specific template including files and structure
-     * Returns: { success: boolean, templateDetails?: {...}, error?: string }
-     */
-    abstract getTemplateDetails(
-        templateName: string,
-    ): Promise<TemplateDetailsResponse>;
-
+  
+      /**
+       * Get details for a specific template including files and structure
+       * Returns: { success: boolean, templateDetails?: {...}, error?: string }
+       */
+      abstract getTemplateDetails(templateName: string): Promise<TemplateDetailsResponse>;
+  
     // ==========================================
     // INSTANCE LIFECYCLE (Required)
     // ==========================================
-
+  
     /**
      * Create a new instance from a template
      * Returns: { success: boolean, instanceId?: string, error?: string }
      */
-    abstract createInstance(
-        templateName: string,
-        projectName: string,
-        webhookUrl?: string,
-        wait?: boolean,
-        localEnvVars?: Record<string, string>,
-    ): Promise<BootstrapResponse>;
+    abstract createInstance(templateName: string, projectName: string, webhookUrl?: string, wait?: boolean, localEnvVars?: Record<string, string>): Promise<BootstrapResponse>;
 
     /**
      * List all instances across all sessions
      * Returns: { success: boolean, instances: [...], count: number, error?: string }
      */
     abstract listAllInstances(): Promise<ListInstancesResponse>;
-
+  
     /**
      * Get detailed information about an instance
      * Returns: { success: boolean, instance?: {...}, error?: string }
      */
-    abstract getInstanceDetails(
-        instanceId: string,
-    ): Promise<GetInstanceResponse>;
-
+    abstract getInstanceDetails(instanceId: string): Promise<GetInstanceResponse>;
+  
     /**
      * Get current status of an instance
      * Returns: { success: boolean, pending: boolean, message?: string, previewURL?: string, error?: string }
      */
-    abstract getInstanceStatus(
-        instanceId: string,
-    ): Promise<BootstrapStatusResponse>;
-
+    abstract getInstanceStatus(instanceId: string): Promise<BootstrapStatusResponse>;
+  
     /**
      * Shutdown and cleanup an instance
      * Returns: { success: boolean, message?: string, error?: string }
      */
     abstract shutdownInstance(instanceId: string): Promise<ShutdownResponse>;
-
+  
     // ==========================================
     // FILE OPERATIONS (Required)
     // ==========================================
-
+  
     /**
      * Write multiple files to an instance
      * Returns: { success: boolean, message?: string, results: [...], error?: string }
      */
-    abstract writeFiles(
-        instanceId: string,
-        files: WriteFilesRequest['files'],
-    ): Promise<WriteFilesResponse>;
-
+    abstract writeFiles(instanceId: string, files: WriteFilesRequest['files']): Promise<WriteFilesResponse>;
+  
     /**
      * Read specific files from an instance
      * Returns: { success: boolean, files: [...], errors?: [...], error?: string }
      */
-    abstract getFiles(
-        instanceId: string,
-        filePaths?: string[],
-    ): Promise<GetFilesResponse>;
+    abstract getFiles(instanceId: string, filePaths?: string[]): Promise<GetFilesResponse>;
 
     abstract getLogs(instanceId: string): Promise<GetLogsResponse>;
-
+  
     // ==========================================
     // COMMAND EXECUTION (Required)
     // ==========================================
-
+  
     /**
      * Execute multiple commands sequentially with optional timeout
      * Returns: { success: boolean, results: [...], message?: string, error?: string }
      */
-    abstract executeCommands(
-        instanceId: string,
-        commands: string[],
-        timeout?: number,
-    ): Promise<ExecuteCommandsResponse>;
-
+    abstract executeCommands(instanceId: string, commands: string[], timeout?: number): Promise<ExecuteCommandsResponse>;
+  
     // ==========================================
     // ERROR MANAGEMENT (Required)
     // ==========================================
-
+  
     /**
      * Get all runtime errors from an instance
      * Returns: { success: boolean, errors: [...], hasErrors: boolean, error?: string }
      */
-    abstract getInstanceErrors(
-        instanceId: string,
-    ): Promise<RuntimeErrorResponse>;
-
+    abstract getInstanceErrors(instanceId: string): Promise<RuntimeErrorResponse>;
+  
     /**
      * Clear all runtime errors from an instance
      * Returns: { success: boolean, message?: string, error?: string }
      */
-    abstract clearInstanceErrors(
-        instanceId: string,
-    ): Promise<ClearErrorsResponse>;
-
+    abstract clearInstanceErrors(instanceId: string): Promise<ClearErrorsResponse>;
+  
     // ==========================================
     // CODE ANALYSIS & FIXING (Required)
     // ==========================================
-
+  
     /**
      * Run static analysis (linting + type checking) on instance code
      * Returns: { success: boolean, lint: {...}, typecheck: {...}, error?: string }
      */
-    abstract runStaticAnalysisCode(
-        instanceId: string,
-        lintFiles?: string[],
-    ): Promise<StaticAnalysisResponse>;
-
+    abstract runStaticAnalysisCode(instanceId: string, lintFiles?: string[]): Promise<StaticAnalysisResponse>;
+  
     // ==========================================
     // DEPLOYMENT (Required)
     // ==========================================
-
+  
     /**
      * Deploy instance to Cloudflare Workers
      * Returns: { success: boolean, message: string, deployedUrl?: string, deploymentId?: string, error?: string }
      */
-    abstract deployToCloudflareWorkers(
-        instanceId: string,
-        credentials?: DeploymentCredentials,
-    ): Promise<DeploymentResult>;
-
+    abstract deployToCloudflareWorkers(instanceId: string, credentials?: DeploymentCredentials): Promise<DeploymentResult>;
+  
     // ==========================================
     // GITHUB INTEGRATION (Required)
     // ==========================================
-
+  
     /**
      * Initialize a GitHub repository for an instance
      */
-    abstract initGitHubRepository(
-        instanceId: string,
-        request: GitHubInitRequest,
-    ): Promise<GitHubInitResponse>;
-
-    /**
-     * Push files to GitHub repository for an instance
-     */
-    abstract pushToGitHub(
-        instanceId: string,
-        request: GitHubPushRequest,
-    ): Promise<GitHubPushResponse>;
+    abstract exportToGitHub(instanceId: string, request: GitHubExportRequest): Promise<GitHubExportResponse>
 
     // ==========================================
     // SAVE/RESUME OPERATIONS (Required)
@@ -288,37 +238,27 @@ export abstract class BaseSandboxService {
     /**
      * Resume instance from local files or R2 bucket if needed
      */
-    abstract resumeInstance(
-        instanceId: string,
-        forceRestart?: boolean,
-    ): Promise<ResumeInstanceResponse>;
-
+    abstract resumeInstance(instanceId: string, forceRestart?: boolean): Promise<ResumeInstanceResponse>;
+  
     // ==========================================
     // Sandbox-specific
     // ==========================================
-
+  
     /**
      * Execute command with real-time streaming output
      * Only available in Sandbox SDK implementation
      */
-    executeStream?(
-        instanceId: string,
-        command: string,
-    ): AsyncIterable<StreamEvent>;
-
+    executeStream?(instanceId: string, command: string): AsyncIterable<StreamEvent>;
+  
     /**
      * Expose a port for external access and get preview URL
      * Only available in Sandbox SDK implementation
      */
     exposePort?(instanceId: string, port: number): Promise<string>;
-
+  
     /**
      * Checkout a Git repository directly in the sandbox
      * Only available in Sandbox SDK implementation
      */
-    gitCheckout?(
-        instanceId: string,
-        repository: string,
-        branch?: string,
-    ): Promise<void>;
-}
+    gitCheckout?(instanceId: string, repository: string, branch?: string): Promise<void>;
+  }

@@ -4,7 +4,7 @@
  */
  {
 	// "$schema": "node_modules/wrangler/config-schema.json",
-	"name": "orange_build_prod",
+	"name": "orange-build",
 	"main": "worker/index.ts",
 	"compatibility_date": "2025-08-10",
 	"compatibility_flags": ["nodejs_compat"],
@@ -25,7 +25,8 @@
 	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
 	 */
 	"ai": {
-		"binding": "AI"
+		"binding": "AI",
+        "experimental_remote": true
 	},
     "dispatch_namespaces": [
         {
@@ -38,13 +39,13 @@
 		{
 			"class_name": "UserAppSandboxService",
 			"image": "./SandboxDockerfile",
-			"max_instances": 100,
-            "configuration": {
-              "vcpu": 4,
-              "memory_mib": 4096,
-              "disk": {
-                "size_mb": 10240
-              }
+            // Altering max_instances value will have no effect. Please use the MAX_SANDBOX_INSTANCES var instead.
+			"max_instances": 200,
+            // ATTENTION: Altering instance_type value will have no effect. Please use the SANDBOX_INSTANCE_TYPE var instead.
+            "instance_type": {
+                "vcpu": 4,
+                "memory_mib": 4096,
+                "disk_mb": 10240
             },
             "rollout_step_percentage": 100
 		},
@@ -52,13 +53,12 @@
           "class_name": "DeployerService",
           "image": "./DeployerDockerfile",
           "max_instances": 1,
-          "configuration": {
+          // ATTENTION: Altering instance_type value will have no effect. Please use the SANDBOX_INSTANCE_TYPE var instead.
+          "instance_type": {
             "vcpu": 4,
-            "memory_mib": 2048,
-            "disk": {
-              "size": "20GB"
-            }
-          },
+            "memory_mib": 4096,
+            "disk_mb": 5120
+        },
           "rollout_step_percentage": 100
         }
 	],
@@ -67,8 +67,8 @@
 			"binding": "DB",
 			"database_name": "orange-build-db",
 			"database_id": "3085356f-6009-4a75-a478-66c05a5a532f",
-			"migrations_dir": "migrations"
-			// "experimental_remote": true
+			"migrations_dir": "migrations",
+			"experimental_remote": true
 		}
 	],
 	"durable_objects": {
@@ -121,12 +121,6 @@
             "tag": "v2"
         }
 	],
-	"services": [
-		{
-			"binding": "RUNNER_SERVICE",
-			"service": "runner-service"
-		}
-	],
 	"routes": [
 	  {
 		"pattern": "build.cloudflare.dev",
@@ -138,14 +132,11 @@
 	  }
 	],
 	"vars": {
-		"SANDBOX_SERVICE_URL": "https://sandboxsdk-dev-worker.eti-india.workers.dev", 
-        "TEMPLATES_BUCKET_URL": "https://pub-a087c6e0b61c4f15984726f1f1b40594.r2.dev"
-		// "JWT_SECRET": "",
-		// "GITHUB_CLIENT_ID": "",
-		// "GITHUB_CLIENT_SECRET": "",
-		// "GOOGLE_CLIENT_ID": "",
-		// "GOOGLE_CLIENT_SECRET": ""
-	},
+        "TEMPLATES_REPOSITORY": "https://github.com/AshishKumar4/cloudflare-build-templates",
+        "CLOUDFLARE_AI_GATEWAY": "c-coder",
+        "CUSTOM_DOMAIN": "build.cloudflare.dev",
+        "SANDBOX_INSTANCE_TYPE": "standard"
+    },
 	"workers_dev": false,
 	"preview_urls": false
 }

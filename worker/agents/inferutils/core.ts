@@ -69,12 +69,24 @@ function optimizeTextContent(content: string): string {
 
 
 export async function buildGatewayUrl(env: Env, providerOverride?: AIGatewayProviders): Promise<string> {
-    // If CLOUDFLARE_AI_GATEWAY_URL is set, we use it directly
-    if (env.CLOUDFLARE_AI_GATEWAY_URL) {
-        const url = new URL(env.CLOUDFLARE_AI_GATEWAY_URL);
-        // Add 'providerOverride' as a segment to the URL
-        url.pathname = providerOverride ? `${url.pathname.replace(/\/$/, '')}/${providerOverride}` : `${url.pathname.replace(/\/$/, '')}/compat`;
-        return url.toString();
+    // If CLOUDFLARE_AI_GATEWAY_URL is set and is a valid URL, use it directly
+    if (env.CLOUDFLARE_AI_GATEWAY_URL && 
+        env.CLOUDFLARE_AI_GATEWAY_URL !== 'none' && 
+        env.CLOUDFLARE_AI_GATEWAY_URL.trim() !== '') {
+        
+        try {
+            const url = new URL(env.CLOUDFLARE_AI_GATEWAY_URL);
+            // Validate it's actually an HTTP/HTTPS URL
+            if (url.protocol === 'http:' || url.protocol === 'https:') {
+                // Add 'providerOverride' as a segment to the URL
+                const cleanPathname = url.pathname.replace(/\/$/, ''); // Remove trailing slash
+                url.pathname = providerOverride ? `${cleanPathname}/${providerOverride}` : `${cleanPathname}/compat`;
+                return url.toString();
+            }
+        } catch (error) {
+            // Invalid URL, fall through to use bindings
+            console.warn(`Invalid CLOUDFLARE_AI_GATEWAY_URL provided: ${env.CLOUDFLARE_AI_GATEWAY_URL}. Falling back to AI bindings.`);
+        }
     }
     
     // Build the url via bindings
@@ -85,6 +97,28 @@ export async function buildGatewayUrl(env: Env, providerOverride?: AIGatewayProv
 
 const providerAliasMap: Record<string, string> = {
     'google-ai-studio': 'gemini',
+}
+
+function isValidApiKey(apiKey: string): boolean {
+    if (!apiKey || apiKey.trim() === '') {
+        return false;
+    }
+    // Check if value is not 'default' or 'none' and is more than 10 characters long
+    if (apiKey.trim().toLowerCase() === 'default' || apiKey.trim().toLowerCase() === 'none' || apiKey.trim().length < 10) {
+        return false;
+    }
+    return true;
+}
+
+function getApiKey(provider: string, env: Env): string {
+    const providerKeyString = (providerAliasMap[provider] || provider).toUpperCase().replaceAll('-', '_');
+    const envKey = `${providerKeyString}_API_KEY` as keyof Env;
+    let apiKey: string = env[envKey] as string;
+    // Check if apiKey is empty or undefined and is valid
+    if (!isValidApiKey(apiKey)) {
+        apiKey = env.CLOUDFLARE_AI_GATEWAY_TOKEN;
+    }
+    return apiKey;
 }
 
 export async function getConfigurationForModel(model: AIModels | string, env: Env): Promise<{
@@ -122,9 +156,7 @@ export async function getConfigurationForModel(model: AIModels | string, env: En
     const provider = providerForcedOverride || model.split('/')[0];
     // Try to find API key of type <PROVIDER>_API_KEY else default to CLOUDFLARE_AI_GATEWAY_TOKEN
     // `env` is an interface of type `Env`
-    const providerKeyString = (providerAliasMap[provider] || provider).toUpperCase().replaceAll('-', '_');
-    const envKey = `${providerKeyString}_API_KEY` as keyof Env;
-    const apiKey: string = env[envKey] as string || env.CLOUDFLARE_AI_GATEWAY_TOKEN;
+    const apiKey = getApiKey(provider, env);
     // AI Gateway Wholesaling checks
     const defaultHeaders = env.CLOUDFLARE_AI_GATEWAY_TOKEN && apiKey !== env.CLOUDFLARE_AI_GATEWAY_TOKEN ? {
         'cf-aig-authorization': `Bearer ${env.CLOUDFLARE_AI_GATEWAY_TOKEN}`,

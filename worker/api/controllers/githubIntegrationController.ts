@@ -98,11 +98,10 @@ export class GitHubIntegrationController extends BaseController {
                 throw new Error('Invalid GitHub username');
             }
             
-            // Validate access token format (GitHub tokens are 40 chars, start with 'gho_' or 'ghp_')
+            // Validate access token format - GitHub tokens can have various formats
             if (!githubData.accessToken || 
-                (!githubData.accessToken.startsWith('gho_') && 
-                 !githubData.accessToken.startsWith('ghp_') &&
-                 !githubData.accessToken.startsWith('ghs_'))) {
+                githubData.accessToken.length < 20 ||
+                !/^[a-zA-Z0-9_-]+$/.test(githubData.accessToken)) {
                 throw new Error('Invalid GitHub access token format');
             }
             

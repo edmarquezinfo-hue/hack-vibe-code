@@ -34,7 +34,7 @@ export class GitHubOAuthProvider extends BaseOAuthProvider {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
                     'Accept': 'application/json',
-                    'User-Agent': 'V1-Dev-OAuth' // GitHub requires User-Agent
+                    'User-Agent': 'Cloudflare-OrangeBuild-OAuth-Integration/1.0' // GitHub requires User-Agent
                 }
             });
             
@@ -64,7 +64,7 @@ export class GitHubOAuthProvider extends BaseOAuthProvider {
                     headers: {
                         'Authorization': `Bearer ${accessToken}`,
                         'Accept': 'application/json',
-                        'User-Agent': 'V1-Dev-OAuth'
+                        'User-Agent': 'Cloudflare-OrangeBuild-OAuth-Integration/1.0'
                     }
                 });
                 
