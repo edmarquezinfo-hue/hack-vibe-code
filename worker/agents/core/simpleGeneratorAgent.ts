@@ -41,6 +41,10 @@ import { BaseSandboxService } from '../../services/sandbox/BaseSandboxService';
 import { getSandboxService } from '../../services/sandbox/factory';
 import { WebSocketMessageData, WebSocketMessageType } from '../websocketTypes';
 import { ConversationMessage } from '../inferutils/common';
+import { InferenceContext } from '../inferutils/infer';
+import { ModelConfigService } from '../../services/modelConfig/ModelConfigService';
+import { SecretsService } from '../../services/secrets/secretsService';
+import { ModelConfig } from '../inferutils/config';
 import { FileFetcher, fixProjectIssues } from '../../services/code-fixer';
 import { FileProcessing } from '../domain/pure/FileProcessing';
 import { FastCodeFixerOperation } from '../operations/FastCodeFixer';
@@ -131,6 +135,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         clientReportedErrors: [],
         latestScreenshot: undefined,
         pendingUserInputs: [],
+        inferenceContext: {} as InferenceContext,
         // conversationalAssistant: new ConversationalAssistant(this.env),
         sessionId: '',
         hostname: '',
@@ -148,6 +153,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         templateDetails: TemplateDetails,
         sessionId: string,
         hostname: string,
+        userId: string,
         ..._args: unknown[]
     ): Promise<void> {
         this.logger.setFields({
@@ -163,6 +169,54 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
 
         const packageJsonFile = templateDetails?.files.find(file => file.file_path === 'package.json');
         const packageJson = packageJsonFile ? packageJsonFile.file_contents : '';
+        
+        // Initialize inference context with user configurations
+        let inferenceContext: InferenceContext = {
+            agentId: sessionId,
+            userId: userId,
+        };
+
+        // Fetch user model configurations and API keys if userId is provided
+        if (userId) {
+            try {
+                const db = new DatabaseService(this.env);
+                const modelConfigService = new ModelConfigService(db);
+                const secretsService = new SecretsService(db, this.env);
+                
+                // Fetch all user model configs at once
+                const userConfigsRecord = await modelConfigService.getUserModelConfigs(userId);
+                
+                // Convert Record to Map and extract only ModelConfig properties
+                const userModelConfigs = new Map();
+                for (const [actionKey, mergedConfig] of Object.entries(userConfigsRecord)) {
+                    if (mergedConfig.isUserOverride) {
+                        const modelConfig: ModelConfig = {
+                            name: mergedConfig.name,
+                            max_tokens: mergedConfig.max_tokens,
+                            temperature: mergedConfig.temperature,
+                            reasoning_effort: mergedConfig.reasoning_effort,
+                            providerOverride: mergedConfig.providerOverride,
+                            fallbackModel: mergedConfig.fallbackModel
+                        };
+                        userModelConfigs.set(actionKey, modelConfig);
+                    }
+                }
+                
+                // Fetch all user API keys at once
+                const userApiKeys = await secretsService.getUserProviderKeysMap(userId);
+                
+                inferenceContext.userModelConfigs = userModelConfigs;
+                inferenceContext.userApiKeys = userApiKeys;
+                
+                this.logger.info(`Initialized inference context for user ${userId}`, {
+                    modelConfigsCount: userModelConfigs.size,
+                    apiKeysCount: userApiKeys.size
+                });
+            } catch (error) {
+                this.logger.warn('Failed to initialize user configurations for inference context', error);
+            }
+        }
+
         this.setState({
             ...this.initialState,
             query,
@@ -174,6 +228,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             lastPackageJson: packageJson,
             sessionId,
             hostname,
+            inferenceContext,
         });
 
         this.sandboxServiceClient = this.getSandboxServiceClient();
@@ -552,6 +607,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 agentId: this.state.sessionId,
                 logger: this.logger,
                 context,
+                inferenceContext: this.state.inferenceContext,
             }
         )
         // Execute install commands if any
@@ -605,6 +661,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                     agentId: this.state.sessionId,
                     logger: this.logger,
                     context,
+                    inferenceContext: this.state.inferenceContext,
                 }
             );
 
@@ -665,6 +722,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 agentId: this.state.sessionId,
                 logger: this.logger,
                 context,
+                inferenceContext: this.state.inferenceContext,
             }
         );
         
@@ -768,6 +826,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 agentId: this.state.sessionId,
                 logger: this.logger,
                 context,
+                inferenceContext: this.state.inferenceContext,
             }
         );
         
@@ -803,6 +862,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 agentId: this.state.sessionId,
                 logger: this.logger,
                 context,
+                inferenceContext: this.state.inferenceContext,
             }
         );
 
@@ -1389,7 +1449,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 env: this.env,
                 agentId: this.state.sessionId,
                 context,
-                logger: this.logger
+                logger: this.logger,
+                inferenceContext: this.state.inferenceContext,
             }
         );
 
@@ -1895,7 +1956,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                         });
                     }
                 }, 
-                { env: this.env, agentId: this.state.sessionId, context, logger: this.logger}
+                { env: this.env, agentId: this.state.sessionId, context, logger: this.logger, inferenceContext: this.state.inferenceContext }
             );
 
             const { conversationResponse, newMessages } = conversationalResponse;

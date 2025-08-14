@@ -140,11 +140,11 @@ export class PhaseGenerationOperation extends AgentOperation<PhaseGenerationInpu
                 createUserMessage(INITIAL_PHASE_USER_PROMPT)
             ];
             const { object: results } = await executeInference({
-                id: options.agentId,
                 env: env,
                 messages,
                 agentActionName: "phaseGeneration",
                 schema: PhaseConceptGenerationSchema,
+                context: options.inferenceContext || { agentId: options.agentId },
                 // format: 'markdown',
             });
 
@@ -181,11 +181,11 @@ export class PhaseGenerationOperation extends AgentOperation<PhaseGenerationInpu
             ];
     
             const { object: results } = await executeInference({
-                id: options.agentId,
                 env: env,
                 messages,
                 agentActionName: "phaseGeneration",
                 schema: PhaseConceptGenerationSchema,
+                context: options.inferenceContext,
                 format: 'markdown',
             });
     

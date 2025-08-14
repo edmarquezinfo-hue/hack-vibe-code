@@ -26,12 +26,8 @@ function getCORSConfig(env: Env): CORSConfig {
         development: {
             origins: [
                 'http://localhost:5173',
-                'http://localhost:3000',
                 'http://127.0.0.1:5173',
-                'http://127.0.0.1:3000',
-                'https://build.ashishkumarsingh.com',
-                'https://build.chat.cloudflare.dev',
-                'https://build.cloudflare.dev',
+                `https://${env.CUSTOM_DOMAIN}`,
             ],
             credentials: true,
             methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -39,8 +35,7 @@ function getCORSConfig(env: Env): CORSConfig {
         },
         staging: {
             origins: [
-                'https://build.chat.cloudflare.dev',
-                'https://build.cloudflare.dev',
+                `https://${env.CUSTOM_DOMAIN}`,
             ],
             credentials: true,
             maxAge: 3600, // 1 hour
@@ -48,9 +43,8 @@ function getCORSConfig(env: Env): CORSConfig {
             headers: ['Content-Type', 'Authorization', 'X-Requested-With']
         },
         production: {
-            origins: [
-                'https://build.chat.cloudflare.dev',
-                'https://build.cloudflare.dev',
+            origins: [  
+                `https://${env.CUSTOM_DOMAIN}`,
             ],
             credentials: true,
             maxAge: 86400, // 24 hours

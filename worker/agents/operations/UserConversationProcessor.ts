@@ -87,10 +87,10 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
             
             // Don't save the system prompts so that every time new initial prompts can be generated with latest project context
             await executeInference({
-                id: options.agentId,
                 env: env,
                 messages: [...systemPrompts, ...messages],
                 agentActionName: "conversationalResponse",
+                context: options.inferenceContext,
                 tools, // Enable tools for the conversational AI
                 stream: {
                     onChunk: (chunk) => {

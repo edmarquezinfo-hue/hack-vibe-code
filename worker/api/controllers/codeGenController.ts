@@ -66,7 +66,7 @@ export class CodeGenController extends BaseController {
             try {
                 body = await request.json() as CodeGenArgs;
             } catch (error) {
-                return this.createErrorResponse('Invalid JSON in request body', 400);
+                return this.createErrorResponse(`Invalid JSON in request body: ${JSON.stringify(error, null, 2)}`, 400);
             }
 
             const query = body.query;
@@ -232,7 +232,7 @@ export class CodeGenController extends BaseController {
                 }
                 
                 // Initialize the agent with the blueprint and query
-                await agentInstance.initialize(query, blueprint, templateDetails, chatId, hostname, agentMode);
+                await agentInstance.initialize(query, blueprint, templateDetails, chatId, hostname, user?.id || '', agentMode);
                 
                 this.codeGenLogger.info('Agent initialized successfully');
                 writer.write("terminate");

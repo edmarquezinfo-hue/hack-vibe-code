@@ -8,6 +8,13 @@ import { AGENT_CONFIG, AgentActionKey, AIModels } from './config';
 import { createLogger } from '../../logger';
 import { ModelConfig } from './config';
 
+export interface InferenceContext {
+    agentId: string;
+    userId?: string;
+    userModelConfigs?: Map<AgentActionKey, ModelConfig>;
+    userApiKeys?: Map<string, string>;
+}
+
 const logger = createLogger('InferenceUtils');
 
 const responseRegenerationPrompts = `
@@ -23,7 +30,6 @@ Please provide a valid response that matches the expected output format exactly.
 
 interface InferenceParamsBase {
     env: Env;
-    id: string;
     messages: Message[];
     maxTokens?: number;
     temperature?: number;
@@ -37,7 +43,7 @@ interface InferenceParamsBase {
     };
     reasoning_effort?: ReasoningEffort;
     modelConfig?: ModelConfig;
-    userId?: string; // Optional user ID for fetching user configurations
+    context: InferenceContext;
 }
 
 interface InferenceParamsStructured<T extends z.AnyZodObject> extends InferenceParamsBase {
@@ -56,7 +62,6 @@ export async function executeInference(
 
 export async function executeInference<T extends z.AnyZodObject>(   {
     env,
-    id,
     messages,
     temperature,
     maxTokens,
@@ -69,7 +74,7 @@ export async function executeInference<T extends z.AnyZodObject>(   {
     format,
     modelName,
     modelConfig,
-    userId
+    context
 }: InferenceParamsBase &    {
     schema?: T;
     format?: SchemaFormat;
@@ -79,29 +84,14 @@ export async function executeInference<T extends z.AnyZodObject>(   {
     if (modelConfig) {
         // Use explicitly provided model config
         conf = modelConfig;
-    } else if (userId) {
-        // Try to get user-specific configuration (returns null if no overrides)
-        try {
-            const { ModelConfigService } = await import('../../services/modelConfig/ModelConfigService');
-            const { DatabaseService } = await import('../../database/database');
-            
-            const db = new DatabaseService(env);
-            const modelConfigService = new ModelConfigService(db);
-            const userConfig = await modelConfigService.getRawUserModelConfig(userId, agentActionName);
-            
-            conf = userConfig || undefined; // Pass undefined if user has no custom config
-            if (userConfig) {
-                logger.info(`Using user configuration for ${agentActionName}: ${JSON.stringify(userConfig)}`);
-            } else {
-                logger.info(`No user configuration for ${agentActionName}, using AGENT_CONFIG defaults`);
-            }
-        } catch (error) {
-            logger.warn(`Failed to load user configuration for ${agentActionName}, using defaults:`, error);
-            conf = undefined; // Let defaults rule on error too
+    } else if (context?.userId && context?.userModelConfigs) {
+        // Try to get user-specific configuration from context cache
+        conf = context.userModelConfigs.get(agentActionName);
+        if (conf) {
+            logger.info(`Using user configuration for ${agentActionName}: ${JSON.stringify(conf)}`);
+        } else {
+            logger.info(`No user configuration for ${agentActionName}, using AGENT_CONFIG defaults`);
         }
-    } else {
-        // No userId provided, let AGENT_CONFIG defaults rule
-        conf = undefined;
     }
 
     // Use the final config or fall back to AGENT_CONFIG defaults
@@ -113,23 +103,10 @@ export async function executeInference<T extends z.AnyZodObject>(   {
     reasoning_effort = reasoning_effort || finalConf.reasoning_effort;
     const providerOverride = finalConf.providerOverride;
 
-    // Load user API keys if userId is provided (using unified secrets system)
-    let userApiKeys: Map<string, string> | undefined;
-    if (userId) {
-        try {
-            const { SecretsService } = await import('../../services/secrets/secretsService');
-            const { DatabaseService } = await import('../../database/database');
-            
-            const db = new DatabaseService(env);
-            const secretsService = new SecretsService(db, env);
-            userApiKeys = await secretsService.getUserProviderKeysMap(userId);
-            
-            if (userApiKeys.size > 0) {
-                logger.info(`Loaded ${userApiKeys.size} user API keys from secrets system for inference`);
-            }
-        } catch (error) {
-            logger.warn(`Failed to load user API keys from secrets system, using environment variables:`, error);
-        }
+    // Use user API keys from context cache
+    const userApiKeys = context?.userApiKeys;
+    if (userApiKeys && userApiKeys.size > 0) {
+        logger.info(`Using ${userApiKeys.size} user API keys from context cache for inference`);
     }
 
     // Exponential backoff for retries
@@ -143,7 +120,7 @@ export async function executeInference<T extends z.AnyZodObject>(   {
 
             const result = schema ? await infer<T>({
                 env,
-                id,
+                id: context.agentId,
                 messages,
                 schema,
                 schemaName: agentActionName,
@@ -161,7 +138,7 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 userApiKeys: useCheaperModel ? undefined : userApiKeys
             }) : await infer({
                 env,
-                id,
+                id: context.agentId,
                 messages,
                 maxTokens,
                 modelName: useCheaperModel ? AIModels.GEMINI_2_5_FLASH: modelName,

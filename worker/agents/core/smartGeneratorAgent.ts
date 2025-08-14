@@ -24,6 +24,7 @@ export class SmartCodeGeneratorAgent extends SimpleCodeGeneratorAgent {
         templateDetails: TemplateDetails,
         sessionId: string,
         hostname: string,
+        userId: string,
         agentMode: 'deterministic' | 'smart'
     ): Promise<void> {
         this.logger.setFields({
@@ -40,7 +41,7 @@ export class SmartCodeGeneratorAgent extends SimpleCodeGeneratorAgent {
         });
 
         // Call the parent initialization
-        await super.initialize(query, blueprint, templateDetails, sessionId, hostname);
+        await super.initialize(query, blueprint, templateDetails, sessionId, hostname, userId);
         
         this.logger.info("🚀 Smart Agent initialized successfully with AI orchestration capabilities");
     }
