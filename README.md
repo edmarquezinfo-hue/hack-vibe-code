@@ -62,142 +62,192 @@ Once configured, deployment happens automatically
 
 ---
 
-## ⚙️ Required Configuration
+## ⚙️ Configuration Guide
 
-During deployment, you'll need to configure these **mandatory** services. Have them ready before clicking deploy:
+When you click "Deploy to Cloudflare", you'll be taken to your Cloudflare dashboard where you can configure your Orange Build deployment:
 
-### 🔐 1. Automatic Authentication (No Setup Required)
+### 📝 What You'll See on the Deploy Page
 
-The "Deploy to Cloudflare" button automatically handles authentication for you:
+The deployment page will show you several sections to configure:
 
-- **API Token**: Automatically provisioned with all required permissions
-- **Account ID**: Automatically detected and configured
-- **Resource Access**: Automatically granted for Workers, D1, R2, KV, and AI services
+1. **Resource Names** - Default names for D1 database, R2 buckets, Worker, and KV storage (pre-filled)
+2. **Worker Secrets** - Encrypted variables for your deployed app
+3. **Environment Variables** - Configuration from wrangler.jsonc (pre-filled)
+4. **Build Commands** - Should be set to `bun run build` and `bun run deploy`
+5. **Build Variables** - Optional variables available during deployment
 
-**What this means for you:**
-- ✅ No manual token creation required
-- ✅ No permission configuration needed
-- ✅ Secure access automatically managed
-- ✅ All Cloudflare resources available immediately
+### 🔑 Essential Configuration
 
-### 🤖 2. AI Gateway Setup (Conditional)
+#### Worker Secrets (Required)
+These secrets will be shown on the deploy page and are **required** for the platform to work:
 
-Cloudflare Orange Build requires an authenticated AI Gateway, but **setup is automatic if you provide the right token**:
-
-#### Option A: Automatic Setup (Recommended)
-If you have a `CLOUDFLARE_AI_GATEWAY_TOKEN` with **Read, Edit, and Run** permissions, the deployment script will automatically create and configure the AI Gateway for you. **No manual setup required!**
-
-#### Option B: Manual Setup (If no token provided)
-Only if you **don't** have an AI Gateway token, manually create one:
-
-1. Go to [AI Gateway Dashboard](https://dash.cloudflare.com/ai/ai-gateway)
-2. Click **Create Gateway**
-3. Name: `orange-build-gateway` (or your preferred name)
-4. **Important**: Enable **Authenticated Gateway** 
-5. Click **Create authentication token**
-6. Configure token with **AI Gateway Run** permissions
-7. **Save both**:
-   - Gateway URL: `https://gateway.ai.cloudflare.com/v1/{account-id}/{gateway-name}`
-   - Authentication token
-
-### 🔐 2. Required Variables (Required)
-
-The "Deploy to Cloudflare" button configures two types of variables:
-
-#### Build Variables (Available to deploy.ts script)
-These are needed during deployment and must be provided as build variables:
-
-**AI Gateway Build Variable (Highly Recommended):**
-- `CLOUDFLARE_AI_GATEWAY_TOKEN` - AI Gateway token with Read, Edit, and **Run** permissions
-  - **Important**: Also add this as a Worker Secret (see below) for runtime access
-
-#### Worker Secrets (Available to your deployed app)
-These are encrypted secrets available to your running Worker:
-
-**AI Provider API Keys (Required):**
-> **⚠️ Currently Required**: The following AI provider API keys are mandatory for the platform to function. We are actively working to make these optional and easily configurable in future releases.
-
+- `CLOUDFLARE_AI_GATEWAY_TOKEN` - Your AI Gateway token (see AI Gateway section below)
 - `ANTHROPIC_API_KEY` - Your Anthropic API key for Claude models
 - `OPENAI_API_KEY` - Your OpenAI API key for GPT models  
 - `GEMINI_API_KEY` - Your Google Gemini API key for Gemini models
+- `JWT_SECRET` - Secure random string for session management (use default: `default`)
+- `WEBHOOK_SECRET` - Webhook authentication secret (use default: `default`)
 
-> **💡 AI Gateway Wholesaling Alternative**: If you have **AI Gateway Wholesaling** enabled on your Cloudflare account, you can skip the individual provider API keys above. Instead, you'll need your AI Gateway token with proper Run permissions.
+#### Build Variables (Highly Recommended)
+In the "Build Variables" dropdown, add:
 
-**Authentication Secrets:**
-- `JWT_SECRET` - Secure random string for session management
-- `CLOUDFLARE_AI_GATEWAY_TOKEN` - AI Gateway token (also needed as build variable above)
+- `CLOUDFLARE_AI_GATEWAY_TOKEN` - **Same token as above** (needed for automatic AI Gateway creation)
+- `SANDBOX_INSTANCE_TYPE` - Container performance tier (optional, see section below)
 
-**Optional OAuth Secrets:**
-- `GOOGLE_CLIENT_ID` - Google OAuth client ID
-- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
-- `GITHUB_CLIENT_ID` - GitHub OAuth client ID
-- `GITHUB_CLIENT_SECRET` - GitHub OAuth client secret
-- `WEBHOOK_SECRET` - Webhook authentication secret
+> **💡 Why Both Places?** The AI Gateway token is needed in **both** Worker Secrets (for runtime) and Build Variables (for automatic setup during deployment).
 
-#### Environment Variables (Set in wrangler.jsonc)
-These are configured automatically in `wrangler.jsonc` and don't need manual setup:
+### 🤖 AI Gateway Setup Options
 
-- `CLOUDFLARE_ACCOUNT_ID` - Your Cloudflare Account ID
-- `TEMPLATES_REPOSITORY` - GitHub repository for app templates
-- `CLOUDFLARE_AI_GATEWAY` - AI Gateway name (default: `orange-build-gateway`)
-- `MAX_SANDBOX_INSTANCES` - Maximum container instances (default: `2`)
+#### Option A: Automatic Setup (Recommended) ✅
+1. Get an AI Gateway token with **Read, Edit, and Run** permissions:
+   - Go to [AI Gateway Dashboard](https://dash.cloudflare.com/ai/ai-gateway)
+   - Create or use existing gateway → Authentication tokens → Create token
+   - Enable permissions: **Read**, **Edit**, and **Run**
+2. Add this token to **both** Worker Secrets and Build Variables as `CLOUDFLARE_AI_GATEWAY_TOKEN`
+3. Deploy - the AI Gateway will be created automatically! 🎉
 
-> **💡 Automatic vs Manual Setup**: 
-> - **With `CLOUDFLARE_AI_GATEWAY_TOKEN`**: Deployment automatically creates and configures AI Gateway for you
-> - **Without token**: You must manually create AI Gateway named `orange-build-gateway` before deployment
+#### Option B: Manual Setup (If you don't have a token)
+1. Go to [AI Gateway Dashboard](https://dash.cloudflare.com/ai/ai-gateway)
+2. Click **Create Gateway** → Name: `orange-build-gateway`
+3. Enable **Authenticated Gateway** → Create authentication token
+4. Add the token as `CLOUDFLARE_AI_GATEWAY_TOKEN` in Worker Secrets (and optionally Build Variables)
 
-### 🔗 3. OAuth Setup (Optional)
+### 🔗 Post-Deployment: OAuth Setup (Optional)
 
-For user authentication (can skip for testing):
+OAuth configuration is **not** shown on the initial deploy page. If you want user login features, you'll need to set this up after deployment:
 
-**Google OAuth:**
+**How to Add OAuth After Deployment:**
+1. **Find your repository** in your GitHub/GitLab account (created by "Deploy to Cloudflare" flow) 
+2. **Clone locally** and run `bun install`
+3. **Create `.dev.vars` and `.prod.vars` files** (see below for OAuth configuration)
+4. **Run `bun run deploy`** to update your deployment
+
+**Google OAuth Setup:**
 1. [Google Cloud Console](https://console.cloud.google.com) → Create Project
 2. Enable **Google+ API** 
 3. Create **OAuth 2.0 Client ID**
 4. Add authorized origins: `https://your-worker-name.workers.dev`
 5. Add redirect URI: `https://your-worker-name.workers.dev/api/auth/google/callback`
-6. Configure these environment variables:
-   - `GOOGLE_CLIENT_ID` - Your Google Client ID
-   - `GOOGLE_CLIENT_SECRET` - Your Google Client Secret
+6. Add to **both** `.dev.vars` (for local development) and `.prod.vars` (for deployment):
+   ```bash
+   GOOGLE_CLIENT_ID="your-google-client-id"
+   GOOGLE_CLIENT_SECRET="your-google-client-secret"
+   ```
 
-**GitHub OAuth:**
+**GitHub OAuth Setup:**
 1. GitHub → **Settings** → **Developer settings** → **OAuth Apps**
 2. Click **New OAuth App**
 3. Application name: `Cloudflare Orange Build`
 4. Homepage URL: `https://your-worker-name.workers.dev`
 5. Authorization callback URL: `https://your-worker-name.workers.dev/api/auth/github/callback`
-6. Configure these environment variables:
-   - `GITHUB_CLIENT_ID` - Your GitHub Client ID
-   - `GITHUB_CLIENT_SECRET` - Your GitHub Client Secret
+6. Add to **both** `.dev.vars` (for local development) and `.prod.vars` (for deployment):
+   ```bash
+   GITHUB_CLIENT_ID="your-github-client-id"
+   GITHUB_CLIENT_SECRET="your-github-client-secret"
+   ```
+
+### 🏗️ 4. Sandbox Instance Configuration (Optional)
+
+Orange Build uses Cloudflare Containers to run generated applications in isolated environments. You can configure the container performance tier based on your needs and Cloudflare plan.
+
+#### Available Instance Types
+
+| Instance Type | Memory | CPU | Disk | Use Case | Availability |
+|---------------|--------|-----|------|----------|--------------|
+| `dev` | 256 MiB | 1/16 vCPU | 2 GB | Development/testing | All plans |
+| `basic` | 1 GiB | 1/4 vCPU | 4 GB | Light applications | All plans |
+| `standard` | 4 GiB | 1/2 vCPU | 4 GB | Most applications | All plans (**Default**) |
+| `enhanced` | 4 GiB | 4 vCPUs | 10 GB | High-performance apps | Enterprise customers only |
+
+#### Configuration Options
+
+**Option A: Via Deploy Button (Recommended)**
+During the "Deploy to Cloudflare" flow, you can set the instance type as a **build variable**:
+- Variable name: `SANDBOX_INSTANCE_TYPE`
+- Recommended values:
+  - **Standard/Paid users**: `standard` (default)
+  - **Enterprise customers**: `enhanced`
+
+**Option B: Via Environment Variable**
+For local deployment or CI/CD, set the environment variable:
+```bash
+export SANDBOX_INSTANCE_TYPE=standard  # or enhanced, basic, dev
+bun run deploy
+```
+
+#### Instance Type Selection Guide
+
+**For Standard/Paid Users:**
+- **`standard`** (Recommended) - Best balance of performance and resource usage
+- **`basic`** - For simple applications or testing
+- **`dev`** - Minimal resources for development only
+
+**For Enterprise Customers:**
+- **`enhanced`** (Recommended) - Maximum performance with full CPU cores and extra disk space
+- **`standard`** - If you prefer conservative resource usage
+
+#### What This Affects
+
+The `SANDBOX_INSTANCE_TYPE` controls:
+- **App Preview Performance** - How fast generated applications run during development
+- **Build Process Speed** - Container compile and build times
+- **Concurrent App Capacity** - How many apps can run simultaneously
+- **Resource Availability** - Memory and disk space for complex applications
+
+> **💡 Pro Tip**: Start with `standard` and upgrade to `enhanced` if you notice performance issues with complex applications or need faster build times.
+
+> **⚠️ Enterprise Required**: The `enhanced` instance type requires a Cloudflare Enterprise plan. Using it on other plans may result in deployment failures.
+
 ---
 
-## 📋 Configuration Checklist
+## 📋 Quick Deploy Checklist
 
-Before clicking deploy, ensure you have:
+Before clicking "Deploy to Cloudflare", have these ready:
 
-**Worker Secrets (Required):**
-- ✅ **AI Provider API Keys** (all three required):
-  - `ANTHROPIC_API_KEY` - Anthropic Claude API access  
-  - `OPENAI_API_KEY` - OpenAI API access
-  - `GEMINI_API_KEY` - Google Gemini API access
-- ✅ **JWT_SECRET** - Secure random string for session management
+### ✅ Required API Keys
+Get these API keys from each provider:
+- **Anthropic API Key** - Get from [console.anthropic.com](https://console.anthropic.com)
+- **OpenAI API Key** - Get from [platform.openai.com](https://platform.openai.com) 
+- **Google Gemini API Key** - Get from [ai.google.dev](https://ai.google.dev)
 
-**Highly Recommended (Both Build Variable AND Worker Secret):**
-- ✅ **CLOUDFLARE_AI_GATEWAY_TOKEN** - AI Gateway token with Read, Edit, and **Run** permissions
-  - Add as **Build Variable** for automatic AI Gateway creation during deployment
-  - Add as **Worker Secret** for runtime access to AI Gateway
-  - *Without this, you must manually create the AI Gateway before deployment*
+### ✅ AI Gateway Token (Highly Recommended)
+1. Go to [AI Gateway Dashboard](https://dash.cloudflare.com/ai/ai-gateway)
+2. Create or use existing gateway → Authentication tokens → Create token
+3. Enable permissions: **Read**, **Edit**, and **Run**
+4. Copy the token - you'll add it in **both** Worker Secrets and Build Variables
 
-**Optional Worker Secrets:**
-- ⚪ **OAuth credentials** (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET)
-- ⚪ **WEBHOOK_SECRET** - For webhook authentication
+### 🚀 Deploy Steps
+1. **Click "Deploy to Cloudflare"** button above
+2. **Configure Worker Secrets** (all required):
+   - `CLOUDFLARE_AI_GATEWAY_TOKEN` - Your AI Gateway token
+   - `ANTHROPIC_API_KEY` - Your Anthropic API key
+   - `OPENAI_API_KEY` - Your OpenAI API key  
+   - `GEMINI_API_KEY` - Your Google Gemini API key
+   - `JWT_SECRET` - Use default: `default`
+   - `WEBHOOK_SECRET` - Use default: `default`
+3. **Add Build Variables** (recommended):
+   - `CLOUDFLARE_AI_GATEWAY_TOKEN` - Same token as above
+   - `SANDBOX_INSTANCE_TYPE` - `standard` (or `enhanced` for Enterprise)
+4. **Verify build commands**: `bun run build` and `bun run deploy`
+5. **Click Deploy** and wait for build completion
 
-**Automatic Configuration (No manual setup needed):**
-- 🔧 **Environment Variables** - Pre-configured in wrangler.jsonc (CLOUDFLARE_ACCOUNT_ID, TEMPLATES_REPOSITORY, etc.)
+### ⚡ What Gets Created Automatically
+- ✅ Cloudflare Worker with all bindings
+- ✅ D1 Database with migrations
+- ✅ R2 Buckets for templates and storage
+- ✅ KV Storage for sessions
+- ✅ AI Gateway (if token provided)
+- ✅ Container instances for app previews
 
-> **💡 AI Gateway Wholesaling Users**: If you have AI Gateway Wholesaling enabled, you can skip the individual AI provider API keys and just use your AI Gateway token with Run permissions.
+### 🔧 Optional: Add OAuth Later
+OAuth setup is **not** shown during initial deployment. To add user login features:
+1. Go to your GitHub/GitLab account and find your Orange Build repository (created by deploy flow)
+2. Clone it locally and run `bun install`
+3. Create `.dev.vars` file and add OAuth secrets
+4. Create `.prod.vars` file and add the same OAuth secrets
+5. Run `bun run deploy` to update your deployment
 
-> **🔑 Important**: `CLOUDFLARE_AI_GATEWAY_TOKEN` should be provided as BOTH a build variable and a worker secret for full functionality.
+> **💡 Pro Tip**: Start with the AI Gateway token for the smoothest experience - it automatically sets up authentication for you!
 
 ---
 
@@ -397,6 +447,12 @@ The deploy button automatically creates:
 - Users with AI Gateway Wholesaling can skip individual provider API keys
 - Ensure your AI Gateway token has proper Run permissions for all providers
 
+**🏗️ "Container Instance Type Issues"**
+- **"enhanced" fails on non-Enterprise plans**: Use `standard` instead - `enhanced` requires Cloudflare Enterprise
+- **Slow app previews**: Try upgrading from `dev` or `basic` to `standard` instance type
+- **Out of memory errors**: Upgrade to higher instance type or check for memory leaks in generated apps
+- **Build timeouts**: Use `enhanced` instance type (Enterprise) or `standard` for faster build times
+
 ### Need Help?
 
 - 📖 Check [Cloudflare Workers Docs](https://developers.cloudflare.com/workers/)
@@ -407,34 +463,60 @@ The deploy button automatically creates:
 
 ## 🏠 Local Development
 
-Here's how to run it locally:
-
 ### Prerequisites
-- Node.js 18+, Cloudflare account with Workers paid plan
+- Node.js 18+ and Bun
+- Cloudflare account with Workers paid plan
 
 ### Quick Setup
 ```bash
-git clone https://github.com/your-username/cloudflare-vibecoding-starter-kit.git
-cd cloudflare-vibecoding-starter-kit && bun install
+# Clone your repository (or this repo)
+git clone https://github.com/your-username/your-orange-build-fork.git
+cd your-orange-build-fork
+bun install
 
+# Set up local database
+bun run db:generate
+bun run db:migrate:local
+```
+
+### Environment Configuration
+
+**For Local Development (.dev.vars):**
+```bash
 cp .dev.vars.example .dev.vars
-# Edit .dev.vars with proper values
+# Edit .dev.vars with your API keys and tokens
+```
 
-bun run install
-bun run db:generate && bun run db:migrate:local
-bun run dev
+**For Production Deployment (.prod.vars):**
+```bash
+cp .dev.vars.example .prod.vars  
+# Edit .prod.vars with your production API keys and tokens
+```
 
-# To deploy
-bun run deploy
+> **Important**: Local development uses `.dev.vars`, but `bun run deploy` only reads from `.prod.vars` for deployment secrets.
+
+### Database Setup (Local Development)
+```bash
+bun run db:generate         # Generate database migrations
+bun run db:migrate:local    # Apply migrations to local database
+```
+
+### Deploy to Cloudflare
+```bash
+bun run deploy  # Builds and deploys automatically (includes remote DB migration)
 ```
 
 ### Development Commands
 ```bash
-bun run dev              # Start development servers
-bun run build            # Build for production
-bun run deploy           # Deploy to Cloudflare
-bun run db:generate && bun run db:migrate:local
+bun run dev              # Start local development servers
+bun run build            # Build for production only  
+bun run deploy           # Deploy to Cloudflare (reads .prod.vars, includes remote DB setup)
 bun run lint             # Run code quality checks
+
+# Database commands (local development only)
+bun run db:generate      # Generate new migrations
+bun run db:migrate:local # Apply migrations locally
+bun run db:studio        # Open database admin interface
 ```
 
 ---
@@ -548,6 +630,7 @@ These variables are configured in `wrangler.jsonc` and are available to your Wor
 | `CLOUDFLARE_AI_GATEWAY` | `"c-coder"` | Name of your Cloudflare AI Gateway for AI provider routing | ✅ Yes |
 | `CUSTOM_DOMAIN` | `"build.cloudflare.dev"` | Custom domain for your Orange Build instance | ⚪ Optional |
 | `MAX_SANDBOX_INSTANCES` | `"2"` | Maximum number of concurrent container instances for app previews | ⚪ Optional |
+| `SANDBOX_INSTANCE_TYPE` | `"standard"` | Container performance tier (dev/basic/standard/enhanced) | ⚪ Optional |
 | `CLOUDFLARE_AI_GATEWAY_URL` | `""` | Full URL to your AI Gateway (auto-generated if empty) | ⚪ Optional |
 
 #### Additional Auto-Configured Variables
@@ -615,9 +698,16 @@ WEBHOOK_SECRET="secure-random-string-for-webhook-validation"
 
 These variables are available during deployment and should be configured as **Build Variables** in your deployment environment:
 
-| Variable | Purpose | Required |
-|----------|---------|----------|
-| `CLOUDFLARE_AI_GATEWAY_TOKEN` | Enables automatic AI Gateway setup during deployment | 🟡 Recommended |
+| Variable | Purpose | Default | Required |
+|----------|---------|---------|----------|
+| `CLOUDFLARE_AI_GATEWAY_TOKEN` | Enables automatic AI Gateway setup during deployment | - | 🟡 Recommended |
+| `SANDBOX_INSTANCE_TYPE` | Container performance tier for app sandboxes | `standard` | ⚪ Optional |
+
+**SANDBOX_INSTANCE_TYPE Options:**
+- `dev` - Minimal resources (256 MiB, 1/16 vCPU, 2 GB disk)
+- `basic` - Light applications (1 GiB, 1/4 vCPU, 4 GB disk) 
+- `standard` - Most applications (4 GiB, 1/2 vCPU, 4 GB disk) **[Default]**
+- `enhanced` - High-performance (4 GiB, 4 vCPUs, 10 GB disk) **[Enterprise Only]**
 
 > **Note**: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are automatically provided by Workers Builds and don't need to be configured manually.
 

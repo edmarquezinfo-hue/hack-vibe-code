@@ -42,14 +42,11 @@ interface WranglerConfig {
 		class_name: string;
 		image: string;
 		max_instances: number;
-		configuration?: {
+		instance_type?: {
 			vcpu: number;
 			memory_mib: number;
-			disk?: {
-				size_mb?: number;
-				size?: string;
-			};
-		};
+			disk_mb?: number;
+		} | string;
 		rollout_step_percentage?: number;
 	}>;
 	d1_databases?: Array<{
@@ -64,12 +61,11 @@ interface WranglerConfig {
 		custom_domain: boolean;
 	}>;
 	vars?: {
-		CLOUDFLARE_ACCOUNT_ID?: string;
 		TEMPLATES_REPOSITORY?: string;
 		CLOUDFLARE_AI_GATEWAY?: string;
-		CLOUDFLARE_AI_GATEWAY_URL?: string;
 		MAX_SANDBOX_INSTANCES?: string;
 		CUSTOM_DOMAIN?: string;
+		SANDBOX_INSTANCE_TYPE?: string;
 		[key: string]: string | undefined;
 	};
 }
@@ -921,6 +917,134 @@ class CloudflareDeploymentManager {
 	}
 
 	/**
+	 * Updates container instance types based on SANDBOX_INSTANCE_TYPE variable
+	 */
+	private updateContainerInstanceTypes(): void {
+		// Environment variable takes priority over wrangler.jsonc vars
+		const sandboxInstanceType = 
+			process.env.SANDBOX_INSTANCE_TYPE || 
+			this.config.vars?.SANDBOX_INSTANCE_TYPE || 
+			'standard';
+
+		console.log(
+			`🔧 Configuring container instance types: ${sandboxInstanceType}`,
+		);
+
+		try {
+			const wranglerPath = join(PROJECT_ROOT, 'wrangler.jsonc');
+			const content = readFileSync(wranglerPath, 'utf-8');
+
+			// Parse the JSONC file to validate structure and find container indices
+			const config = parse(content) as WranglerConfig;
+
+			if (!config.containers || !Array.isArray(config.containers)) {
+				console.warn(
+					'⚠️  No containers configuration found in wrangler.jsonc',
+				);
+				return;
+			}
+
+			// Find the indices of both containers
+			const userAppContainerIndex = config.containers.findIndex(
+				(container) => container.class_name === 'UserAppSandboxService',
+			);
+			const deployerContainerIndex = config.containers.findIndex(
+				(container) => container.class_name === 'DeployerService',
+			);
+
+			if (userAppContainerIndex === -1) {
+				console.warn(
+					'⚠️  UserAppSandboxService container not found in wrangler.jsonc',
+				);
+				return;
+			}
+
+			if (deployerContainerIndex === -1) {
+				console.warn(
+					'⚠️  DeployerService container not found in wrangler.jsonc',
+				);
+				return;
+			}
+
+			// Determine the instance type configuration
+			let userAppInstanceType: any;
+			let deployerInstanceType: any;
+
+			if (sandboxInstanceType === 'enhanced') {
+				// Enhanced configuration as specified
+				userAppInstanceType = {
+					vcpu: 4,
+					memory_mib: 4096,
+					disk_mb: 10240
+				};
+				// DeployerService keeps similar enhanced config but with less memory
+				deployerInstanceType = {
+					vcpu: 4,
+					memory_mib: 4096,
+					disk_mb: 5120
+				};
+				console.log('   Using enhanced instance type configuration');
+			} else {
+				// Use the string value directly
+				userAppInstanceType = sandboxInstanceType;
+				deployerInstanceType = sandboxInstanceType;
+				console.log(`   Using instance type string: ${sandboxInstanceType}`);
+			}
+
+			// Update UserAppSandboxService instance_type
+			let updatedContent = content;
+			const userAppInstanceTypeEdits = modify(
+				updatedContent,
+				['containers', userAppContainerIndex, 'instance_type'],
+				userAppInstanceType,
+				{
+					formattingOptions: {
+						insertSpaces: true,
+						keepLines: true,
+						tabSize: 4
+					}
+				}
+			);
+			updatedContent = applyEdits(updatedContent, userAppInstanceTypeEdits);
+
+			// Update DeployerService instance_type
+			const deployerInstanceTypeEdits = modify(
+				updatedContent,
+				['containers', deployerContainerIndex, 'instance_type'],
+				deployerInstanceType,
+				{
+					formattingOptions: {
+						insertSpaces: true,
+						keepLines: true,
+						tabSize: 4
+					}
+				}
+			);
+			updatedContent = applyEdits(updatedContent, deployerInstanceTypeEdits);
+
+			// Write back the updated configuration
+			writeFileSync(wranglerPath, updatedContent, 'utf-8');
+
+			console.log(
+				`✅ Updated container instance types for SANDBOX_INSTANCE_TYPE: ${sandboxInstanceType}`,
+			);
+			console.log(
+				`   UserAppSandboxService: ${JSON.stringify(userAppInstanceType)}`,
+			);
+			console.log(
+				`   DeployerService: ${JSON.stringify(deployerInstanceType)}`,
+			);
+
+		} catch (error) {
+			console.warn(
+				`⚠️  Could not update container instance types: ${error instanceof Error ? error.message : String(error)}`,
+			);
+			console.warn('   Continuing with current configuration...');
+			// Non-blocking - continue deployment
+		}
+	}
+
+	/**
 	 * Cleans Wrangler cache and build artifacts
 	 */
 	private cleanWranglerCache(): void {
@@ -1271,6 +1395,9 @@ class CloudflareDeploymentManager {
 
 			console.log('   🔧 Updating wrangler.jsonc custom domain routes');
 			this.updateCustomDomainRoutes();
+
+			console.log('   🔧 Updating container instance types');
+			this.updateContainerInstanceTypes();
 
 			console.log('✅ Configuration files updated successfully!\n');
 

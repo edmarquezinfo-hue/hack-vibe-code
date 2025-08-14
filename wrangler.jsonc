@@ -38,13 +38,13 @@
 		{
 			"class_name": "UserAppSandboxService",
 			"image": "./SandboxDockerfile",
+            // Altering max_instances value will have no effect. Please use the MAX_SANDBOX_INSTANCES var instead.
 			"max_instances": 200,
-            "configuration": {
-              "vcpu": 4,
-              "memory_mib": 4096,
-              "disk": {
-                "size_mb": 4000
-              }
+            // ATTENTION: Altering instance_type value will have no effect. Please use the SANDBOX_INSTANCE_TYPE var instead.
+            "instance_type": {
+                "vcpu": 4,
+                "memory_mib": 4096,
+                "disk_mb": 10240
             },
             "rollout_step_percentage": 100
 		},
@@ -52,10 +52,12 @@
           "class_name": "DeployerService",
           "image": "./DeployerDockerfile",
           "max_instances": 1,
-          "configuration": {
+          // ATTENTION: Altering instance_type value will have no effect. Please use the SANDBOX_INSTANCE_TYPE var instead.
+          "instance_type": {
             "vcpu": 4,
-            "memory_mib": 2048
-          },
+            "memory_mib": 4096,
+            "disk_mb": 5120
+        },
           "rollout_step_percentage": 100
         }
 	],
@@ -132,7 +134,7 @@
         "TEMPLATES_REPOSITORY": "https://github.com/AshishKumar4/cloudflare-build-templates",
         "CLOUDFLARE_AI_GATEWAY": "c-coder",
         "CUSTOM_DOMAIN": "build.cloudflare.dev",
-        "MAX_SANDBOX_INSTANCES": "2"
+        "SANDBOX_INSTANCE_TYPE": "standard"
     },
 	"workers_dev": false,
 	"preview_urls": false
