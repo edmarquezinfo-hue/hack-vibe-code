@@ -192,16 +192,13 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
         }
     }
 
-    processProjectUpdates<T extends ProjectUpdateType>(updateType: T, data: WebSocketMessageData<T>, logger: StructuredLogger) : ConversationMessage[] {
+    processProjectUpdates<T extends ProjectUpdateType>(updateType: T, _data: WebSocketMessageData<T>, logger: StructuredLogger) : ConversationMessage[] {
         try {
             logger.info("Processing project update", { updateType });
 
-            // Just save it as an assistant message
+            // Just save it as an assistant message. Dont save data for now to avoid DO size issues
             const preparedMessage = `**<Internal Memo>**
 Project Updates: ${updateType}
-
-Relevant Data: 
-${JSON.stringify(data, null, 2)}
 </Internal Memo>`;
 
             return [{

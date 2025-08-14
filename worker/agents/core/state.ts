@@ -1,7 +1,5 @@
 import type { Blueprint, ClientReportedErrorType, PhaseConceptType ,
     FileOutputType,
-    // FileStructureOutputType,
-    CodeReviewOutputType,
 } from '../schemas';
 import type { TemplateDetails } from '../../services/sandbox/sandboxTypes';
 import type { ScreenshotData } from './types';
@@ -39,13 +37,9 @@ export interface CodeGenState {
     sandboxInstanceId?: string;
     previewURL?: string;
     tunnelURL?: string;
-    lastCodeReview?: CodeReviewOutputType;
-    enableFileEnhancement?: boolean; // Flag to control file enhancement feature
     clientReportedErrors: ClientReportedErrorType[];
     latestScreenshot?: ScreenshotData; // Store captured screenshot
     shouldBeGenerating?: boolean; // Persistent flag indicating generation should be active
-
-    // conversationalAssistant: ConversationalAssistant;
     agentMode: 'deterministic' | 'smart';
     sessionId: string;
     hostname: string;

@@ -16,6 +16,7 @@ import {
     SecurityError, 
     SecurityErrorType 
 } from '../../types/security';
+import { generateId } from '../../utils/idGenerator';
 import {
     AuthUser, 
     OAuthProvider
@@ -135,7 +136,7 @@ export class AuthService {
             const passwordHash = await this.passwordService.hash(data.password);
             
             // Create user
-            const userId = crypto.randomUUID();
+            const userId = generateId();
             const now = new Date();
             
             await this.db.db.insert(schema.users).values({
@@ -314,7 +315,7 @@ export class AuthService {
         
         // Store OAuth state
         await this.db.db.insert(schema.oauthStates).values({
-            id: crypto.randomUUID(),
+            id: generateId(),
             state,
             provider,
             codeVerifier,
@@ -510,7 +511,7 @@ export class AuthService {
         
         if (!user) {
             // Create new user
-            const userId = crypto.randomUUID();
+            const userId = generateId();
             const now = new Date();
             
             await this.db.db.insert(schema.users).values({

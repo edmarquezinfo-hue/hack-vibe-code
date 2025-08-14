@@ -8,6 +8,7 @@ import { SecurityError, SecurityErrorType } from '../../types/security';
 import { createLogger } from '../../logger';
 import { TokenValidator } from './tokenValidator';
 import { CryptoUtils } from '../../utils/CryptoUtils';
+import { generateId } from '../../utils/idGenerator';
 
 const logger = createLogger('TokenService');
 
@@ -109,7 +110,7 @@ export class TokenService {
                 sub: userId,
                 email,
                 type: 'refresh',
-                jti: crypto.randomUUID() // Unique ID for refresh token
+                jti: generateId() // Unique ID for refresh token
             }, refreshTokenExpiry)
         ]);
         

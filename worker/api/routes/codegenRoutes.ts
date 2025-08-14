@@ -6,6 +6,7 @@ import { setupStatsRoutes } from './statsRoutes';
 import { setupWebhookRoutes } from './webhookRoutes';
 import { setupIntegrationRoutes } from './integrationRoutes';
 import { setupSecretsRoutes } from './secretsRoutes';
+import { setupModelConfigRoutes } from './modelConfigRoutes';
 // import { handleInsertRag, handleQueryRag } from "./rag";
 
 // Export the CodeGenerator Agent as a Durable Object class named CodeGen
@@ -48,6 +49,9 @@ export function setupRouter(): Router {
     
     // Secrets management routes
     setupSecretsRoutes(router);
+    
+    // Model configuration and provider keys routes
+    setupModelConfigRoutes(router);
     
     return router;
 }

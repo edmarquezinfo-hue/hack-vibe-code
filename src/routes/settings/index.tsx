@@ -128,6 +128,14 @@ export default function SettingsPage() {
     }>;
     loading: boolean;
   }>({ secrets: [], loading: true });
+
+  // Model configurations state
+  const [agentConfigs, setAgentConfigs] = useState<Array<{key: string, name: string, description: string}>>([]);
+  const [modelConfigs, setModelConfigs] = useState<Record<string, any>>({});
+  const [defaultConfigs, setDefaultConfigs] = useState<Record<string, any>>({});
+  const [loadingConfigs, setLoadingConfigs] = useState(true);
+  const [savingConfigs, setSavingConfigs] = useState(false);
+  const [testingConfig, setTestingConfig] = useState<string | null>(null);
   
   // Templates state
   const [secretTemplates, setSecretTemplates] = useState<Array<{
@@ -157,6 +165,208 @@ export default function SettingsPage() {
   });
   const [showSecretValue, setShowSecretValue] = useState(false);
   const [isSavingSecret, setIsSavingSecret] = useState(false);
+
+  // Helper function to format camelCase to human readable
+  const formatAgentConfigName = React.useCallback((key: string) => {
+    return key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .trim();
+  }, []);
+
+  // Load model configurations
+  const loadModelConfigs = async () => {
+    try {
+      setLoadingConfigs(true);
+      const response = await fetch('/api/model-configs', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setModelConfigs(data.data.configs || {});
+          setDefaultConfigs(data.data.defaults || {});
+        }
+      }
+    } catch (error) {
+      console.error('Error loading model configurations:', error);
+      toast.error('Failed to load model configurations');
+    } finally {
+      setLoadingConfigs(false);
+    }
+  };
+
+  // Save model configuration
+  const saveModelConfig = async (agentAction: string, config: any) => {
+    try {
+      const response = await fetch(`/api/model-configs/${agentAction}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(config)
+      });
+      
+      if (response.ok) {
+        toast.success('Configuration saved successfully');
+        await loadModelConfigs(); // Reload to get updated data
+      } else {
+        const data = await response.json();
+        toast.error(data.error?.message || 'Failed to save configuration');
+      }
+    } catch (error) {
+      console.error('Error saving model configuration:', error);
+      toast.error('Failed to save configuration');
+    }
+  };
+
+  // Test model configuration
+  const testModelConfig = async (agentAction: string) => {
+    try {
+      setTestingConfig(agentAction);
+      const response = await fetch('/api/model-configs/test', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agentActionName: agentAction,
+          useUserKeys: true
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        const result = data.data.testResult;
+        if (result.success) {
+          toast.success(`Test successful! Model: ${result.modelUsed}, Response time: ${result.latencyMs}ms`);
+        } else {
+          toast.error(`Test failed: ${result.error}`);
+        }
+      } else {
+        toast.error(data.error?.message || 'Test failed');
+      }
+    } catch (error) {
+      console.error('Error testing configuration:', error);
+      toast.error('Failed to test configuration');
+    } finally {
+      setTestingConfig(null);
+    }
+  };
+
+  // Reset configuration to default
+  const resetConfigToDefault = async (agentAction: string) => {
+    try {
+      const response = await fetch(`/api/model-configs/${agentAction}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        toast.success('Configuration reset to default');
+        await loadModelConfigs();
+      } else {
+        const data = await response.json();
+        toast.error(data.error?.message || 'Failed to reset configuration');
+      }
+    } catch (error) {
+      console.error('Error resetting configuration:', error);
+      toast.error('Failed to reset configuration');
+    }
+  };
+
+  // Reset all configurations
+  const resetAllConfigs = async () => {
+    try {
+      setSavingConfigs(true);
+      const response = await fetch('/api/model-configs/reset-all', {
+        method: 'POST',
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(`${data.data.resetCount} configurations reset to defaults`);
+        await loadModelConfigs();
+      } else {
+        const data = await response.json();
+        toast.error(data.error?.message || 'Failed to reset configurations');
+      }
+    } catch (error) {
+      console.error('Error resetting all configurations:', error);
+      toast.error('Failed to reset all configurations');
+    } finally {
+      setSavingConfigs(false);
+    }
+  };
+
+  // Get available models for select dropdown using actual AIModels enum values
+  const getAvailableModels = () => [
+    { value: 'default', label: 'Use default' },
+    // OpenAI Models
+    { value: 'openai/gpt-5', label: 'GPT-5 (OpenAI)' },
+    { value: 'openai/gpt-5-mini', label: 'GPT-5 Mini (OpenAI)' },
+    { value: 'openai/o3', label: 'O3 (OpenAI)' },
+    { value: 'openai/o4-mini', label: 'O4 Mini (OpenAI)' },
+    { value: 'openai/chatgpt-4o-latest', label: 'ChatGPT-4o Latest (OpenAI)' },
+    { value: 'openai/gpt-4.1-2025-04-14', label: 'GPT-4.1 (OpenAI)' },
+    { value: 'openai/gpt-oss-120b', label: 'GPT-OSS-120B (OpenAI)' },
+    // Anthropic Models
+    { value: 'anthropic/claude-3-5-sonnet-latest', label: 'Claude 3.5 Sonnet Latest (Anthropic)' },
+    { value: 'anthropic/claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet (Anthropic)' },
+    { value: 'anthropic/claude-opus-4-20250514', label: 'Claude 4 Opus (Anthropic)' },
+    { value: 'anthropic/claude-sonnet-4-20250514', label: 'Claude 4 Sonnet (Anthropic)' },
+    // Google Models
+    { value: 'google-ai-studio/gemini-2.5-pro', label: 'Gemini 2.5 Pro (Google)' },
+    { value: 'google-ai-studio/gemini-2.5-flash', label: 'Gemini 2.5 Flash (Google)' },
+    { value: '[gemini]gemini-2.5-flash-lite-preview-06-17', label: 'Gemini 2.5 Flash Lite (Google)' },
+    { value: 'google-ai-studio/gemini-2.0-flash', label: 'Gemini 2.0 Flash (Google)' },
+    { value: 'google-ai-studio/gemini-1.5-flash-8b-latest', label: 'Gemini 1.5 Flash 8B (Google)' },
+    // OpenRouter Models
+    { value: '[openrouter]qwen/qwen3-coder', label: 'Qwen 3 Coder (OpenRouter)' },
+    { value: '[openrouter]moonshotai/kimi-k2', label: 'Kimi K2 (OpenRouter)' },
+    // Cerebras Models
+    { value: 'cerebras/gpt-oss-120b', label: 'GPT-OSS-120B (Cerebras)' },
+    { value: 'cerebras/qwen-3-coder-480b', label: 'Qwen 3 Coder 480B (Cerebras)' }
+  ];
+
+  // Helper function to provide descriptions based on key patterns
+  const getAgentConfigDescription = React.useCallback((key: string) => {
+    const descriptions: Record<string, string> = {
+      templateSelection: 'AI model for selecting project templates',
+      blueprint: 'Initial project planning and structure creation',
+      projectSetup: 'Setting up project scaffolding and initial files',
+      phaseGeneration: 'Breaking down work into manageable phases',
+      firstPhaseImplementation: 'Implementing the initial phase of development',
+      phaseImplementation: 'Implementing subsequent development phases',
+      realtimeCodeFixer: 'Real-time code analysis and fixing',
+      fastCodeFixer: 'Quick code fixes and optimizations',
+      conversationalResponse: 'Chat interactions and user communication',
+      userSuggestionProcessor: 'Processing and implementing user suggestions',
+      codeReview: 'Reviewing and improving generated code',
+      fileRegeneration: 'Regenerating or updating existing files',
+      screenshotAnalysis: 'Analyzing screenshots for UI/design implementation'
+    };
+    return descriptions[key] || `AI model configuration for ${formatAgentConfigName(key)}`;
+  }, [formatAgentConfigName]);
+
+  // Helper function to get reasoning effort options
+  const getReasoningEffortOptions = () => [
+    { value: 'default', label: 'Use default' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' }
+  ];
+
+  // Helper function to get user-friendly model name
+  const getModelDisplayName = (modelValue: string) => {
+    const model = getAvailableModels().find(m => m.value === modelValue);
+    return model ? model.label : modelValue;
+  };
 
   const handleSaveProfile = async () => {
     if (isSaving) return;
@@ -547,13 +757,33 @@ export default function SettingsPage() {
   }, [user]);
 
 
-  // Load GitHub integration, sessions, API keys, and user secrets on component mount
+  // Load agent configurations dynamically from API
+  React.useEffect(() => {
+    fetch('/api/model-configs/defaults')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data.defaults) {
+          const configs = Object.keys(data.data.defaults).map(key => ({
+            key,
+            name: formatAgentConfigName(key),
+            description: getAgentConfigDescription(key)
+          }));
+          setAgentConfigs(configs);
+        }
+      })
+      .catch(error => {
+        console.error('Failed to load agent configurations:', error);
+      });
+  }, [getAgentConfigDescription]); // Include getAgentConfigDescription in dependency array
+
+  // Load GitHub integration, sessions, API keys, user secrets, and model configs on component mount
   React.useEffect(() => {
     loadGithubIntegration();
     loadActiveSessions();
     loadApiKeys();
     loadUserSecrets();
     loadSecretTemplates();
+    loadModelConfigs();
 
     // Check for integration status from URL params
     const urlParams = new URLSearchParams(window.location.search);
@@ -577,7 +807,7 @@ export default function SettingsPage() {
 
   // Scroll spy functionality
   React.useEffect(() => {
-    const sections = ['profile', 'appearance', 'notifications', 'privacy', 'integrations', 'secrets', 'security'];
+    const sections = ['profile', 'appearance', 'notifications', 'privacy', 'integrations', 'model-configs', 'secrets', 'security'];
     
     const handleScroll = () => {
       const scrollPosition = window.scrollY + 100; // Offset for better UX
@@ -616,6 +846,7 @@ export default function SettingsPage() {
             { id: 'notifications', icon: Bell, label: 'Notifications' },  
             { id: 'privacy', icon: Shield, label: 'Privacy' },
             { id: 'integrations', icon: Link, label: 'Integrations' },
+            { id: 'model-configs', icon: Settings, label: 'Model Configs' },
             { id: 'secrets', icon: Key, label: 'API Keys' },
             { id: 'security', icon: Shield, label: 'Security' }
           ].map(({ id, icon: Icon, label }) => (
@@ -989,6 +1220,293 @@ export default function SettingsPage() {
                         <li>• Continue development with full Git history</li>
                       </ul>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Model Configuration Section */}
+          <Card id="model-configs">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Settings className="h-5 w-5" />
+                <div>
+                  <CardTitle>AI Model Configurations</CardTitle>
+                  <CardDescription>Customize AI model settings and API keys for different operations</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Provider API Keys Integration */}
+              <div className="space-y-4">
+                <h4 className="font-medium">Provider API Keys</h4>
+                <p className="text-sm text-muted-foreground">
+                  AI provider API keys are managed in the "API Keys & Secrets" section below. Configure your OpenAI, Anthropic, Google AI, and OpenRouter keys there.
+                </p>
+                
+                <div className="rounded-lg bg-muted/50 p-4">
+                  <div className="flex items-center gap-3">
+                    <Key className="h-5 w-5 text-muted-foreground" />
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">Unified API Key Management</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        All AI provider keys are securely stored and managed in the API Keys & Secrets section below. They will automatically be used when you test configurations or run model inference.
+                      </p>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => scrollToSection('secrets')}
+                      className="gap-2 shrink-0"
+                    >
+                      <Key className="h-4 w-4" />
+                      Manage Keys
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Model Configuration Settings */}
+              <div className="space-y-4">
+                <h4 className="font-medium">Model Configuration Overrides</h4>
+                <p className="text-sm text-muted-foreground">
+                  Customize model settings for different AI operations. Leave blank to use system defaults.
+                </p>
+                
+                {loadingConfigs ? (
+                  <div className="flex items-center gap-3">
+                    <Settings className="h-5 w-5 animate-spin text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Loading model configurations...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {agentConfigs.map((config) => {
+                      const userConfig = modelConfigs[config.key];
+                      const defaultConfig = defaultConfigs[config.key];
+                      const isUserOverride = userConfig?.isUserOverride || false;
+                      
+                      return (
+                        <div key={config.key} className="p-4 border rounded-lg bg-card">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h5 className="font-medium">{config.name}</h5>
+                              <p className="text-xs text-muted-foreground">{config.description}</p>
+                            </div>
+                            <Badge variant={isUserOverride ? "default" : "outline"} className="text-xs">
+                              {isUserOverride ? "Custom" : "Default"}
+                            </Badge>
+                          </div>
+                          
+                          <div className="space-y-4">
+                            {/* Model Selection Row */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium">AI Model</Label>
+                                <Select
+                                  value={userConfig?.name || 'default'}
+                                  onValueChange={(value) => {
+                                    const updatedConfig = {
+                                      modelName: value === 'default' ? null : value,
+                                      maxTokens: userConfig?.max_tokens || null,
+                                      temperature: userConfig?.temperature ?? null,
+                                      reasoningEffort: userConfig?.reasoning_effort || null,
+                                      fallbackModel: userConfig?.fallback_model || null
+                                    };
+                                    saveModelConfig(config.key, updatedConfig);
+                                  }}
+                                >
+                                  <SelectTrigger className="h-9">
+                                    <SelectValue placeholder="Select model..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {getAvailableModels().map((model) => (
+                                      <SelectItem key={model.value} value={model.value}>
+                                        {model.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {defaultConfig?.name && (
+                                  <p className="text-xs text-muted-foreground">
+                                    🔧 System default: {getModelDisplayName(defaultConfig.name)}
+                                  </p>
+                                )}
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium">Fallback Model</Label>
+                                <Select
+                                  value={userConfig?.fallback_model || 'default'}
+                                  onValueChange={(value) => {
+                                    const updatedConfig = {
+                                      modelName: userConfig?.name || null,
+                                      maxTokens: userConfig?.max_tokens || null,
+                                      temperature: userConfig?.temperature ?? null,
+                                      reasoningEffort: userConfig?.reasoning_effort || null,
+                                      fallbackModel: value === 'default' ? null : value
+                                    };
+                                    saveModelConfig(config.key, updatedConfig);
+                                  }}
+                                >
+                                  <SelectTrigger className="h-9">
+                                    <SelectValue placeholder="Select fallback model..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {getAvailableModels().map((model) => (
+                                      <SelectItem key={model.value} value={model.value}>
+                                        {model.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {defaultConfig?.fallbackModel && (
+                                  <p className="text-xs text-muted-foreground">
+                                    🔧 System default: {getModelDisplayName(defaultConfig.fallbackModel)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Parameters Row */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium">Temperature</Label>
+                                <Input 
+                                  type="number" 
+                                  min="0" 
+                                  max="2" 
+                                  step="0.1" 
+                                  value={userConfig?.temperature ?? ''}
+                                  placeholder={defaultConfig?.temperature ? `${defaultConfig.temperature}` : '0.7'}
+                                  className="h-9"
+                                  onChange={(e) => {
+                                    const value = e.target.value ? parseFloat(e.target.value) : null;
+                                    const updatedConfig = {
+                                      modelName: userConfig?.name || null,
+                                      maxTokens: userConfig?.max_tokens || null,
+                                      temperature: value,
+                                      reasoningEffort: userConfig?.reasoning_effort || null,
+                                      fallbackModel: userConfig?.fallback_model || null
+                                    };
+                                    saveModelConfig(config.key, updatedConfig);
+                                  }}
+                                />
+                                {defaultConfig?.temperature && (
+                                  <p className="text-xs text-muted-foreground">
+                                    🔧 System default: {defaultConfig.temperature}
+                                  </p>
+                                )}
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium">Max Tokens</Label>
+                                <Input 
+                                  type="number" 
+                                  min="1" 
+                                  max="200000" 
+                                  value={userConfig?.max_tokens ?? ''}
+                                  placeholder={defaultConfig?.max_tokens ? `${defaultConfig.max_tokens}` : '4000'}
+                                  className="h-9"
+                                  onChange={(e) => {
+                                    const value = e.target.value ? parseInt(e.target.value) : null;
+                                    const updatedConfig = {
+                                      modelName: userConfig?.name || null,
+                                      maxTokens: value,
+                                      temperature: userConfig?.temperature ?? null,
+                                      reasoningEffort: userConfig?.reasoning_effort || null,
+                                      fallbackModel: userConfig?.fallback_model || null
+                                    };
+                                    saveModelConfig(config.key, updatedConfig);
+                                  }}
+                                />
+                                {defaultConfig?.max_tokens && (
+                                  <p className="text-xs text-muted-foreground">
+                                    🔧 System default: {defaultConfig.max_tokens?.toLocaleString()}
+                                  </p>
+                                )}
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium">Reasoning Effort</Label>
+                                <Select
+                                  value={userConfig?.reasoning_effort || 'default'}
+                                  onValueChange={(value) => {
+                                    const updatedConfig = {
+                                      modelName: userConfig?.name || null,
+                                      maxTokens: userConfig?.max_tokens || null,
+                                      temperature: userConfig?.temperature ?? null,
+                                      reasoningEffort: value === 'default' ? null : value,
+                                      fallbackModel: userConfig?.fallback_model || null
+                                    };
+                                    saveModelConfig(config.key, updatedConfig);
+                                  }}
+                                >
+                                  <SelectTrigger className="h-9">
+                                    <SelectValue placeholder="Select reasoning effort..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {getReasoningEffortOptions().map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {defaultConfig?.reasoning_effort && (
+                                  <p className="text-xs text-muted-foreground">
+                                    🔧 System default: {defaultConfig.reasoning_effort}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 mt-3">
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="h-7 text-xs"
+                              onClick={() => testModelConfig(config.key)}
+                              disabled={testingConfig === config.key}
+                            >
+                              {testingConfig === config.key ? (
+                                <>
+                                  <Settings className="h-3 w-3 animate-spin mr-1" />
+                                  Testing...
+                                </>
+                              ) : (
+                                'Test Config'
+                              )}
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="h-7 text-xs text-muted-foreground"
+                              onClick={() => resetConfigToDefault(config.key)}
+                              disabled={!isUserOverride}
+                            >
+                              Reset to Default
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                
+                <div className="flex justify-end gap-2">
+                  <Button 
+                    variant="outline"
+                    onClick={resetAllConfigs}
+                    disabled={savingConfigs}
+                  >
+                    {savingConfigs ? 'Resetting...' : 'Reset All to Defaults'}
+                  </Button>
+                  <div className="rounded-lg bg-muted/50 p-2 text-xs text-muted-foreground">
+                    Configurations are automatically saved on change
                   </div>
                 </div>
               </div>

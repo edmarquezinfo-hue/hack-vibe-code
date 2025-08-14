@@ -9,6 +9,7 @@ import { DatabaseService } from '../../database/database';
 import * as schema from '../../database/schema';
 import { eq, and, lt, gt, desc, ne } from 'drizzle-orm';
 import { createLogger } from '../../logger';
+import { generateId } from '../../utils/idGenerator';
 import { TokenService } from './tokenService';
 import { extractRequestMetadata } from '../../utils/authUtils';
 
@@ -222,7 +223,7 @@ export class SessionService {
             const metadata = request ? extractRequestMetadata(request) : { ipAddress: 'unknown', userAgent: 'unknown' };
             
             await this.db.db.insert(schema.auditLogs).values({
-                id: crypto.randomUUID(),
+                id: generateId(),
                 userId: userId,
                 entityType: 'session',
                 entityId: sessionId,
@@ -286,7 +287,7 @@ export class SessionService {
             }) : requestMetadata.userAgent;
             
             // Create session
-            const sessionId = crypto.randomUUID();
+            const sessionId = generateId();
             const now = new Date();
             const expiresAt = new Date(Date.now() + this.config.sessionTTL * 1000);
             

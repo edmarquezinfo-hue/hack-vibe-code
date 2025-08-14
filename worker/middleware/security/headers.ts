@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from '../../logger';
+import { generateId } from '../../utils/idGenerator';
 
 const logger = createLogger('SecurityHeaders');
 
@@ -168,7 +169,7 @@ export async function securityHeadersMiddleware(
     try {
         const config: SecurityHeadersConfig = {
             environment: (env.ENVIRONMENT || 'production') as 'development' | 'production' | 'staging',
-            nonce: crypto.randomUUID(), // Generate nonce for CSP
+            nonce: generateId(), // Generate nonce for CSP
             allowUnsafeInline: env.ENVIRONMENT === 'development'
         };
         

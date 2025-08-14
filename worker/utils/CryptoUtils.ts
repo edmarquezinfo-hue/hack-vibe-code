@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from '../logger';
+import { generateId } from './idGenerator';
 
 const logger = createLogger('CryptoUtils');
 
@@ -25,7 +26,7 @@ export class CryptoUtils {
      * Generate a UUID v4
      */
     static generateUUID(): string {
-        return crypto.randomUUID();
+        return generateId();
     }
 
     /**
