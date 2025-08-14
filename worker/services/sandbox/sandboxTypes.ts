@@ -471,44 +471,25 @@ export type RunnerServiceWebhookPayload = z.infer<typeof RunnerServiceWebhookPay
  * GitHub integration types for exporting generated applications
  */
 
-export interface GitHubExportOptions {
-    repositoryName: string;
-    isPrivate: boolean;
-    description?: string;
-    userId?: string;
-}
-
-export interface GitHubExportResult {
-    success: boolean;
-    repositoryUrl?: string;
-    error?: string;
-}
-
-export interface GitHubInitRequest {
+export interface GitHubExportRequest {
     token: string;
     repositoryName: string;
     description?: string;
     isPrivate: boolean;
     email: string;
     username: string;
+    commitMessage?: string; // Optional commit message for changes
 }
 
-export interface GitHubInitResponse {
-    success: boolean;
-    repositoryUrl?: string;
-    error?: string;
-    cloneUrl?: string;
-}
+export const GitHubExportResponseSchema = z.object({
+    success: z.boolean(),
+    repositoryUrl: z.string().optional(),
+    cloneUrl: z.string().optional(),
+    commitSha: z.string().optional(),
+    error: z.string().optional(),
+})
+export type GitHubExportResponse = z.infer<typeof GitHubExportResponseSchema>
 
-export interface GitHubPushRequest {
-    commitMessage: string;
-}
-
-export interface GitHubPushResponse {
-    success: boolean;
-    error?: string;
-    commitSha?: string;
-}
 
 // --- Save/Resume Instance Types ---
 

@@ -22,7 +22,7 @@ import {
     LintSeverity,
     TemplateInfo,
     TemplateDetails,
-    GitHubInitRequest, GitHubInitResponse, GitHubPushRequest, GitHubPushResponse,
+    GitHubExportRequest, GitHubExportResponse,
     GetLogsResponse,
     ListInstancesResponse,
     SaveInstanceResponse,
@@ -143,6 +143,7 @@ export class SandboxSdkClient extends BaseSandboxService {
 
     private async executeCommand(instanceId: string, command: string, timeout?: number): Promise<ExecuteResponse> {
         return await this.getSandbox().exec(`cd ${instanceId} && ${command}`, { timeout });
+        // return await this.getSandbox().exec(command, { cwd: instanceId, timeout });
     }
 
     private async storeRuntimeError(instanceId: string, error: RuntimeError): Promise<void> {
@@ -1551,7 +1552,7 @@ export class SandboxSdkClient extends BaseSandboxService {
         return repoName.replace(/[^A-Za-z0-9_.-]/g, '-');
     }
 
-    async initGitHubRepository(instanceId: string, request: GitHubInitRequest): Promise<GitHubInitResponse> {
+    async exportToGitHub(instanceId: string, request: GitHubExportRequest): Promise<GitHubExportResponse> {
         try {
             // Transform repository name according to GitHub's naming rules
             const actualRepoName = this.transformGitHubRepoName(request.repositoryName);
@@ -1582,30 +1583,52 @@ export class SandboxSdkClient extends BaseSandboxService {
             const gitStatusResult = await this.executeCommand(instanceId, `git status --porcelain`);
             const hasUncommittedChanges = gitStatusResult.stdout.trim().length > 0;
             
+            let commitSha = '';
+            const commitMessage = request.commitMessage || "Initial commit";
+            
             if (hasUncommittedChanges) {
-                // Add and commit changes
+                // Add and commit changes using the provided or default commit message
                 const addResult = await this.executeCommand(instanceId, `git add .`);
                 if (addResult.exitCode !== 0) {
                     throw new Error(`Git add failed: ${addResult.stderr}`);
                 }
                 
-                const commitResult = await this.executeCommand(instanceId, `git commit -m "Initial commit"`);
+                const commitResult = await this.executeCommand(instanceId, `git commit -m "${commitMessage.replace(/"/g, '\\"')}"`);
                 if (commitResult.exitCode !== 0) {
                     throw new Error(`Git commit failed: ${commitResult.stderr}`);
                 }
-                this.logger.info(`Created initial commit for instance ${instanceId}`);
+                
+                // Extract commit hash from the commit result
+                const hashResult = await this.executeCommand(instanceId, `git rev-parse HEAD`);
+                if (hashResult.exitCode === 0) {
+                    commitSha = hashResult.stdout.trim();
+                }
+                
+                this.logger.info(`Created commit ${commitSha} for instance ${instanceId}`);
             } else {
                 // Check if we have any commits at all
                 const logCheck = await this.executeCommand(instanceId, `git log --oneline -1`);
                 if (logCheck.exitCode !== 0) {
                     // No commits exist, create an empty initial commit
-                    const emptyCommitResult = await this.executeCommand(instanceId, `git commit --allow-empty -m "Initial commit"`);
+                    const emptyCommitResult = await this.executeCommand(instanceId, `git commit --allow-empty -m "${commitMessage.replace(/"/g, '\\"')}"`);
                     if (emptyCommitResult.exitCode !== 0) {
                         throw new Error(`Git empty commit failed: ${emptyCommitResult.stderr}`);
                     }
-                    this.logger.info(`Created empty initial commit for instance ${instanceId}`);
+                    
+                    // Extract commit hash
+                    const hashResult = await this.executeCommand(instanceId, `git rev-parse HEAD`);
+                    if (hashResult.exitCode === 0) {
+                        commitSha = hashResult.stdout.trim();
+                    }
+                    
+                    this.logger.info(`Created empty commit ${commitSha} for instance ${instanceId}`);
                 } else {
-                    this.logger.info(`Repository already has commits, skipping initial commit for instance ${instanceId}`);
+                    // Repository already has commits, get the current commit hash
+                    const hashResult = await this.executeCommand(instanceId, `git rev-parse HEAD`);
+                    if (hashResult.exitCode === 0) {
+                        commitSha = hashResult.stdout.trim();
+                    }
+                    this.logger.info(`Repository already has commits, current commit: ${commitSha} for instance ${instanceId}`);
                 }
             }
             
@@ -1709,50 +1732,21 @@ export class SandboxSdkClient extends BaseSandboxService {
                 throw new Error(`Git push failed: ${pushResult.stderr}`);
             }
             
-            this.logger.info(`Successfully initialized GitHub repository: ${repoData.html_url}`);
+            this.logger.info(`Successfully exported to GitHub repository: ${repoData.html_url}`);
             
             return {
                 success: true,
                 repositoryUrl: repoData.html_url,
-                cloneUrl: repoData.clone_url
+                cloneUrl: repoData.clone_url,
+                commitSha: commitSha
             };
         } catch (error) {
-            this.logger.error('initGitHubRepository', error, { instanceId });
-            throw new Error(`GitHub repository initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            this.logger.error('exportToGitHub', error, { instanceId });
+            throw new Error(`GitHub export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    async pushToGitHub(instanceId: string, request: GitHubPushRequest): Promise<GitHubPushResponse> {
-        try {
 
-            // Add, commit, and push changes with proper error handling
-            const addResult = await this.executeCommand(instanceId, `git add .`);
-            if (addResult.exitCode !== 0) {
-                throw new Error(`Git add failed: ${addResult.stderr}`);
-            }
-            
-            const commitResult = await this.executeCommand(instanceId, `git commit -m "${request.commitMessage.replace(/"/g, '\\"')}"`);
-            if (commitResult.exitCode !== 0) {
-                throw new Error(`Git commit failed: ${commitResult.stderr}`);
-            }
-            
-            const pushResult = await this.executeCommand(instanceId, `git push`);
-            
-            if (pushResult.exitCode !== 0) {
-                throw new Error(`Git push failed: ${pushResult.stderr}`);
-            }
-            
-            this.logger.info(`Successfully pushed to GitHub for instance ${instanceId}`);
-            
-            return {
-                success: true,
-                commitSha: 'unknown' // Would need to parse from git output
-            };
-        } catch (error) {
-            this.logger.error('pushToGitHub', error, { instanceId });
-            throw new Error(`GitHub push failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
 
     // ==========================================
     // SAVE/RESUME OPERATIONS
