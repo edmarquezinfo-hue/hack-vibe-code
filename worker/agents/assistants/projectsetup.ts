@@ -3,7 +3,7 @@ import { FileOutputType, SetupCommandsType, type Blueprint } from "../schemas";
 import { createObjectLogger, StructuredLogger } from '../../logger';
 import { generalSystemPromptBuilder, PROMPT_UTILS } from '../prompts';
 import { createAssistantMessage, createSystemMessage, createUserMessage } from "../inferutils/common";
-import { executeInference } from "../inferutils/infer";
+import { executeInference, InferenceContext } from "../inferutils/infer";
 import Assistant from "./assistant";
 import { AIModels } from "../inferutils/config";
 import { extractCommands } from "../utils/common";
@@ -14,6 +14,7 @@ interface GenerateSetupCommandsArgs {
     query: string;
     blueprint: Blueprint;
     template: TemplateDetails;
+    inferenceContext: InferenceContext;
 }
 
 const SYSTEM_PROMPT = `You are an Expert senior full-stack engineer at Cloudflare tasked with designing and developing a full stack application for the user based on their original query and provided blueprint. `
@@ -85,13 +86,15 @@ function extractAllIncludes(files: FileOutputType[]) {
 export class ProjectSetupAssistant extends Assistant<Env> {
     private query: string;
     private logger: StructuredLogger;
+    private inferenceContext: InferenceContext;
     
     constructor({
         env,
         agentId,
         query,
         blueprint,
-        template
+        template,
+        inferenceContext
     }: GenerateSetupCommandsArgs) {
         const systemPrompt = createSystemMessage(SYSTEM_PROMPT);
         super(env, agentId, systemPrompt);
@@ -104,6 +107,7 @@ export class ProjectSetupAssistant extends Assistant<Env> {
         }))]);
         this.query = query;
         this.logger = createObjectLogger(this, 'ProjectSetupAssistant');
+        this.inferenceContext = inferenceContext;
     }
 
     async generateSetupCommands(error?: string): Promise<SetupCommandsType> {
@@ -124,7 +128,7 @@ ${error}`);
                 env: this.env,
                 messages,
                 agentActionName: "projectSetup",
-                context: { agentId: this.agentId },
+                context: this.inferenceContext,
                 modelName: error? AIModels.GEMINI_2_5_FLASH : undefined,
             });
             if (!results || typeof results !== 'string') {

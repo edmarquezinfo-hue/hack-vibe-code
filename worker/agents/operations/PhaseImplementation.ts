@@ -350,7 +350,8 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
                                     // previousFiles: previousFiles,
                                     query: context.query,
                                     blueprint: context.blueprint,
-                                    template: context.templateDetails
+                                    template: context.templateDetails,
+                                    inferenceContext: options.inferenceContext
                                 },
                                 phase
                             );

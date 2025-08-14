@@ -9,6 +9,7 @@
 		"lib": ["ES2023"],
 		"module": "ESNext",
 		"skipLibCheck": true,
+		"types": ["./worker-configuration.d.ts", "vite/client", "jest"],
 
 		/* Bundler mode */
 		"moduleResolution": "bundler",
