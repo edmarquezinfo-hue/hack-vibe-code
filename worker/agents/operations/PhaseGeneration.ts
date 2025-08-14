@@ -146,6 +146,11 @@ export class PhaseGenerationOperation extends AgentOperation<PhaseGenerationInpu
                 schema: PhaseConceptGenerationSchema,
                 // format: 'markdown',
             });
+
+            if (results) {
+                // Filter and remove any pdf files
+                results.files = results.files.filter(f => !f.path.endsWith('.pdf'));
+            }
     
             logger.info(`Generated initial phase: ${results.name}, ${results.description}`);
     

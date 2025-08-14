@@ -158,6 +158,11 @@ export async function generateBlueprint({ env, agentId, query, language, framewo
             stream: stream,
         });
 
+        if (results) {
+            // Filter and remove any pdf files
+            results.initialPhase.files = results.initialPhase.files.filter(f => !f.path.endsWith('.pdf'));
+        }
+
         // // A hack
         // if (results?.initialPhase) {
         //     results.initialPhase.lastPhase = false;
