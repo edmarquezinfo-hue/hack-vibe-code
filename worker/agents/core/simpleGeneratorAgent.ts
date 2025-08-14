@@ -1145,8 +1145,15 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         const webhookUrl = this.generateWebhookUrl();
 
         // TODO: REMOVE BEFORE PRODUCTION, SECURITY THREAT! Only for testing and demo
+        let baseUrl: string = this.env.CLOUDFLARE_AI_GATEWAY_URL;
+        try {
+            baseUrl = await this.env.AI.gateway(this.env.CLOUDFLARE_AI_GATEWAY).getUrl()
+        } catch (error) {
+            this.logger.error(`Error getting AI gateway URL: ${error}`);
+            // throw error;
+        }
         const localEnvVars = {
-            CF_AI_BASE_URL: await this.env.AI.gateway(this.env.CLOUDFLARE_AI_GATEWAY).getUrl(),
+            CF_AI_BASE_URL: `${baseUrl}/compat`,
             CF_AI_API_KEY: this.env.CLOUDFLARE_AI_GATEWAY_TOKEN,
         }
         
@@ -1758,6 +1765,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 email: githubIntegration.email,
                 username: githubIntegration.username
             };
+
+            this.logger.info('Creating GitHub repository', { initRequest });
 
             const createRepoResult = await this.initGitHubRepository(initRequest);
 

@@ -99,6 +99,28 @@ const providerAliasMap: Record<string, string> = {
     'google-ai-studio': 'gemini',
 }
 
+function isValidApiKey(apiKey: string): boolean {
+    if (!apiKey || apiKey.trim() === '') {
+        return false;
+    }
+    // Check if value is not 'default' or 'none' and is more than 10 characters long
+    if (apiKey.trim().toLowerCase() === 'default' || apiKey.trim().toLowerCase() === 'none' || apiKey.trim().length < 10) {
+        return false;
+    }
+    return true;
+}
+
+function getApiKey(provider: string, env: Env): string {
+    const providerKeyString = (providerAliasMap[provider] || provider).toUpperCase().replaceAll('-', '_');
+    const envKey = `${providerKeyString}_API_KEY` as keyof Env;
+    let apiKey: string = env[envKey] as string;
+    // Check if apiKey is empty or undefined and is valid
+    if (!isValidApiKey(apiKey)) {
+        apiKey = env.CLOUDFLARE_AI_GATEWAY_TOKEN;
+    }
+    return apiKey;
+}
+
 export async function getConfigurationForModel(model: AIModels | string, env: Env): Promise<{
     baseURL: string,
     apiKey: string,
@@ -134,9 +156,7 @@ export async function getConfigurationForModel(model: AIModels | string, env: En
     const provider = providerForcedOverride || model.split('/')[0];
     // Try to find API key of type <PROVIDER>_API_KEY else default to CLOUDFLARE_AI_GATEWAY_TOKEN
     // `env` is an interface of type `Env`
-    const providerKeyString = (providerAliasMap[provider] || provider).toUpperCase().replaceAll('-', '_');
-    const envKey = `${providerKeyString}_API_KEY` as keyof Env;
-    const apiKey: string = env[envKey] as string || env.CLOUDFLARE_AI_GATEWAY_TOKEN;
+    const apiKey = getApiKey(provider, env);
     // AI Gateway Wholesaling checks
     const defaultHeaders = env.CLOUDFLARE_AI_GATEWAY_TOKEN && apiKey !== env.CLOUDFLARE_AI_GATEWAY_TOKEN ? {
         'cf-aig-authorization': `Bearer ${env.CLOUDFLARE_AI_GATEWAY_TOKEN}`,

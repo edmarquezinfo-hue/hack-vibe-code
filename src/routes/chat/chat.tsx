@@ -10,7 +10,7 @@ import { ArrowRight } from 'react-feather';
 import { useParams, useSearchParams, useNavigate } from 'react-router';
 import { MonacoEditor } from '../../components/monaco-editor/monaco-editor';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Expand, LoaderCircle, RefreshCw } from 'lucide-react';
+import { Expand, Github, LoaderCircle, RefreshCw } from 'lucide-react';
 import { Blueprint } from './components/blueprint';
 import { FileExplorer } from './components/file-explorer';
 import { UserMessage, AIMessage } from './components/messages';
@@ -213,7 +213,7 @@ export default function Chat() {
 	]);
 
 	const isPhase1Complete = useMemo(() => {
-		return phaseTimeline.length > 0;
+		return phaseTimeline.length > 0 && phaseTimeline[0].status === 'completed';
 	}, [phaseTimeline]);
 
 	const showMainView = useMemo(
@@ -727,8 +727,8 @@ export default function Chat() {
 											</div>
 										</div>
 
-										{/* <div className="flex items-center justify-end gap-1.5">
-											<button
+										<div className="flex items-center justify-end gap-1.5">
+											{/* <button
 												className="flex items-center gap-1.5 px-2 py-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-md transition-all duration-200 text-xs font-medium shadow-sm"
 												onClick={() => handleDeployToCloudflare(chatId!)}
 												disabled={isDeploying}
@@ -740,11 +740,17 @@ export default function Chat() {
 													<Save className="size-3" />
 												)}
 												{isDeploying ? 'Deploying...' : 'Save'}
-											</button>
+											</button> */}
 											<button
-												className="flex items-center gap-1.5 px-2 py-1 bg-gray-800 hover:bg-gray-900 text-white rounded-md transition-all duration-200 text-xs font-medium shadow-sm"
-												onClick={githubExport.openModal}
-												title="Export to GitHub"
+												className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-all duration-200 text-xs font-medium shadow-sm ${
+													isPhase1Complete 
+														? 'bg-gray-800 hover:bg-gray-900 text-white' 
+														: 'bg-gray-600 text-gray-400 cursor-not-allowed'
+												}`}
+												onClick={isPhase1Complete ? githubExport.openModal : undefined}
+												disabled={!isPhase1Complete}
+												title={isPhase1Complete ? "Export to GitHub" : "Complete Phase 1 to enable GitHub export"}
+												aria-label={isPhase1Complete ? "Export to GitHub" : "GitHub export disabled - complete Phase 1 first"}
 											>
 												<Github className="size-3" />
 												GitHub
@@ -758,7 +764,7 @@ export default function Chat() {
 											>
 												<Expand className="size-4 text-text/50" />
 											</button>
-										</div> */}
+										</div>
 									</div>
 									<SmartPreviewIframe
 										src={previewUrl}
@@ -851,9 +857,15 @@ export default function Chat() {
 													{isDeploying ? 'Deploying...' : 'Save'}
 												</button>
 												<button
-													className="flex items-center gap-1.5 px-2 py-1 bg-gray-800 hover:bg-gray-900 text-white rounded-md transition-all duration-200 text-xs font-medium shadow-sm"
-													onClick={githubExport.openModal}
-													title="Export to GitHub"
+													className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-all duration-200 text-xs font-medium shadow-sm ${
+														isPhase1Complete 
+															? 'bg-gray-800 hover:bg-gray-900 text-white' 
+															: 'bg-gray-600 text-gray-400 cursor-not-allowed'
+													}`}
+													onClick={isPhase1Complete ? githubExport.openModal : undefined}
+													disabled={!isPhase1Complete}
+													title={isPhase1Complete ? "Export to GitHub" : "Complete Phase 1 to enable GitHub export"}
+													aria-label={isPhase1Complete ? "Export to GitHub" : "GitHub export disabled - complete Phase 1 first"}
 												>
 													<Github className="size-3" />
 													GitHub

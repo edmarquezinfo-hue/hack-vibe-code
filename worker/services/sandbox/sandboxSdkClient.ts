@@ -1545,22 +1545,79 @@ export class SandboxSdkClient extends BaseSandboxService {
     // GITHUB INTEGRATION
     // ==========================================
 
+    // Helper function to transform repository names according to GitHub's rules
+    private transformGitHubRepoName(repoName: string): string {
+        // GitHub allows only [A-Za-z0-9_.-] and transforms all other characters to dashes
+        return repoName.replace(/[^A-Za-z0-9_.-]/g, '-');
+    }
+
     async initGitHubRepository(instanceId: string, request: GitHubInitRequest): Promise<GitHubInitResponse> {
         try {
-
-            // Initialize git repository
-            const initResult = await this.executeCommand(instanceId, `git init && git add . && git commit -m "Initial commit"`);
+            // Transform repository name according to GitHub's naming rules
+            const actualRepoName = this.transformGitHubRepoName(request.repositoryName);
+            this.logger.info(`Repository name transformation: "${request.repositoryName}" -> "${actualRepoName}"`);
             
-            if (initResult.exitCode !== 0) {
-                throw new Error(`Git initialization failed: ${initResult.stderr}`);
+            // Step 1: Check if git repository is already initialized
+            const gitStatusCheck = await this.executeCommand(instanceId, `git status`);
+            let isGitRepo = gitStatusCheck.exitCode === 0;
+            
+            // Step 2: Initialize git repository if needed
+            if (!isGitRepo) {
+                this.logger.info(`Initializing new git repository for instance ${instanceId}`);
+                const initResult = await this.executeCommand(instanceId, `git init`);
+                if (initResult.exitCode !== 0) {
+                    throw new Error(`Git init failed: ${initResult.stderr}`);
+                }
+            } else {
+                this.logger.info(`Git repository already exists for instance ${instanceId}`);
             }
             
-            // Create GitHub repository using GitHub API
+            // Step 3: Configure git user (always do this to ensure proper config)
+            const gitConfigResult = await this.executeCommand(instanceId, `git config user.email "${request.email}" && git config user.name "${request.username}"`);
+            if (gitConfigResult.exitCode !== 0) {
+                throw new Error(`Git config failed: ${gitConfigResult.stderr}`);
+            }
+            
+            // Step 4: Check if there are any files to add and commit
+            const gitStatusResult = await this.executeCommand(instanceId, `git status --porcelain`);
+            const hasUncommittedChanges = gitStatusResult.stdout.trim().length > 0;
+            
+            if (hasUncommittedChanges) {
+                // Add and commit changes
+                const addResult = await this.executeCommand(instanceId, `git add .`);
+                if (addResult.exitCode !== 0) {
+                    throw new Error(`Git add failed: ${addResult.stderr}`);
+                }
+                
+                const commitResult = await this.executeCommand(instanceId, `git commit -m "Initial commit"`);
+                if (commitResult.exitCode !== 0) {
+                    throw new Error(`Git commit failed: ${commitResult.stderr}`);
+                }
+                this.logger.info(`Created initial commit for instance ${instanceId}`);
+            } else {
+                // Check if we have any commits at all
+                const logCheck = await this.executeCommand(instanceId, `git log --oneline -1`);
+                if (logCheck.exitCode !== 0) {
+                    // No commits exist, create an empty initial commit
+                    const emptyCommitResult = await this.executeCommand(instanceId, `git commit --allow-empty -m "Initial commit"`);
+                    if (emptyCommitResult.exitCode !== 0) {
+                        throw new Error(`Git empty commit failed: ${emptyCommitResult.stderr}`);
+                    }
+                    this.logger.info(`Created empty initial commit for instance ${instanceId}`);
+                } else {
+                    this.logger.info(`Repository already has commits, skipping initial commit for instance ${instanceId}`);
+                }
+            }
+            
+            // Step 5: Create or get GitHub repository using GitHub API
+            let repoData: { html_url: string; clone_url: string };
+            
             const repoResponse = await fetch('https://api.github.com/user/repos', {
                 method: 'POST',
                 headers: {
                     'Authorization': `token ${request.token}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Cloudflare-OrangeBuild-GitHub-Export/1.0'
                 },
                 body: JSON.stringify({
                     name: request.repositoryName,
@@ -1569,26 +1626,85 @@ export class SandboxSdkClient extends BaseSandboxService {
                 })
             });
             
-            if (!repoResponse.ok) {
+            if (repoResponse.ok) {
+                // Repository was created successfully
+                repoData = await repoResponse.json() as {
+                    html_url: string;
+                    clone_url: string;
+                };
+                this.logger.info(`Created new GitHub repository: ${repoData.html_url}`);
+            } else if (repoResponse.status === 422) {
+                // Repository already exists - fetch existing repository information
+                // Use the transformed repository name for the API path
+                const getRepoResponse = await fetch(`https://api.github.com/repos/${request.username}/${actualRepoName}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `token ${request.token}`,
+                        'Content-Type': 'application/json',
+                        'User-Agent': 'Cloudflare-OrangeBuild-GitHub-Export/1.0'
+                    }
+                });
+                
+                if (!getRepoResponse.ok) {
+                    const error = await getRepoResponse.text();
+                    throw new Error(`Failed to fetch existing repository: ${error}`);
+                }
+                
+                repoData = await getRepoResponse.json() as {
+                    html_url: string;
+                    clone_url: string;
+                };
+                this.logger.info(`Using existing GitHub repository: ${repoData.html_url}`);
+            } else {
+                // Other error occurred
                 const error = await repoResponse.text();
                 throw new Error(`GitHub API error: ${error}`);
             }
             
-            const repoData = await repoResponse.json() as {
-                html_url: string;
-                clone_url: string;
-            };
+            // Step 6: Check if remote origin already exists
+            const remoteCheckResult = await this.executeCommand(instanceId, `git remote get-url origin`);
+            const remoteExists = remoteCheckResult.exitCode === 0;
             
-            // Configure git with token authentication and add remote
-            const gitConfigResult = await this.executeCommand(instanceId, `git config user.email "${request.email}" && git config user.name "${request.username}" && git remote add origin https://${request.token}@github.com/${request.username}/${request.repositoryName}.git`);
+            // Use the clone_url from GitHub API and inject the token for authentication
+            const remoteUrl = repoData.clone_url.replace('https://', `https://${request.token}@`);
             
-            if (gitConfigResult.exitCode !== 0) {
-                throw new Error(`Git config failed: ${gitConfigResult.stderr}`);
+            if (!remoteExists) {
+                // Add remote origin - quote the URL to handle any special characters
+                const remoteAddResult = await this.executeCommand(instanceId, `git remote add origin "${remoteUrl}"`);
+                if (remoteAddResult.exitCode !== 0) {
+                    throw new Error(`Git remote add failed: ${remoteAddResult.stderr}`);
+                }
+                this.logger.info(`Added remote origin for instance ${instanceId}`);
+            } else {
+                // Update existing remote to use the new URL with token - quote the URL
+                const remoteSetResult = await this.executeCommand(instanceId, `git remote set-url origin "${remoteUrl}"`);
+                if (remoteSetResult.exitCode !== 0) {
+                    throw new Error(`Git remote set-url failed: ${remoteSetResult.stderr}`);
+                }
+                this.logger.info(`Updated remote origin URL for instance ${instanceId}`);
             }
             
-            // Push with authentication
-            const pushResult = await this.executeCommand(instanceId, `git push -u origin main`);
+            // Step 7: Determine current branch and push
+            const branchResult = await this.executeCommand(instanceId, `git branch --show-current`);
+            const currentBranch = branchResult.stdout.trim() || 'main';
             
+            // Ensure we're on main branch (GitHub's default)
+            if (currentBranch !== 'main') {
+                const checkoutResult = await this.executeCommand(instanceId, `git checkout -b main`);
+                if (checkoutResult.exitCode !== 0) {
+                    // If checkout fails, try to rename current branch to main
+                    const renameResult = await this.executeCommand(instanceId, `git branch -m ${currentBranch} main`);
+                    if (renameResult.exitCode !== 0) {
+                        this.logger.warn(`Could not rename branch to main, pushing to ${currentBranch} instead`);
+                    }
+                }
+            }
+            
+            // Step 8: Push to GitHub
+            const finalBranchResult = await this.executeCommand(instanceId, `git branch --show-current`);
+            const pushBranch = finalBranchResult.stdout.trim() || 'main';
+            
+            const pushResult = await this.executeCommand(instanceId, `git push -u origin ${pushBranch}`);
             if (pushResult.exitCode !== 0) {
                 throw new Error(`Git push failed: ${pushResult.stderr}`);
             }

@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 
 import { cloudflare } from '@cloudflare/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
-import { nodePolyfills } from 'vite-plugin-node-polyfills';
+// import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -16,22 +16,24 @@ export default defineConfig({
     //         }
     //     }
     // },
-	plugins: [react(),  
+	plugins: [
+        react(),  
         cloudflare({
           configPath: "wrangler.jsonc",
           experimental: { remoteBindings: true },
         }),
         tailwindcss(),
         // Add the node polyfills plugin here
-        nodePolyfills({
-            exclude: [
-              'tty', // Exclude 'tty' module
-            ],
-            // We recommend leaving this as `true` to polyfill `global`.
-            globals: {
-                global: true,
-            },
-        })],
+        // nodePolyfills({
+        //     exclude: [
+        //       'tty', // Exclude 'tty' module
+        //     ],
+        //     // We recommend leaving this as `true` to polyfill `global`.
+        //     globals: {
+        //         global: true,
+        //     },
+        // })
+    ],
 	resolve: {
 	  alias: {
         // 'path': 'path-browserify',
