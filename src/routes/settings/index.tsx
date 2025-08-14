@@ -337,19 +337,19 @@ export default function SettingsPage() {
   // Helper function to provide descriptions based on key patterns
   const getAgentConfigDescription = React.useCallback((key: string) => {
     const descriptions: Record<string, string> = {
-      templateSelection: 'AI model for selecting project templates',
-      blueprint: 'Initial project planning and structure creation',
-      projectSetup: 'Setting up project scaffolding and initial files',
-      phaseGeneration: 'Breaking down work into manageable phases',
-      firstPhaseImplementation: 'Implementing the initial phase of development',
-      phaseImplementation: 'Implementing subsequent development phases',
-      realtimeCodeFixer: 'Real-time code analysis and fixing',
-      fastCodeFixer: 'Quick code fixes and optimizations',
-      conversationalResponse: 'Chat interactions and user communication',
-      userSuggestionProcessor: 'Processing and implementing user suggestions',
-      codeReview: 'Reviewing and improving generated code',
-      fileRegeneration: 'Regenerating or updating existing files',
-      screenshotAnalysis: 'Analyzing screenshots for UI/design implementation'
+      templateSelection: 'Quick template selection - Needs to be extremely fast with low latency. Intelligence level is less important than speed for rapid project bootstrapping.',
+      blueprint: 'Project architecture & UI design - Requires strong design thinking, UI/UX understanding, and architectural planning skills. Speed is important but coding ability is not critical.',
+      projectSetup: 'Technical scaffolding setup - Must excel at following technical instructions precisely and setting up proper project structure. Reliability and instruction-following are key.',
+      phaseGeneration: 'Development phase planning - Needs rapid planning abilities with large context windows for understanding project scope. Quick thinking is essential, coding skills are not required.',
+      firstPhaseImplementation: 'Initial development phase - Requires large context windows and excellent coding skills for implementing the foundation. Deep thinking is less critical than execution.',
+      phaseImplementation: 'Subsequent development phases - Needs large context windows and superior coding abilities for complex feature implementation. Focus is on execution rather than reasoning.',
+      realtimeCodeFixer: 'Real-time bug detection - Must be extremely fast at identifying and fixing code issues with strong debugging skills. Large context windows are not needed, speed is crucial.',
+      fastCodeFixer: 'Ultra-fast code fixes - Optimized for maximum speed with decent coding ability. No deep thinking or large context required, pure speed and basic bug fixing.',
+      conversationalResponse: 'User chat interactions - Handles natural conversation flow and user communication. Balanced capabilities for engaging dialogue and helpful responses.',
+      userSuggestionProcessor: 'User feedback processing - Analyzes and implements user suggestions and feedback. Requires understanding user intent and translating to actionable changes.',
+      codeReview: 'Code quality analysis - Needs large context windows, strong analytical thinking, and good speed for thorough code review. Must identify issues and suggest improvements.',
+      fileRegeneration: 'File recreation - Focused on pure coding ability to regenerate or rewrite files. No context window or deep thinking required, just excellent code generation.',
+      screenshotAnalysis: 'UI/design analysis - Analyzes visual designs and screenshots to understand UI requirements. Requires visual understanding and design interpretation skills.'
     };
     return descriptions[key] || `AI model configuration for ${formatAgentConfigName(key)}`;
   }, [formatAgentConfigName]);
@@ -357,15 +357,72 @@ export default function SettingsPage() {
   // Helper function to get reasoning effort options
   const getReasoningEffortOptions = () => [
     { value: 'default', label: 'Use default' },
-    { value: 'low', label: 'Low' },
-    { value: 'medium', label: 'Medium' },
-    { value: 'high', label: 'High' }
+    { value: 'low', label: 'Low (Fast)' },
+    { value: 'medium', label: 'Medium (Balanced)' },
+    { value: 'high', label: 'High (Deep)' }
   ];
+
+  // Helper function to get parameter guidance
+  const getParameterGuidance = (param: string, agentAction: string) => {
+    const guidance: Record<string, Record<string, string>> = {
+      temperature: {
+        templateSelection: 'Low (0.1-0.3) for consistent template matching',
+        blueprint: 'Medium-High (0.7-1.0) for creative design ideas',
+        projectSetup: 'Low (0.1-0.3) for reliable, precise setup',
+        phaseGeneration: 'Medium (0.5-0.7) for structured planning',
+        phaseImplementation: 'Low-Medium (0.2-0.5) for accurate code',
+        realtimeCodeFixer: 'Low-Medium (0.3-0.5) for focused debugging',
+        fastCodeFixer: 'Very Low (0.0-0.2) for precise quick fixes',
+        codeReview: 'Low-Medium (0.2-0.4) for objective analysis'
+      },
+      maxTokens: {
+        templateSelection: 'Low (1K-2K) - Simple template selection',
+        blueprint: 'High (16K-64K) - Detailed architecture planning',
+        projectSetup: 'Medium (4K-10K) - Setup instructions and structure',
+        phaseGeneration: 'High (32K-64K) - Comprehensive project breakdown',
+        phaseImplementation: 'Very High (64K+) - Large code implementations',
+        realtimeCodeFixer: 'Medium (8K-32K) - Code analysis and fixes',
+        fastCodeFixer: 'Medium (8K-32K) - Quick focused fixes',
+        codeReview: 'High (32K-64K) - Thorough code analysis'
+      },
+      reasoningEffort: {
+        templateSelection: 'Low recommended - Speed is priority over deep thinking',
+        blueprint: 'Medium-High recommended - Creative thinking required for design',
+        projectSetup: 'Low recommended - Following instructions precisely',
+        phaseGeneration: 'Medium-High recommended - Strategic planning needs analysis',
+        phaseImplementation: 'Low recommended - Focus on execution over reasoning',
+        realtimeCodeFixer: 'Medium recommended - Balance speed with debugging analysis',
+        fastCodeFixer: 'Low recommended - Prioritize speed over deep analysis',
+        codeReview: 'High recommended - Thorough analysis of code quality'
+      }
+    };
+    return guidance[param]?.[agentAction] || '';
+  };
 
   // Helper function to get user-friendly model name
   const getModelDisplayName = (modelValue: string) => {
     const model = getAvailableModels().find(m => m.value === modelValue);
     return model ? model.label : modelValue;
+  };
+
+  // Helper function to get model recommendations based on agent action
+  const getModelRecommendation = (agentAction: string) => {
+    const recommendations: Record<string, string> = {
+      templateSelection: '💡 Recommended: Fast models like Flash Lite or GPT-5 Mini for quick responses',
+      blueprint: '🏗️ Recommended: Creative models like GPT-5 or Claude 4 Sonnet for design thinking',
+      projectSetup: '⚙️ Recommended: Reliable instruction-following models like GPT-5 Mini or Claude Sonnet',
+      phaseGeneration: '📋 Recommended: Models with large context like GPT-5 or Gemini 2.5 Pro for planning',
+      firstPhaseImplementation: '🏁 Recommended: High-capability coding models like Gemini 2.5 Pro or Claude 4 Sonnet',
+      phaseImplementation: '⚡ Recommended: Strong coding models like Gemini 2.5 Pro or Claude 4 Sonnet',
+      realtimeCodeFixer: '🚀 Recommended: Fast debugging models like Claude 4 Sonnet or Cerebras models',
+      fastCodeFixer: '⚡ Recommended: Ultra-fast models like Cerebras Qwen or GPT-OSS for speed',
+      conversationalResponse: '💬 Recommended: Balanced models like Gemini 2.5 Flash or Claude 3.5 Sonnet',
+      userSuggestionProcessor: '🎯 Recommended: Understanding models like Gemini 2.5 Pro or GPT-5',
+      codeReview: '🔍 Recommended: Analytical models like Gemini 2.5 Pro with large context windows',
+      fileRegeneration: '📝 Recommended: Pure coding models like Claude 4 Sonnet or Cerebras Qwen',
+      screenshotAnalysis: '👁️ Recommended: Vision-capable models like Gemini 2.5 Pro for image analysis'
+    };
+    return recommendations[agentAction] || '';
   };
 
   const handleSaveProfile = async () => {
@@ -1291,11 +1348,16 @@ export default function SettingsPage() {
                       return (
                         <div key={config.key} className="p-4 border rounded-lg bg-card">
                           <div className="flex items-start justify-between mb-3">
-                            <div>
+                            <div className="space-y-1 flex-1 pr-3">
                               <h5 className="font-medium">{config.name}</h5>
-                              <p className="text-xs text-muted-foreground">{config.description}</p>
+                              <p className="text-xs text-muted-foreground leading-relaxed">{config.description}</p>
+                              {getModelRecommendation(config.key) && (
+                                <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                                  {getModelRecommendation(config.key)}
+                                </p>
+                              )}
                             </div>
-                            <Badge variant={isUserOverride ? "default" : "outline"} className="text-xs">
+                            <Badge variant={isUserOverride ? "default" : "outline"} className="text-xs shrink-0">
                               {isUserOverride ? "Custom" : "Default"}
                             </Badge>
                           </div>
@@ -1394,11 +1456,18 @@ export default function SettingsPage() {
                                     saveModelConfig(config.key, updatedConfig);
                                   }}
                                 />
-                                {defaultConfig?.temperature && (
-                                  <p className="text-xs text-muted-foreground">
-                                    🔧 System default: {defaultConfig.temperature}
-                                  </p>
-                                )}
+                                <div className="space-y-1">
+                                  {defaultConfig?.temperature && (
+                                    <p className="text-xs text-muted-foreground">
+                                      🔧 System default: {defaultConfig.temperature}
+                                    </p>
+                                  )}
+                                  {getParameterGuidance('temperature', config.key) && (
+                                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                                      💡 {getParameterGuidance('temperature', config.key)}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
                               
                               <div className="space-y-2">
@@ -1422,11 +1491,18 @@ export default function SettingsPage() {
                                     saveModelConfig(config.key, updatedConfig);
                                   }}
                                 />
-                                {defaultConfig?.max_tokens && (
-                                  <p className="text-xs text-muted-foreground">
-                                    🔧 System default: {defaultConfig.max_tokens?.toLocaleString()}
-                                  </p>
-                                )}
+                                <div className="space-y-1">
+                                  {defaultConfig?.max_tokens && (
+                                    <p className="text-xs text-muted-foreground">
+                                      🔧 System default: {defaultConfig.max_tokens?.toLocaleString()}
+                                    </p>
+                                  )}
+                                  {getParameterGuidance('maxTokens', config.key) && (
+                                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                                      💡 {getParameterGuidance('maxTokens', config.key)}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
                               
                               <div className="space-y-2">
@@ -1455,11 +1531,18 @@ export default function SettingsPage() {
                                     ))}
                                   </SelectContent>
                                 </Select>
-                                {defaultConfig?.reasoning_effort && (
-                                  <p className="text-xs text-muted-foreground">
-                                    🔧 System default: {defaultConfig.reasoning_effort}
-                                  </p>
-                                )}
+                                <div className="space-y-1">
+                                  {defaultConfig?.reasoning_effort && (
+                                    <p className="text-xs text-muted-foreground">
+                                      🔧 System default: {defaultConfig.reasoning_effort}
+                                    </p>
+                                  )}
+                                  {getParameterGuidance('reasoningEffort', config.key) && (
+                                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                                      💡 {getParameterGuidance('reasoningEffort', config.key)}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>

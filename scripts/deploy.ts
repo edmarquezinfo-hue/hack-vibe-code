@@ -93,6 +93,7 @@ class CloudflareDeploymentManager {
 	private env: EnvironmentConfig;
 	private cloudflare: Cloudflare;
 	private aiGatewayCloudflare?: Cloudflare; // Separate SDK instance for AI Gateway operations
+	private conflictingVarsForCleanup: Record<string, string> | null = null; // For signal cleanup
 
 	constructor() {
 		this.validateEnvironment();
@@ -102,6 +103,42 @@ class CloudflareDeploymentManager {
 		this.cloudflare = new Cloudflare({
 			apiToken: this.env.CLOUDFLARE_API_TOKEN,
 		});
+		
+		// Set up signal handling for graceful cleanup
+		this.setupSignalHandlers();
+	}
+
+	/**
+	 * Sets up signal handlers for graceful cleanup on Ctrl+C or termination
+	 * Reuses existing restoreOriginalVars method following DRY principles
+	 */
+	private setupSignalHandlers(): void {
+		const gracefulExit = async (signal: string) => {
+			console.log(`\n🛑 Received ${signal}, performing cleanup...`);
+			
+			try {
+				// Restore conflicting vars using existing restoration method
+				if (this.conflictingVarsForCleanup) {
+					console.log('🔄 Restoring original wrangler.jsonc configuration...');
+					await this.restoreOriginalVars(this.conflictingVarsForCleanup);
+				} else {
+					console.log('ℹ️  No configuration changes to restore');
+				}
+			} catch (error) {
+				console.error(`❌ Error during cleanup: ${error instanceof Error ? error.message : String(error)}`);
+			}
+			
+			console.log('👋 Cleanup completed. Exiting...');
+			process.exit(1);
+		};
+
+		// Handle Ctrl+C (SIGINT)
+		process.on('SIGINT', () => gracefulExit('SIGINT'));
+		
+		// Handle termination (SIGTERM)
+		process.on('SIGTERM', () => gracefulExit('SIGTERM'));
+		
+		console.log('✅ Signal handlers registered for graceful cleanup');
 	}
 
 	/**
@@ -755,12 +792,16 @@ class CloudflareDeploymentManager {
 	 */
 	private async updateCustomDomainRoutes(): Promise<void> {
 		const customDomain = this.config.vars?.CUSTOM_DOMAIN;
-		// Get the original custom domain from wrangler.jsonc to compare
-		const originalCustomDomain = 'build.cloudflare.dev'; // Default from wrangler.jsonc
 
 		try {
 			const wranglerPath = join(PROJECT_ROOT, 'wrangler.jsonc');
 			const content = readFileSync(wranglerPath, 'utf-8');
+			
+			// Parse the JSONC file to get current routes
+			const config = parse(content) as WranglerConfig;
+			
+			// Get the original custom domain from existing routes (route with custom_domain: true)
+			const originalCustomDomain = config.routes?.find(route => route.custom_domain)?.pattern || null;
 
 			if (!customDomain) {
 				console.log(
@@ -814,11 +855,10 @@ class CloudflareDeploymentManager {
 				`🔧 Updating wrangler.jsonc routes with custom domain: ${customDomain}`,
 			);
 
-			// Parse the JSONC file
-			const config = parse(content) as WranglerConfig;
-
-			// Detect zone if custom domain is different from original
-			const { zoneName, zoneId } = await this.detectZoneForDomain(customDomain, originalCustomDomain);
+			// Detect zone if custom domain is different from original (only if originalCustomDomain was found)
+			const { zoneName, zoneId } = originalCustomDomain 
+				? await this.detectZoneForDomain(customDomain, originalCustomDomain)
+				: { zoneName: null, zoneId: null };
 
 			// Define the expected routes based on custom domain
 			let expectedRoutes: Array<{
@@ -1521,6 +1561,9 @@ class CloudflareDeploymentManager {
 			// Step 3: Resolve var/secret conflicts before deployment
 			console.log('\n📋 Step 3: Resolving var/secret conflicts...');
 			const conflictingVars = await this.removeConflictingVars();
+			
+			// Store for potential cleanup on early exit
+			this.conflictingVarsForCleanup = conflictingVars;
 
 			// Steps 2-4: Run all setup operations in parallel
 			const operations: Promise<void>[] = [
@@ -1569,6 +1612,9 @@ class CloudflareDeploymentManager {
 				// Step 7: Always restore original vars (even if deployment failed)
 				console.log('\n📋 Step 7: Restoring original configuration...');
 				await this.restoreOriginalVars(conflictingVars);
+				
+				// Clear the backup since we've restored
+				this.conflictingVarsForCleanup = null;
 			}
 
 			// Deployment complete
