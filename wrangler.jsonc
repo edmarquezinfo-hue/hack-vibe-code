@@ -4,7 +4,7 @@
  */
  {
 	// "$schema": "node_modules/wrangler/config-schema.json",
-	"name": "orange-build",
+	"name": "orange-build-008",
 	"main": "worker/index.ts",
 	"compatibility_date": "2025-08-10",
 	"compatibility_flags": ["nodejs_compat"],
@@ -122,21 +122,22 @@
         }
 	],
 	"routes": [
-	  {
-		"pattern": "build.cloudflare.dev",
-		"custom_domain": true
-	  },
-	  {
-		"pattern": "*build.cloudflare.dev/*",
-		"custom_domain": false
-	  }
-	],
+        {
+            "pattern": "build.cloudflare.dev",
+            "custom_domain": true
+        },
+        {
+            "pattern": "*build.cloudflare.dev/*",
+            "custom_domain": false,
+            "zone_id": "11eff4ca128ddc1d11dee256e64ca0a9"
+        }
+    ],
 	"vars": {
         "TEMPLATES_REPOSITORY": "https://github.com/AshishKumar4/cloudflare-build-templates",
         "CLOUDFLARE_AI_GATEWAY": "c-coder",
         "CUSTOM_DOMAIN": "build.cloudflare.dev",
-        "SANDBOX_INSTANCE_TYPE": "standard",
-        "MAX_SANDBOX_INSTANCES": "5"
+        "MAX_SANDBOX_INSTANCES": 2,
+        "SANDBOX_INSTANCE_TYPE": "standard"
     },
 	"workers_dev": false,
 	"preview_urls": false
