@@ -4,14 +4,7 @@
  */
 
 import { useState } from 'react';
-import {
-	LogIn,
-	LogOut,
-	Settings,
-	LayoutDashboard,
-	UserCircle,
-	Bell,
-} from 'lucide-react';
+import { LogIn, LogOut, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
@@ -23,14 +16,11 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 	DropdownMenuGroup,
-	DropdownMenuShortcut,
 } from '../ui/dropdown-menu';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
-import { Badge } from '../ui/badge';
 
 interface AuthButtonProps {
 	className?: string;
@@ -170,52 +160,13 @@ export function AuthButton({ className }: AuthButtonProps) {
 
 						<DropdownMenuGroup>
 							<DropdownMenuItem
-								onClick={() => navigate('/dashboard')}
-								className="cursor-pointer"
-							>
-								<LayoutDashboard className="mr-1 h-4 w-4" />
-								Dashboard
-								<DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
-							</DropdownMenuItem>
-
-							<DropdownMenuItem
-								onClick={() => navigate('/profile')}
-								className="cursor-pointer"
-							>
-								<UserCircle className="mr-1 h-4 w-4" />
-								Profile
-								<DropdownMenuShortcut>⌘P</DropdownMenuShortcut>
-							</DropdownMenuItem>
-
-							<DropdownMenuItem
 								onClick={() => navigate('/settings')}
 								className="cursor-pointer"
 							>
 								<Settings className="mr-1 h-4 w-4" />
 								Settings
-								<DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
 							</DropdownMenuItem>
 						</DropdownMenuGroup>
-
-						<DropdownMenuSeparator />
-
-						<DropdownMenuGroup>
-							<DropdownMenuItem
-								onClick={() => navigate('/notifications')}
-								className="cursor-pointer"
-							>
-								<Bell className="mr-1 h-4 w-4" />
-								Notifications
-								<Badge
-									variant="secondary"
-									className="ml-auto text-xs px-1.5 py-0"
-								>
-									3
-								</Badge>
-							</DropdownMenuItem>
-						</DropdownMenuGroup>
-
-						<DropdownMenuSeparator />
 
 						<DropdownMenuItem
 							onClick={() => logout()}
@@ -223,7 +174,6 @@ export function AuthButton({ className }: AuthButtonProps) {
 						>
 							<LogOut className="mr-1 h-4 w-4" />
 							Sign Out
-							<DropdownMenuShortcut>⌘Q</DropdownMenuShortcut>
 						</DropdownMenuItem>
 					</motion.div>
 				</DropdownMenuContent>
