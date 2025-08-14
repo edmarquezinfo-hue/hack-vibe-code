@@ -135,9 +135,7 @@
 	"vars": {
         "TEMPLATES_REPOSITORY": "https://github.com/AshishKumar4/cloudflare-build-templates",
         "CLOUDFLARE_AI_GATEWAY": "c-coder",
-        "CUSTOM_DOMAIN": "build.cloudflare.dev",
-        "SANDBOX_INSTANCE_TYPE": "standard",
-        "MAX_SANDBOX_INSTANCES": "5"
+        "CUSTOM_DOMAIN": "build.cloudflare.dev"
     },
 	"workers_dev": false,
 	"preview_urls": false

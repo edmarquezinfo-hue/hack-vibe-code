@@ -78,11 +78,11 @@ export class ScreenshotAnalysisOperation extends AgentOperation<ScreenshotAnalys
             ];
     
             const { object: analysisResult } = await executeInference({
-                id: options.agentId,
                 env: env,
                 messages,
                 schema: ScreenshotAnalysisSchema,
                 agentActionName: 'screenshotAnalysis',
+                context: options.inferenceContext,
                 retryLimit: 3
             });
     

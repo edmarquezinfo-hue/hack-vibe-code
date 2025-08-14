@@ -17,6 +17,8 @@ export default {
         const url = new URL(request.url);
         const hostname = url.hostname;
         try {
+            // make a copy of request
+            const requestCopy = request.clone() as Request<unknown, CfProperties<unknown>>;
             // Check if hostname is an ip address via regex
             const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/;
             if (!ipRegex.test(hostname)) {
@@ -25,8 +27,8 @@ export default {
                 // logger.info(`Subdomain: ${subdomain}, Hostname: ${hostname}`);
                 // If the subdomain is not build, or there are less than 3 subdomains, redirect it to dispatcher
                 // Thus either the main site should be build.somehost.com or build.something.somehost.com or something.com or www.something.com
-                if (subdomain !== 'localhost' && subdomain !== 'www' && subdomain !== 'build' && hostname.split('.').length >= 2) {
-                    const proxyResponse = await proxyToSandbox(request, env);
+                if (hostname !== env.CUSTOM_DOMAIN && subdomain !== 'localhost' && subdomain !== 'www' && subdomain !== 'build' && hostname.split('.').length >= 2) {
+                    const proxyResponse = await proxyToSandbox(requestCopy, env);
                     if (proxyResponse) return proxyResponse;
                     logger.info(`Dispatching request to dispatcher`);
                     // Get worker from dispatch namespace
@@ -34,7 +36,7 @@ export default {
                     if (worker) {
                         logger.info(`Dispatching request to worker ${subdomain}`);
                         // Dispatch request to worker
-                        const response = await worker.fetch(request);
+                        const response = await worker.fetch(requestCopy);
                         return response;
                     }
                 }

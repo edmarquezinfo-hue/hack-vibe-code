@@ -4,6 +4,7 @@ import type { Blueprint, ClientReportedErrorType, PhaseConceptType ,
 import type { TemplateDetails } from '../../services/sandbox/sandboxTypes';
 import type { ScreenshotData } from './types';
 import type { ConversationMessage } from '../inferutils/common';
+import type { InferenceContext } from '../inferutils/infer';
 
 export interface FileState extends FileOutputType {
     last_hash: string;
@@ -50,4 +51,5 @@ export interface CodeGenState {
     currentPhase?: PhaseConceptType; // Current phase being worked on
 
     conversationMessages: ConversationMessage[];
+    inferenceContext: InferenceContext;
 }  

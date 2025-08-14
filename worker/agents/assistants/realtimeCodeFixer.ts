@@ -270,10 +270,10 @@ Don't be nitpicky, If there are no actual issues, just say "No issues found".
 `),
                 ]);
 
-                const { string: fixResult } = await executeInference({
+                const fixResult = await executeInference({
                     env: this.env,
-                    id: this.agentId,
                     agentActionName: "realtimeCodeFixer",
+                    context: { agentId: this.agentId },
                     messages,
                     modelName: (i !== 0 && this.altPassModelOverride) || this.lightMode ? this.altPassModelOverride : undefined,
                     temperature: (i !== 0 && this.altPassModelOverride) || this.lightMode ? 0.0 : undefined,
@@ -286,11 +286,11 @@ Don't be nitpicky, If there are no actual issues, just say "No issues found".
                     return generatedFile;
                 }
 
-                this.save([createAssistantMessage(fixResult)]);
+                this.save([createAssistantMessage(fixResult.string)]);
 
-                if (fixResult.includes('<content>')) {
+                if (fixResult.string.includes('<content>')) {
                     // Complete rewrite, extract content between tags
-                    const contentMatch = fixResult.match(/<content>([\s\S]*?)<\/content>/);
+                    const contentMatch = fixResult.string.match(/<content>([\s\S]*?)<\/content>/);
                     if (contentMatch) {
                         content = contentMatch[1].trim();
                     }
@@ -299,7 +299,7 @@ Don't be nitpicky, If there are no actual issues, just say "No issues found".
                 }
                 
                 // Search the number of search blocks in fixResult
-                searchBlocks = fixResult.match(/<<<\s+SEARCH/g)?.length ?? 0;
+                searchBlocks = fixResult.string.match(/<<<\s+SEARCH/g)?.length ?? 0;
 
                 this.logger.info(`Applied search replace diff to file: ${generatedFile.file_path}
 ================================================================================
@@ -307,9 +307,9 @@ Raw content (pass ${i + 1}, found ${searchBlocks} search blocks):
 ${content}
 -------------------------
 Diff:
-${fixResult}
+${fixResult.string}
 -------------------------`);
-                content = await this.applyDiffSafely(content, fixResult);
+                content = await this.applyDiffSafely(content, fixResult.string);
 
                 this.logger.info(`
 -------------------------

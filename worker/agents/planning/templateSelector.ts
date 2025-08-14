@@ -75,11 +75,11 @@ Which template (if any) is the most suitable starting point for this query?`;
         ];
 
         const { object: selection } = await executeInference({
-            id: agentId,
             env,
             messages,
             agentActionName: "templateSelection",
             schema: TemplateSelectionSchema,
+            context: { agentId },
             maxTokens: 2000,
         });
 
