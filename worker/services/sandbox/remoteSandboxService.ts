@@ -13,7 +13,6 @@ import {
     StaticAnalysisResponse,
     DeploymentCredentials,
     DeploymentResult,
-    GitHubInitRequest, GitHubInitResponse, GitHubPushRequest, GitHubPushResponse,
     GetLogsResponse,
     ListInstancesResponse,
     SaveInstanceResponse,
@@ -32,6 +31,9 @@ import {
     DeploymentResultSchema,
     ShutdownResponseSchema,
     StaticAnalysisResponseSchema,
+    GitHubExportResponse,
+    GitHubExportRequest,
+    GitHubExportResponseSchema,
 } from './sandboxTypes';
 import { BaseSandboxService } from "./BaseSandboxService";
 import { env } from 'cloudflare:workers'
@@ -141,12 +143,13 @@ export class RemoteSandboxServiceClient extends BaseSandboxService{
     /**
      * Create a new runner instance.
      */
-    async createInstance(templateName: string, projectName: string, webhookUrl?: string, wait: boolean = false, ): Promise<BootstrapResponse> {
+    async createInstance(templateName: string, projectName: string, webhookUrl?: string, wait: boolean = false, localEnvVars?: Record<string, string>): Promise<BootstrapResponse> {
         const requestBody: BootstrapRequest = { 
             templateName, 
             projectName, 
             wait,
-            ...(webhookUrl && { webhookUrl })
+            ...(webhookUrl && { webhookUrl }),
+            ...(localEnvVars && { envVars: localEnvVars })
         };
         return this.makeRequest('/instances', 'POST', BootstrapResponseSchema, requestBody);
     }
@@ -232,15 +235,8 @@ export class RemoteSandboxServiceClient extends BaseSandboxService{
     /**
      * Initialize GitHub repository for an instance
      */
-    async initGitHubRepository(instanceId: string, request: GitHubInitRequest): Promise<GitHubInitResponse> {
-        return this.makeRequest(`/instances/${instanceId}/github/init`, 'POST', undefined, request);
-    }
-
-    /**
-     * Push files to GitHub repository for an instance
-     */
-    async pushToGitHub(instanceId: string, request: GitHubPushRequest): Promise<GitHubPushResponse> {
-        return this.makeRequest(`/instances/${instanceId}/github/push`, 'POST', undefined, request);
+    async exportToGitHub(instanceId: string, request: GitHubExportRequest): Promise<GitHubExportResponse> {
+        return this.makeRequest(`/instances/${instanceId}/github/export`, 'POST', GitHubExportResponseSchema, request);
     }
 
     /**

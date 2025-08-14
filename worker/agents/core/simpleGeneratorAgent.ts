@@ -10,8 +10,8 @@ import {
     TechnicalInstructionType,
     PhaseImplementationSchemaType,
 } from '../schemas';
-import { StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
-import { GitHubExportOptions, GitHubExportResult, GitHubInitRequest, GitHubInitResponse, GitHubPushRequest, GitHubPushResponse } from '../../types/github';
+import { GitHubExportRequest, StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
+import { GitHubExportOptions, GitHubExportResult } from '../../types/github';
 import { CodeGenState, CurrentDevState } from './state';
 import { AllIssues } from './types';
 import { WebSocketMessageResponses } from '../constants';
@@ -1757,53 +1757,39 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 );
             }
 
-            const initRequest: GitHubInitRequest = {
+            const exportRequest: GitHubExportRequest = {
                 token: githubIntegration.accessToken,
                 repositoryName: options.repositoryName,
                 description: options.description || `Generated web application: ${this.state.blueprint?.title || options.repositoryName}`,
                 isPrivate: options.isPrivate,
                 email: githubIntegration.email,
-                username: githubIntegration.username
-            };
-
-            this.logger.info('Creating GitHub repository', { initRequest });
-
-            const createRepoResult = await this.initGitHubRepository(initRequest);
-
-            if (!createRepoResult?.success) {
-                return ErrorHandler.handleGitHubExportError(
-                    this.logger,
-                    this,
-                    'Failed to create GitHub repository',
-                    createRepoResult?.error || 'Failed to create GitHub repository'
-                );
-            }
-
-            const repositoryUrl = createRepoResult.repositoryUrl;
-            this.logger.info('GitHub repository created successfully', { repositoryUrl });
-
-            // Step 2: Initialize git and upload files
-            this.broadcast(WebSocketMessageResponses.GITHUB_EXPORT_PROGRESS, {
-                message: 'Uploading generated files...',
-                step: 'uploading_files',
-                progress: 40
-            });
-
-            // Push files to GitHub (sandbox instance already has all files)
-            const pushRequest: GitHubPushRequest = {
+                username: githubIntegration.username,
                 commitMessage: `Initial commit: Generated web application\n\n🤖 Generated with Orange Build\n${this.state.blueprint?.title ? `Blueprint: ${this.state.blueprint.title}` : ''}`
             };
 
-            const uploadResult = await this.pushToGitHub(pushRequest);
+            this.logger.info('Exporting to GitHub repository', { exportRequest });
 
-            if (!uploadResult?.success) {
+            // Update progress for creating repository
+            this.broadcast(WebSocketMessageResponses.GITHUB_EXPORT_PROGRESS, {
+                message: 'Creating GitHub repository and uploading files...',
+                step: 'uploading_files',
+                progress: 30
+            });
+
+            // Use consolidated export method that handles the complete flow
+            const exportResult = await this.getSandboxServiceClient().exportToGitHub(this.state.sandboxInstanceId!, exportRequest);
+
+            if (!exportResult?.success) {
                 return ErrorHandler.handleGitHubExportError(
                     this.logger,
                     this,
-                    'Failed to upload files to GitHub repository',
-                    uploadResult?.error || 'Failed to upload files to GitHub'
+                    'Failed to export to GitHub repository',
+                    exportResult?.error || 'Failed to export to GitHub repository'
                 );
             }
+
+            const repositoryUrl = exportResult.repositoryUrl;
+            this.logger.info('GitHub export completed successfully', { repositoryUrl, commitSha: exportResult.commitSha });
 
             // Step 3: Finalize
             this.broadcast(WebSocketMessageResponses.GITHUB_EXPORT_PROGRESS, {
@@ -1888,45 +1874,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         }
     }
 
-    /**
-     * Initialize GitHub repository using sandbox service client
-     */
-    private async initGitHubRepository(request: GitHubInitRequest): Promise<GitHubInitResponse> {
-        if (!this.getSandboxServiceClient() || !this.state.sandboxInstanceId) {
-            return { success: false, error: 'Runner service client or instance not available' };
-        }
-
-        try {
-            const result = await this.getSandboxServiceClient().initGitHubRepository(this.state.sandboxInstanceId, request);
-            return result || { success: false, error: 'Failed to initialize repository' };
-        } catch (error) {
-            this.logger.error('Error initializing GitHub repository', error);
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : String(error) 
-            };
-        }
-    }
-
-    /**
-     * Push to GitHub repository using sandbox service client
-     */
-    private async pushToGitHub(request: GitHubPushRequest): Promise<GitHubPushResponse> {
-        if (!this.getSandboxServiceClient() || !this.state.sandboxInstanceId) {
-            return { success: false, error: 'Runner service client or instance not available' };
-        }
-
-        try {
-            const result = await this.getSandboxServiceClient().pushToGitHub(this.state.sandboxInstanceId, request);
-            return result || { success: false, error: 'Failed to push to repository' };
-        } catch (error) {
-            this.logger.error('Error pushing to GitHub', error);
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : String(error) 
-            };
-        }
-    }
 
     /**
      * Update database with generation status
