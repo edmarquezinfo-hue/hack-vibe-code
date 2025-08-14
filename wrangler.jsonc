@@ -66,7 +66,7 @@
 		{
 			"binding": "DB",
 			"database_name": "orange-build-db",
-			"database_id": "3085356f-6009-4a75-a478-66c05a5a532f",
+			"database_id": "04bba276-262f-46db-8e4a-7eeb07408773",
 			"migrations_dir": "migrations",
 			"experimental_remote": true
 		}
@@ -101,7 +101,7 @@
     "kv_namespaces": [
         {
             "binding": "INSTANCE_REGISTRY",
-            "id": "801cc1d5758e44f1bd0565985d9d6df0",
+            "id": "66f54d6197764143a927992416f1a050",
             "experimental_remote": true
         }
     ],
@@ -135,7 +135,7 @@
 	"vars": {
         "TEMPLATES_REPOSITORY": "https://github.com/AshishKumar4/cloudflare-build-templates",
         "CLOUDFLARE_AI_GATEWAY": "c-coder",
-        "CUSTOM_DOMAIN": "build.cloudflare.dev",
+        "CUSTOM_DOMAIN": "build.saasysite.me",
         "MAX_SANDBOX_INSTANCES": 2,
         "SANDBOX_INSTANCE_TYPE": "standard"
     },
