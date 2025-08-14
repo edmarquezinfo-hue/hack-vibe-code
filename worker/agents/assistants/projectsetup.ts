@@ -3,9 +3,9 @@ import { FileOutputType, SetupCommandsType, type Blueprint } from "../schemas";
 import { createObjectLogger, StructuredLogger } from '../../logger';
 import { generalSystemPromptBuilder, PROMPT_UTILS } from '../prompts';
 import { createAssistantMessage, createSystemMessage, createUserMessage } from "../inferutils/common";
-import { executeInference, InferenceContext } from "../inferutils/infer";
+import { executeInference, } from "../inferutils/infer";
 import Assistant from "./assistant";
-import { AIModels } from "../inferutils/config";
+import { AIModels, InferenceContext } from "../inferutils/config";
 import { extractCommands } from "../utils/common";
 
 interface GenerateSetupCommandsArgs {
