@@ -6,6 +6,7 @@
 		"lib": ["ES2022", "DOM", "DOM.Iterable"],
 		"module": "ESNext",
 		"skipLibCheck": true,
+		// "types": ["./worker-configuration.d.ts", "vite/client", "jest"],
 
 		/* Bundler mode */
 		"moduleResolution": "bundler",
@@ -32,5 +33,5 @@
         //   ]
 		}
 	},
-	"include": ["src"]
+	"include": ["src"],
 }

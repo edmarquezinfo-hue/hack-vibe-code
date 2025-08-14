@@ -88,7 +88,8 @@ export class FileRegenerationOperation extends AgentOperation<FileRegenerationIn
                     previousFiles: options.context.allFiles,
                     query: options.context.query,
                     blueprint: options.context.blueprint,
-                    template: options.context.templateDetails
+                    template: options.context.templateDetails,
+                    inferenceContext: options.inferenceContext
                 },
                 undefined,
                 inputs.issues,

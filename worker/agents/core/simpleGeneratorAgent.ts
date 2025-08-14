@@ -41,7 +41,7 @@ import { BaseSandboxService } from '../../services/sandbox/BaseSandboxService';
 import { getSandboxService } from '../../services/sandbox/factory';
 import { WebSocketMessageData, WebSocketMessageType } from '../websocketTypes';
 import { ConversationMessage } from '../inferutils/common';
-import { InferenceContext } from '../inferutils/infer';
+import { InferenceContext } from '../inferutils/config';
 import { ModelConfigService } from '../../services/modelConfig/ModelConfigService';
 import { SecretsService } from '../../services/secrets/secretsService';
 import { ModelConfig } from '../inferutils/config';
@@ -257,7 +257,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 agentId: this.state.sessionId,
                 query: this.state.query,
                 blueprint: this.state.blueprint,
-                template: this.state.templateDetails
+                template: this.state.templateDetails,
+                inferenceContext: this.state.inferenceContext
             });
         }
         return this.projectSetupAssistant;

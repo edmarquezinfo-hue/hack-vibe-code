@@ -4,16 +4,9 @@ import z from 'zod';
 // import { CodeEnhancementOutput, CodeEnhancementOutputType } from '../codegen/phasewiseGenerator';
 import { SchemaFormat } from './schemaFormatters';
 import { ChatCompletionTool, ReasoningEffort } from 'openai/resources.mjs';
-import { AGENT_CONFIG, AgentActionKey, AIModels } from './config';
+import { AGENT_CONFIG, AgentActionKey, AIModels, InferenceContext } from './config';
 import { createLogger } from '../../logger';
 import { ModelConfig } from './config';
-
-export interface InferenceContext {
-    agentId: string;
-    userId?: string;
-    userModelConfigs?: Map<AgentActionKey, ModelConfig>;
-    userApiKeys?: Map<string, string>;
-}
 
 const logger = createLogger('InferenceUtils');
 
