@@ -673,10 +673,90 @@ class CloudflareDeploymentManager {
 	}
 
 	/**
+	 * Gets the zone name and ID for a given domain by testing subdomains
+	 */
+	private async detectZoneForDomain(customDomain: string, originalDomain: string): Promise<{
+		zoneName: string | null;
+		zoneId: string | null;
+	}> {
+		// If the custom domain is the same as the original, don't need zone detection
+		if (customDomain === originalDomain) {
+			console.log(`ℹ️  CUSTOM_DOMAIN matches original domain, no zone detection needed`);
+			return { zoneName: null, zoneId: null };
+		}
+
+		console.log(`🔍 Detecting zone for custom domain: ${customDomain}`);
+		console.log(`   Original domain was: ${originalDomain}`);
+
+		// Extract possible zone names by progressively removing subdomains
+		const domainParts = customDomain.split('.');
+		const possibleZones: string[] = [];
+
+		// Generate all possible zone names from longest to shortest
+		// e.g., for 'abc.test.xyz.build.cloudflare.dev' generates:
+		// ['abc.test.xyz.build.cloudflare.dev', 'test.xyz.build.cloudflare.dev', 'xyz.build.cloudflare.dev', 'build.cloudflare.dev', 'cloudflare.dev']
+		for (let i = 0; i < domainParts.length - 1; i++) {
+			const zoneName = domainParts.slice(i).join('.');
+			possibleZones.push(zoneName);
+		}
+
+		console.log(`🔍 Testing possible zones: ${possibleZones.join(', ')}`);
+
+		// Test each possible zone name
+		for (const zoneName of possibleZones) {
+			try {
+				console.log(`   Testing zone: ${zoneName}`);
+				const response = await fetch(
+					`https://api.cloudflare.com/client/v4/zones?name=${encodeURIComponent(zoneName)}`,
+					{
+						headers: {
+							'Content-Type': 'application/json',
+							'Authorization': `Bearer ${this.env.CLOUDFLARE_API_TOKEN}`,
+						},
+					}
+				);
+
+				if (!response.ok) {
+					console.log(`   ❌ API error for zone ${zoneName}: ${response.status} ${response.statusText}`);
+					continue;
+				}
+
+				const data = await response.json();
+
+				if (data.success && data.result && data.result.length > 0) {
+					const zone = data.result[0];
+					console.log(`   ✅ Found zone: ${zoneName} (ID: ${zone.id})`);
+					console.log(`      Zone status: ${zone.status}`);
+					console.log(`      Account: ${zone.account.name}`);
+					return {
+						zoneName: zoneName,
+						zoneId: zone.id,
+					};
+				} else {
+					console.log(`   ❌ No zone found for: ${zoneName}`);
+				}
+			} catch (error) {
+				console.log(`   ❌ Error checking zone ${zoneName}: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+
+		console.error(`❌ No valid zone found for custom domain: ${customDomain}`);
+		console.error(`   Tested zones: ${possibleZones.join(', ')}`);
+		console.error(`   Please ensure:`);
+		console.error(`   1. The domain is managed by Cloudflare`);
+		console.error(`   2. Your API token has zone read permissions`);
+		console.error(`   3. The domain is active and properly configured`);
+
+		return { zoneName: null, zoneId: null };
+	}
+
+	/**
 	 * Updates wrangler.jsonc routes and deployment settings based on CUSTOM_DOMAIN
 	 */
-	private updateCustomDomainRoutes(): void {
+	private async updateCustomDomainRoutes(): Promise<void> {
 		const customDomain = this.config.vars?.CUSTOM_DOMAIN;
+		// Get the original custom domain from wrangler.jsonc to compare
+		const originalCustomDomain = 'build.cloudflare.dev'; // Default from wrangler.jsonc
 
 		try {
 			const wranglerPath = join(PROJECT_ROOT, 'wrangler.jsonc');
@@ -737,11 +817,40 @@ class CloudflareDeploymentManager {
 			// Parse the JSONC file
 			const config = parse(content) as WranglerConfig;
 
+			// Detect zone if custom domain is different from original
+			const { zoneName, zoneId } = await this.detectZoneForDomain(customDomain, originalCustomDomain);
+
 			// Define the expected routes based on custom domain
-			const expectedRoutes = [
-				{ pattern: customDomain, custom_domain: true },
-				{ pattern: `*${customDomain}/*`, custom_domain: false },
-			];
+			let expectedRoutes: Array<{
+				pattern: string;
+				custom_domain: boolean;
+				zone_id?: string;
+				zone_name?: string;
+			}>;
+
+			if (zoneId && zoneName) {
+				// Custom domain with zone information for wildcard pattern
+				console.log(`📋 Creating routes with zone information:`);
+				console.log(`   Zone Name: ${zoneName}`);
+				console.log(`   Zone ID: ${zoneId}`);
+
+				expectedRoutes = [
+					{ pattern: customDomain, custom_domain: true },
+					{ 
+						pattern: `*${customDomain}/*`, 
+						custom_domain: false,
+						zone_id: zoneId,
+						// zone_name: zoneName
+					},
+				];
+			} else {
+				// Standard routes without zone information
+				console.log(`📋 Creating standard routes without zone information`);
+				expectedRoutes = [
+					{ pattern: customDomain, custom_domain: true },
+					{ pattern: `*${customDomain}/*`, custom_domain: false },
+				];
+			}
 
 			// Check if routes need updating
 			let needsUpdate = false;
@@ -809,7 +918,11 @@ class CloudflareDeploymentManager {
 
 			console.log(`✅ Updated wrangler.jsonc routes:`);
 			console.log(`   Route 1: ${customDomain} (custom_domain: true)`);
-			console.log(`   Route 2: *${customDomain}/* (custom_domain: false)`);
+			if (zoneId && zoneName) {
+				console.log(`   Route 2: *${customDomain}/* (custom_domain: false, zone_id: ${zoneId}, zone_name: ${zoneName})`);
+			} else {
+				console.log(`   Route 2: *${customDomain}/* (custom_domain: false)`);
+			}
 			console.log('   Set workers_dev: false');
 			console.log('   Set preview_urls: false');
 		} catch (error) {
@@ -1394,7 +1507,7 @@ class CloudflareDeploymentManager {
 			this.updatePackageJsonDatabaseCommands();
 
 			console.log('   🔧 Updating wrangler.jsonc custom domain routes');
-			this.updateCustomDomainRoutes();
+			await this.updateCustomDomainRoutes();
 
 			console.log('   🔧 Updating container instance types');
 			this.updateContainerInstanceTypes();

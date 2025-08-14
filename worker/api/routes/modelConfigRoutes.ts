@@ -1,11 +1,11 @@
 /**
  * Model Configuration Routes
- * Routes for managing user model configurations and provider API keys
+ * Routes for managing user model configurations
+ * Provider API keys are managed via the unified secrets system
  */
 
 import { Router } from '../router';
 import { ModelConfigController } from '../controllers/modelConfigController';
-import { ProviderKeysController } from '../controllers/providerKeysController';
 
 /**
  * Setup model configuration routes
@@ -20,12 +20,6 @@ export function setupModelConfigRoutes(router: Router): Router {
         };
     };
 
-    const createProviderKeysHandler = (method: keyof ProviderKeysController) => {
-        return async (request: Request, env: Env, _ctx: ExecutionContext) => {
-            const controller = new ProviderKeysController(env);
-            return controller[method](request);
-        };
-    };
 
     // Model Configuration Routes
     router.get('/api/model-configs', createModelConfigHandler('getModelConfigs'));
@@ -35,13 +29,6 @@ export function setupModelConfigRoutes(router: Router): Router {
     router.delete('/api/model-configs/:agentAction', createModelConfigHandler('deleteModelConfig'));
     router.post('/api/model-configs/test', createModelConfigHandler('testModelConfig'));
     router.post('/api/model-configs/reset-all', createModelConfigHandler('resetAllConfigs'));
-
-    // Provider Keys Routes
-    router.get('/api/provider-keys', createProviderKeysHandler('getProviderKeys'));
-    router.get('/api/provider-keys/providers', createProviderKeysHandler('getProviders'));
-    router.put('/api/provider-keys/:provider', createProviderKeysHandler('setProviderKey'));
-    router.delete('/api/provider-keys/:provider', createProviderKeysHandler('deleteProviderKey'));
-    router.post('/api/provider-keys/:provider/test', createProviderKeysHandler('testProviderKey'));
 
     return router;
 }

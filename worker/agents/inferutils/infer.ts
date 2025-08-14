@@ -113,22 +113,22 @@ export async function executeInference<T extends z.AnyZodObject>(   {
     reasoning_effort = reasoning_effort || finalConf.reasoning_effort;
     const providerOverride = finalConf.providerOverride;
 
-    // Load user API keys if userId is provided
+    // Load user API keys if userId is provided (using unified secrets system)
     let userApiKeys: Map<string, string> | undefined;
     if (userId) {
         try {
-            const { ProviderKeyService } = await import('../../services/modelConfig/ProviderKeyService');
+            const { SecretsService } = await import('../../services/secrets/secretsService');
             const { DatabaseService } = await import('../../database/database');
             
             const db = new DatabaseService(env);
-            const providerKeyService = new ProviderKeyService(db, env);
-            userApiKeys = await providerKeyService.getUserProviderKeysMap(userId);
+            const secretsService = new SecretsService(db, env);
+            userApiKeys = await secretsService.getUserProviderKeysMap(userId);
             
             if (userApiKeys.size > 0) {
-                logger.info(`Loaded ${userApiKeys.size} user API keys for inference`);
+                logger.info(`Loaded ${userApiKeys.size} user API keys from secrets system for inference`);
             }
         } catch (error) {
-            logger.warn(`Failed to load user API keys, using environment variables:`, error);
+            logger.warn(`Failed to load user API keys from secrets system, using environment variables:`, error);
         }
     }
 

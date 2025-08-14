@@ -1,7 +1,5 @@
 import type { Blueprint, ClientReportedErrorType, PhaseConceptType ,
     FileOutputType,
-    // FileStructureOutputType,
-    CodeReviewOutputType,
 } from '../schemas';
 import type { TemplateDetails } from '../../services/sandbox/sandboxTypes';
 import type { ScreenshotData } from './types';

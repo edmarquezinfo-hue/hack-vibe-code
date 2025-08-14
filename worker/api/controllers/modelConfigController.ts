@@ -5,19 +5,52 @@
 
 import { BaseController } from './BaseController';
 import { ModelConfigService } from '../../services/modelConfig/ModelConfigService';
-import { ProviderKeyService } from '../../services/modelConfig/ProviderKeyService';
+import { SecretsService } from '../../services/secrets/secretsService';
 import { ModelTestService } from '../../services/modelConfig/ModelTestService';
 import { AgentActionKey, ModelConfig, AGENT_CONFIG } from '../../agents/inferutils/config';
 import { z } from 'zod';
 
+// All valid AI model values for validation
+const validAIModels = [
+    // OpenAI Models
+    'openai/gpt-5',
+    'openai/gpt-5-mini',
+    'openai/o3',
+    'openai/o4-mini',
+    'openai/chatgpt-4o-latest',
+    'openai/gpt-4.1-2025-04-14',
+    'openai/gpt-oss-120b',
+    // Anthropic Models
+    'anthropic/claude-3-5-sonnet-latest',
+    'anthropic/claude-3-7-sonnet-20250219',
+    'anthropic/claude-opus-4-20250514',
+    'anthropic/claude-sonnet-4-20250514',
+    // Google Models
+    'google-ai-studio/gemini-2.5-pro',
+    'google-ai-studio/gemini-2.5-flash',
+    '[gemini]gemini-2.5-flash-lite-preview-06-17',
+    'google-ai-studio/gemini-2.5-flash-preview-05-20',
+    'google-ai-studio/gemini-2.5-pro-preview-05-06',
+    'google-ai-studio/gemini-2.5-flash-preview-04-17',
+    'google-ai-studio/gemini-2.5-pro-preview-06-05',
+    'google-ai-studio/gemini-2.0-flash',
+    'google-ai-studio/gemini-1.5-flash-8b-latest',
+    // OpenRouter Models
+    '[openrouter]qwen/qwen3-coder',
+    '[openrouter]moonshotai/kimi-k2',
+    // Cerebras Models
+    'cerebras/gpt-oss-120b',
+    'cerebras/qwen-3-coder-480b'
+] as const;
+
 // Validation schemas
 const modelConfigUpdateSchema = z.object({
-    modelName: z.string().optional(),
-    maxTokens: z.number().min(1).max(200000).optional(),
-    temperature: z.number().min(0).max(2).optional(),
-    reasoningEffort: z.enum(['low', 'medium', 'high']).optional(),
-    providerOverride: z.enum(['cloudflare', 'direct']).optional(),
-    fallbackModel: z.string().optional()
+    modelName: z.enum(validAIModels as any).nullable().optional(),
+    maxTokens: z.number().min(1).max(200000).nullable().optional(),
+    temperature: z.number().min(0).max(2).nullable().optional(),
+    reasoningEffort: z.enum(['low', 'medium', 'high']).nullable().optional(),
+    providerOverride: z.enum(['cloudflare', 'direct']).nullable().optional(),
+    fallbackModel: z.enum(validAIModels as any).nullable().optional()
 });
 
 const modelTestSchema = z.object({
@@ -28,7 +61,7 @@ const modelTestSchema = z.object({
 
 export class ModelConfigController extends BaseController {
     private modelConfigService: ModelConfigService;
-    private providerKeyService: ProviderKeyService;
+    private secretsService: SecretsService;
     private modelTestService: ModelTestService;
     private env: Env;
 
@@ -37,7 +70,7 @@ export class ModelConfigController extends BaseController {
         this.env = env;
         const db = this.createDbService(env);
         this.modelConfigService = new ModelConfigService(db);
-        this.providerKeyService = new ProviderKeyService(db, env);
+        this.secretsService = new SecretsService(db, env);
         this.modelTestService = new ModelTestService(env);
     }
 
@@ -121,15 +154,27 @@ export class ModelConfigController extends BaseController {
 
             const validatedData = modelConfigUpdateSchema.parse(bodyResult.data);
 
-            // Convert to ModelConfig format
-            const modelConfig: Partial<ModelConfig> = {
-                ...(validatedData.modelName && { name: validatedData.modelName as any }),
-                ...(validatedData.maxTokens && { max_tokens: validatedData.maxTokens }),
-                ...(validatedData.temperature !== undefined && { temperature: validatedData.temperature }),
-                ...(validatedData.reasoningEffort && { reasoning_effort: validatedData.reasoningEffort as any }),
-                ...(validatedData.providerOverride && { providerOverride: validatedData.providerOverride }),
-                ...(validatedData.fallbackModel && { fallbackModel: validatedData.fallbackModel as any })
-            };
+            // Convert to ModelConfig format - only include non-null values
+            const modelConfig: Partial<ModelConfig> = {};
+            
+            if (validatedData.modelName !== null && validatedData.modelName !== undefined) {
+                modelConfig.name = validatedData.modelName as any;
+            }
+            if (validatedData.maxTokens !== null && validatedData.maxTokens !== undefined) {
+                modelConfig.max_tokens = validatedData.maxTokens;
+            }
+            if (validatedData.temperature !== null && validatedData.temperature !== undefined) {
+                modelConfig.temperature = validatedData.temperature;
+            }
+            if (validatedData.reasoningEffort !== null && validatedData.reasoningEffort !== undefined) {
+                modelConfig.reasoning_effort = validatedData.reasoningEffort as any;
+            }
+            if (validatedData.providerOverride !== null && validatedData.providerOverride !== undefined) {
+                modelConfig.providerOverride = validatedData.providerOverride;
+            }
+            if (validatedData.fallbackModel !== null && validatedData.fallbackModel !== undefined) {
+                modelConfig.fallbackModel = validatedData.fallbackModel as any;
+            }
 
             const updatedConfig = await this.modelConfigService.upsertUserModelConfig(
                 session.userId,
@@ -210,7 +255,7 @@ export class ModelConfigController extends BaseController {
             // Get user API keys if requested
             let userApiKeys: Map<string, string> | undefined;
             if (validatedData.useUserKeys) {
-                userApiKeys = await this.providerKeyService.getUserProviderKeysMap(session.userId);
+                userApiKeys = await this.secretsService.getUserProviderKeysMap(session.userId);
             }
 
             // Test the configuration

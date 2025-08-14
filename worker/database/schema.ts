@@ -777,7 +777,9 @@ export const userModelConfigs = sqliteTable('user_model_configs', {
 }));
 
 /**
- * User Provider Keys table - User-specific API keys for AI providers that override environment variables
+ * User Provider Keys table - DEPRECATED: Use userSecrets table instead
+ * This table is kept for migration compatibility but should not be used in new code
+ * TODO: Remove this table in a future migration after data is migrated to userSecrets
  */
 export const userProviderKeys = sqliteTable('user_provider_keys', {
     id: text('id').primaryKey(),

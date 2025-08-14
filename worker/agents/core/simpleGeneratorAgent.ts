@@ -124,7 +124,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         generatedFilesMap: {},
         agentMode: 'deterministic',
         generationPromise: undefined,
-        lastCodeReview: undefined,
         sandboxInstanceId: undefined,
         templateDetails: {} as TemplateDetails,
         commandsHistory: [],
@@ -169,9 +168,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             query,
             blueprint,
             templateDetails,
-            lastCodeReview: undefined,
             sandboxInstanceId: undefined,
-            enableFileEnhancement: true,
             generatedPhases: [],
             commandsHistory: [],
             lastPackageJson: packageJson,
@@ -773,12 +770,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 context,
             }
         );
-        
-        // Update state with review result
-        this.setState({
-            ...this.state,
-            lastCodeReview: reviewResult
-        });
         
         // Execute commands if any
         if (reviewResult.commands && reviewResult.commands.length > 0) {

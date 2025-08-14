@@ -15,6 +15,7 @@ import { getFileType } from '../../../utils/string';
 import { logger } from '../../../utils/logger';
 import { useAuth } from '@/contexts/auth-context';
 import { getPreviewUrl } from '@/lib/utils';
+import { generateId } from '../../../utils/id-generator';
 
 export interface FileType {
 	file_path: string;
@@ -75,7 +76,7 @@ type ChatMessage = {
 function getOrCreateSessionToken(): string {
 	let token = localStorage.getItem('anonymous_session_token');
 	if (!token) {
-		token = crypto.randomUUID();
+		token = generateId();
 		localStorage.setItem('anonymous_session_token', token);
 	}
 	return token;
@@ -209,7 +210,7 @@ export function useChat({
 	const sendUserMessage = useCallback((message: string) => {
 		setMessages((prev) => [
 			...prev,
-			{ type: 'user', id: crypto.randomUUID(), message },
+			{ type: 'user', id: generateId(), message },
 		]);
 	}, []);
 
@@ -313,7 +314,7 @@ export function useChat({
 						console.log('💬 Restoring conversation messages:', state.conversationMessages.length);
 						const restoredMessages = state.conversationMessages.map((msg) => ({
 							type: msg.role === 'user' ? 'user' as const : 'ai' as const,
-							id: (msg.conversationId || crypto.randomUUID()),
+							id: (msg.conversationId || generateId()),
 							message: msg.content as string,
 							isThinking: false
 						}));

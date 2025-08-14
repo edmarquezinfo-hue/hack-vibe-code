@@ -6,7 +6,13 @@
 import { OpenAI } from 'openai';
 import { ModelConfig } from '../../agents/inferutils/config';
 import { getConfigurationForModel } from '../../agents/inferutils/core';
-import { TestResult } from './ProviderKeyService';
+
+export interface TestResult {
+    success: boolean;
+    error?: string;
+    model?: string;
+    latencyMs?: number;
+}
 
 export interface ModelTestRequest {
     modelConfig: ModelConfig;

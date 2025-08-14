@@ -9,6 +9,7 @@ import { authMiddleware } from '../../middleware/security/auth';
 import * as schema from '../../database/schema';
 import { BaseController } from './BaseController';
 import { getSandboxService } from '../../services/sandbox/factory';
+import { generateId } from '../../utils/idGenerator';
 
 interface CodeGenArgs {
     query: string;
@@ -42,7 +43,7 @@ export class CodeGenController extends BaseController {
      */
     async startCodeGeneration(request: Request, env: Env, _: ExecutionContext): Promise<Response> {
         // Initialize new request context for distributed tracing
-        const chatId = crypto.randomUUID();
+        const chatId = generateId();
         const requestId = chatId;
         const requestContext = Trace.startRequest(requestId, {
             endpoint: '/api/codegen/incremental',
@@ -161,7 +162,7 @@ export class CodeGenController extends BaseController {
             const user = await authMiddleware(request, env);
             
             // Get session token from header for anonymous users
-            const sessionToken = !user ? request.headers.get('X-Session-Token') || crypto.randomUUID() : null;
+            const sessionToken = !user ? request.headers.get('X-Session-Token') || generateId() : null;
             
             generateBlueprint({
                 env,

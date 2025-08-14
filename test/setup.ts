@@ -3,6 +3,8 @@
  * Configure test environment
  */
 
+import { generateId } from '../worker/utils/idGenerator';
+
 // Mock environment variables
 process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing-only';
 process.env.BASE_URL = 'http://localhost:8787';
@@ -13,7 +15,7 @@ process.env.DISABLE_RATE_LIMITING = 'true';
 export const testUtils = {
   // Generate test user data
   generateTestUser() {
-    const id = crypto.randomUUID();
+    const id = generateId();
     return {
       id,
       email: `test-${id}@example.com`,

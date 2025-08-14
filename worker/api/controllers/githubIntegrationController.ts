@@ -4,6 +4,7 @@
  */
 
 import { BaseController } from './BaseController';
+import { generateId } from '../../utils/idGenerator';
 import { githubIntegrations } from '../../database/schema';
 import { eq } from 'drizzle-orm';
 import { OAuthIntegrationService } from '../../services/auth/OAuthIntegrationService';
@@ -143,7 +144,7 @@ export class GitHubIntegrationController extends BaseController {
                 await dbService.db
                     .insert(githubIntegrations)
                     .values({
-                        id: crypto.randomUUID(),
+                        id: generateId(),
                         userId,
                         githubUserId: githubData.githubUserId,
                         githubUsername: sanitizedUsername,
