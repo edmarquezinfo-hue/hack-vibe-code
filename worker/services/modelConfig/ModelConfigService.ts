@@ -6,7 +6,7 @@
 import { DatabaseService } from '../../database/database';
 import { UserModelConfig, NewUserModelConfig, userModelConfigs } from '../../database/schema';
 import { eq, and } from 'drizzle-orm';
-import { AgentActionKey, AGENT_CONFIG, ModelConfig } from '../../agents/inferutils/config';
+import { AgentActionKey, AGENT_CONFIG, ModelConfig, AIModels, ProviderOverrideType, ReasoningEffortType } from '../../agents/inferutils/config';
 import { generateId } from '../../utils/idGenerator';
 
 export interface MergedModelConfig extends ModelConfig {
@@ -16,6 +16,30 @@ export interface MergedModelConfig extends ModelConfig {
 
 export class ModelConfigService {
     constructor(private db: DatabaseService) {}
+
+    /**
+     * Safely convert database text value to AIModels enum
+     */
+    private safeConvertToAIModel(value: string | null): AIModels | undefined {
+        if (!value) return undefined;
+        return Object.values(AIModels).includes(value as AIModels) ? (value as AIModels) : undefined;
+    }
+
+    /**
+     * Safely convert database text value to ReasoningEffortType
+     */
+    private safeConvertToReasoningEffort(value: string | null): ReasoningEffortType | undefined {
+        if (!value) return undefined;
+        return ['low', 'medium', 'high'].includes(value as ReasoningEffortType) ? (value as ReasoningEffortType) : undefined;
+    }
+
+    /**
+     * Safely convert database text value to ProviderOverrideType
+     */
+    private safeConvertToProviderOverride(value: string | null): ProviderOverrideType | undefined {
+        if (!value) return undefined;
+        return ['cloudflare', 'direct'].includes(value as ProviderOverrideType) ? (value as ProviderOverrideType) : undefined;
+    }
 
     /**
      * Get all model configurations for a user (merged with defaults)
@@ -38,12 +62,12 @@ export class ModelConfigService {
             if (userConfig) {
                 // Merge user config with defaults (user config takes precedence, null values use defaults)
                 result[actionKey] = {
-                    name: userConfig.modelName as any || defaultConfig.name,
+                    name: this.safeConvertToAIModel(userConfig.modelName) || defaultConfig.name,
                     max_tokens: userConfig.maxTokens || defaultConfig.max_tokens,
                     temperature: userConfig.temperature !== null ? userConfig.temperature : defaultConfig.temperature,
-                    reasoning_effort: userConfig.reasoningEffort as any || defaultConfig.reasoning_effort,
-                    providerOverride: userConfig.providerOverride as any || defaultConfig.providerOverride,
-                    fallbackModel: userConfig.fallbackModel as any || defaultConfig.fallbackModel,
+                    reasoning_effort: this.safeConvertToReasoningEffort(userConfig.reasoningEffort) || defaultConfig.reasoning_effort,
+                    providerOverride: this.safeConvertToProviderOverride(userConfig.providerOverride) || defaultConfig.providerOverride,
+                    fallbackModel: this.safeConvertToAIModel(userConfig.fallbackModel) || defaultConfig.fallbackModel,
                     isUserOverride: true,
                     userConfigId: userConfig.id
                 };
@@ -78,12 +102,12 @@ export class ModelConfigService {
         if (userConfig.length > 0) {
             const config = userConfig[0];
             return {
-                name: config.modelName as any || defaultConfig.name,
+                name: this.safeConvertToAIModel(config.modelName) || defaultConfig.name,
                 max_tokens: config.maxTokens || defaultConfig.max_tokens,
                 temperature: config.temperature !== null ? config.temperature : defaultConfig.temperature,
-                reasoning_effort: config.reasoningEffort as any || defaultConfig.reasoning_effort,
-                providerOverride: config.providerOverride as any || defaultConfig.providerOverride,
-                fallbackModel: config.fallbackModel as any || defaultConfig.fallbackModel,
+                reasoning_effort: this.safeConvertToReasoningEffort(config.reasoningEffort) || defaultConfig.reasoning_effort,
+                providerOverride: this.safeConvertToProviderOverride(config.providerOverride) || defaultConfig.providerOverride,
+                fallbackModel: this.safeConvertToAIModel(config.fallbackModel) || defaultConfig.fallbackModel,
                 isUserOverride: true,
                 userConfigId: config.id
             };

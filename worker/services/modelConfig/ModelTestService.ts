@@ -3,9 +3,9 @@
  * Handles testing of model configurations with user API keys
  */
 
-import { OpenAI } from 'openai';
 import { ModelConfig } from '../../agents/inferutils/config';
-import { getConfigurationForModel } from '../../agents/inferutils/core';
+import { infer, InferError } from '../../agents/inferutils/core';
+import { createUserMessage } from '../../agents/inferutils/common';
 
 export interface TestResult {
     success: boolean;
@@ -37,7 +37,7 @@ export class ModelTestService {
     constructor(private env: Env) {}
 
     /**
-     * Test a model configuration by making a simple chat request
+     * Test a model configuration by making a simple chat request using core inference
      */
     async testModelConfig({
         modelConfig,
@@ -45,44 +45,29 @@ export class ModelTestService {
         testPrompt = "Hello! Please respond with 'Test successful' to confirm the connection is working."
     }: ModelTestRequest): Promise<ModelTestResult> {
         const startTime = Date.now();
-        let client: OpenAI;
         const modelName: string = modelConfig.name;
-        let cleanModelName = modelName;
+        const cleanModelName = modelName.replace(/\[.*?\]/, ''); // Remove provider prefix for display
 
         try {
-            // Get configuration for the model with user API keys properly integrated
-            const config = await getConfigurationForModel(modelName, this.env, userApiKeys);
+            // Create test message using core abstractions
+            const testMessage = createUserMessage(testPrompt);
 
-            // Create OpenAI client using the properly configured settings
-            client = new OpenAI({
-                apiKey: config.apiKey,
-                baseURL: config.baseURL,
-                defaultHeaders: config.defaultHeaders
-            });
-
-            // Remove provider prefix from model name for API call
-            cleanModelName = modelName.replace(/\[.*?\]/, '');
-
-            // Make a simple chat completion request
-            const response = await client.chat.completions.create({
-                model: cleanModelName,
-                messages: [
-                    {
-                        role: 'user',
-                        content: testPrompt
-                    }
-                ],
-                max_tokens: Math.min(modelConfig.max_tokens || 100, 100), // Limit to 100 tokens for test
+            // Use core inference system to test the model configuration
+            const response = await infer({
+                env: this.env,
+                id: `test-${Date.now()}`, // Generate unique test ID
+                messages: [testMessage],
+                modelName: modelName,
+                maxTokens: Math.min(modelConfig.max_tokens || 100, 100), // Limit to 100 tokens for test
                 temperature: modelConfig.temperature || 0.1,
-                ...(modelConfig.reasoning_effort && {
-                    reasoning_effort: modelConfig.reasoning_effort
-                })
+                reasoning_effort: modelConfig.reasoning_effort,
+                userApiKeys: userApiKeys
             });
 
             const endTime = Date.now();
             const latencyMs = endTime - startTime;
 
-            const content = response.choices[0]?.message?.content || '';
+            const content = response.string || '';
             
             return {
                 success: true,
@@ -90,33 +75,40 @@ export class ModelTestService {
                 latencyMs,
                 modelUsed: cleanModelName,
                 tokensUsed: {
-                    prompt: response.usage?.prompt_tokens || 0,
-                    completion: response.usage?.completion_tokens || 0,
-                    total: response.usage?.total_tokens || 0
+                    prompt: 0, // Core inference doesn't expose token counts in the response
+                    completion: 0, // Would need to be added to core system if needed
+                    total: 0
                 }
             };
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             const endTime = Date.now();
             const latencyMs = endTime - startTime;
 
-            // Return raw error from OpenAI SDK as requested by user
+            // Handle InferError and other errors from core system
             let rawError = 'Unknown error occurred';
             
-            if (error instanceof Error) {
+            if (error instanceof InferError) {
                 rawError = error.message;
-            } else if (error?.error?.message) {
-                rawError = error.error.message;
-            } else if (error?.message) {
+            } else if (error instanceof Error) {
                 rawError = error.message;
+            } else if (typeof error === 'object' && error !== null) {
+                // Handle error objects from the core system
+                const errorObj = error as any;
+                if (errorObj.message) {
+                    rawError = errorObj.message;
+                } else if (errorObj.error?.message) {
+                    rawError = errorObj.error.message;
+                } else {
+                    rawError = JSON.stringify(error);
+                }
             } else {
-                // If it's an object, stringify it to show the raw structure
-                rawError = JSON.stringify(error);
+                rawError = String(error);
             }
 
             return {
                 success: false,
-                error: rawError, // Raw error from OpenAI SDK
+                error: rawError,
                 latencyMs,
                 modelUsed: cleanModelName
             };
@@ -124,7 +116,7 @@ export class ModelTestService {
     }
 
     /**
-     * Test a specific provider's API key
+     * Test a specific provider's API key using core inference
      */
     async testProviderKey(provider: string, apiKey: string): Promise<TestResult> {
         const startTime = Date.now();
@@ -143,34 +135,24 @@ export class ModelTestService {
             const testApiKeys = new Map<string, string>();
             testApiKeys.set(provider, apiKey);
             
-            const config = await getConfigurationForModel(testModel, this.env, testApiKeys);
-            
-            // Create client using properly configured settings
-            const client = new OpenAI({
-                apiKey: config.apiKey,
-                baseURL: config.baseURL,
-                defaultHeaders: config.defaultHeaders
-            });
+            // Create test message using core abstractions
+            const testMessage = createUserMessage('Test connection. Please respond with "OK".');
 
-            // Remove provider prefix
-            const cleanModelName = testModel.replace(/\[.*?\]/, '');
-
-            // Simple test request
-            const response = await client.chat.completions.create({
-                model: cleanModelName,
-                messages: [
-                    {
-                        role: 'user',
-                        content: 'Test connection. Please respond with "OK".'
-                    }
-                ],
-                max_tokens: 10,
-                temperature: 0
+            // Use core inference system to test the provider key
+            const response = await infer({
+                env: this.env,
+                id: `provider-test-${Date.now()}`, // Generate unique test ID
+                messages: [testMessage],
+                modelName: testModel,
+                maxTokens: 10,
+                temperature: 0,
+                userApiKeys: testApiKeys
             });
 
             const endTime = Date.now();
+            const cleanModelName = testModel.replace(/\[.*?\]/, '');
 
-            if (response.choices[0]?.message?.content) {
+            if (response.string && response.string.trim()) {
                 return {
                     success: true,
                     model: cleanModelName,
@@ -183,24 +165,35 @@ export class ModelTestService {
                 };
             }
 
-        } catch (error: any) {
-            // Return raw error from OpenAI SDK as requested by user
+        } catch (error: unknown) {
+            const endTime = Date.now();
+            const latencyMs = endTime - startTime;
+
+            // Handle InferError and other errors from core system
             let rawError = 'Connection test failed';
             
-            if (error instanceof Error) {
+            if (error instanceof InferError) {
                 rawError = error.message;
-            } else if (error?.error?.message) {
-                rawError = error.error.message;
-            } else if (error?.message) {
+            } else if (error instanceof Error) {
                 rawError = error.message;
+            } else if (typeof error === 'object' && error !== null) {
+                // Handle error objects from the core system
+                const errorObj = error as any;
+                if (errorObj.message) {
+                    rawError = errorObj.message;
+                } else if (errorObj.error?.message) {
+                    rawError = errorObj.error.message;
+                } else {
+                    rawError = JSON.stringify(error);
+                }
             } else {
-                // If it's an object, stringify it to show the raw structure
-                rawError = JSON.stringify(error);
+                rawError = String(error);
             }
 
             return {
                 success: false,
-                error: rawError // Raw error from OpenAI SDK
+                error: rawError,
+                latencyMs
             };
         }
     }

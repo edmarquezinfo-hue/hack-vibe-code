@@ -3,13 +3,11 @@ import { ReasoningEffort } from "openai/resources.mjs";
 export enum AIModels {
 	GEMINI_2_5_PRO = 'google-ai-studio/gemini-2.5-pro',
 	GEMINI_2_5_FLASH = 'google-ai-studio/gemini-2.5-flash',
-	GEMINI_2_5_FLASH_PREVIEW = 'google-ai-studio/gemini-2.5-flash-preview-05-20',
 	GEMINI_2_5_FLASH_LITE = '[gemini]gemini-2.5-flash-lite',
 	GEMINI_2_5_PRO_PREVIEW_05_06 = 'google-ai-studio/gemini-2.5-pro-preview-05-06',
 	GEMINI_2_5_FLASH_PREVIEW_04_17 = 'google-ai-studio/gemini-2.5-flash-preview-04-17',
 	GEMINI_2_5_FLASH_PREVIEW_05_20 = 'google-ai-studio/gemini-2.5-flash-preview-05-20',
 	GEMINI_2_5_PRO_PREVIEW_06_05 = 'google-ai-studio/gemini-2.5-pro-preview-06-05',
-	GEMINI_2_5_PRO_PREVIEW = 'google-ai-studio/gemini-2.5-pro-preview-06-05',
 	GEMINI_2_0_FLASH = 'google-ai-studio/gemini-2.0-flash',
 	GEMINI_1_5_FLASH_8B = 'google-ai-studio/gemini-1.5-flash-8b-latest',
 	CLAUDE_3_5_SONNET_LATEST = 'anthropic/claude-3-5-sonnet-latest',
@@ -206,6 +204,25 @@ export const AGENT_CONFIG: AgentConfig = {
 };
 
 export type AgentActionKey = keyof AgentConfig;
+
+// Model validation utilities
+export const ALL_AI_MODELS: readonly AIModels[] = Object.values(AIModels);
+export type AIModelType = AIModels;
+
+// Create tuple type for Zod enum validation
+export const AI_MODELS_TUPLE = Object.values(AIModels) as [AIModels, ...AIModels[]];
+
+export function isValidAIModel(model: string): model is AIModels {
+    return Object.values(AIModels).includes(model as AIModels);
+}
+
+export function getValidAIModelsArray(): readonly AIModels[] {
+    return ALL_AI_MODELS;
+}
+
+// Provider and reasoning effort types for validation
+export type ProviderOverrideType = 'cloudflare' | 'direct';
+export type ReasoningEffortType = 'low' | 'medium' | 'high';
 
 export interface InferenceContext {
     agentId: string;

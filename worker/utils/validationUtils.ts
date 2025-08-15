@@ -396,10 +396,10 @@ export function validateDisplayName(
 /**
  * Batch validation utility
  */
-export interface ValidationField {
+export interface ValidationField<T extends readonly unknown[] = readonly unknown[]> {
   value: string;
-  validator: (value: string, ...args: any[]) => { valid: boolean; error?: string };
-  validatorArgs?: any[];
+  validator: (value: string, ...args: T) => { valid: boolean; error?: string };
+  validatorArgs?: T;
   fieldName: string;
 }
 

@@ -21,6 +21,7 @@ import {
   ExternalLink,
   Unlink
 } from 'lucide-react';
+import { ModelConfigTabs } from '@/components/model-config-tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -304,36 +305,6 @@ export default function SettingsPage() {
     }
   };
 
-  // Get available models for select dropdown using actual AIModels enum values
-  const getAvailableModels = () => [
-    { value: 'default', label: 'Use default' },
-    // OpenAI Models
-    { value: 'openai/gpt-5', label: 'GPT-5 (OpenAI)' },
-    { value: 'openai/gpt-5-mini', label: 'GPT-5 Mini (OpenAI)' },
-    { value: 'openai/o3', label: 'O3 (OpenAI)' },
-    { value: 'openai/o4-mini', label: 'O4 Mini (OpenAI)' },
-    { value: 'openai/chatgpt-4o-latest', label: 'ChatGPT-4o Latest (OpenAI)' },
-    { value: 'openai/gpt-4.1-2025-04-14', label: 'GPT-4.1 (OpenAI)' },
-    { value: 'openai/gpt-oss-120b', label: 'GPT-OSS-120B (OpenAI)' },
-    // Anthropic Models
-    { value: 'anthropic/claude-3-5-sonnet-latest', label: 'Claude 3.5 Sonnet Latest (Anthropic)' },
-    { value: 'anthropic/claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet (Anthropic)' },
-    { value: 'anthropic/claude-opus-4-20250514', label: 'Claude 4 Opus (Anthropic)' },
-    { value: 'anthropic/claude-sonnet-4-20250514', label: 'Claude 4 Sonnet (Anthropic)' },
-    // Google Models
-    { value: 'google-ai-studio/gemini-2.5-pro', label: 'Gemini 2.5 Pro (Google)' },
-    { value: 'google-ai-studio/gemini-2.5-flash', label: 'Gemini 2.5 Flash (Google)' },
-    { value: '[gemini]gemini-2.5-flash-lite-preview-06-17', label: 'Gemini 2.5 Flash Lite (Google)' },
-    { value: 'google-ai-studio/gemini-2.0-flash', label: 'Gemini 2.0 Flash (Google)' },
-    { value: 'google-ai-studio/gemini-1.5-flash-8b-latest', label: 'Gemini 1.5 Flash 8B (Google)' },
-    // OpenRouter Models
-    { value: '[openrouter]qwen/qwen3-coder', label: 'Qwen 3 Coder (OpenRouter)' },
-    { value: '[openrouter]moonshotai/kimi-k2', label: 'Kimi K2 (OpenRouter)' },
-    // Cerebras Models
-    { value: 'cerebras/gpt-oss-120b', label: 'GPT-OSS-120B (Cerebras)' },
-    { value: 'cerebras/qwen-3-coder-480b', label: 'Qwen 3 Coder 480B (Cerebras)' }
-  ];
-
   // Helper function to provide descriptions based on key patterns
   const getAgentConfigDescription = React.useCallback((key: string) => {
     const descriptions: Record<string, string> = {
@@ -353,77 +324,6 @@ export default function SettingsPage() {
     };
     return descriptions[key] || `AI model configuration for ${formatAgentConfigName(key)}`;
   }, [formatAgentConfigName]);
-
-  // Helper function to get reasoning effort options
-  const getReasoningEffortOptions = () => [
-    { value: 'default', label: 'Use default' },
-    { value: 'low', label: 'Low (Fast)' },
-    { value: 'medium', label: 'Medium (Balanced)' },
-    { value: 'high', label: 'High (Deep)' }
-  ];
-
-  // Helper function to get parameter guidance
-  const getParameterGuidance = (param: string, agentAction: string) => {
-    const guidance: Record<string, Record<string, string>> = {
-      temperature: {
-        templateSelection: 'Low (0.1-0.3) for consistent template matching',
-        blueprint: 'Medium-High (0.7-1.0) for creative design ideas',
-        projectSetup: 'Low (0.1-0.3) for reliable, precise setup',
-        phaseGeneration: 'Medium (0.5-0.7) for structured planning',
-        phaseImplementation: 'Low-Medium (0.2-0.5) for accurate code',
-        realtimeCodeFixer: 'Low-Medium (0.3-0.5) for focused debugging',
-        fastCodeFixer: 'Very Low (0.0-0.2) for precise quick fixes',
-        codeReview: 'Low-Medium (0.2-0.4) for objective analysis'
-      },
-      maxTokens: {
-        templateSelection: 'Low (1K-2K) - Simple template selection',
-        blueprint: 'High (16K-64K) - Detailed architecture planning',
-        projectSetup: 'Medium (4K-10K) - Setup instructions and structure',
-        phaseGeneration: 'High (32K-64K) - Comprehensive project breakdown',
-        phaseImplementation: 'Very High (64K+) - Large code implementations',
-        realtimeCodeFixer: 'Medium (8K-32K) - Code analysis and fixes',
-        fastCodeFixer: 'Medium (8K-32K) - Quick focused fixes',
-        codeReview: 'High (32K-64K) - Thorough code analysis'
-      },
-      reasoningEffort: {
-        templateSelection: 'Low recommended - Speed is priority over deep thinking',
-        blueprint: 'Medium-High recommended - Creative thinking required for design',
-        projectSetup: 'Low recommended - Following instructions precisely',
-        phaseGeneration: 'Medium-High recommended - Strategic planning needs analysis',
-        phaseImplementation: 'Low recommended - Focus on execution over reasoning',
-        realtimeCodeFixer: 'Medium recommended - Balance speed with debugging analysis',
-        fastCodeFixer: 'Low recommended - Prioritize speed over deep analysis',
-        codeReview: 'High recommended - Thorough analysis of code quality'
-      }
-    };
-    return guidance[param]?.[agentAction] || '';
-  };
-
-  // Helper function to get user-friendly model name
-  const getModelDisplayName = (modelValue: string) => {
-    const model = getAvailableModels().find(m => m.value === modelValue);
-    return model ? model.label : modelValue;
-  };
-
-  // Helper function to get model recommendations based on agent action
-  const getModelRecommendation = (agentAction: string) => {
-    const recommendations: Record<string, string> = {
-      templateSelection: '💡 Recommended: Fast models like Flash Lite or GPT-5 Mini for quick responses',
-      blueprint: '🏗️ Recommended: Creative models like GPT-5 or Claude 4 Sonnet for design thinking',
-      projectSetup: '⚙️ Recommended: Reliable instruction-following models like GPT-5 Mini or Claude Sonnet',
-      phaseGeneration: '📋 Recommended: Models with large context like GPT-5 or Gemini 2.5 Pro for planning',
-      firstPhaseImplementation: '🏁 Recommended: High-capability coding models like Gemini 2.5 Pro or Claude 4 Sonnet',
-      phaseImplementation: '⚡ Recommended: Strong coding models like Gemini 2.5 Pro or Claude 4 Sonnet',
-      realtimeCodeFixer: '🚀 Recommended: Fast debugging models like Claude 4 Sonnet or Cerebras models',
-      fastCodeFixer: '⚡ Recommended: Ultra-fast models like Cerebras Qwen or GPT-OSS for speed',
-      conversationalResponse: '💬 Recommended: Balanced models like Gemini 2.5 Flash or Claude 3.5 Sonnet',
-      userSuggestionProcessor: '🎯 Recommended: Understanding models like Gemini 2.5 Pro or GPT-5',
-      codeReview: '🔍 Recommended: Analytical models like Gemini 2.5 Pro with large context windows',
-      fileRegeneration: '📝 Recommended: Pure coding models like Claude 4 Sonnet or Cerebras Qwen',
-      screenshotAnalysis: '👁️ Recommended: Vision-capable models like Gemini 2.5 Pro for image analysis'
-    };
-    return recommendations[agentAction] || '';
-  };
 
   const handleSaveProfile = async () => {
     if (isSaving) return;
@@ -1326,273 +1226,19 @@ export default function SettingsPage() {
 
               <Separator />
 
-              {/* Model Configuration Settings */}
-              <div className="space-y-4">
-                <h4 className="font-medium">Model Configuration Overrides</h4>
-                <p className="text-sm text-muted-foreground">
-                  Customize model settings for different AI operations. Leave blank to use system defaults.
-                </p>
-                
-                {loadingConfigs ? (
-                  <div className="flex items-center gap-3">
-                    <Settings className="h-5 w-5 animate-spin text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Loading model configurations...</span>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {agentConfigs.map((config) => {
-                      const userConfig = modelConfigs[config.key];
-                      const defaultConfig = defaultConfigs[config.key];
-                      const isUserOverride = userConfig?.isUserOverride || false;
-                      
-                      return (
-                        <div key={config.key} className="p-4 border rounded-lg bg-card">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="space-y-1 flex-1 pr-3">
-                              <h5 className="font-medium">{config.name}</h5>
-                              <p className="text-xs text-muted-foreground leading-relaxed">{config.description}</p>
-                              {getModelRecommendation(config.key) && (
-                                <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                                  {getModelRecommendation(config.key)}
-                                </p>
-                              )}
-                            </div>
-                            <Badge variant={isUserOverride ? "default" : "outline"} className="text-xs shrink-0">
-                              {isUserOverride ? "Custom" : "Default"}
-                            </Badge>
-                          </div>
-                          
-                          <div className="space-y-4">
-                            {/* Model Selection Row */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label className="text-sm font-medium">AI Model</Label>
-                                <Select
-                                  value={userConfig?.name || 'default'}
-                                  onValueChange={(value) => {
-                                    const updatedConfig = {
-                                      modelName: value === 'default' ? null : value,
-                                      maxTokens: userConfig?.max_tokens || null,
-                                      temperature: userConfig?.temperature ?? null,
-                                      reasoningEffort: userConfig?.reasoning_effort || null,
-                                      fallbackModel: userConfig?.fallback_model || null
-                                    };
-                                    saveModelConfig(config.key, updatedConfig);
-                                  }}
-                                >
-                                  <SelectTrigger className="h-9">
-                                    <SelectValue placeholder="Select model..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {getAvailableModels().map((model) => (
-                                      <SelectItem key={model.value} value={model.value}>
-                                        {model.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                {defaultConfig?.name && (
-                                  <p className="text-xs text-muted-foreground">
-                                    🔧 System default: {getModelDisplayName(defaultConfig.name)}
-                                  </p>
-                                )}
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <Label className="text-sm font-medium">Fallback Model</Label>
-                                <Select
-                                  value={userConfig?.fallback_model || 'default'}
-                                  onValueChange={(value) => {
-                                    const updatedConfig = {
-                                      modelName: userConfig?.name || null,
-                                      maxTokens: userConfig?.max_tokens || null,
-                                      temperature: userConfig?.temperature ?? null,
-                                      reasoningEffort: userConfig?.reasoning_effort || null,
-                                      fallbackModel: value === 'default' ? null : value
-                                    };
-                                    saveModelConfig(config.key, updatedConfig);
-                                  }}
-                                >
-                                  <SelectTrigger className="h-9">
-                                    <SelectValue placeholder="Select fallback model..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {getAvailableModels().map((model) => (
-                                      <SelectItem key={model.value} value={model.value}>
-                                        {model.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                {defaultConfig?.fallbackModel && (
-                                  <p className="text-xs text-muted-foreground">
-                                    🔧 System default: {getModelDisplayName(defaultConfig.fallbackModel)}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            
-                            {/* Parameters Row */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div className="space-y-2">
-                                <Label className="text-sm font-medium">Temperature</Label>
-                                <Input 
-                                  type="number" 
-                                  min="0" 
-                                  max="2" 
-                                  step="0.1" 
-                                  value={userConfig?.temperature ?? ''}
-                                  placeholder={defaultConfig?.temperature ? `${defaultConfig.temperature}` : '0.7'}
-                                  className="h-9"
-                                  onChange={(e) => {
-                                    const value = e.target.value ? parseFloat(e.target.value) : null;
-                                    const updatedConfig = {
-                                      modelName: userConfig?.name || null,
-                                      maxTokens: userConfig?.max_tokens || null,
-                                      temperature: value,
-                                      reasoningEffort: userConfig?.reasoning_effort || null,
-                                      fallbackModel: userConfig?.fallback_model || null
-                                    };
-                                    saveModelConfig(config.key, updatedConfig);
-                                  }}
-                                />
-                                <div className="space-y-1">
-                                  {defaultConfig?.temperature && (
-                                    <p className="text-xs text-muted-foreground">
-                                      🔧 System default: {defaultConfig.temperature}
-                                    </p>
-                                  )}
-                                  {getParameterGuidance('temperature', config.key) && (
-                                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                                      💡 {getParameterGuidance('temperature', config.key)}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <Label className="text-sm font-medium">Max Tokens</Label>
-                                <Input 
-                                  type="number" 
-                                  min="1" 
-                                  max="200000" 
-                                  value={userConfig?.max_tokens ?? ''}
-                                  placeholder={defaultConfig?.max_tokens ? `${defaultConfig.max_tokens}` : '4000'}
-                                  className="h-9"
-                                  onChange={(e) => {
-                                    const value = e.target.value ? parseInt(e.target.value) : null;
-                                    const updatedConfig = {
-                                      modelName: userConfig?.name || null,
-                                      maxTokens: value,
-                                      temperature: userConfig?.temperature ?? null,
-                                      reasoningEffort: userConfig?.reasoning_effort || null,
-                                      fallbackModel: userConfig?.fallback_model || null
-                                    };
-                                    saveModelConfig(config.key, updatedConfig);
-                                  }}
-                                />
-                                <div className="space-y-1">
-                                  {defaultConfig?.max_tokens && (
-                                    <p className="text-xs text-muted-foreground">
-                                      🔧 System default: {defaultConfig.max_tokens?.toLocaleString()}
-                                    </p>
-                                  )}
-                                  {getParameterGuidance('maxTokens', config.key) && (
-                                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                                      💡 {getParameterGuidance('maxTokens', config.key)}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <Label className="text-sm font-medium">Reasoning Effort</Label>
-                                <Select
-                                  value={userConfig?.reasoning_effort || 'default'}
-                                  onValueChange={(value) => {
-                                    const updatedConfig = {
-                                      modelName: userConfig?.name || null,
-                                      maxTokens: userConfig?.max_tokens || null,
-                                      temperature: userConfig?.temperature ?? null,
-                                      reasoningEffort: value === 'default' ? null : value,
-                                      fallbackModel: userConfig?.fallback_model || null
-                                    };
-                                    saveModelConfig(config.key, updatedConfig);
-                                  }}
-                                >
-                                  <SelectTrigger className="h-9">
-                                    <SelectValue placeholder="Select reasoning effort..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {getReasoningEffortOptions().map((option) => (
-                                      <SelectItem key={option.value} value={option.value}>
-                                        {option.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <div className="space-y-1">
-                                  {defaultConfig?.reasoning_effort && (
-                                    <p className="text-xs text-muted-foreground">
-                                      🔧 System default: {defaultConfig.reasoning_effort}
-                                    </p>
-                                  )}
-                                  {getParameterGuidance('reasoningEffort', config.key) && (
-                                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                                      💡 {getParameterGuidance('reasoningEffort', config.key)}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-2 mt-3">
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="h-7 text-xs"
-                              onClick={() => testModelConfig(config.key)}
-                              disabled={testingConfig === config.key}
-                            >
-                              {testingConfig === config.key ? (
-                                <>
-                                  <Settings className="h-3 w-3 animate-spin mr-1" />
-                                  Testing...
-                                </>
-                              ) : (
-                                'Test Config'
-                              )}
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="ghost" 
-                              className="h-7 text-xs text-muted-foreground"
-                              onClick={() => resetConfigToDefault(config.key)}
-                              disabled={!isUserOverride}
-                            >
-                              Reset to Default
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                
-                <div className="flex justify-end gap-2">
-                  <Button 
-                    variant="outline"
-                    onClick={resetAllConfigs}
-                    disabled={savingConfigs}
-                  >
-                    {savingConfigs ? 'Resetting...' : 'Reset All to Defaults'}
-                  </Button>
-                  <div className="rounded-lg bg-muted/50 p-2 text-xs text-muted-foreground">
-                    Configurations are automatically saved on change
-                  </div>
-                </div>
-              </div>
+              {/* New Tabbed Model Configuration Interface */}
+              <ModelConfigTabs
+                agentConfigs={agentConfigs}
+                modelConfigs={modelConfigs}
+                defaultConfigs={defaultConfigs}
+                loadingConfigs={loadingConfigs}
+                onSaveConfig={saveModelConfig}
+                onTestConfig={testModelConfig}
+                onResetConfig={resetConfigToDefault}
+                onResetAllConfigs={resetAllConfigs}
+                testingConfig={testingConfig}
+                savingConfigs={savingConfigs}
+              />
             </CardContent>
           </Card>
 

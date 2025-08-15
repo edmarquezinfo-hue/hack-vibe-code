@@ -36,9 +36,9 @@ export abstract class BaseController {
     /**
      * Find a user-owned resource with ownership verification
      */
-    protected async findUserOwnedResource<T>(
+    protected async findUserOwnedResource<T = Record<string, unknown>>(
         dbService: DatabaseService,
-        table: any,
+        table: unknown,
         resourceId: string,
         userId: string,
         resourceIdField: string = 'id'
