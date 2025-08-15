@@ -91,7 +91,7 @@ export async function buildGatewayUrl(env: Env, providerOverride?: AIGatewayProv
     
     // Build the url via bindings
     const gateway = env.AI.gateway(env.CLOUDFLARE_AI_GATEWAY);
-    const baseUrl = providerOverride ? await gateway.getUrl(providerOverride) : `${await gateway.getUrl()}/compat`;
+    const baseUrl = providerOverride ? await gateway.getUrl(providerOverride) : `${await gateway.getUrl()}compat`;
     return baseUrl;
 }
 
