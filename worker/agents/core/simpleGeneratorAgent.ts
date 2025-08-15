@@ -41,7 +41,7 @@ import { BaseSandboxService } from '../../services/sandbox/BaseSandboxService';
 import { getSandboxService } from '../../services/sandbox/factory';
 import { WebSocketMessageData, WebSocketMessageType } from '../websocketTypes';
 import { ConversationMessage } from '../inferutils/common';
-import { InferenceContext, AGENT_CONFIG } from '../inferutils/config';
+import { InferenceContext, AGENT_CONFIG, AgentActionKey } from '../inferutils/config';
 import { ModelConfigService } from '../../services/modelConfig/ModelConfigService';
 import { SecretsService } from '../../services/secrets/secretsService';
 import { ModelConfig } from '../inferutils/config';
@@ -842,10 +842,10 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 }
                 
                 // Always include default config
-                const defaultConfig = AGENT_CONFIG[actionKey as AgentActionType];
+                const defaultConfig = AGENT_CONFIG[actionKey as AgentActionKey];
                 if (defaultConfig) {
                     defaultConfigs[actionKey] = {
-                        name: defaultConfig.model,
+                        name: defaultConfig.name,
                         max_tokens: defaultConfig.max_tokens,
                         temperature: defaultConfig.temperature,
                         reasoning_effort: defaultConfig.reasoning_effort,
