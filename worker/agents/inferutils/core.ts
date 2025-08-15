@@ -9,7 +9,7 @@ import {
 } from './schemaFormatters';
 import { zodResponseFormat } from 'openai/helpers/zod.mjs';
 import {
-    ChatCompletionMessageFunctionToolCall,
+    ChatCompletionMessageToolCall,
 	ChatCompletionTool,
 	type ReasoningEffort,
 } from 'openai/resources.mjs';
@@ -238,7 +238,7 @@ export type InferResponseString = {
 /**
  * Execute all tool calls from OpenAI response
  */
-async function executeToolCalls(openAiToolCalls: ChatCompletionMessageFunctionToolCall[]): Promise<ToolCall[]> {
+async function executeToolCalls(openAiToolCalls: ChatCompletionMessageToolCall[]): Promise<ToolCall[]> {
     return Promise.all(
         openAiToolCalls.map(async (tc) => {
             try {
@@ -394,7 +394,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
                 })
             }
         });
-		let toolCalls: ChatCompletionMessageFunctionToolCall[] = [];
+		let toolCalls: ChatCompletionMessageToolCall[] = [];
 
 		let content = '';
 		if (stream) {
@@ -447,7 +447,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 		} else {
 			// If not streaming, get the full response content (response is ChatCompletion)
 			content = (response as OpenAI.ChatCompletion).choices[0]?.message?.content || '';
-            toolCalls = (response as OpenAI.ChatCompletion).choices[0]?.message?.tool_calls as ChatCompletionMessageFunctionToolCall[] || [];
+            toolCalls = (response as OpenAI.ChatCompletion).choices[0]?.message?.tool_calls as ChatCompletionMessageToolCall[] || [];
 			// Also print the total number of tokens used in the prompt
 			const totalTokens = (response as OpenAI.ChatCompletion).usage?.total_tokens;
 			console.log(`Total tokens used in prompt: ${totalTokens}`);
