@@ -166,8 +166,8 @@ export class UserSuggestionProcessor extends AgentOperation<UserSuggestionProces
             ];
 
             const { object: result } = await executeInference({
-                id: options.agentId,
                 env: env,
+                context: options.inferenceContext,
                 messages,
                 agentActionName: "userSuggestionProcessor",
                 schema: TechnicalInstructionSchema,

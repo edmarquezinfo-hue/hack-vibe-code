@@ -4,7 +4,7 @@ import z from 'zod';
 // import { CodeEnhancementOutput, CodeEnhancementOutputType } from '../codegen/phasewiseGenerator';
 import { SchemaFormat } from './schemaFormatters';
 import { ChatCompletionTool, ReasoningEffort } from 'openai/resources.mjs';
-import { AGENT_CONFIG, AgentActionKey, AIModels } from './config';
+import { AGENT_CONFIG, AgentActionKey, AIModels, InferenceContext } from './config';
 import { createLogger } from '../../logger';
 import { ModelConfig } from './config';
 
@@ -23,7 +23,6 @@ Please provide a valid response that matches the expected output format exactly.
 
 interface InferenceParamsBase {
     env: Env;
-    id: string;
     messages: Message[];
     maxTokens?: number;
     temperature?: number;
@@ -37,6 +36,7 @@ interface InferenceParamsBase {
     };
     reasoning_effort?: ReasoningEffort;
     modelConfig?: ModelConfig;
+    context: InferenceContext;
 }
 
 interface InferenceParamsStructured<T extends z.AnyZodObject> extends InferenceParamsBase {
@@ -55,7 +55,6 @@ export async function executeInference(
 
 export async function executeInference<T extends z.AnyZodObject>(   {
     env,
-    id,
     messages,
     temperature,
     maxTokens,
@@ -67,18 +66,41 @@ export async function executeInference<T extends z.AnyZodObject>(   {
     agentActionName,
     format,
     modelName,
-    modelConfig
+    modelConfig,
+    context
 }: InferenceParamsBase &    {
     schema?: T;
     format?: SchemaFormat;
 }): Promise<InferResponseString | InferResponseObject<T> | null> {
-    const conf = modelConfig || AGENT_CONFIG[agentActionName];
+    let conf: ModelConfig | undefined;
+    
+    if (modelConfig) {
+        // Use explicitly provided model config
+        conf = modelConfig;
+    } else if (context?.userId && context?.userModelConfigs) {
+        // Try to get user-specific configuration from context cache
+        conf = context.userModelConfigs.get(agentActionName);
+        if (conf) {
+            logger.info(`Using user configuration for ${agentActionName}: ${JSON.stringify(conf)}`);
+        } else {
+            logger.info(`No user configuration for ${agentActionName}, using AGENT_CONFIG defaults`);
+        }
+    }
 
-    modelName = modelName || conf.name;
-    temperature = temperature || conf.temperature || 0.2;
-    maxTokens = maxTokens || conf.max_tokens || 16000;
-    reasoning_effort = reasoning_effort || conf.reasoning_effort;
-    const providerOverride = conf.providerOverride;
+    // Use the final config or fall back to AGENT_CONFIG defaults
+    const finalConf = conf || AGENT_CONFIG[agentActionName];
+
+    modelName = modelName || finalConf.name;
+    temperature = temperature || finalConf.temperature || 0.2;
+    maxTokens = maxTokens || finalConf.max_tokens || 16000;
+    reasoning_effort = reasoning_effort || finalConf.reasoning_effort;
+    const providerOverride = finalConf.providerOverride;
+
+    // Use user API keys from context cache
+    const userApiKeys = context?.userApiKeys;
+    if (userApiKeys && userApiKeys.size > 0) {
+        logger.info(`Using ${userApiKeys.size} user API keys from context cache for inference`);
+    }
 
     // Exponential backoff for retries
     const backoffMs = (attempt: number) => Math.min(100 * Math.pow(2, attempt), 10000);
@@ -91,7 +113,7 @@ export async function executeInference<T extends z.AnyZodObject>(   {
 
             const result = schema ? await infer<T>({
                 env,
-                id,
+                id: context.agentId,
                 messages,
                 schema,
                 schemaName: agentActionName,
@@ -105,10 +127,11 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 stream,
                 reasoning_effort: useCheaperModel ? undefined : reasoning_effort,
                 temperature,
-                providerOverride
+                providerOverride,
+                userApiKeys: useCheaperModel ? undefined : userApiKeys
             }) : await infer({
                 env,
-                id,
+                id: context.agentId,
                 messages,
                 maxTokens,
                 modelName: useCheaperModel ? AIModels.GEMINI_2_5_FLASH: modelName,
@@ -116,7 +139,8 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 stream,
                 reasoning_effort: useCheaperModel ? undefined : reasoning_effort,
                 temperature,
-                providerOverride
+                providerOverride,
+                userApiKeys: useCheaperModel ? undefined : userApiKeys
             });
             logger.info(`Successfully completed ${agentActionName} operation`);
             // console.log(result);
@@ -136,8 +160,8 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                     useCheaperModel = true;
                 }
             } else {
-                // Try using fallback model
-                modelName = conf.fallbackModel || modelName;
+                // Try using fallback model if available
+                modelName = conf?.fallbackModel || modelName;
             }
 
             if (!isLastAttempt) {

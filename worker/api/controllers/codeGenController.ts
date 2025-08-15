@@ -9,6 +9,7 @@ import { authMiddleware } from '../../middleware/security/auth';
 import * as schema from '../../database/schema';
 import { BaseController } from './BaseController';
 import { getSandboxService } from '../../services/sandbox/factory';
+import { generateId } from '../../utils/idGenerator';
 
 interface CodeGenArgs {
     query: string;
@@ -42,7 +43,7 @@ export class CodeGenController extends BaseController {
      */
     async startCodeGeneration(request: Request, env: Env, _: ExecutionContext): Promise<Response> {
         // Initialize new request context for distributed tracing
-        const chatId = crypto.randomUUID();
+        const chatId = generateId();
         const requestId = chatId;
         const requestContext = Trace.startRequest(requestId, {
             endpoint: '/api/codegen/incremental',
@@ -65,7 +66,7 @@ export class CodeGenController extends BaseController {
             try {
                 body = await request.json() as CodeGenArgs;
             } catch (error) {
-                return this.createErrorResponse('Invalid JSON in request body', 400);
+                return this.createErrorResponse(`Invalid JSON in request body: ${JSON.stringify(error, null, 2)}`, 400);
             }
 
             const query = body.query;
@@ -161,7 +162,7 @@ export class CodeGenController extends BaseController {
             const user = await authMiddleware(request, env);
             
             // Get session token from header for anonymous users
-            const sessionToken = !user ? request.headers.get('X-Session-Token') || crypto.randomUUID() : null;
+            const sessionToken = !user ? request.headers.get('X-Session-Token') || generateId() : null;
             
             generateBlueprint({
                 env,
@@ -231,7 +232,7 @@ export class CodeGenController extends BaseController {
                 }
                 
                 // Initialize the agent with the blueprint and query
-                await agentInstance.initialize(query, blueprint, templateDetails, chatId, hostname, agentMode);
+                await agentInstance.initialize(query, blueprint, templateDetails, chatId, hostname, user?.id || '', agentMode);
                 
                 this.codeGenLogger.info('Agent initialized successfully');
                 writer.write("terminate");

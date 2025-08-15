@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 // ========================================
 // CORE USER AND IDENTITY MANAGEMENT
@@ -747,6 +747,67 @@ export const userSecrets = sqliteTable('user_secrets', {
 }));
 
 // ========================================
+// USER MODEL CONFIGURATIONS
+// ========================================
+
+/**
+ * User Model Configurations table - User-specific AI model settings that override defaults
+ */
+export const userModelConfigs = sqliteTable('user_model_configs', {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    
+    // Configuration Details
+    agentActionName: text('agent_action_name').notNull(), // Maps to AgentActionKey from config.ts
+    modelName: text('model_name'), // Override for AIModels - null means use default
+    maxTokens: integer('max_tokens'), // Override max tokens - null means use default
+    temperature: real('temperature'), // Override temperature - null means use default
+    reasoningEffort: text('reasoning_effort', { enum: ['low', 'medium', 'high'] }), // Override reasoning effort
+    providerOverride: text('provider_override', { enum: ['cloudflare', 'direct'] }), // Override provider
+    fallbackModel: text('fallback_model'), // Override fallback model
+    
+    // Status and Metadata
+    isActive: integer('is_active', { mode: 'boolean' }).default(true),
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+    userAgentIdx: uniqueIndex('user_model_configs_user_agent_idx').on(table.userId, table.agentActionName),
+    userIdx: index('user_model_configs_user_idx').on(table.userId),
+    isActiveIdx: index('user_model_configs_is_active_idx').on(table.isActive),
+}));
+
+/**
+ * User Provider Keys table - DEPRECATED: Use userSecrets table instead
+ * This table is kept for migration compatibility but should not be used in new code
+ * TODO: Remove this table in a future migration after data is migrated to userSecrets
+ */
+export const userProviderKeys = sqliteTable('user_provider_keys', {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    
+    // Provider Details
+    provider: text('provider').notNull(), // 'anthropic', 'openai', 'gemini', 'google-ai-studio', etc.
+    encryptedApiKey: text('encrypted_api_key').notNull(), // AES-256 encrypted API key
+    keyPreview: text('key_preview').notNull(), // First/last few chars for display (e.g., "sk-...xyz")
+    
+    // Testing and Validation
+    lastTested: integer('last_tested', { mode: 'timestamp' }), // Last time key was tested
+    testStatus: text('test_status', { enum: ['success', 'failed', 'pending'] }), // Last test result
+    testError: text('test_error'), // Error message from last failed test
+    
+    // Status and Metadata
+    isActive: integer('is_active', { mode: 'boolean' }).default(true),
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+    userProviderIdx: uniqueIndex('user_provider_keys_user_provider_idx').on(table.userId, table.provider),
+    userIdx: index('user_provider_keys_user_idx').on(table.userId),
+    providerIdx: index('user_provider_keys_provider_idx').on(table.provider),
+    isActiveIdx: index('user_provider_keys_is_active_idx').on(table.isActive),
+    testStatusIdx: index('user_provider_keys_test_status_idx').on(table.testStatus),
+}));
+
+// ========================================
 // SYSTEM CONFIGURATION
 // ========================================
 
@@ -844,3 +905,9 @@ export type NewAuditLog = typeof auditLogs.$inferInsert;
 
 export type UserSecret = typeof userSecrets.$inferSelect;
 export type NewUserSecret = typeof userSecrets.$inferInsert;
+
+export type UserModelConfig = typeof userModelConfigs.$inferSelect;
+export type NewUserModelConfig = typeof userModelConfigs.$inferInsert;
+
+export type UserProviderKey = typeof userProviderKeys.$inferSelect;
+export type NewUserProviderKey = typeof userProviderKeys.$inferInsert;

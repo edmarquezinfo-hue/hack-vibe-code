@@ -1,6 +1,7 @@
 import { StructuredLogger } from "../../logger";
 import { GenerationContext } from "../domain/values/GenerationContext";
 import { Message } from "../inferutils/common";
+import { InferenceContext } from "../inferutils/config";
 import { createUserMessage, createSystemMessage, createAssistantMessage } from "../inferutils/common";
 import { generalSystemPromptBuilder, USER_PROMPT_FORMATTER } from "../prompts";
 
@@ -36,6 +37,7 @@ export interface OperationOptions {
     agentId: string;
     context: GenerationContext;
     logger: StructuredLogger;
+    inferenceContext: InferenceContext;
 }
 
 export abstract class AgentOperation<InputType, OutputType> {

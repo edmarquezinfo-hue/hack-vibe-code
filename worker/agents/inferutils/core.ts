@@ -110,10 +110,20 @@ function isValidApiKey(apiKey: string): boolean {
     return true;
 }
 
-function getApiKey(provider: string, env: Env): string {
+function getApiKey(provider: string, env: Env, userProviderKeys?: Map<string, string>): string {
+    // First check if user has a custom API key for this provider
+    if (userProviderKeys && userProviderKeys.has(provider)) {
+        const userKey = userProviderKeys.get(provider);
+        if (userKey && isValidApiKey(userKey)) {
+            return userKey;
+        }
+    }
+    
+    // Fallback to environment variables
     const providerKeyString = (providerAliasMap[provider] || provider).toUpperCase().replaceAll('-', '_');
     const envKey = `${providerKeyString}_API_KEY` as keyof Env;
     let apiKey: string = env[envKey] as string;
+    
     // Check if apiKey is empty or undefined and is valid
     if (!isValidApiKey(apiKey)) {
         apiKey = env.CLOUDFLARE_AI_GATEWAY_TOKEN;
@@ -121,7 +131,11 @@ function getApiKey(provider: string, env: Env): string {
     return apiKey;
 }
 
-export async function getConfigurationForModel(model: AIModels | string, env: Env): Promise<{
+export async function getConfigurationForModel(
+    model: AIModels | string, 
+    env: Env, 
+    userProviderKeys?: Map<string, string>
+): Promise<{
     baseURL: string,
     apiKey: string,
     defaultHeaders?: Record<string, string>,
@@ -156,7 +170,7 @@ export async function getConfigurationForModel(model: AIModels | string, env: En
     const provider = providerForcedOverride || model.split('/')[0];
     // Try to find API key of type <PROVIDER>_API_KEY else default to CLOUDFLARE_AI_GATEWAY_TOKEN
     // `env` is an interface of type `Env`
-    const apiKey = getApiKey(provider, env);
+    const apiKey = getApiKey(provider, env, userProviderKeys);
     // AI Gateway Wholesaling checks
     const defaultHeaders = env.CLOUDFLARE_AI_GATEWAY_TOKEN && apiKey !== env.CLOUDFLARE_AI_GATEWAY_TOKEN ? {
         'cf-aig-authorization': `Bearer ${env.CLOUDFLARE_AI_GATEWAY_TOKEN}`,
@@ -182,6 +196,7 @@ type InferArgsBase = {
 	};
 	tools?: ChatCompletionTool[];
 	providerOverride?: 'cloudflare' | 'direct';
+	userApiKeys?: Map<string, string>;
 };
 
 type InferArgsStructured = InferArgsBase & {
@@ -278,6 +293,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 	reasoning_effort,
 	temperature,
 	providerOverride,
+	userApiKeys,
 }: InferArgsBase & {
 	schema?: OutputSchema;
 	schemaName?: string;
@@ -285,7 +301,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 	formatOptions?: FormatterOptions;
 }): Promise<InferResponseObject<OutputSchema> | InferResponseString> {
 	try {
-        const { apiKey, baseURL, defaultHeaders } = await getConfigurationForModel(modelName, env);
+        const { apiKey, baseURL, defaultHeaders } = await getConfigurationForModel(modelName, env, userApiKeys);
 		console.log(`baseUrl: ${baseURL}, providerOverride: ${providerOverride}, modelName: ${modelName}`);
 
         // Remove [*.] from model name

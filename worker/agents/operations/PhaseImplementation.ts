@@ -283,9 +283,9 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
     
         // Execute inference with streaming
         await executeInference({
-            id: options.agentId,    
             env: env,
             agentActionName: "phaseImplementation",
+            context: options.inferenceContext,
             messages,
             modelConfig,
             stream: {
@@ -350,7 +350,8 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
                                     // previousFiles: previousFiles,
                                     query: context.query,
                                     blueprint: context.blueprint,
-                                    template: context.templateDetails
+                                    template: context.templateDetails,
+                                    inferenceContext: options.inferenceContext
                                 },
                                 phase
                             );

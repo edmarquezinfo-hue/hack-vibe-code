@@ -38,6 +38,7 @@ import { TokenService } from '../auth/tokenService';
 import { CodeFixResult, FileFetcher, fixProjectIssues } from '../code-fixer';
 import { FileObject } from '../code-fixer/types';
 import { createGitHubHeaders } from '../../utils/authUtils';
+import { generateId } from '../../utils/idGenerator';
 // Export the Sandbox class in your Worker
 export { Sandbox as UserAppSandboxService, Sandbox as DeployerService} from "@cloudflare/sandbox";
 
@@ -686,7 +687,7 @@ export class SandboxSdkClient extends BaseSandboxService {
 
     async createInstance(templateName: string, projectName: string, webhookUrl?: string, wait?: boolean, localEnvVars?: Record<string, string>): Promise<BootstrapResponse> {
         try {
-            const instanceId = `${projectName}-${crypto.randomUUID()}`;
+            const instanceId = `${projectName}-${generateId()}`;
             this.logger.info(`Creating sandbox instance: ${instanceId}`, { templateName: templateName, projectName: projectName });
             
             // Generate JWT bearer token for templates gateway authentication

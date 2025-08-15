@@ -1,11 +1,10 @@
 import type { Blueprint, ClientReportedErrorType, PhaseConceptType ,
     FileOutputType,
-    // FileStructureOutputType,
-    CodeReviewOutputType,
 } from '../schemas';
 import type { TemplateDetails } from '../../services/sandbox/sandboxTypes';
 import type { ScreenshotData } from './types';
 import type { ConversationMessage } from '../inferutils/common';
+import type { InferenceContext } from '../inferutils/config';
 
 export interface FileState extends FileOutputType {
     last_hash: string;
@@ -39,13 +38,9 @@ export interface CodeGenState {
     sandboxInstanceId?: string;
     previewURL?: string;
     tunnelURL?: string;
-    lastCodeReview?: CodeReviewOutputType;
-    enableFileEnhancement?: boolean; // Flag to control file enhancement feature
     clientReportedErrors: ClientReportedErrorType[];
     latestScreenshot?: ScreenshotData; // Store captured screenshot
     shouldBeGenerating?: boolean; // Persistent flag indicating generation should be active
-
-    // conversationalAssistant: ConversationalAssistant;
     agentMode: 'deterministic' | 'smart';
     sessionId: string;
     hostname: string;
@@ -56,4 +51,5 @@ export interface CodeGenState {
     currentPhase?: PhaseConceptType; // Current phase being worked on
 
     conversationMessages: ConversationMessage[];
+    inferenceContext: InferenceContext;
 }  

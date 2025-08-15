@@ -3,9 +3,9 @@ import { FileOutputType, SetupCommandsType, type Blueprint } from "../schemas";
 import { createObjectLogger, StructuredLogger } from '../../logger';
 import { generalSystemPromptBuilder, PROMPT_UTILS } from '../prompts';
 import { createAssistantMessage, createSystemMessage, createUserMessage } from "../inferutils/common";
-import { executeInference } from "../inferutils/infer";
+import { executeInference, } from "../inferutils/infer";
 import Assistant from "./assistant";
-import { AIModels } from "../inferutils/config";
+import { AIModels, InferenceContext } from "../inferutils/config";
 import { extractCommands } from "../utils/common";
 
 interface GenerateSetupCommandsArgs {
@@ -14,6 +14,7 @@ interface GenerateSetupCommandsArgs {
     query: string;
     blueprint: Blueprint;
     template: TemplateDetails;
+    inferenceContext: InferenceContext;
 }
 
 const SYSTEM_PROMPT = `You are an Expert senior full-stack engineer at Cloudflare tasked with designing and developing a full stack application for the user based on their original query and provided blueprint. `
@@ -85,13 +86,15 @@ function extractAllIncludes(files: FileOutputType[]) {
 export class ProjectSetupAssistant extends Assistant<Env> {
     private query: string;
     private logger: StructuredLogger;
+    private inferenceContext: InferenceContext;
     
     constructor({
         env,
         agentId,
         query,
         blueprint,
-        template
+        template,
+        inferenceContext
     }: GenerateSetupCommandsArgs) {
         const systemPrompt = createSystemMessage(SYSTEM_PROMPT);
         super(env, agentId, systemPrompt);
@@ -104,6 +107,7 @@ export class ProjectSetupAssistant extends Assistant<Env> {
         }))]);
         this.query = query;
         this.logger = createObjectLogger(this, 'ProjectSetupAssistant');
+        this.inferenceContext = inferenceContext;
     }
 
     async generateSetupCommands(error?: string): Promise<SetupCommandsType> {
@@ -122,20 +126,20 @@ ${error}`);
 
             const results = await executeInference({
                 env: this.env,
-                id: this.agentId,
                 messages,
                 agentActionName: "projectSetup",
+                context: this.inferenceContext,
                 modelName: error? AIModels.GEMINI_2_5_FLASH : undefined,
             });
-            if (!results.string) {
+            if (!results || typeof results !== 'string') {
                 this.logger.info(`Failed to generate setup commands`);
                 return { commands: [] };
             }
 
-            this.logger.info(`Generated setup commands: ${results.string}`);
+            this.logger.info(`Generated setup commands: ${results}`);
 
-            this.save([createAssistantMessage(results.string)]);
-            return { commands: extractCommands(results.string) };
+            this.save([createAssistantMessage(results)]);
+            return { commands: extractCommands(results) };
         } catch (error) {
             this.logger.error("Error generating setup commands:", error);
             throw error;
@@ -155,19 +159,19 @@ ${error}`);
             this.save([createUserMessage(ENSURE_USER_PROMPT.replaceAll("{{codebase}}", "[REDACTED]").replaceAll("{{dependencies}}", "[REDACTED]"))]);
             const results = await executeInference({
                 env: this.env,
-                id: this.agentId,
                 messages,
                 agentActionName: "projectSetup",
+                context: { agentId: this.agentId },
             });
-            if (!results) {
+            if (!results || typeof results !== 'string') {
                 this.logger.info(`Failed to generate setup commands`);
                 return { commands: [] };
             }
 
-            this.logger.info(`Generated setup commands: ${results.string}`);
+            this.logger.info(`Generated setup commands: ${results}`);
 
-            this.save([createAssistantMessage(results.string)]); 
-            return { commands: extractCommands(results.string) };
+            this.save([createAssistantMessage(results)]); 
+            return { commands: extractCommands(results) };
         } catch (error) {
             this.logger.error("Error ensuring dependencies:", error);
             throw error;

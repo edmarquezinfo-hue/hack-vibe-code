@@ -56,6 +56,6 @@ export default defineConfig({
 		format: 'es'
 	},
 	server: {
-		allowedHosts: ['localhost', '127.0.0.1', 'build.chat.cloudflare.dev', 'orange_build.eti-india.workers.dev', 'build.ashishkumarsingh.com', 'build.cloudflare.dev']
+		allowedHosts: true
 	},
 });

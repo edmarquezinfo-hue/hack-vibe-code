@@ -150,11 +150,11 @@ export async function generateBlueprint({ env, agentId, query, language, framewo
         // }
 
         const { object: results } = await executeInference({
-            id: agentId,
             env,
             messages,
             agentActionName: "blueprint",
             schema: BlueprintSchema,
+            context: { agentId },
             stream: stream,
         });
 

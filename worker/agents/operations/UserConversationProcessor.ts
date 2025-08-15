@@ -87,10 +87,10 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
             
             // Don't save the system prompts so that every time new initial prompts can be generated with latest project context
             await executeInference({
-                id: options.agentId,
                 env: env,
                 messages: [...systemPrompts, ...messages],
                 agentActionName: "conversationalResponse",
+                context: options.inferenceContext,
                 tools, // Enable tools for the conversational AI
                 stream: {
                     onChunk: (chunk) => {
@@ -192,16 +192,13 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
         }
     }
 
-    processProjectUpdates<T extends ProjectUpdateType>(updateType: T, data: WebSocketMessageData<T>, logger: StructuredLogger) : ConversationMessage[] {
+    processProjectUpdates<T extends ProjectUpdateType>(updateType: T, _data: WebSocketMessageData<T>, logger: StructuredLogger) : ConversationMessage[] {
         try {
             logger.info("Processing project update", { updateType });
 
-            // Just save it as an assistant message
+            // Just save it as an assistant message. Dont save data for now to avoid DO size issues
             const preparedMessage = `**<Internal Memo>**
 Project Updates: ${updateType}
-
-Relevant Data: 
-${JSON.stringify(data, null, 2)}
 </Internal Memo>`;
 
             return [{

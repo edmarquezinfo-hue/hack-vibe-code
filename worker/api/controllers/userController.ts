@@ -4,6 +4,7 @@ import { DatabaseService } from '../../database/database';
 import * as schema from '../../database/schema';
 import { eq, sql, and } from 'drizzle-orm';
 import { BaseController } from './BaseController';
+import { generateId } from '../../utils/idGenerator';
 
 /**
  * User Management Controller for Orange
@@ -21,7 +22,7 @@ export class UserController extends BaseController {
      * Get user dashboard data
      */
     async getDashboard(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
-        const requestId = crypto.randomUUID();
+        const requestId = generateId();
         const requestContext = Trace.startRequest(requestId, {
             endpoint: '/api/user/dashboard',
             method: 'GET',
@@ -150,7 +151,7 @@ export class UserController extends BaseController {
      * Get user's apps with pagination and filtering
      */
     async getApps(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
-        const requestId = crypto.randomUUID();
+        const requestId = generateId();
         const requestContext = Trace.startRequest(requestId, {
             endpoint: '/api/user/apps',
             method: 'GET',
@@ -245,7 +246,7 @@ export class UserController extends BaseController {
      * Create or associate a CodeGeneratorAgent session with the user
      */
     async createAgentSession(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
-        const requestId = crypto.randomUUID();
+        const requestId = generateId();
         const requestContext = Trace.startRequest(requestId, {
             endpoint: '/api/user/sessions',
             method: 'POST',
@@ -349,7 +350,7 @@ export class UserController extends BaseController {
      * Update user profile
      */
     async updateProfile(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
-        const requestId = crypto.randomUUID();
+        const requestId = generateId();
         const requestContext = Trace.startRequest(requestId, {
             endpoint: '/api/user/profile',
             method: 'PUT',
@@ -454,7 +455,7 @@ export class UserController extends BaseController {
      * Get user's teams
      */
     async getTeams(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
-        const requestId = crypto.randomUUID();
+        const requestId = generateId();
         const requestContext = Trace.startRequest(requestId, {
             endpoint: '/api/user/teams',
             method: 'GET',

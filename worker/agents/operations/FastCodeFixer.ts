@@ -80,10 +80,10 @@ export class FastCodeFixerOperation extends AgentOperation<FastCodeFixerInputs, 
         ];
 
         const result = await executeInference({
-            id: options.agentId,    
             env: env,
             messages,
             agentActionName: "fastCodeFixer",
+            context: options.inferenceContext,
         });
 
         const files = codeGenerationFormat.deserialize(result.string);

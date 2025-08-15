@@ -188,11 +188,11 @@ export class CodeReviewOperation extends AgentOperation<CodeReviewInputs, CodeRe
 
         try {
             const { object: reviewResult } = await executeInference({
-                id: options.agentId,
                 env: env,
                 messages,
                 schema: CodeReviewOutput,
                 agentActionName: "codeReview",
+                context: options.inferenceContext,
                 format: 'markdown'
             });
 

@@ -4,6 +4,7 @@
  */
 
 import { BaseController } from './BaseController';
+import { generateId } from '../../utils/idGenerator';
 import { AuthService } from '../../services/auth/authService';
 import { SessionService } from '../../services/auth/sessionService';
 import { TokenService } from '../../services/auth/tokenService';
@@ -583,7 +584,7 @@ export class AuthController extends BaseController {
             await db.db
                 .insert(schema.apiKeys)
                 .values({
-                    id: crypto.randomUUID(),
+                    id: generateId(),
                     userId: session.userId,
                     name: sanitizedName,
                     keyHash,

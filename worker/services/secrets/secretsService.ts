@@ -7,6 +7,7 @@ import { DatabaseService } from '../../database/database';
 import * as schema from '../../database/schema';
 import { eq, and } from 'drizzle-orm';
 import { createLogger } from '../../logger';
+import { generateId } from '../../utils/idGenerator';
 
 const logger = createLogger('SecretsService');
 
@@ -135,7 +136,7 @@ export class SecretsService {
 
             // Store in database
             const newSecret = {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 userId,
                 name: secretData.name,
                 provider: secretData.provider,
@@ -249,6 +250,42 @@ export class SecretsService {
         } catch (error) {
             logger.error('Failed to delete secret', error);
             throw error;
+        }
+    }
+
+    /**
+     * Get all user API keys as a map (provider -> decrypted key)
+     * Used by inference system to override environment variables
+     */
+    async getUserProviderKeysMap(userId: string): Promise<Map<string, string>> {
+        try {
+            const secrets = await this.db.db
+                .select()
+                .from(schema.userSecrets)
+                .where(
+                    and(
+                        eq(schema.userSecrets.userId, userId),
+                        eq(schema.userSecrets.isActive, true),
+                        eq(schema.userSecrets.secretType, 'API_KEY') // Only get API keys
+                    )
+                );
+
+            const keyMap = new Map<string, string>();
+            
+            for (const secret of secrets) {
+                try {
+                    const decryptedKey = await this.decryptSecret(secret.encryptedValue);
+                    keyMap.set(secret.provider, decryptedKey);
+                } catch (error) {
+                    logger.error(`Failed to decrypt key for provider ${secret.provider}:`, error);
+                }
+            }
+
+            logger.info(`Loaded ${keyMap.size} user API keys from secrets system`, { userId });
+            return keyMap;
+        } catch (error) {
+            logger.error('Failed to get user provider keys map', error);
+            return new Map();
         }
     }
 
