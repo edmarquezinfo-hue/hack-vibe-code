@@ -499,20 +499,6 @@ export function AppSidebar() {
 				<SidebarFooter>
 					{user && (
 						<SidebarMenu>
-							{/* <SidebarMenuItem>
-								<SidebarMenuButton
-									onClick={() => navigate('/dashboard')}
-									tooltip="Dashboard"
-									className="nav-button"
-								>
-									<LayoutGrid className="h-4 w-4 text-primary/60" />
-									{!isCollapsed && (
-										<span className="text-primary/80 font-medium">
-											Dashboard
-										</span>
-									)}
-								</SidebarMenuButton>
-							</SidebarMenuItem> */}
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									onClick={() => navigate('/discover')}
@@ -543,7 +529,7 @@ export function AppSidebar() {
 							</SidebarMenuItem>
 							<SidebarMenuItem>
 								<SidebarMenuButton
-									onClick={() => navigate('/profile')}
+									// onClick={() => navigate('/profile')}
 									size="lg"
 									tooltip={user.displayName || user.email}
 									className="mt-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground profile-button"

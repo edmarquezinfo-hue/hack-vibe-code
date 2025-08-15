@@ -280,7 +280,7 @@ export function ModelConfigTabs({
 
       {/* Tabbed interface */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 h-16 items-center">
+        <TabsList className="grid w-full grid-cols-5 h-12 items-center">
           {Object.values(WORKFLOW_TABS).map((tab) => {
             const Icon = tab.icon;
             const customizedCount = getCustomizedCountForTab(tab.id);
@@ -289,7 +289,7 @@ export function ModelConfigTabs({
               <TabsTrigger 
                 key={tab.id} 
                 value={tab.id}
-                className="flex flex-col gap-1 py-2 relative h-[calc(100%-4px)] min-h-[calc(100%-4px)] justify-center"
+                className="flex flex-col gap-1 py-1 relative h-[calc(100%-4px)] min-h-[calc(100%-4px)] justify-center"
               >
                 <div className="flex items-center gap-2">
                   <Icon className="h-4 w-4" />
