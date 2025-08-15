@@ -997,7 +997,7 @@ class CloudflareDeploymentManager {
 		// Environment variable takes priority over wrangler.jsonc vars
 		const maxInstances =
 			process.env.MAX_SANDBOX_INSTANCES ||
-			this.config.vars?.MAX_SANDBOX_INSTANCES;
+			this.config.vars?.MAX_SANDBOX_INSTANCES || "10";
 
 		if (!maxInstances) {
 			console.log(

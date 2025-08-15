@@ -136,7 +136,7 @@
         "TEMPLATES_REPOSITORY": "https://github.com/AshishKumar4/cloudflare-build-templates",
         "CLOUDFLARE_AI_GATEWAY": "c-coder",
         "CUSTOM_DOMAIN": "build.cloudflare.dev",
-        "MAX_SANDBOX_INSTANCES": 10,
+        "MAX_SANDBOX_INSTANCES": "10",
         "SANDBOX_INSTANCE_TYPE": "standard"
     },
 	"workers_dev": false,
