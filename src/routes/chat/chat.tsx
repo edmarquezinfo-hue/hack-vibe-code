@@ -29,6 +29,7 @@ import { useApp } from '@/hooks/use-app';
 import { AgentModeDisplay } from '../../components/agent-mode-display';
 import { useGitHubExport } from '@/hooks/use-github-export';
 import { GitHubExportModal } from '@/components/github-export-modal';
+import { ModelConfigInfo } from './components/model-config-info';
 
 export default function Chat() {
 	const { chatId: urlChatId } = useParams();
@@ -132,6 +133,47 @@ export default function Chat() {
 
 	// Debug panel state
 	const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
+
+	// Model config info state
+	const [modelConfigs, setModelConfigs] = useState<{
+		agents: Array<{ key: string; name: string; description: string; }>;
+		userConfigs: Record<string, any>;
+		defaultConfigs: Record<string, any>;
+	} | undefined>();
+	const [loadingConfigs, setLoadingConfigs] = useState(false);
+
+	// Handler for model config info requests
+	const handleRequestConfigs = useCallback(() => {
+		if (!websocket) return;
+		
+		setLoadingConfigs(true);
+		websocket.send(JSON.stringify({
+			type: 'get_model_configs'
+		}));
+	}, [websocket]);
+
+	// Listen for model config info WebSocket messages
+	useEffect(() => {
+		if (!websocket) return;
+
+		const handleMessage = (event: MessageEvent) => {
+			try {
+				const message = JSON.parse(event.data);
+				if (message.type === 'model_configs_info') {
+					setModelConfigs(message.configs);
+					setLoadingConfigs(false);
+				}
+			} catch (error) {
+				console.error('Error parsing WebSocket message for model configs:', error);
+			}
+		};
+
+		websocket.addEventListener('message', handleMessage);
+		
+		return () => {
+			websocket.removeEventListener('message', handleMessage);
+		};
+	}, [websocket]);
 
 	const hasSeenPreview = useRef(false);
 	const hasSwitchedFile = useRef(false);
@@ -741,6 +783,11 @@ export default function Chat() {
 												)}
 												{isDeploying ? 'Deploying...' : 'Save'}
 											</button> */}
+											<ModelConfigInfo
+												configs={modelConfigs}
+												onRequestConfigs={handleRequestConfigs}
+												loading={loadingConfigs}
+											/>
 											<button
 												className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-all duration-200 text-xs font-medium shadow-sm ${
 													isPhase1Complete 
@@ -870,6 +917,11 @@ export default function Chat() {
 													<Github className="size-3" />
 													GitHub
 												</button> */}
+												<ModelConfigInfo
+													configs={modelConfigs}
+													onRequestConfigs={handleRequestConfigs}
+													loading={loadingConfigs}
+												/>
 												<button
 													className="p-1 hover:bg-bg-lighter rounded transition-colors"
 													onClick={() => {

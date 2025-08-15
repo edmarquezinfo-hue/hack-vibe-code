@@ -41,7 +41,7 @@ import { BaseSandboxService } from '../../services/sandbox/BaseSandboxService';
 import { getSandboxService } from '../../services/sandbox/factory';
 import { WebSocketMessageData, WebSocketMessageType } from '../websocketTypes';
 import { ConversationMessage } from '../inferutils/common';
-import { InferenceContext } from '../inferutils/config';
+import { InferenceContext, AGENT_CONFIG } from '../inferutils/config';
 import { ModelConfigService } from '../../services/modelConfig/ModelConfigService';
 import { SecretsService } from '../../services/secrets/secretsService';
 import { ModelConfig } from '../inferutils/config';
@@ -800,6 +800,69 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             deploymentNeeded: result.deploymentNeeded,
             commands: result.commands
         };
+    }
+
+    /**
+     * Get current model configurations (defaults + user overrides)
+     * Used by WebSocket to provide configuration info to frontend
+     */
+    async getModelConfigsInfo() {
+        const userId = this.state.sessionId;
+        if (!userId) {
+            throw new Error('No user session available for model configurations');
+        }
+
+        try {
+            const db = new DatabaseService(this.env);
+            const modelConfigService = new ModelConfigService(db);
+            
+            // Get all user configs
+            const userConfigsRecord = await modelConfigService.getUserModelConfigs(userId);
+            
+            // Transform to match frontend interface
+            const agents = Object.entries(AGENT_CONFIG).map(([key, config]) => ({
+                key,
+                name: config.name,
+                description: config.description
+            }));
+
+            const userConfigs: Record<string, any> = {};
+            const defaultConfigs: Record<string, any> = {};
+
+            for (const [actionKey, mergedConfig] of Object.entries(userConfigsRecord)) {
+                if (mergedConfig.isUserOverride) {
+                    userConfigs[actionKey] = {
+                        name: mergedConfig.name,
+                        max_tokens: mergedConfig.max_tokens,
+                        temperature: mergedConfig.temperature,
+                        reasoning_effort: mergedConfig.reasoning_effort,
+                        fallbackModel: mergedConfig.fallbackModel,
+                        isUserOverride: true
+                    };
+                }
+                
+                // Always include default config
+                const defaultConfig = AGENT_CONFIG[actionKey as AgentActionType];
+                if (defaultConfig) {
+                    defaultConfigs[actionKey] = {
+                        name: defaultConfig.model,
+                        max_tokens: defaultConfig.max_tokens,
+                        temperature: defaultConfig.temperature,
+                        reasoning_effort: defaultConfig.reasoning_effort,
+                        fallbackModel: defaultConfig.fallbackModel
+                    };
+                }
+            }
+
+            return {
+                agents,
+                userConfigs,
+                defaultConfigs
+            };
+        } catch (error) {
+            this.logger.error('Error fetching model configs info:', error);
+            throw error;
+        }
     }
 
     /**

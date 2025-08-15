@@ -293,6 +293,33 @@ type DeterministicCodeFixCompletedMessage = {
     fixResult: CodeFixResult;
 };
 
+type ModelConfigsInfoMessage = {
+	type: 'model_configs_info';
+	message: string;
+	configs: {
+		agents: Array<{
+			key: string;
+			name: string;
+			description: string;
+		}>;
+		userConfigs: Record<string, {
+			name?: string;
+			max_tokens?: number;
+			temperature?: number;
+			reasoning_effort?: string;
+			fallbackModel?: string;
+			isUserOverride?: boolean;
+		}>;
+		defaultConfigs: Record<string, {
+			name?: string;
+			max_tokens?: number;
+			temperature?: number;
+			reasoning_effort?: string;
+			fallbackModel?: string;
+		}>;
+	};
+};
+
 export type WebSocketMessage =
 	| StateMessage
 	| GenerationStartedMessage
@@ -332,7 +359,8 @@ export type WebSocketMessage =
 	| UserSuggestionsProcessedMessage
 	| ConversationResponseMessage
     | DeterministicCodeFixStartedMessage
-    | DeterministicCodeFixCompletedMessage;
+    | DeterministicCodeFixCompletedMessage
+	| ModelConfigsInfoMessage;
 
 // A type representing all possible message type strings (e.g., 'generation_started', 'file_generating', etc.)
 export type WebSocketMessageType = WebSocketMessage['type'];

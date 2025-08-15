@@ -209,6 +209,18 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                     sendError(connection, `Error processing user suggestion: ${error instanceof Error ? error.message : String(error)}`);
                 });
                 break;
+            case WebSocketMessageRequests.GET_MODEL_CONFIGS:
+                logger.info('Fetching model configurations');
+                agent.getModelConfigsInfo().then(configsInfo => {
+                    sendToConnection(connection, WebSocketMessageResponses.MODEL_CONFIGS_INFO, {
+                        message: 'Model configurations retrieved',
+                        configs: configsInfo
+                    });
+                }).catch((error: unknown) => {
+                    logger.error('Error fetching model configs:', error);
+                    sendError(connection, `Error fetching model configurations: ${error instanceof Error ? error.message : String(error)}`);
+                });
+                break;
             default:
                 sendError(connection, `Unknown message type: ${parsedMessage.type}`);
         }
