@@ -4,7 +4,7 @@
  */
  {
 	// "$schema": "node_modules/wrangler/config-schema.json",
-	"name": "orange-build-008",
+	"name": "orange-build",
 	"main": "worker/index.ts",
 	"compatibility_date": "2025-08-10",
 	"compatibility_flags": ["nodejs_compat"],
