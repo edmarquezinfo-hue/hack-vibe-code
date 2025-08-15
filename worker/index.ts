@@ -3,6 +3,7 @@ import { setupRouter } from './api/routes/codegenRoutes';
 import { errorResponse } from './api/responses';
 import { SmartCodeGeneratorAgent } from "./agents/core/smartGeneratorAgent";
 import { proxyToSandbox } from '@cloudflare/sandbox';
+import { isDispatcherAvailable } from './utils/dispatcherUtils';
 
 export class CodeGeneratorAgent extends SmartCodeGeneratorAgent {}
 export { UserAppSandboxService, DeployerService } from './services/sandbox/sandboxSdkClient';
@@ -30,15 +31,22 @@ export default {
                 if (hostname !== env.CUSTOM_DOMAIN && subdomain !== 'localhost' && subdomain !== 'www' && subdomain !== 'build' && hostname.split('.').length >= 2) {
                     const proxyResponse = await proxyToSandbox(requestCopy, env);
                     if (proxyResponse) return proxyResponse;
+                    // WFP-start --> Do not remove this comment
                     logger.info(`Dispatching request to dispatcher`);
-                    // Get worker from dispatch namespace
-                    const worker = env.DISPATCHER.get(subdomain);
-                    if (worker) {
-                        logger.info(`Dispatching request to worker ${subdomain}`);
-                        // Dispatch request to worker
-                        const response = await worker.fetch(requestCopy);
-                        return response;
+                    if (isDispatcherAvailable(env)) {
+                        // Get worker from dispatch namespace
+                        const dispatcher = env['DISPATCHER'] as any;
+                        const worker = dispatcher.get(subdomain);
+                        if (worker) {
+                            logger.info(`Dispatching request to worker ${subdomain}`);
+                            // Dispatch request to worker
+                            const response = await worker.fetch(requestCopy);
+                            return response;
+                        }
+                    } else {
+                        logger.info(`Dispatcher not available, skipping dispatch for subdomain: ${subdomain}`);
                     }
+                    // WFP-end --> Do not remove this comment
                 }
             }
         } catch (error) {

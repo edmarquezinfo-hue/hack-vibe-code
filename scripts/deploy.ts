@@ -255,9 +255,8 @@ class CloudflareDeploymentManager {
 	private async ensureDispatchNamespace(): Promise<void> {
 		const dispatchConfig = this.config.dispatch_namespaces?.[0];
 		if (!dispatchConfig) {
-			throw new DeploymentError(
-				'No dispatch namespace configuration found in wrangler.jsonc',
-			);
+			console.log('ℹ️  No dispatch namespace configuration found, skipping setup');
+			return;
 		}
 
 		const namespaceName = dispatchConfig.namespace;
@@ -275,6 +274,15 @@ class CloudflareDeploymentManager {
 				);
 				return;
 			} catch (error: any) {
+				// Check if error indicates dispatch namespaces are not available
+				const errorMessage = error?.message || '';
+				if (errorMessage.includes('You do not have access to dispatch namespaces') || 
+					errorMessage.includes('code: 10121')) {
+					console.log('⚠️  Dispatch namespaces became unavailable during execution');
+					console.log('   Workers for Platforms access may have changed');
+					return;
+				}
+
 				// If error is not 404, re-throw it
 				if (
 					error?.status !== 404 &&
@@ -298,6 +306,15 @@ class CloudflareDeploymentManager {
 				`✅ Successfully created dispatch namespace: ${namespaceName}`,
 			);
 		} catch (error) {
+			// Check if the error is related to dispatch namespace access
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			if (errorMessage.includes('You do not have access to dispatch namespaces') || 
+				errorMessage.includes('code: 10121')) {
+				console.warn('⚠️  Dispatch namespaces are not available for this account');
+				console.warn('   Skipping dispatch namespace setup and continuing deployment');
+				return;
+			}
+
 			throw new DeploymentError(
 				`Failed to ensure dispatch namespace: ${namespaceName}`,
 				error instanceof Error ? error : new Error(String(error)),
@@ -1530,6 +1547,80 @@ class CloudflareDeploymentManager {
 	}
 
 	/**
+	 * Checks if dispatch namespaces (Workers for Platforms) are available for the user
+	 */
+	private async checkDispatchNamespaceAvailability(): Promise<boolean> {
+		console.log('🔍 Checking dispatch namespace availability (Workers for Platforms)...');
+
+		try {
+			// Run the wrangler dispatch-namespace list command to test availability
+			const result = execSync('npx wrangler dispatch-namespace list', {
+				stdio: 'pipe',
+				cwd: PROJECT_ROOT,
+				encoding: 'utf8',
+			});
+
+			// If the command succeeds without error, dispatch namespaces are available
+			console.log('✅ Dispatch namespaces are available');
+			return true;
+
+		} catch (error: any) {
+			// Parse the error to check if it's specifically about dispatch namespace access
+			const errorOutput = error.stderr || error.stdout || error.message || '';
+
+			if (errorOutput.includes('You do not have access to dispatch namespaces') || 
+				errorOutput.includes('code: 10121')) {
+				console.log('⚠️  Dispatch namespaces are NOT available');
+				console.log('   Workers for Platforms is not enabled for this account');
+				console.log('   You can purchase it at: https://dash.cloudflare.com?to=/:account/workers-for-platforms');
+				console.log('   If you are an Enterprise customer, please contact your account team');
+				return false;
+			}
+
+			// For other errors, log them but assume availability (conservative approach)
+			console.warn(`⚠️  Could not verify dispatch namespace availability: ${errorOutput}`);
+			console.warn('   Proceeding with assumption that dispatch namespaces are available');
+			return true;
+		}
+	}
+
+	/**
+	 * Comments out the dispatch_namespaces section in wrangler.jsonc when not available
+	 */
+	private commentOutDispatchNamespaces(): void {
+		try {
+			console.log('🔧 Commenting out dispatch_namespaces in wrangler.jsonc...');
+			
+			const wranglerPath = join(PROJECT_ROOT, 'wrangler.jsonc');
+			const content = readFileSync(wranglerPath, 'utf-8');
+			
+			// Check if dispatch_namespaces is currently uncommented
+			if (!content.includes('"dispatch_namespaces": [')) {
+				console.log('ℹ️  dispatch_namespaces already commented out or not present');
+				return;
+			}
+
+			// Comment out the dispatch_namespaces section
+			// Look for the pattern and replace it with commented version
+			const commentedContent = content.replace(
+				/(\s*)"dispatch_namespaces": \[[\s\S]*?\]/,
+				'$1// "dispatch_namespaces": [\n$1//     {\n$1//         "binding": "DISPATCHER",\n$1//         "namespace": "orange-build-default-namespace",\n$1//         "experimental_remote": true\n$1//     }\n$1// ]'
+			);
+
+			if (commentedContent !== content) {
+				writeFileSync(wranglerPath, commentedContent, 'utf-8');
+				console.log('✅ Successfully commented out dispatch_namespaces in wrangler.jsonc');
+			} else {
+				console.log('ℹ️  No changes needed for dispatch_namespaces');
+			}
+
+		} catch (error) {
+			console.warn(`⚠️  Could not comment out dispatch_namespaces: ${error instanceof Error ? error.message : String(error)}`);
+			console.warn('   Continuing with deployment...');
+		}
+	}
+
+	/**
 	 * Main deployment orchestration method
 	 */
 	public async deploy(): Promise<void> {
@@ -1554,6 +1645,16 @@ class CloudflareDeploymentManager {
 
 			console.log('✅ Configuration files updated successfully!\n');
 
+			// Step 1.5: Check dispatch namespace availability early
+			console.log('\n📋 Step 1.5: Checking dispatch namespace availability...');
+			const dispatchNamespacesAvailable = await this.checkDispatchNamespaceAvailability();
+			
+			// Comment out dispatch_namespaces in wrangler.jsonc if not available
+			if (!dispatchNamespacesAvailable) {
+				this.commentOutDispatchNamespaces();
+			}
+			console.log('✅ Dispatch namespace availability check completed!\n');
+
 			// Step 2: Update container configuration if needed
 			console.log('\n📋 Step 2: Updating container configuration...');
 			this.updateContainerConfiguration();
@@ -1567,28 +1668,33 @@ class CloudflareDeploymentManager {
 
 			// Steps 2-4: Run all setup operations in parallel
 			const operations: Promise<void>[] = [
-				this.ensureDispatchNamespace(),
 				this.deployTemplates(),
 				this.buildProject(),
 			];
 
+			// Only add dispatch namespace setup if available
+			if (dispatchNamespacesAvailable) {
+				operations.push(this.ensureDispatchNamespace());
+			}
+
 			// Add AI Gateway setup if gateway name is provided
 			if (this.env.CLOUDFLARE_AI_GATEWAY) {
 				operations.push(this.ensureAIGateway());
-				console.log(
-					'📋 Step 4: Running all setup operations in parallel...',
-				);
+			}
+
+			// Log the operations that will run in parallel
+			console.log(
+				'📋 Step 4: Running all setup operations in parallel...',
+			);
+			if (dispatchNamespacesAvailable) {
 				console.log('   🔄 Workers for Platforms namespace setup');
-				console.log('   🔄 Templates repository deployment');
-				console.log('   🔄 Project build (clean + compile)');
-				console.log('   🔄 AI Gateway setup and configuration');
 			} else {
-				console.log(
-					'📋 Step 4: Running all setup operations in parallel...',
-				);
-				console.log('   🔄 Workers for Platforms namespace setup');
-				console.log('   🔄 Templates repository deployment');
-				console.log('   🔄 Project build (clean + compile)');
+				console.log('   ⏭️  Skipping Workers for Platforms namespace setup (not available)');
+			}
+			console.log('   🔄 Templates repository deployment');
+			console.log('   🔄 Project build (clean + compile)');
+			if (this.env.CLOUDFLARE_AI_GATEWAY) {
+				console.log('   🔄 AI Gateway setup and configuration');
 			}
 
 			await Promise.all(operations);
