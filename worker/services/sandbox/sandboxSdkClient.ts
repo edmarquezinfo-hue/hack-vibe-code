@@ -640,14 +640,21 @@ export class SandboxSdkClient extends BaseSandboxService {
             this.logger.info(`Installing dependencies for ${instanceId}`);
             const installResult = await this.executeCommand(instanceId, `bun install`);
             this.logger.info(`Install result: ${installResult.stdout}`);
-
-            if (localEnvVars) {
-                await this.setLocalEnvVars(instanceId, localEnvVars);
-            }
                 
             if (installResult.exitCode === 0) {
                 // Try to start development server in background
                 try {
+                    // Set local environment variables if provided
+                    if (localEnvVars) {
+                        await this.setLocalEnvVars(instanceId, localEnvVars);
+                    }
+                    // Run setup script if available in template
+                    const setupScript = await sandbox.readFile(`${instanceId}/setup.sh`);
+                    if (setupScript) {
+                        this.logger.info(`Running setup script for ${instanceId}`);
+                        const setupResult = await this.executeCommand(instanceId, `bash setup.sh`);
+                        this.logger.info(`Setup result: STDOUT: ${setupResult.stdout}, STDERR: ${setupResult.stderr}`);
+                    }
                     // Start dev server on allocated port
                     const processId = await this.startDevServer(instanceId, allocatedPort);
                         
@@ -668,15 +675,7 @@ export class SandboxSdkClient extends BaseSandboxService {
                     return undefined;
                 }
             } else {
-                // Handle dependency installation failure
-                const error: RuntimeError = {
-                    timestamp: new Date(),
-                    message: `Failed to install dependencies: ${installResult.stderr}`,
-                    severity: 'warning',
-                    source: 'npm_install',
-                    rawOutput: `Exit code: ${installResult.exitCode}\nSTDOUT: ${installResult.stdout}\nSTDERR: ${installResult.stderr}`
-                };
-                await this.storeRuntimeError(instanceId, error);
+                this.logger.warn('Failed to install dependencies', installResult.stderr);
             }
         } catch (error) {
             this.logger.warn('Failed to setup instance', error);
