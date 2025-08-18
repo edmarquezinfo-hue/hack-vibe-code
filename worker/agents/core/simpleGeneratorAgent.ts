@@ -2103,7 +2103,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     }
 
     private async updateDatabase(data: {
-        status?: 'completed' | 'failed' | 'in_progress' | 'deployed';
+        status?: 'generating' | 'completed';
         deploymentUrl?: string;
         [key: string]: unknown;
     }): Promise<void> {

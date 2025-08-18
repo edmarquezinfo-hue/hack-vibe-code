@@ -274,7 +274,10 @@ export class AppController extends BaseController {
             // Build query conditions
             const conditions: any[] = [
                 eq(schema.apps.visibility, 'public'),
-                eq(schema.apps.status, 'completed')
+                or(
+                    eq(schema.apps.status, 'completed'),
+                    eq(schema.apps.status, 'generating')
+                )
             ];
             
             if (framework) {

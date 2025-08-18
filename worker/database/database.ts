@@ -244,13 +244,13 @@ export class DatabaseService {
             .offset(offset);
     }
 
-    async updateAppStatus(appId: string, status: string, metadata?: any): Promise<void> {
+    async updateAppStatus(appId: string, status: 'generating' | 'completed', metadata?: any): Promise<void> {
         const updateData: any = { 
             status, 
             updatedAt: new Date() 
         };
 
-        if (status === 'deployed' && metadata?.deploymentUrl) {
+        if (status === 'completed' && metadata?.deploymentUrl) {
             updateData.deploymentUrl = metadata.deploymentUrl;
             updateData.lastDeployedAt = new Date();
         }

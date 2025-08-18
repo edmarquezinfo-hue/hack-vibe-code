@@ -11,7 +11,7 @@ interface App {
   visibility: 'private' | 'team' | 'board' | 'public';
   isFavorite?: boolean;
   iconUrl?: string | null;
-  status?: 'generating' | 'generated' | 'deployed' | 'error';
+  status?: 'generating' | 'completed';
   createdAt?: string;
   blueprint?: Blueprint;
   originalPrompt?: string;

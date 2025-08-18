@@ -53,7 +53,7 @@ export class DatabaseOperations {
         sessionId: string,
         logger: StructuredLogger,
         deploymentUrl: string,
-        status: 'deployed' | 'completed' = 'deployed'
+        status: 'generating' | 'completed' = 'completed'
     ): Promise<boolean> {
         return this.updateApp(env, sessionId, logger, {
             deploymentUrl,

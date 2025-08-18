@@ -358,7 +358,7 @@ export const apps = sqliteTable('apps', {
     boardId: text('board_id').references(() => boards.id), // If shared to a board
     
     // Status and State
-    status: text('status', { enum: ['draft', 'generating', 'completed', 'deployed', 'error'] }).notNull().default('draft'),
+    status: text('status', { enum: ['generating', 'completed'] }).notNull().default('generating'),
     
     // Deployment Information
     deploymentUrl: text('deployment_url'), // Live deployment URL

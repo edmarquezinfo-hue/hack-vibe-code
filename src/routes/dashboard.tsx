@@ -39,8 +39,8 @@ export default function Dashboard() {
   // Calculate real stats (memoized to avoid re-computation)
   const stats = useMemo(() => ({
     totalApps: apps.length,
-    activeProjects: apps.filter(app => app.status === 'generating' || app.status === 'generated').length,
-    deployedApps: apps.filter(app => app.status === 'deployed').length,
+    activeProjects: apps.filter(app => app.status === 'generating').length,
+    completedApps: apps.filter(app => app.status === 'completed').length,
     totalViews: 0, // TODO: Implement view tracking
     favoriteCount: apps.filter(app => app.isFavorite).length,
     teamCount: 0, // TODO: Implement teams
