@@ -193,7 +193,7 @@ export class CodeReviewOperation extends AgentOperation<CodeReviewInputs, CodeRe
                 schema: CodeReviewOutput,
                 agentActionName: "codeReview",
                 context: options.inferenceContext,
-                format: 'markdown'
+                // format: 'markdown'
             });
 
             if (!reviewResult) {

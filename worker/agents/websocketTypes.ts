@@ -2,6 +2,7 @@ import type { Blueprint, ClientReportedErrorType, CodeReviewOutputType, FileConc
 import type { CodeGenState } from "./core/state";
 import type { CodeIssue, RuntimeError, StaticAnalysisResponse } from "../services/sandbox/sandboxTypes";
 import type { CodeFixResult } from "../services/code-fixer";
+import { IssueReport } from "./domain/values/IssueReport";
 
 /**
  * Generation REST API response
@@ -136,6 +137,8 @@ type PhaseGeneratingMessage = {
 		description: string;
 		files: FileConceptType[];
 	};
+    issues?: IssueReport;
+    userSuggestions?: string[];
 };
 
 type PhaseGeneratedMessage = {
@@ -156,6 +159,7 @@ type PhaseImplementingMessage = {
 		description: string;
 		files: FileConceptType[];
 	};
+    issues?: IssueReport;
 };
 
 type PhaseImplementedMessage = {

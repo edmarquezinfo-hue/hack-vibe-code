@@ -143,10 +143,6 @@ The SEARCH section must exactly match an existing block of lines including all w
 # The other {{successfulBlocksCount}} SEARCH/REPLACE blocks were applied successfully.
 Don't re-send them. Just reply with fixed versions of the failed blocks.
 
-Here is the current file content after the successful blocks were applied:
-
-{{currentContent}}
-
 CRITICAL REQUIREMENTS:
 - The SEARCH section must EXACTLY match existing lines in the current file
 - Include all whitespace, comments, indentation exactly as they appear
@@ -226,7 +222,7 @@ export class RealtimeCodeFixer extends Assistant<Env> {
         context: RealtimeCodeFixerContext,
         currentPhase?: PhaseConceptType,
         issues: string[] = [],
-        passes: number = 2
+        passes: number = 5
     ): Promise<FileOutputType> {
         try {
             // Ignore css or json files or *.config.js
@@ -263,7 +259,7 @@ ${content}
 If you think the file is corrupted or too broken, you can completely rewrite it from scratch and provide the raw code inside the commented out <content> tags as follows:
 \`\`\`
 //<content>
-...code...
+...raw, full code...
 //</content>
 \`\`\`
 **MAKE SURE TO COMMENT THE TAGS AND THERE SHOULD ONLY BE ONE <content> TAG AND IT SHOULD BE CLOSED PROPERLY BY </content> TAG**
@@ -364,7 +360,7 @@ ${content}
                     const correctedDiff = await this.getLLMCorrectedDiff(
                         currentContent, 
                         [],
-                        ["Mismatched search and replace blocks"],
+                        [`Mismatched search and replace blocks in current diff: ${searchBlocks} search blocks and ${replaceBlocks} replace blocks. Current diff: \n${currentDiff}`],
                         0
                     );
 
@@ -484,7 +480,7 @@ ${block.error}
                 id: this.agentId,
                 modelName: AIModels.GEMINI_2_5_FLASH,
                 reasoning_effort: 'low',
-                temperature: 0.1,
+                temperature: 0.0,
                 maxTokens: 10000,
                 messages,
             });
@@ -493,6 +489,9 @@ ${block.error}
                 this.logger.warn("❌ No LLM response received");
                 return null;
             }
+
+            this.logger.info(`LLM response received: ${llmResponse.string}`);
+            this.save([createAssistantMessage(llmResponse.string)]);
 
             // The new prompt returns corrected diff directly without XML tags
             const trimmed = llmResponse.string.trim();

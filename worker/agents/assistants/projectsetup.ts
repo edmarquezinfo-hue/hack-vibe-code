@@ -35,6 +35,11 @@ You may also suggest other common dependencies that are used along with the othe
     - All frameworks or dependencies listed in the blueprint need to be installed.
     - Use \`bun add\` to install dependencies, do not use \`npm install\` or \`yarn add\` or \`pnpm add\`.
     - Do not remove or uninstall any dependencies that are already installed.
+
+    - Make sure there are no version conflicts.
+        For example, 
+            • **@react-three/fiber ^9.0.0 and @react-three/drei ^10.0.0 require react ^19 and will not work with react ^18.**
+                - Please upgrade react to 19 to use these packages.
 </INSTRUCTIONS>
 
 ${PROMPT_UTILS.COMMANDS}
@@ -73,7 +78,8 @@ Example:
 \`\`\`sh
 bun add react@18
 bun add react-dom@18
-\`\`\``;
+\`\`\`
+`;
 
 function extractAllIncludes(files: FileOutputType[]) {
     // Extract out all lines that start with #include or require or import
@@ -132,7 +138,7 @@ ${error}`);
                 modelName: error? AIModels.GEMINI_2_5_FLASH : undefined,
             });
             if (!results || typeof results !== 'string') {
-                this.logger.info(`Failed to generate setup commands`);
+                this.logger.info(`Failed to generate setup commands, results: ${results}`);
                 return { commands: [] };
             }
 

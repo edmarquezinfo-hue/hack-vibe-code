@@ -498,7 +498,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     async executeReviewCycle(): Promise<CurrentDevState> {
         this.logger.info("Executing REVIEWING state");
 
-        const reviewCycles = 2;
+        const reviewCycles = 3;
         
         try {
             this.logger.info("Starting code review and improvement cycle...");
@@ -623,7 +623,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         this.broadcast(WebSocketMessageResponses.PHASE_GENERATING, {
             message: userSuggestions && userSuggestions.length > 0
                 ? `Generating next phase incorporating ${userSuggestions.length} user suggestions`
-                : "Generating next phase"
+                : "Generating next phase",
+            issues: issues,
+            userSuggestions: userSuggestions,
         });
         
         const result = await this.operations.generateNextPhase.execute(
@@ -711,7 +713,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 ? `Implementing phase: ${phase.name} with ${technicalInstructions.instructions.length} user instructions`
                 : `Implementing phase: ${phase.name}`,
             phase: phase,
-            technicalInstructions: technicalInstructions
+            technicalInstructions: technicalInstructions,
+            issues: issues,
         });
             
         

@@ -648,16 +648,11 @@ export class SandboxSdkClient extends BaseSandboxService {
                     if (localEnvVars) {
                         await this.setLocalEnvVars(instanceId, localEnvVars);
                     }
-                    // Run setup script if available in template
-                    const setupScript = await sandbox.readFile(`${instanceId}/setup.sh`);
-                    if (setupScript) {
-                        this.logger.info(`Running setup script for ${instanceId}`);
-                        const setupResult = await this.executeCommand(instanceId, `bash setup.sh`);
-                        this.logger.info(`Setup result: STDOUT: ${setupResult.stdout}, STDERR: ${setupResult.stderr}`);
-                    }
+                    this.logger.info(`Running setup script for ${instanceId}`);
+                    const setupResult = await this.executeCommand(instanceId, `[ -f setup.sh ] && ./setup.sh`);
+                    this.logger.info(`Setup result: STDOUT: ${setupResult.stdout}, STDERR: ${setupResult.stderr}`);
                     // Start dev server on allocated port
                     const processId = await this.startDevServer(instanceId, allocatedPort);
-                        
                     this.logger.info(`Successfully created instance ${instanceId}, processId: ${processId}, port: ${allocatedPort}`);
                         
                     // Expose the same port for preview URL

@@ -99,6 +99,8 @@ ${STRATEGIES.FRONTEND_FIRST_PLANNING}
 These files are very critical and redacted for security reasons. Don't modify the worker bindings the core-utils or the worker index file.
 </DONT_TOUCH_FILES>
 
+${PROMPT_UTILS.COMMON_DEP_DOCUMENTATION}
+
 {{issues}}
 
 {{userSuggestions}}`;

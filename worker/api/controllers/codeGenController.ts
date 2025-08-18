@@ -79,7 +79,9 @@ export class CodeGenController extends BaseController {
             const agentMode = body.agentMode || defaultCodeGenArgs.agentMode;
 
             // Create a new agent instance with a generated ID - spawn the correct agent type
-            const agentInstance = await getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, chatId);
+            const agentInstance = await getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, chatId, {
+                jurisdiction: 'eu'
+            });
 
             this.codeGenLogger.info('Created new agent instance with ID: {chatId}', {
                 chatId,
@@ -269,7 +271,9 @@ export class CodeGenController extends BaseController {
             this.codeGenLogger.info(`Getting code generation progress for chat: ${chatId}`);
 
             // Get the agent instance and its current state
-            const agentInstance = await getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, chatId);
+            const agentInstance = await getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, chatId, {
+                jurisdiction: 'eu'
+            });
             const codeProgress = await agentInstance.getProgress();
 
             this.codeGenLogger.info('Retrieved code generation progress successfully');
@@ -308,7 +312,9 @@ export class CodeGenController extends BaseController {
 
             try {
                 // Verify the agent instance exists
-                const agentInstance = await getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, agentId);
+                const agentInstance = await getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, agentId, {
+                    jurisdiction: 'eu'
+                });
                 
                 // Get agent status
                 const agentState = await agentInstance.getProgress();
@@ -374,7 +380,9 @@ export class CodeGenController extends BaseController {
 
             try {
                 // Get the agent instance to handle the WebSocket connection
-                const agentInstance = await getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, chatId);
+                const agentInstance = await getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, chatId, {
+                    jurisdiction: 'eu'
+                });
                 
                 this.codeGenLogger.info(`Successfully got agent instance for chat: ${chatId}`);
 

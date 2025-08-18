@@ -409,7 +409,9 @@ Here's how and why it happens most often and what to do about it.
 
         - Import like this:
         \`import { ReactFlow } from '@xyflow/react';\`
-
+    • **@react-three/fiber ^9.0.0 and @react-three/drei ^10.0.0 require react ^19 and will not work with react ^18.**
+        - Please upgrade react to 19 to use these packages.
+        - With react 18, it will throw runtime error: Cannot read properties of undefined (reading 'S')
 
 </COMMON DEPENDENCY DOCUMENTATION>
 `,
