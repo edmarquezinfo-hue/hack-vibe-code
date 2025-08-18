@@ -12,7 +12,7 @@ import {
 } from '../schemas';
 import { GitHubExportRequest, StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
 import { GitHubExportOptions, GitHubExportResult } from '../../types/github';
-import { CodeGenState, CurrentDevState } from './state';
+import { CodeGenState, CurrentDevState, MAX_PHASES } from './state';
 import { AllIssues } from './types';
 import { WebSocketMessageResponses } from '../constants';
 import { broadcastToConnections, handleWebSocketClose, handleWebSocketMessage } from './websocket';
@@ -141,6 +141,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         hostname: '',
         conversationMessages: [],
         currentDevState: CurrentDevState.IDLE,
+        phasesCounter: 0,
     };
 
     /**
@@ -276,6 +277,26 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         return this.isGenerating;
     }
 
+    resetPhasesCounter(): void {
+        this.setState({
+            ...this.state,
+            phasesCounter: 0
+        });
+    }
+
+    incrementPhasesCounter(): number {
+        const counter = this.getPhasesCounter() + 1;
+        this.setState({
+            ...this.state,
+            phasesCounter: counter
+        });
+        return counter;
+    }
+
+    getPhasesCounter(): number {
+        return this.state.phasesCounter;
+    }
+
     /**
      * State machine controller for code generation with user interaction support
      * Executes phases sequentially with review cycles and proper state transitions
@@ -297,6 +318,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         });
 
         this.isGenerating = true;
+        this.resetPhasesCounter();
         let currentDevState = CurrentDevState.PHASE_IMPLEMENTING;
         const generatedPhases = this.state.generatedPhases;
         const completedPhases = generatedPhases.filter(phase => !phase.completed);
@@ -459,7 +481,10 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     
             this.logger.info(`Phase ${phaseConcept.name} completed, generating next phase`);
 
-            if (phaseConcept.lastPhase) return {currentDevState: CurrentDevState.FINALIZING, staticAnalysis: staticAnalysis};
+            const phasesCounter = this.incrementPhasesCounter();
+            
+
+            if (phaseConcept.lastPhase || phasesCounter >= MAX_PHASES) return {currentDevState: CurrentDevState.FINALIZING, staticAnalysis: staticAnalysis};
             return {currentDevState: CurrentDevState.PHASE_GENERATING, staticAnalysis: staticAnalysis};
         } catch (error) {
             this.logger.error("Error implementing phase", error);

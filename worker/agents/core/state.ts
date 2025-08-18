@@ -26,6 +26,8 @@ export enum CurrentDevState {
     FINALIZING,
 }
 
+export const MAX_PHASES = 10;
+
 export interface CodeGenState {
     blueprint: Blueprint;
     query: string;
@@ -44,12 +46,13 @@ export interface CodeGenState {
     agentMode: 'deterministic' | 'smart';
     sessionId: string;
     hostname: string;
+    phasesCounter: number;
 
     pendingUserInputs: string[];
     currentDevState: CurrentDevState;
     reviewCycles?: number; // Number of review cycles for code review phase
     currentPhase?: PhaseConceptType; // Current phase being worked on
-
+    
     conversationMessages: ConversationMessage[];
     inferenceContext: InferenceContext;
 }  

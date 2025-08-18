@@ -137,10 +137,10 @@ export const AGENT_CONFIG: AgentConfig = {
         fallbackModel: AIModels.GEMINI_2_5_PRO,
     },
     realtimeCodeFixer: {
-        name: AIModels.CLAUDE_4_SONNET,
-        reasoning_effort: 'medium',
+        name: AIModels.OPENAI_5_MINI,
+        reasoning_effort: 'low',
         max_tokens: 32000,
-        temperature: 0.5,
+        temperature: 1,
         fallbackModel: AIModels.GEMINI_2_5_PRO,
     },
     // realtimeCodeFixer: {

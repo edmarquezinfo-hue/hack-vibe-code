@@ -51,7 +51,7 @@ These are the only dependencies, components and plugins available for the projec
 
 const INITIAL_PHASE_USER_PROMPT = `**GENERATE THE INITIAL PHASE**
 Generate the initial phase of the application.
-Adhere to the following guidelines: 
+Adhere to the following guidelines:
 
 <SUGGESTING INITIAL PHASE>
 •   Suggest the initial phase based on the blueprint provided, our phase planning strategy and the client query.
