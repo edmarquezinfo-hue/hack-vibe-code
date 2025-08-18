@@ -126,7 +126,7 @@ export default function DiscoverPage() {
   useEffect(() => {
     fetchApps();
     fetchTrendingApps();
-  }, [sortBy, framework]);
+  }, [sortBy, framework, searchQuery]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -314,7 +314,7 @@ export default function DiscoverPage() {
           </div>
 
           {/* Trending Section */}
-          {trendingApps.length > 0 && sortBy === 'recent' && (
+          {trendingApps.length > 0 && sortBy === 'trending' && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

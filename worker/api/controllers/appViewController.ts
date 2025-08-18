@@ -2,6 +2,7 @@ import * as schema from '../../database/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { BaseController } from './BaseController';
+import { CodeGenState } from '../../agents/core/state';
 
 export class AppViewController extends BaseController {
     constructor() {
@@ -36,8 +37,7 @@ export class AppViewController extends BaseController {
                 userId: schema.apps.userId,
                 userName: schema.users.displayName,
                 userAvatar: schema.users.avatarUrl,
-                blueprint: schema.apps.blueprint,
-                generatedFiles: schema.apps.generatedFiles
+                blueprint: schema.apps.blueprint
             })
             .from(schema.apps)
             .leftJoin(schema.users, eq(schema.apps.userId, schema.users.id))
@@ -115,7 +115,7 @@ export class AppViewController extends BaseController {
         }
 
         // Try to fetch current agent state to get latest generated code
-        let generatedCode = appResult.generatedFiles ? Object.values(appResult.generatedFiles) : [];
+        let generatedCode: any[] = [];
         
         try {
             // Import the agent utilities
@@ -289,11 +289,54 @@ export class AppViewController extends BaseController {
                 status: 'completed', // Forked apps start as completed
                 parentAppId: originalApp.id,
                 blueprint: originalApp.blueprint,
-                generatedFiles: originalApp.generatedFiles,
                 createdAt: new Date(now),
                 updatedAt: new Date(now)
             })
             .run();
+
+        // Now duplicate the agent state
+        try {
+            const { getAgentByName } = await import('agents');
+            
+            // Get the original agent
+            const originalAgent = await getAgentByName(env.CodeGenObject, appId);
+            const originalState = await originalAgent.getState() as CodeGenState;
+            
+            // Create the new agent with forked ID
+            const forkedAgent = await getAgentByName(env.CodeGenObject, forkedAppId);
+            
+            // Duplicate the state but reset specific fields for the fork
+            const forkedState = {
+                ...originalState,
+                sessionId: forkedAppId,
+                sandboxInstanceId: undefined, // Will redeploy when needed
+                previewURL: undefined,
+                tunnelURL: undefined,
+                commandsHistory: [], // Reset command history
+                pendingUserInputs: [], // Clear pending inputs
+                currentDevState: 0, // CurrentDevState.IDLE
+                generationPromise: undefined, // Clear any running generation
+                shouldBeGenerating: false, // Not generating in fork
+                latestScreenshot: undefined, // Clear screenshot
+                clientReportedErrors: [], // Clear errors
+                // Keep these important fields:
+                // - generatedFilesMap (the actual code)
+                // - blueprint (project structure)
+                // - query (original prompt)
+                // - conversationMessages (development history)
+                // - generatedPhases (completed phases)
+                // - templateDetails (project template)
+            };
+            
+            // Initialize the forked agent with the duplicated state
+            await forkedAgent.setState(forkedState);
+            
+            console.log(`Successfully duplicated agent state from ${appId} to ${forkedAppId}`);
+        } catch (error) {
+            // Log error but don't fail the fork - the database record was created successfully
+            console.error('Failed to duplicate agent state:', error);
+            console.log('Fork created successfully without agent state duplication');
+        }
 
         return this.createSuccessResponse({
             forkedAppId,

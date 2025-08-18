@@ -28,6 +28,9 @@ export function setupRouter(): Router {
 
     // Connect to existing agent
     router.get('/api/agent/:agentId', codeGenController.connectToExistingAgent.bind(codeGenController));
+    
+    // Get comprehensive agent state (for app viewing)
+    router.get('/api/agent/:agentId/state', codeGenController.getAgentState.bind(codeGenController));
 
     // Default codegen path
     router.post('/api/codegen', codeGenController.startCodeGeneration.bind(codeGenController));

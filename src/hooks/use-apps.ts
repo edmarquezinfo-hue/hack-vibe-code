@@ -98,5 +98,5 @@ export async function toggleFavorite(appId: string): Promise<boolean> {
   }
 
   const data = await response.json();
-  return data.isFavorite;
+  return data.data.isFavorite;
 }

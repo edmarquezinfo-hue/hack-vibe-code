@@ -986,6 +986,10 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         return Promise.resolve(progress);
     }
 
+    async getState(): Promise<CodeGenState> {
+        return this.state;
+    }
+
     getFileGenerated(filePath: string) {
         return this.fileManager!.getGeneratedFile(filePath) || null;
     }
@@ -2110,16 +2114,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         try {
             
             if (data.status === 'completed') {
-                const state = this.state;
-                const generatedFiles = Object.entries(state.generatedFilesMap).map(([path, file]) => ({
-                    file_path: path,
-                    file_contents: file.file_contents,
-                    explanation: file.file_purpose || ''
-                }));
-
                 await DatabaseOperations.updateApp(this.env, this.state.sessionId, this.logger, {
                     status: 'completed',
-                    generatedFiles: generatedFiles,
                     // deploymentUrl: state.previewURL
                 });
             } else if (data.deploymentUrl) {

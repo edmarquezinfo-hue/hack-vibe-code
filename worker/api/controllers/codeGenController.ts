@@ -10,6 +10,7 @@ import * as schema from '../../database/schema';
 import { BaseController } from './BaseController';
 import { getSandboxService } from '../../services/sandbox/factory';
 import { generateId } from '../../utils/idGenerator';
+import { CodeGenState } from '../../agents/core/state';
 
 interface CodeGenArgs {
     query: string;
@@ -408,6 +409,68 @@ export class CodeGenController extends BaseController {
         } catch (error) {
             this.codeGenLogger.error('Error handling WebSocket connection', error);
             return this.handleError(error, 'handle WebSocket connection');
+        }
+    }
+
+    /**
+     * Get comprehensive agent state for app viewing
+     */
+    async getAgentState(request: Request, env: Env, _ctx: ExecutionContext, params?: Record<string, string>): Promise<Response> {
+        try {
+            const agentId = params?.agentId;
+            if (!agentId) {
+                return this.createErrorResponse('Missing agent ID parameter', 400);
+            }
+
+            this.codeGenLogger.info(`Fetching agent state: ${agentId}`);
+
+            try {
+                // Get the agent instance
+                const agentInstance = await getAgentStub(request, env, agentId);
+                
+                // Get current progress (includes generated code)
+                const agentProgress = await agentInstance.getProgress();
+                
+                // Get the full agent state to access conversation messages and other details
+                const fullState = await agentInstance.getState() as CodeGenState;
+                this.logger.info('Agent state fetched successfully', {
+                    agentId,
+                    state: fullState,
+                });
+                
+                // Prepare response with comprehensive agent data
+                const response = {
+                    agentId,
+                    generatedCode: agentProgress.generated_code || [],
+                    totalFiles: agentProgress.total_files || 0,
+                    textExplanation: agentProgress.text_explaination || '',
+                    conversationMessages: fullState.conversationMessages || [],
+                    originalPrompt: fullState.query || '',
+                    blueprint: fullState.blueprint || null,
+                    generatedPhases: fullState.generatedPhases || [],
+                    previewUrl: fullState.previewURL || null,
+                    tunnelUrl: fullState.tunnelURL || null,
+                    sandboxInstanceId: fullState.sandboxInstanceId || null,
+                    isGenerating: await agentInstance.isCodeGenerating() || false
+                };
+
+                this.codeGenLogger.info('Agent state fetched successfully', {
+                    agentId,
+                    codeFiles: response.generatedCode.length,
+                    conversationMessages: response.conversationMessages.length,
+                    phases: response.generatedPhases.length
+                });
+
+                return this.createSuccessResponse(response);
+
+            } catch (agentError) {
+                this.codeGenLogger.error('Failed to fetch agent instance', { agentId, error: agentError });
+                return this.createErrorResponse('Agent instance not found or inaccessible', 404);
+            }
+
+        } catch (error) {
+            this.codeGenLogger.error('Error fetching agent state', error);
+            return this.handleError(error, 'fetch agent state');
         }
     }
 }

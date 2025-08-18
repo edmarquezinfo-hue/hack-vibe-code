@@ -344,10 +344,8 @@ export const apps = sqliteTable('apps', {
     originalPrompt: text('original_prompt').notNull(), // The user's original request
     finalPrompt: text('final_prompt'), // The processed/refined prompt used for generation
     
-    // Generated Content
+    // Generated Content  
     blueprint: text('blueprint', { mode: 'json' }), // The generated blueprint
-    generatedFiles: text('generated_files', { mode: 'json' }), // Map of all generated files
-    templateId: text('template_id'), // Template used for generation
     framework: text('framework'), // 'react', 'vue', 'svelte', etc.
     
     // Ownership and Context
@@ -361,7 +359,6 @@ export const apps = sqliteTable('apps', {
     
     // Status and State
     status: text('status', { enum: ['draft', 'generating', 'completed', 'deployed', 'error'] }).notNull().default('draft'),
-    generationStatus: text('generation_status', { mode: 'json' }).default('{}'), // Detailed generation state
     
     // Deployment Information
     deploymentUrl: text('deployment_url'), // Live deployment URL
