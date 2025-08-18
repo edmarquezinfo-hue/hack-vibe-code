@@ -649,7 +649,7 @@ export class SandboxSdkClient extends BaseSandboxService {
                         await this.setLocalEnvVars(instanceId, localEnvVars);
                     }
                     this.logger.info(`Running setup script for ${instanceId}`);
-                    const setupResult = await this.executeCommand(instanceId, `[ -f setup.sh ] && ./setup.sh`);
+                    const setupResult = await this.executeCommand(instanceId, `[ -f setup.sh ] && ./setup.sh ${projectName}`);
                     this.logger.info(`Setup result: STDOUT: ${setupResult.stdout}, STDERR: ${setupResult.stderr}`);
                     // Start dev server on allocated port
                     const processId = await this.startDevServer(instanceId, allocatedPort);

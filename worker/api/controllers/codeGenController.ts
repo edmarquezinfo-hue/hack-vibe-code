@@ -27,6 +27,12 @@ const defaultCodeGenArgs: CodeGenArgs = {
     agentMode: 'deterministic',
 };
 
+async function getAgentStub(_request: Request, env: Env, agentId: string) : Promise<DurableObjectStub<SmartCodeGeneratorAgent>> {
+    return getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, agentId, {
+        locationHint: 'enam'
+    });
+}
+
 /**
  * CodeGenController to handle all code generation related endpoints
  */
@@ -79,9 +85,7 @@ export class CodeGenController extends BaseController {
             const agentMode = body.agentMode || defaultCodeGenArgs.agentMode;
 
             // Create a new agent instance with a generated ID - spawn the correct agent type
-            const agentInstance = await getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, chatId, {
-                jurisdiction: 'eu'
-            });
+            const agentInstance = await getAgentStub(request, env, chatId)
 
             this.codeGenLogger.info('Created new agent instance with ID: {chatId}', {
                 chatId,
@@ -271,9 +275,7 @@ export class CodeGenController extends BaseController {
             this.codeGenLogger.info(`Getting code generation progress for chat: ${chatId}`);
 
             // Get the agent instance and its current state
-            const agentInstance = await getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, chatId, {
-                jurisdiction: 'eu'
-            });
+            const agentInstance = await getAgentStub(_, env, chatId);
             const codeProgress = await agentInstance.getProgress();
 
             this.codeGenLogger.info('Retrieved code generation progress successfully');
@@ -312,9 +314,7 @@ export class CodeGenController extends BaseController {
 
             try {
                 // Verify the agent instance exists
-                const agentInstance = await getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, agentId, {
-                    jurisdiction: 'eu'
-                });
+                const agentInstance = await getAgentStub(request, env, agentId);
                 
                 // Get agent status
                 const agentState = await agentInstance.getProgress();
@@ -380,9 +380,7 @@ export class CodeGenController extends BaseController {
 
             try {
                 // Get the agent instance to handle the WebSocket connection
-                const agentInstance = await getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, chatId, {
-                    jurisdiction: 'eu'
-                });
+                const agentInstance = await getAgentStub(request, env, chatId);
                 
                 this.codeGenLogger.info(`Successfully got agent instance for chat: ${chatId}`);
 

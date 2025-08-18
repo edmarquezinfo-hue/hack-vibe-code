@@ -2,7 +2,6 @@ import { WebSocket } from 'partysocket';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
 	BlueprintType,
-	GeneratedFile,
 	WebSocketMessage,
 	ApiResponse,
 	CodeFixEdits,
@@ -1275,46 +1274,12 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 
 					logger.debug('Existing agentId API result', result);
 
-					if (result.data.blueprint) {
-						setBlueprint(result.data.blueprint);
-						updateStage('bootstrap', { status: 'completed' });
-						updateStage('blueprint', { status: 'completed' });
-						// If blueprint exists, assume prior stages are done for an existing agent
-						setBlueprint(result.data.blueprint);
-					}
+					// Set the chatId for existing chat - this enables the chat input
+					setChatId(urlChatId);
 
-					if (result.data.progress) {
+					// Optionally set total files if available for progress tracking
+					if (result.data.progress?.totalFiles) {
 						setTotalFiles(result.data.progress.totalFiles);
-						console.log(result.data.progress);
-
-						// if (
-						// 	result.data.progress.completedFiles ===
-						// 	result.data.progress.totalFiles
-						// ) {
-						// 	console.log('complete');
-						// 	updateStage('code', { status: 'completed' });
-						// 	updateStage('validate', { status: 'completed' });
-						// }
-					}
-
-					let loadedFiles: FileType[] = [];
-
-					// Load existing files into state
-					if (result.data.generated_code) {
-						loadedFiles = result.data.generated_code.map(
-							(file: GeneratedFile) => {
-								return {
-									file_path: file.file_path,
-									file_contents: file.file_contents,
-									isGenerating: false,
-									needsFixing: false,
-									hasErrors: false,
-									language: getFileType(file.file_path),
-								};
-							},
-						);
-
-						setFiles(loadedFiles);
 					}
 
 					sendMessage({
@@ -1322,16 +1287,6 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 						message: 'Starting from where you left off...',
 						isThinking: false,
 					});
-
-					// Initialize basic stage states based on recovered data
-					updateStage('bootstrap', { status: 'completed' });
-					if (result.data.blueprint) {
-						updateStage('blueprint', { status: 'completed' });
-					}
-					if (loadedFiles.length > 0) {
-						updateStage('code', { status: 'completed' });
-						updateStage('validate', { status: 'completed' });
-					}
 
 					logger.debug('connecting from init for existing chatId');
 					// Construct proper WebSocket URL for existing chat

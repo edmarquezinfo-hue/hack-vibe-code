@@ -141,7 +141,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         hostname: '',
         conversationMessages: [],
         currentDevState: CurrentDevState.IDLE,
-        phasesCounter: 0,
+        phasesCounter: MAX_PHASES,
     };
 
     /**
@@ -277,15 +277,15 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         return this.isGenerating;
     }
 
-    resetPhasesCounter(): void {
+    resetPhasesCounter(max_phases: number = MAX_PHASES): void {
         this.setState({
             ...this.state,
-            phasesCounter: 0
+            phasesCounter: max_phases
         });
     }
 
-    incrementPhasesCounter(): number {
-        const counter = this.getPhasesCounter() + 1;
+    decrementPhasesCounter(): number {
+        const counter = this.getPhasesCounter() - 1;
         this.setState({
             ...this.state,
             phasesCounter: counter
@@ -401,6 +401,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             
             // Generate next phase with user suggestions if available
             const userSuggestions = this.state.pendingUserInputs.length > 0 ? this.state.pendingUserInputs : undefined;
+            if (userSuggestions && userSuggestions.length > 0) {
+                this.resetPhasesCounter(Math.min(5, MAX_PHASES));
+            }
             const nextPhase = await this.generateNextPhase(currentIssues, userSuggestions);
                 
             if (!nextPhase) {
@@ -481,10 +484,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     
             this.logger.info(`Phase ${phaseConcept.name} completed, generating next phase`);
 
-            const phasesCounter = this.incrementPhasesCounter();
-            
+            const phasesCounter = this.decrementPhasesCounter();
 
-            if (phaseConcept.lastPhase || phasesCounter >= MAX_PHASES) return {currentDevState: CurrentDevState.FINALIZING, staticAnalysis: staticAnalysis};
+            if (phaseConcept.lastPhase || phasesCounter <= 0) return {currentDevState: CurrentDevState.FINALIZING, staticAnalysis: staticAnalysis};
             return {currentDevState: CurrentDevState.PHASE_GENERATING, staticAnalysis: staticAnalysis};
         } catch (error) {
             this.logger.error("Error implementing phase", error);
