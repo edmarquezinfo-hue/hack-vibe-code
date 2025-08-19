@@ -225,6 +225,35 @@ type CloudflareDeploymentErrorMessage = {
 	error: string;
 };
 
+type ScreenshotCaptureStartedMessage = {
+	type: 'screenshot_capture_started';
+	message: string;
+	url: string;
+	viewport: { width: number; height: number };
+};
+
+type ScreenshotCaptureSuccessMessage = {
+	type: 'screenshot_capture_success';
+	message: string;
+	url: string;
+	viewport: { width: number; height: number };
+	screenshotSize: number;
+	timestamp: string;
+};
+
+type ScreenshotCaptureErrorMessage = {
+	type: 'screenshot_capture_error';
+	error: string;
+	url: string;
+	viewport: { width: number; height: number };
+	statusCode?: number;
+	statusText?: string;
+	apiResponse?: any;
+	screenshotCaptured?: boolean;
+	databaseError?: boolean;
+	configurationError?: boolean;
+};
+
 type ScreenshotAnalysisResultMessage = {
 	type: 'screenshot_analysis_result';
 	message: string;
@@ -353,6 +382,9 @@ export type WebSocketMessage =
 	| CloudflareDeploymentStartedMessage
 	| CloudflareDeploymentCompletedMessage
 	| CloudflareDeploymentErrorMessage
+	| ScreenshotCaptureStartedMessage
+	| ScreenshotCaptureSuccessMessage
+	| ScreenshotCaptureErrorMessage
 	| ScreenshotAnalysisResultMessage
 	| GitHubExportStartedMessage
 	| GitHubExportProgressMessage

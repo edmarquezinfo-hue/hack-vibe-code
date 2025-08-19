@@ -376,6 +376,10 @@ export const apps = sqliteTable('apps', {
     version: integer('version').default(1),
     parentAppId: text('parent_app_id'), // If forked from another app
     
+    // Screenshot Information
+    screenshotUrl: text('screenshot_url'), // URL to saved screenshot image
+    screenshotCapturedAt: integer('screenshot_captured_at', { mode: 'timestamp' }), // When screenshot was last captured
+    
     // Metadata
     createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),

@@ -67,12 +67,16 @@ export class ScreenshotAnalysisOperation extends AgentOperation<ScreenshotAnalys
                 screenshotDataLength: screenshotData.screenshot?.length || 0
             });
     
+            if (!screenshotData.screenshot) {
+                throw new Error('No screenshot data available for analysis');
+            }
+
             // Create multi-modal messages
             const messages = [
                 createSystemMessage(SYSTEM_PROMPT),
                 createMultiModalUserMessage(
                     userPromptFormatter(screenshotData, context.blueprint),
-                    screenshotData.screenshot, // The base64 data URL
+                    screenshotData.screenshot, // The base64 data URL or image URL
                     'high' // Use high detail for better analysis
                 )
             ];

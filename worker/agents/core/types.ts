@@ -15,6 +15,6 @@ export interface ScreenshotData {
     url: string;
     timestamp: number;
     viewport: { width: number; height: number };
-    userAgent: string;
-    screenshot: string;
+    userAgent?: string;
+    screenshot?: string; // Base64 data URL from Cloudflare Browser Rendering REST API
 }

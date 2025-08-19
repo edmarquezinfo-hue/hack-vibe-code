@@ -13,7 +13,7 @@ import {
 import { GitHubExportRequest, StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
 import { GitHubExportOptions, GitHubExportResult } from '../../types/github';
 import { CodeGenState, CurrentDevState, MAX_PHASES } from './state';
-import { AllIssues } from './types';
+import { AllIssues, ScreenshotData } from './types';
 import { WebSocketMessageResponses } from '../constants';
 import { broadcastToConnections, handleWebSocketClose, handleWebSocketMessage } from './websocket';
 import { createObjectLogger } from '../../logger';
@@ -102,6 +102,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         new StateManager(() => this.state, (s) => this.setState(s)),
     );
     // protected broadcaster: WebSocketBroadcaster = new WebSocketBroadcaster(this);
+    
 
     protected operations: Operations = {
         codeReview: new CodeReviewOperation(),
@@ -2128,6 +2129,193 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             }
         } catch (error) {
             this.logger.error('Failed to update database:', error);
+        }
+    }
+
+
+    /**
+     * Capture screenshot of the given URL using Cloudflare Browser Rendering REST API
+     */
+    public async captureScreenshot(
+        url: string, 
+        viewport: { width: number; height: number } = { width: 1920, height: 1080 }
+    ): Promise<string> {
+        if (!url) {
+            const error = 'URL is required for screenshot capture';
+            this.broadcast(WebSocketMessageResponses.SCREENSHOT_CAPTURE_ERROR, {
+                error,
+                url,
+                viewport
+            });
+            throw new Error(error);
+        }
+
+        this.logger.info('Capturing screenshot via REST API', { url, viewport });
+        
+        // Notify start of screenshot capture
+        this.broadcast(WebSocketMessageResponses.SCREENSHOT_CAPTURE_STARTED, {
+            message: `Capturing screenshot of ${url}`,
+            url,
+            viewport
+        });
+        
+        try {
+            // Use Cloudflare Browser Rendering REST API
+            const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${this.env.CLOUDFLARE_ACCOUNT_ID}/browser-rendering/snapshot`;
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.env.CLOUDFLARE_API_TOKEN}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    url: url,
+                    viewport: viewport,
+                    gotoOptions: {
+                        waitUntil: 'networkidle0',
+                        timeout: 30000
+                    },
+                    screenshotOptions: {
+                        fullPage: false,
+                        type: 'png'
+                    }
+                }),
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                const error = `Browser Rendering API failed: ${response.status} - ${errorText}`;
+                this.broadcast(WebSocketMessageResponses.SCREENSHOT_CAPTURE_ERROR, {
+                    error,
+                    url,
+                    viewport,
+                    statusCode: response.status,
+                    statusText: response.statusText
+                });
+                throw new Error(error);
+            }
+            
+            const result = await response.json() as {
+                success: boolean;
+                result: {
+                    screenshot: string; // base64 encoded
+                    content: string;    // HTML content
+                };
+            };
+            
+            if (!result.success || !result.result.screenshot) {
+                const error = 'Browser Rendering API succeeded but no screenshot returned';
+                this.broadcast(WebSocketMessageResponses.SCREENSHOT_CAPTURE_ERROR, {
+                    error,
+                    url,
+                    viewport,
+                    apiResponse: result
+                });
+                throw new Error(error);
+            }
+            
+            // Get base64 screenshot data
+            const base64Screenshot = result.result.screenshot;
+            
+            try {
+                // Update database with base64 screenshot data
+                await DatabaseOperations.updateAppScreenshot(
+                    this.env,
+                    this.state.sessionId,
+                    this.logger,
+                    `data:image/png;base64,${base64Screenshot}`
+                );
+            } catch (dbError) {
+                const error = `Database update failed: ${dbError instanceof Error ? dbError.message : 'Unknown database error'}`;
+                this.broadcast(WebSocketMessageResponses.SCREENSHOT_CAPTURE_ERROR, {
+                    error,
+                    url,
+                    viewport,
+                    screenshotCaptured: true,
+                    databaseError: true
+                });
+                throw new Error(error);
+            }
+            
+            this.logger.info('Screenshot captured successfully via REST API', { 
+                url, 
+                screenshotSize: base64Screenshot.length 
+            });
+            
+            // Notify successful screenshot capture
+            this.broadcast(WebSocketMessageResponses.SCREENSHOT_CAPTURE_SUCCESS, {
+                message: `Successfully captured screenshot of ${url}`,
+                url,
+                viewport,
+                screenshotSize: base64Screenshot.length,
+                timestamp: new Date().toISOString()
+            });
+            
+            // Return the data URL for immediate use
+            return `data:image/png;base64,${base64Screenshot}`;
+            
+        } catch (error) {
+            this.logger.error('Failed to capture screenshot via REST API:', error);
+            
+            // Only broadcast if error wasn't already broadcast above
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            if (!errorMessage.includes('Browser Rendering API') && !errorMessage.includes('Database update failed')) {
+                this.broadcast(WebSocketMessageResponses.SCREENSHOT_CAPTURE_ERROR, {
+                    error: errorMessage,
+                    url,
+                    viewport
+                });
+            }
+            
+            throw new Error(`Screenshot capture failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+
+    /**
+     * Save screenshot data to database - now triggers server-side screenshot capture
+     */
+    public async saveScreenshotToDatabase(screenshotData: ScreenshotData): Promise<void> {
+        if (!this.env.DB || !this.state.sessionId) {
+            const error = 'Cannot capture screenshot: DB or sessionId not available';
+            this.logger.warn(error);
+            this.broadcast(WebSocketMessageResponses.SCREENSHOT_CAPTURE_ERROR, {
+                error,
+                url: screenshotData.url,
+                viewport: screenshotData.viewport,
+                configurationError: true
+            });
+            return;
+        }
+
+        try {
+            // Trigger server-side screenshot capture via REST API
+            const screenshotUrl = await this.captureScreenshot(
+                screenshotData.url,
+                screenshotData.viewport
+            );
+
+            this.logger.info('Screenshot captured and saved successfully', {
+                url: screenshotData.url,
+                viewport: screenshotData.viewport,
+                timestamp: screenshotData.timestamp,
+                screenshotUrl
+            });
+            
+            // Update agent state with latest screenshot
+            this.setState({
+                ...this.state,
+                latestScreenshot: {
+                    ...screenshotData,
+                    screenshot: screenshotUrl // Store base64 data URL
+                }
+            });
+            
+        } catch (error) {
+            this.logger.error('Failed to capture and save screenshot:', error);
+            // Error was already broadcast by captureScreenshot method
+            // Don't throw - we don't want screenshot failures to break the generation flow
         }
     }
 }

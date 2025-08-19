@@ -828,6 +828,7 @@ export default function Chat() {
 										phaseTimelineLength={
 											phaseTimeline.length
 										}
+										devMode={true}
 									/>
 								</div>
 							)}

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, forwardRef } from 'react';
 import { RotateCcw, RefreshCw } from 'lucide-react';
 import { WebSocket } from 'partysocket';
-// import { captureScreenshot } from '@/utils/screenshot';
+
 
 interface SmartPreviewIframeProps {
 	src: string;
@@ -17,6 +17,8 @@ interface SmartPreviewIframeProps {
 	manualRefreshTrigger?: number;
 	// Phase timeline for tracking progress
 	phaseTimelineLength?: number;
+	// Development mode - enables screenshot capture
+	devMode?: boolean;
 }
 
 interface RetryState {
@@ -31,7 +33,7 @@ interface RetryState {
 }
 
 export const SmartPreviewIframe = forwardRef<HTMLIFrameElement, SmartPreviewIframeProps>(
-	({ src, className = '', title = 'Preview',  shouldRefreshPreview = false, webSocket = null, manualRefreshTrigger }, ref) => {
+	({ src, className = '', title = 'Preview',  shouldRefreshPreview = false, webSocket = null, manualRefreshTrigger, devMode = false }, ref) => {
 		const [retryState, setRetryState] = useState<RetryState>({
 			attempt: 0,
 			isRetrying: false,
@@ -330,51 +332,32 @@ export const SmartPreviewIframe = forwardRef<HTMLIFrameElement, SmartPreviewIfra
 										lastReactErrorBody: null
 									}));
 										
-									// // Capture screenshot on successful load (no errors)
-									// if (webSocket && webSocket.readyState === WebSocket.OPEN) {
-									// 	// Wait a bit longer to ensure the page is fully rendered
-									// 	setTimeout(async () => {
-									// 		try {
-									// 			console.log('📸 Attempting to capture screenshot of successfully loaded preview');
-													
-									// 			// Get iframe element
-									// 			const iframeElement = (ref as any)?.current;
-									// 			if (!iframeElement) {
-									// 				console.warn('Iframe element not available for screenshot');
-									// 				return;
-									// 			}
-													
-									// 			// Capture screenshot of just the iframe
-									// 			const screenshot = await captureScreenshot({
-									// 				// element: iframeElement,
-									// 				quality: 0.8,
-									// 				format: 'jpeg',
-									// 				excludeElements: [
-									// 					'[data-debug-panel]',
-									// 					'[data-overlay]',
-									// 					'.debug-panel'
-									// 				],
-									// 				scale: 1
-									// 			});
-													
-									// 			// Send screenshot to backend for analysis
-									// 			webSocket.send(JSON.stringify({
-									// 				type: 'screenshot_captured',
-									// 				data: {
-									// 					url: currentSrc,
-									// 					timestamp: screenshot.metadata.timestamp,
-									// 					viewport: screenshot.metadata.viewport,
-									// 					userAgent: screenshot.metadata.userAgent,
-									// 					screenshot: screenshot.dataUrl,
-									// 				}
-									// 			}));
-													
-									// 			console.log('✅ Screenshot captured and sent to backend', screenshot);
-									// 		} catch (screenshotError) {
-									// 			console.error('❌ Failed to capture screenshot:', screenshotError);
-									// 		}
-									// 	}, 2000); // Wait 2 seconds for full page render
-									// }
+									// Trigger server-side screenshot capture in dev mode
+									if (devMode && webSocket && webSocket.readyState === WebSocket.OPEN) {
+										// Wait a bit to ensure the page is fully rendered
+										setTimeout(() => {
+											try {
+												console.log('📸 Requesting server-side screenshot of preview');
+												
+												// Send screenshot capture request to backend (server will handle the actual capture)
+												webSocket.send(JSON.stringify({
+													type: 'screenshot_captured',
+													data: {
+														url: currentSrc,
+														timestamp: Date.now(),
+														viewport: { 
+															width: 1920, 
+															height: 1080 
+														}
+													}
+												}));
+												
+												console.log('✅ Screenshot request sent to backend');
+											} catch (screenshotError) {
+												console.error('❌ Failed to send screenshot request:', screenshotError);
+											}
+										}, 2000); // Wait 2 seconds for full page render
+									}
 							} catch (error) {
 								// Cross-origin restrictions prevent access - that's okay
 								console.log('Cannot access iframe content due to CORS - assuming app is working');

@@ -665,6 +665,7 @@ export default function AppView() {
 											className="w-full h-[600px] lg:h-[800px]"
 											title={`${app.title} Preview`}
 											webSocket={websocket}
+											devMode={false}
 										/>
 									) : (
 										<div className="relative w-full h-[400px] bg-gray-50 flex items-center justify-center">

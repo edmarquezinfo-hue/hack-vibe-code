@@ -28,6 +28,7 @@ export class AppController extends BaseController {
                     framework: schema.apps.framework,
                     visibility: schema.apps.visibility,
                     iconUrl: schema.apps.iconUrl,
+                    screenshotUrl: schema.apps.screenshotUrl,
                     createdAt: schema.apps.createdAt,
                     updatedAt: schema.apps.updatedAt,
                     isFavorite: sql<boolean>`
@@ -117,6 +118,7 @@ export class AppController extends BaseController {
                     framework: schema.apps.framework,
                     visibility: schema.apps.visibility,
                     iconUrl: schema.apps.iconUrl,
+                    screenshotUrl: schema.apps.screenshotUrl,
                     createdAt: schema.apps.createdAt,
                     updatedAt: schema.apps.updatedAt,
                 })
@@ -314,6 +316,7 @@ export class AppController extends BaseController {
                             userId: schema.apps.userId,
                             userName: schema.users.displayName,
                             userAvatar: schema.users.avatarUrl,
+                            screenshotUrl: schema.apps.screenshotUrl,
                             starCount: sql<number>`COALESCE((SELECT COUNT(*) FROM ${schema.stars} WHERE ${schema.stars.appId} = ${schema.apps.id}), 0)`,
                             userStarred: user ? sql<boolean>`EXISTS(SELECT 1 FROM ${schema.stars} WHERE ${schema.stars.appId} = ${schema.apps.id} AND ${schema.stars.userId} = ${user.id})` : sql<boolean>`false`,
                             userFavorited: user ? sql<boolean>`EXISTS(SELECT 1 FROM ${schema.favorites} WHERE ${schema.favorites.appId} = ${schema.apps.id} AND ${schema.favorites.userId} = ${user.id})` : sql<boolean>`false`
@@ -334,6 +337,7 @@ export class AppController extends BaseController {
                             userId: schema.apps.userId,
                             userName: schema.users.displayName,
                             userAvatar: schema.users.avatarUrl,
+                            screenshotUrl: schema.apps.screenshotUrl,
                             starCount: sql<number>`COALESCE((SELECT COUNT(*) FROM ${schema.stars} WHERE ${schema.stars.appId} = ${schema.apps.id}), 0)`,
                             userStarred: user ? sql<boolean>`EXISTS(SELECT 1 FROM ${schema.stars} WHERE ${schema.stars.appId} = ${schema.apps.id} AND ${schema.stars.userId} = ${user.id})` : sql<boolean>`false`,
                             userFavorited: user ? sql<boolean>`EXISTS(SELECT 1 FROM ${schema.favorites} WHERE ${schema.favorites.appId} = ${schema.apps.id} AND ${schema.favorites.userId} = ${user.id})` : sql<boolean>`false`

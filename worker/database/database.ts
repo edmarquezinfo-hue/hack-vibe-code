@@ -207,7 +207,7 @@ export class DatabaseService {
         const whereConditions: any[] = [eq(schema.apps.userId, userId)];
         
         if (teamId) whereConditions.push(eq(schema.apps.teamId, teamId));
-        if (status) whereConditions.push(eq(schema.apps.status, status as 'draft' | 'generating' | 'completed' | 'deployed' | 'error'));
+        if (status) whereConditions.push(eq(schema.apps.status, status as 'generating' | 'completed'));
         if (visibility) whereConditions.push(eq(schema.apps.visibility, visibility as 'private' | 'team' | 'board' | 'public'));
 
         const whereClause = whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0];

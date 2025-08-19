@@ -119,7 +119,12 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                     latestScreenshot: parsedMessage.data
                 });
                 
-                logger.info(`Screenshot saved to state.`);
+                // Update database with screenshot
+                agent.saveScreenshotToDatabase(parsedMessage.data).catch(error => {
+                    logger.error('Error saving screenshot to database:', error);
+                });
+                
+                logger.info(`Screenshot saved to state and database update initiated.`);
                 break;
             case WebSocketMessageRequests.STOP_GENERATION:
                 // Clear shouldBeGenerating flag when user manually stops

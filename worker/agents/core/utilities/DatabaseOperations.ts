@@ -79,4 +79,19 @@ export class DatabaseOperations {
             })
         });
     }
+
+    /**
+     * Update app with screenshot data
+     */
+    static async updateAppScreenshot(
+        env: { DB?: D1Database },
+        sessionId: string,
+        logger: StructuredLogger,
+        screenshotUrl: string
+    ): Promise<boolean> {
+        return this.updateApp(env, sessionId, logger, {
+            screenshotUrl,
+            screenshotCapturedAt: new Date()
+        });
+    }
 }

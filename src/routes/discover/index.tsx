@@ -39,6 +39,7 @@ interface PublicApp {
   userAvatar?: string;
   userStarred?: boolean;
   userFavorited?: boolean;
+  screenshotUrl?: string;
 }
 
 interface PaginationInfo {
@@ -170,7 +171,25 @@ export default function DiscoverPage() {
         >
           {/* Preview Image or Placeholder */}
           <div className="relative h-48 bg-gradient-to-br from-orange-50 to-orange-100 overflow-hidden">
-            <div className="w-full h-full flex items-center justify-center">
+            {app.screenshotUrl ? (
+              <img 
+                src={app.screenshotUrl} 
+                alt={`${app.title} preview`}
+                className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
+                onError={(e) => {
+                  // Fallback to placeholder if image fails to load
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+            ) : null}
+            
+            {/* Fallback placeholder - hidden when screenshot exists */}
+            <div className={cn(
+              "w-full h-full flex items-center justify-center absolute inset-0",
+              app.screenshotUrl ? "hidden" : ""
+            )}>
               <Code2 className="h-16 w-16 text-orange-300" />
             </div>
             
