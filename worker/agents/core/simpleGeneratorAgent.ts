@@ -158,6 +158,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         userId: string,
         ..._args: unknown[]
     ): Promise<void> {
+        this.logger = createObjectLogger(this, 'CodeGeneratorAgent');
+        this.logger.setObjectId(sessionId);
         this.logger.setFields({
             sessionId,
             blueprintPhases: blueprint.implementationRoadmap?.length || 0,
@@ -233,13 +235,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             inferenceContext,
         });
 
-        this.sandboxServiceClient = this.getSandboxServiceClient();
-        this.projectSetupAssistant = this.getProjectSetupAssistant();
-
-        this.logger = createObjectLogger(this, 'CodeGeneratorAgent');
-        this.logger.setObjectId(sessionId);
         // Deploy to sandbox service and generate initial setup commands in parallel
-        Promise.all([this.deployToSandbox(), this.projectSetupAssistant.generateSetupCommands()]).then(async ([, setupCommands]) => {
+        Promise.all([this.deployToSandbox(), this.getProjectSetupAssistant().generateSetupCommands()]).then(async ([, setupCommands]) => {
             this.logger.info("Deployment to sandbox service and initial commands predictions completed successfully");
             await this.executeCommands(setupCommands.commands);
         }).catch(error => {

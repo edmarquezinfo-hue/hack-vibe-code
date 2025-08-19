@@ -2,7 +2,7 @@ import * as schema from '../../database/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { BaseController } from './BaseController';
-import { CodeGenState } from '../../agents/core/state';
+import { cloneAgent, getAgentStub } from '../../agents';
 
 export class AppViewController extends BaseController {
     constructor() {
@@ -118,12 +118,8 @@ export class AppViewController extends BaseController {
         let generatedCode: any[] = [];
         
         try {
-            // Import the agent utilities
-            const { getAgentByName } = await import('agents');
-            
-            // Get the agent instance for this app
-            const agentInstance = await getAgentByName(env.CodeGenObject, appResult.id);
-            const agentProgress = await agentInstance.getProgress();
+            const agentStub = await getAgentStub(env, appResult.id);
+            const agentProgress = await agentStub.getProgress();
             
             if (agentProgress && agentProgress.generatedCode && agentProgress.generatedCode.length > 0) {
                 // Convert agent progress format to expected frontend format
@@ -242,110 +238,74 @@ export class AppViewController extends BaseController {
 
     // Fork an app
     async forkApp(request: Request, env: Env, _ctx: ExecutionContext, params?: Record<string, string>): Promise<Response> {
-    try {
-        const authResult = await this.requireAuth(request, env);
-        if (!authResult.success) {
-            return authResult.response!;
-        }
-
-        const appId = params?.id;
-        if (!appId) {
-            return this.createErrorResponse('App ID is required', 400);
-        }
-
-        const dbService = this.createDbService(env);
-
-        // Get original app
-        const originalApp = await dbService.db
-            .select()
-            .from(schema.apps)
-            .where(eq(schema.apps.id, appId))
-            .get();
-
-        if (!originalApp) {
-            return this.createErrorResponse('App not found', 404);
-        }
-
-        // Check visibility permissions
-        if (originalApp.visibility === 'private' && originalApp.userId !== authResult.user!.id) {
-            return this.createErrorResponse('App not found', 404);
-        }
-
-        // Create forked app
-        const forkedAppId = nanoid();
-        const now = new Date().toISOString();
-        
-        await dbService.db
-            .insert(schema.apps)
-            .values({
-                id: forkedAppId,
-                userId: authResult.user!.id,
-                title: `${originalApp.title} (Fork)`,
-                description: originalApp.description,
-                originalPrompt: originalApp.originalPrompt,
-                finalPrompt: originalApp.finalPrompt,
-                framework: originalApp.framework,
-                visibility: 'private', // Forks start as private
-                status: 'completed', // Forked apps start as completed
-                parentAppId: originalApp.id,
-                blueprint: originalApp.blueprint,
-                createdAt: new Date(now),
-                updatedAt: new Date(now)
-            })
-            .run();
-
-        // Now duplicate the agent state
         try {
-            const { getAgentByName } = await import('agents');
-            
-            // Get the original agent
-            const originalAgent = await getAgentByName(env.CodeGenObject, appId);
-            const originalState = await originalAgent.getState() as CodeGenState;
-            
-            // Create the new agent with forked ID
-            const forkedAgent = await getAgentByName(env.CodeGenObject, forkedAppId);
-            
-            // Duplicate the state but reset specific fields for the fork
-            const forkedState = {
-                ...originalState,
-                sessionId: forkedAppId,
-                sandboxInstanceId: undefined, // Will redeploy when needed
-                previewURL: undefined,
-                tunnelURL: undefined,
-                commandsHistory: [], // Reset command history
-                pendingUserInputs: [], // Clear pending inputs
-                currentDevState: 0, // CurrentDevState.IDLE
-                generationPromise: undefined, // Clear any running generation
-                shouldBeGenerating: false, // Not generating in fork
-                latestScreenshot: undefined, // Clear screenshot
-                clientReportedErrors: [], // Clear errors
-                // Keep these important fields:
-                // - generatedFilesMap (the actual code)
-                // - blueprint (project structure)
-                // - query (original prompt)
-                // - conversationMessages (development history)
-                // - generatedPhases (completed phases)
-                // - templateDetails (project template)
-            };
-            
-            // Initialize the forked agent with the duplicated state
-            await forkedAgent.setState(forkedState);
-            
-            console.log(`Successfully duplicated agent state from ${appId} to ${forkedAppId}`);
-        } catch (error) {
-            // Log error but don't fail the fork - the database record was created successfully
-            console.error('Failed to duplicate agent state:', error);
-            console.log('Fork created successfully without agent state duplication');
-        }
+            const authResult = await this.requireAuth(request, env);
+            if (!authResult.success) {
+                return authResult.response!;
+            }
 
-        return this.createSuccessResponse({
-            forkedAppId,
-            message: 'App forked successfully'
-        });
-    } catch (error) {
-        console.error('Error forking app:', error);
-        return this.createErrorResponse('Internal server error', 500);
-    }
+            const appId = params?.id;
+            if (!appId) {
+                return this.createErrorResponse('App ID is required', 400);
+            }
+
+            const dbService = this.createDbService(env);
+
+            // Get original app
+            const originalApp = await dbService.db
+                .select()
+                .from(schema.apps)
+                .where(eq(schema.apps.id, appId))
+                .get();
+
+            if (!originalApp) {
+                return this.createErrorResponse('App not found', 404);
+            }
+
+            // Check visibility permissions
+            if (originalApp.visibility === 'private' && originalApp.userId !== authResult.user!.id) {
+                return this.createErrorResponse('App not found', 404);
+            }
+            // Now duplicate the agent state
+            try {
+                const {newAgentId, newAgent} = await cloneAgent(env, appId);
+                console.log(`Successfully duplicated agent state from ${appId} to ${newAgentId}`);
+
+                const now = new Date().toISOString();
+                
+                await dbService.db
+                    .insert(schema.apps)
+                    .values({
+                        id: newAgentId,
+                        userId: authResult.user!.id,
+                        title: `${originalApp.title} (Fork)`,
+                        description: originalApp.description,
+                        originalPrompt: originalApp.originalPrompt,
+                        finalPrompt: originalApp.finalPrompt,
+                        framework: originalApp.framework,
+                        visibility: 'private', // Forks start as private
+                        status: 'completed', // Forked apps start as completed
+                        parentAppId: originalApp.id,
+                        blueprint: originalApp.blueprint,
+                        createdAt: new Date(now),
+                        updatedAt: new Date(now)
+                    })
+                    .run();
+        
+        
+                return this.createSuccessResponse({
+                    forkedAppId: newAgentId,
+                    message: 'App forked successfully'
+                });
+            } catch (error) {
+                // Log error but don't fail the fork - the database record was created successfully
+                console.error('Failed to duplicate agent state:', error);
+                return this.createErrorResponse('Failed to duplicate agent state', 500);
+            }
+        } catch (error) {
+            console.error('Error forking app:', error);
+            return this.createErrorResponse('Internal server error', 500);
+        }
     }
 }
 

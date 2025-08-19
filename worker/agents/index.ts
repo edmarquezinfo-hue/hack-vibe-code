@@ -31,8 +31,11 @@ export async function getAgentState(env: Env, agentId: string) : Promise<CodeGen
     return agentInstance.getState() as CodeGenState;
 }
 
-export async function cloneAgent(env: Env, agentId: string) : Promise<DurableObjectStub<SmartCodeGeneratorAgent>> {
+export async function cloneAgent(env: Env, agentId: string) : Promise<{newAgentId: string, newAgent: DurableObjectStub<SmartCodeGeneratorAgent>}> {
     const agentInstance = await getAgentStub(env, agentId, true);
+    if (!agentInstance || !await agentInstance.isInitialized()) {
+        throw new Error(`Agent ${agentId} not found`);
+    }
     const newAgentId = generateId();
 
     const newAgent = await getAgentStub(env, newAgentId);
@@ -52,6 +55,6 @@ export async function cloneAgent(env: Env, agentId: string) : Promise<DurableObj
     };
 
     await newAgent.setState(newState);
-    return newAgent;
+    return {newAgentId, newAgent};
 }
 
