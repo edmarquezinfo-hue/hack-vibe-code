@@ -666,9 +666,9 @@ CLOUDFLARE_AI_GATEWAY_TOKEN="your-ai-gateway-token-with-run-permissions"
 
 **AI Provider API Keys** (All Required):
 ```bash
-ANTHROPIC_API_KEY="sk-ant-api03-..."        # Claude models access
-OPENAI_API_KEY="sk-..."                     # GPT models access  
-GEMINI_API_KEY="AIzaSy..."                  # Google Gemini models access
+ANTHROPIC_API_KEY="your-anthropic-api-key"  # Claude models access
+OPENAI_API_KEY="your-openai-api-key"        # GPT models access  
+GEMINI_API_KEY="your-gemini-api-key"        # Google Gemini models access
 ```
 
 **Session Security:**

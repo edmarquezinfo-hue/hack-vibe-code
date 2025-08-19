@@ -125,11 +125,38 @@ class CloudflareUndeploymentManager {
   }
 
   /**
+   * Validate wrangler command for security
+   */
+  private validateWranglerCommand(command: string): void {
+    // Allowlist of safe wrangler commands and patterns
+    const allowedCommands = [
+      /^delete\s+[a-zA-Z0-9_-]+$/,
+      /^kv\s+namespace\s+delete\s+--namespace-id=[a-f0-9-]+$/,
+      /^r2\s+bucket\s+delete\s+[a-zA-Z0-9_-]+$/,
+      /^d1\s+delete\s+[a-zA-Z0-9_-]+\s+--skip-confirmation$/,
+      /^dispatch-namespace\s+delete\s+[a-zA-Z0-9_-]+$/,
+      /^containers\s+list$/,
+      /^containers\s+delete\s+[a-f0-9-]+$/,
+      /^containers\s+images\s+list$/,
+      /^containers\s+images\s+delete\s+[a-zA-Z0-9_:.-]+$/
+    ];
+
+    const isAllowed = allowedCommands.some(pattern => pattern.test(command.trim()));
+    if (!isAllowed) {
+      throw new UndeploymentError(`Invalid or potentially unsafe wrangler command: ${command}`);
+    }
+  }
+
+  /**
    * Execute wrangler command with error handling (synchronous)
    */
   private execWranglerCommand(command: string, description: string): boolean {
     try {
       console.log(`🔄 ${description}...`);
+      
+      // Validate command for security
+      this.validateWranglerCommand(command);
+      
       // For delete commands, set environment variables for non-interactive mode
       const env = command.includes('delete') ? {
         ...process.env,
@@ -138,6 +165,7 @@ class CloudflareUndeploymentManager {
         NODE_ENV: 'production'
       } : process.env;
 
+      // Use validated command with proper escaping
       execSync(`wrangler ${command}`, {
         stdio: 'pipe',
         cwd: PROJECT_ROOT,
@@ -161,6 +189,9 @@ class CloudflareUndeploymentManager {
       
       return new Promise<boolean>((resolve) => {
         try {
+          // Validate command for security
+          this.validateWranglerCommand(command);
+          
           // For delete commands, set environment variables for non-interactive mode
           const env = command.includes('delete') ? {
             ...process.env,
@@ -169,6 +200,7 @@ class CloudflareUndeploymentManager {
             NODE_ENV: 'production'
           } : process.env;
 
+          // Use validated command with proper escaping
           execSync(`wrangler ${command}`, {
             stdio: 'pipe',
             cwd: PROJECT_ROOT,
