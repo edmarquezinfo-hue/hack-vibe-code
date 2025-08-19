@@ -16,9 +16,9 @@ export class SCOFFormat extends CodeGenerationFormat {
     parseStreamingChunks(
         chunk: string,
         state: CodeGenerationStreamingState,
-        onFileOpen: (file_path: string) => void,
-        onFileChunk: (file_path: string, chunk: string, format: 'full_content' | 'unified_diff') => void,
-        onFileClose: (file_path: string) => void
+        onFileOpen: (filePath: string) => void,
+        onFileChunk: (filePath: string, chunk: string, format: 'full_content' | 'unified_diff') => void,
+        onFileClose: (filePath: string) => void
     ): CodeGenerationStreamingState {
         // Initialize SCOF-specific parsing state if not present or corrupted
         if (!state.parsingState || !this.isValidSCOFState(state.parsingState)) {
@@ -69,9 +69,9 @@ export class SCOFFormat extends CodeGenerationFormat {
     private processAccumulatedContent(
         state: CodeGenerationStreamingState,
         scofState: SCOFParsingState,
-        onFileOpen: (file_path: string) => void,
-        onFileChunk: (file_path: string, chunk: string, format: 'full_content' | 'unified_diff') => void,
-        onFileClose: (file_path: string) => void
+        onFileOpen: (filePath: string) => void,
+        onFileChunk: (filePath: string, chunk: string, format: 'full_content' | 'unified_diff') => void,
+        onFileClose: (filePath: string) => void
     ): void {
         // Combine any partial line from previous chunk with new content
         const fullContent = scofState.partialLineBuffer + state.accumulator;
@@ -113,9 +113,9 @@ export class SCOFFormat extends CodeGenerationFormat {
     private processLine(
         line: string,
         scofState: SCOFParsingState,
-        onFileOpen: (file_path: string) => void,
-        onFileChunk: (file_path: string, chunk: string, format: 'full_content' | 'unified_diff') => void,
-        onFileClose: (file_path: string) => void,
+        onFileOpen: (filePath: string) => void,
+        onFileChunk: (filePath: string, chunk: string, format: 'full_content' | 'unified_diff') => void,
+        onFileClose: (filePath: string) => void,
         state: CodeGenerationStreamingState
     ): void {
         const trimmedLine = line.trim();
@@ -419,7 +419,7 @@ export class SCOFFormat extends CodeGenerationFormat {
     private handleCommand(
         command: { type: 'file_creation' | 'diff_patch', filePath: string, eofMarker: string },
         scofState: SCOFParsingState,
-        onFileOpen: (file_path: string) => void
+        onFileOpen: (filePath: string) => void
     ): void {
         const { type, filePath, eofMarker } = command;
         
@@ -453,7 +453,7 @@ export class SCOFFormat extends CodeGenerationFormat {
     
     private finalizeCurrentFile(
         scofState: SCOFParsingState,
-        onFileClose: (file_path: string) => void,
+        onFileClose: (filePath: string) => void,
         state: CodeGenerationStreamingState
     ): void {
         if (!scofState.currentFile || !scofState.currentFileFormat) {
@@ -466,7 +466,7 @@ export class SCOFFormat extends CodeGenerationFormat {
         // Apply diff if this is a diff patch operation
         if (scofState.currentMode === 'diff_patch') {
             const existingFile = state.completedFiles.get(filePath);
-            const existingContent = existingFile?.file_contents || '';
+            const existingContent = existingFile?.fileContents || '';
             if (existingContent) {
                 try {
                     finalContent = applyDiff(existingContent, finalContent);
@@ -479,10 +479,10 @@ export class SCOFFormat extends CodeGenerationFormat {
         
         // Store completed file with format information
         const fileObject: FileGenerationOutputType = {
-            file_path: filePath,
-            file_contents: finalContent,
+            filePath: filePath,
+            fileContents: finalContent,
             format: scofState.currentFileFormat,
-            file_purpose: '',
+            filePurpose: '',
         };
         
         state.completedFiles.set(filePath, fileObject);
@@ -525,7 +525,7 @@ export class SCOFFormat extends CodeGenerationFormat {
         return scofState.eofMarker ? line.includes(scofState.eofMarker) : false;
     }
     
-    private addContentLine(line: string, scofState: SCOFParsingState, onFileChunk: (file_path: string, chunk: string, format: 'full_content' | 'unified_diff') => void): void {
+    private addContentLine(line: string, scofState: SCOFParsingState, onFileChunk: (filePath: string, chunk: string, format: 'full_content' | 'unified_diff') => void): void {
         // ENHANCED: Handle nested EOF-like patterns in content
         if (scofState.currentFile && scofState.currentFileFormat) {
             // Add line to content buffer (preserve original line formatting)
@@ -556,21 +556,21 @@ export class SCOFFormat extends CodeGenerationFormat {
         
         for (const file of files) {
             if (file.format === 'unified_diff') {
-                output += `# Applying diff to file: ${file.file_path}\n`;
-                output += formatAsComment(file.file_purpose);
-                output += `cat << 'EOF' | patch ${file.file_path}\n`;
-                output += file.file_contents;
-                if (!file.file_contents.endsWith('\n')) {
+                output += `# Applying diff to file: ${file.filePath}\n`;
+                output += formatAsComment(file.filePurpose);
+                output += `cat << 'EOF' | patch ${file.filePath}\n`;
+                output += file.fileContents;
+                if (!file.fileContents.endsWith('\n')) {
                     output += '\n';
                 }
                 output += 'EOF\n\n';
             } else {
                 // Default to full_content format
-                output += `# Creating new file: ${file.file_path}\n`;
-                output += formatAsComment(file.file_purpose);
-                output += `cat > ${file.file_path} << 'EOF'\n`;
-                output += file.file_contents;
-                if (!file.file_contents.endsWith('\n')) {
+                output += `# Creating new file: ${file.filePath}\n`;
+                output += formatAsComment(file.filePurpose);
+                output += `cat > ${file.filePath} << 'EOF'\n`;
+                output += file.fileContents;
+                if (!file.fileContents.endsWith('\n')) {
                     output += '\n';
                 }
                 output += 'EOF\n\n';

@@ -12,7 +12,7 @@ export const PROMPT_UTILS = {
         if (template) {
             // const filesText = JSON.stringify(tpl.files, null, 2);
             const filesText = TemplateRegistry.markdown.serialize(
-                { files: template.files.filter(f => !f.file_path.includes('package.json')) },
+                { files: template.files.filter(f => !f.filePath.includes('package.json')) },
                 z.object({ files: z.array(TemplateFileSchema) })
             );
             // const indentedFilesText = filesText.replace(/^(?=.)/gm, '\t\t\t\t'); // Indent each line with 4 spaces
@@ -108,7 +108,7 @@ ${staticAnalysis.typecheck?.rawOutput || 'N/A'}
     serializeFiles(files: FileOutputType[]): string {
         // TemplateRegistry.markdown.serialize({ files: files }, z.object({ files: z.array(FileOutputSchema) }))
         // return files.map(file => {
-        //     return `File: ${file.file_path}\nPurpose: ${file.file_purpose}\nContents: ${file.file_contents}`;
+        //     return `File: ${file.filePath}\nPurpose: ${file.filePurpose}\nContents: ${file.fileContents}`;
         // }).join('\n');
         // Use scof format
         return new SCOFFormat().serialize(files.map(file => {

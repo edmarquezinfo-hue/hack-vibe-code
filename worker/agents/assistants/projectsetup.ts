@@ -84,7 +84,7 @@ bun add react-dom@18
 function extractAllIncludes(files: FileOutputType[]) {
     // Extract out all lines that start with #include or require or import
     const includes = files.flatMap(file => {
-        return file.file_contents.split('\n').filter(line => line.startsWith('#include') || line.startsWith('require') || line.startsWith('import'));
+        return file.fileContents.split('\n').filter(line => line.startsWith('#include') || line.startsWith('require') || line.startsWith('import'));
     });
     return includes;
 }

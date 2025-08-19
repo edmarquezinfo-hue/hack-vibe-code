@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
 	BlueprintType,
 	WebSocketMessage,
-	ApiResponse,
+    CodeGenerationResponse,
 	CodeFixEdits,
 } from '../api-types';
 import {
@@ -17,8 +17,8 @@ import { getPreviewUrl } from '@/lib/utils';
 import { generateId } from '../../../utils/id-generator';
 
 export interface FileType {
-	file_path: string;
-	file_contents: string;
+	filePath: string;
+	fileContents: string;
 	explanation?: string;
 	isGenerating?: boolean;
 	needsFixing?: boolean;
@@ -218,7 +218,7 @@ export function useChat({
 			...prev,
 			...files.map((file) => ({
 				...file,
-				language: getFileType(file.file_path),
+				language: getFileType(file.filePath),
 			})),
 		]);
 	};
@@ -226,9 +226,9 @@ export function useChat({
 	const addFile = (file: FileType) => {
 		// add file to files if it doesn't exist, else replace old file with new one
 		setFiles((prev) => {
-			const fileExists = prev.some((f) => f.file_path === file.file_path);
+			const fileExists = prev.some((f) => f.filePath === file.filePath);
 			if (fileExists) {
-				return prev.map((f) => (f.file_path === file.file_path ? file : f));
+				return prev.map((f) => (f.filePath === file.filePath ? file : f));
 			}
 			return [...prev, file];
 		});
@@ -276,12 +276,12 @@ export function useChat({
 					if (state.generatedFilesMap && files.length === 0) {
 						setFiles(
 							Object.values(state.generatedFilesMap).map((file) => ({
-								file_path: file.file_path,
-								file_contents: file.file_contents,
+								filePath: file.filePath,
+								fileContents: file.fileContents,
 								isGenerating: false,
 								needsFixing: false,
 								hasErrors: false,
-								language: getFileType(file.file_path),
+								language: getFileType(file.filePath),
 							})),
 						);
 					}
@@ -300,7 +300,7 @@ export function useChat({
                                     path: filesConcept.path,
                                     purpose: filesConcept.purpose,
                                     status: (file? 'completed' as const : 'generating' as const),
-                                    contents: file?.file_contents
+                                    contents: file?.fileContents
                                 };
                             }),
                             timestamp: Date.now(),
@@ -401,13 +401,13 @@ export function useChat({
 
 			case 'file_generating': {
 				addFile({
-					file_path: message.file_path,
-					file_contents: '',
+					filePath: message.filePath,
+					fileContents: '',
 					explanation: '',
 					isGenerating: true,
 					needsFixing: false,
 					hasErrors: false,
-					language: getFileType(message.file_path),
+					language: getFileType(message.filePath),
 				});
 				break;
 			}
@@ -416,22 +416,22 @@ export function useChat({
 				// update the file
 				setFiles((prev) => {
 					const file = prev.find(
-						(file) => file.file_path === message.file_path,
+						(file) => file.filePath === message.filePath,
 					);
 					if (!file)
 						return [
 							...prev,
 							{
-								file_path: message.file_path,
-								file_contents: message.chunk,
+								filePath: message.filePath,
+								fileContents: message.chunk,
 								explanation: '',
 								isGenerating: true,
 								needsFixing: false,
 								hasErrors: false,
-								language: getFileType(message.file_path),
+								language: getFileType(message.filePath),
 							},
 						];
-					file.file_contents += message.chunk;
+					file.fileContents += message.chunk;
 					return [...prev];
 				});
 				break;
@@ -442,22 +442,22 @@ export function useChat({
 				// find the file and change isGenerating to false with the file in same index
 				setFiles((prev) => {
 					const file = prev.find(
-						(file) => file.file_path === message.file.file_path,
+						(file) => file.filePath === message.file.filePath,
 					);
 					if (!file)
 						return [
 							...prev,
 							{
-								file_path: message.file.file_path,
-								file_contents: message.file.file_contents,
+								filePath: message.file.filePath,
+								fileContents: message.file.fileContents,
 								isGenerating: false,
 								needsFixing: false,
 								hasErrors: false,
-								language: getFileType(message.file.file_path),
+								language: getFileType(message.file.filePath),
 							},
 						];
 					file.isGenerating = false;
-					file.file_contents = message.file.file_contents;
+					file.fileContents = message.file.fileContents;
 					return [...prev];
 				});
 				
@@ -468,12 +468,12 @@ export function useChat({
 					// Find the active phase (not completed) and update the specific file
 					for (let i = updated.length - 1; i >= 0; i--) {
 						if (updated[i].status !== 'completed') {
-							const fileInPhase = updated[i].files.find(f => f.path === message.file.file_path);
+							const fileInPhase = updated[i].files.find(f => f.path === message.file.filePath);
 							if (fileInPhase) {
 								fileInPhase.status = 'completed';
 								// Store the final contents of the file for this phase
-								fileInPhase.contents = message.file.file_contents;
-								console.log(`File completed in phase ${updated[i].name}: ${message.file.file_path}`);
+								fileInPhase.contents = message.file.fileContents;
+								console.log(`File completed in phase ${updated[i].name}: ${message.file.filePath}`);
 								break;
 							}
 						}
@@ -489,10 +489,10 @@ export function useChat({
 				// update the file
 				setFiles((prev) => {
 					const file = prev.find(
-						(file) => file.file_path === message.file.file_path,
+						(file) => file.filePath === message.file.filePath,
 					);
 					if (!file) return prev;
-					file.file_contents = message.file.file_contents;
+					file.fileContents = message.file.fileContents;
 					// Clear regenerating flags
 					file.isGenerating = false;
 					file.needsFixing = false;
@@ -506,12 +506,12 @@ export function useChat({
 					
 					// Find the most recent phase that contains this file and mark as completed
 					for (let i = updated.length - 1; i >= 0; i--) {
-						const fileInPhase = updated[i].files.find(f => f.path === message.file.file_path);
+						const fileInPhase = updated[i].files.find(f => f.path === message.file.filePath);
 						if (fileInPhase) {
 							fileInPhase.status = 'completed';
 							// Store the updated contents for this phase
-							fileInPhase.contents = message.file.file_contents;
-							console.log(`File regeneration completed in phase ${updated[i].name}: ${message.file.file_path}`);
+							fileInPhase.contents = message.file.fileContents;
+							console.log(`File regeneration completed in phase ${updated[i].name}: ${message.file.filePath}`);
 							break;
 						}
 					}
@@ -569,11 +569,11 @@ export function useChat({
 
 			case 'code_reviewed': {
 				const reviewData = message.review;
-				const totalIssues = reviewData?.files_to_fix?.reduce((count, file) => count + file.issues.length, 0) || 0;
+				const totalIssues = reviewData?.filesToFix?.reduce((count, file) => count + file.issues.length, 0) || 0;
 				
 				let reviewMessage = 'Code review complete';
-				if (reviewData?.issues_found) {
-					reviewMessage = `Code review complete - ${totalIssues} issue${totalIssues !== 1 ? 's' : ''} found across ${reviewData.files_to_fix?.length || 0} file${reviewData.files_to_fix?.length !== 1 ? 's' : ''}`;
+				if (reviewData?.issuesFound) {
+					reviewMessage = `Code review complete - ${totalIssues} issue${totalIssues !== 1 ? 's' : ''} found across ${reviewData.filesToFix?.length || 0} file${reviewData.filesToFix?.length !== 1 ? 's' : ''}`;
 				} else {
 					reviewMessage = 'Code review complete - no issues found';
 				}
@@ -588,7 +588,7 @@ export function useChat({
 			case 'file_regenerating': {
 				// Mark file as being regenerated (similar to file_generating)
 				setFiles((prev) => {
-					const existingFile = prev.find(f => f.file_path === message.file_path);
+					const existingFile = prev.find(f => f.filePath === message.filePath);
 					if (existingFile) {
 						existingFile.isGenerating = true;
 						existingFile.needsFixing = true; // Indicate this is a regeneration
@@ -596,13 +596,13 @@ export function useChat({
 					}
 					// If file doesn't exist, add it
 					return [...prev, {
-						file_path: message.file_path,
-						file_contents: '',
+						filePath: message.filePath,
+						fileContents: '',
 						explanation: 'File being regenerated...',
 						isGenerating: true,
 						needsFixing: true,
 						hasErrors: false,
-						language: getFileType(message.file_path),
+						language: getFileType(message.filePath),
 					}];
 				});
 				
@@ -612,10 +612,10 @@ export function useChat({
 					
 					// Find the most recent phase that contains this file
 					for (let i = updated.length - 1; i >= 0; i--) {
-						const fileInPhase = updated[i].files.find(f => f.path === message.file_path);
+						const fileInPhase = updated[i].files.find(f => f.path === message.filePath);
 						if (fileInPhase) {
 							fileInPhase.status = 'generating'; // Show as regenerating
-							console.log(`File regenerating in phase ${updated[i].name}: ${message.file_path}`);
+							console.log(`File regenerating in phase ${updated[i].name}: ${message.filePath}`);
 							break;
 						}
 					}
@@ -722,12 +722,12 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 							description: message.phase.description,
 							files: message.phase.files?.map(f => {
 								// Capture current file contents for incremental calculation
-								// const existingFile = files.find(file => file.file_path === f.path);
+								// const existingFile = files.find(file => file.filePath === f.path);
 								return {
 									path: f.path,
 									purpose: f.purpose,
 									status: 'generating' as const,
-									// contents: existingFile?.file_contents || '' // Store current contents
+									// contents: existingFile?.fileContents || '' // Store current contents
 								};
 							}) || [],
 							status: 'generating' as const,
@@ -1154,7 +1154,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 						headers['X-Session-Token'] = getOrCreateSessionToken();
 					}
 					
-					const response = await fetch('/api/codegen/incremental',
+					const response = await fetch('/api/agent',
 						{
 							method: 'POST',
 							headers,
@@ -1247,7 +1247,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 						id: 'fetching-chat',
 						message: 'Fetching your previous chat...',
 					});
-					const response = await fetch(`/api/codegen/incremental/${urlChatId}`,
+					const response = await fetch(`/api/agent/${urlChatId}/connect`,
 						{
 							method: 'GET',
 						},
@@ -1270,7 +1270,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 						throw new Error(`HTTP error ${response.status}`);
 					}
 
-					const result: ApiResponse = await response.json();
+					const result: CodeGenerationResponse = await response.json();
 
 					logger.debug('Existing agentId API result', result);
 
@@ -1289,13 +1289,9 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 					});
 
 					logger.debug('connecting from init for existing chatId');
-					// Construct proper WebSocket URL for existing chat
-					const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-					const wsUrl = `${protocol}//${window.location.host}/api/codegen/ws/${urlChatId}`;
-					console.log('📡 Connecting to existing chat WebSocket:', wsUrl);
-					connect(wsUrl, {
-						disableGenerate: true, // We'll handle generation resume in the WebSocket open handler
-					});
+                    connect(result.data.websocketUrl, {
+                        disableGenerate: true, // We'll handle generation resume in the WebSocket open handler
+                    });
 				}
 			} catch (error) {
 				console.error('Error initializing code generation:', error);
@@ -1318,8 +1314,8 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 			return () => {
 				setFiles((prev) =>
 					prev.map((file) => {
-						if (file.file_path === edit.filePath) {
-							file.file_contents = file.file_contents.replace(
+						if (file.filePath === edit.filePath) {
+							file.fileContents = file.fileContents.replace(
 								edit.search,
 								edit.replacement,
 							);

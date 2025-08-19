@@ -27,13 +27,13 @@ export class PhaseManagement {
         const summary = `Generated ${generatedFiles.length} out of ${totalFiles} files so far.`;
 
         return {
-            text_explaination: summary,
-            generated_code: Object.values(generatedFilesMap).map(file => ({
-                file_path: file.file_path,
-                file_contents: file.file_contents,
-                file_purpose: file.file_purpose
+            textExplaination: summary,
+            generatedCode: Object.values(generatedFilesMap).map(file => ({
+                filePath: file.filePath,
+                fileContents: file.fileContents,
+                filePurpose: file.filePurpose
             })),
-            total_files: totalFiles
+            totalFiles: totalFiles
         };
     }
 }

@@ -107,8 +107,8 @@ export async function fixIncorrectNamedImport(
             
             // Create the result
             modifiedFiles.push({
-                file_path: issue.filePath,
-                file_contents: fixedCode
+                filePath: issue.filePath,
+                fileContents: fixedCode
             });
             
             fixedIssues.push({

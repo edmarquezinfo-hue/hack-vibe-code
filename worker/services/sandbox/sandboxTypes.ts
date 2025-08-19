@@ -16,8 +16,8 @@ export const FileTreeNodeSchema: z.ZodType<FileTreeNode> = z.lazy(() => z.object
 }));
 
 export const TemplateFileSchema = z.object({
-    file_path: z.string(),
-    file_contents: z.string(),
+    filePath: z.string(),
+    fileContents: z.string(),
 })
 export type TemplateFile = z.infer<typeof TemplateFileSchema>
 
@@ -175,8 +175,8 @@ export type GetInstanceResponse = z.infer<typeof GetInstanceResponseSchema>
 // /instances/:id/files (POST)
 export const WriteFilesRequestSchema = z.object({
     files: z.array(z.object({
-        file_path: z.string(),
-        file_contents: z.string(),
+        filePath: z.string(),
+        fileContents: z.string(),
     })),
 })
 export type WriteFilesRequest = z.infer<typeof WriteFilesRequestSchema>
@@ -184,7 +184,7 @@ export type WriteFilesRequest = z.infer<typeof WriteFilesRequestSchema>
 // /instances/:id/files (GET) - Define schema for getting files from an instance
 export const GetFilesResponseSchema = z.object({
     success: z.boolean(),
-    files: z.array(TemplateFileSchema), // Re-use TemplateFileSchema { file_path, file_contents }
+    files: z.array(TemplateFileSchema), // Re-use TemplateFileSchema { filePath, fileContents }
     errors: z.array(z.object({ file: z.string(), error: z.string() })).optional(),
     error: z.string().optional(),
 })

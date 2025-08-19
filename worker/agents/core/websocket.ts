@@ -2,7 +2,7 @@ import { Connection } from 'agents';
 import { createLogger } from '../../logger';
 import { WebSocketMessageRequests, WebSocketMessageResponses } from '../constants';
 import { SimpleCodeGeneratorAgent } from './simpleGeneratorAgent';
-import { WebSocketMessage, WebSocketMessageData, WebSocketMessageType } from '../websocketTypes';
+import { WebSocketMessage, WebSocketMessageData, WebSocketMessageType } from '../../api/websocketTypes';
 
 const logger = createLogger('CodeGeneratorWebSocket');
 
@@ -59,13 +59,13 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                     }
                     sendToConnection(connection, WebSocketMessageResponses.CODE_REVIEW, {
                         review: reviewResult,
-                        issuesFound: reviewResult.issues_found,
+                        issuesFound: reviewResult.issuesFound,
                     });
-                    if (reviewResult.issues_found && parsedMessage.autoFix === true) {
-                        for (const fileToFix of reviewResult.files_to_fix) {
-                            const fileToRegenerate = agent.state.generatedFilesMap[fileToFix.file_path];
+                    if (reviewResult.issuesFound && parsedMessage.autoFix === true) {
+                        for (const fileToFix of reviewResult.filesToFix) {
+                            const fileToRegenerate = agent.state.generatedFilesMap[fileToFix.filePath];
                             if (!fileToRegenerate) {
-                                logger.warn(`File to fix not found in generated files: ${fileToFix.file_path}`);
+                                logger.warn(`File to fix not found in generated files: ${fileToFix.filePath}`);
                                 continue;
                             }
                             agent.regenerateFile(
@@ -73,7 +73,7 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                                 fileToFix.issues,
                                 0
                             ).catch((error: unknown) => {
-                                logger.error(`Error regenerating file ${fileToRegenerate.file_path}:`, error);
+                                logger.error(`Error regenerating file ${fileToRegenerate.filePath}:`, error);
                                 sendError(connection, `Error regenerating file: ${error instanceof Error ? error.message : String(error)}`);
                             });
                         }

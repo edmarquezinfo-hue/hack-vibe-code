@@ -1,6 +1,6 @@
 import { StructuredLogger } from '../../../logger';
 import { WebSocketMessageResponses } from '../../constants';
-import { WebSocketMessageType, WebSocketMessageData } from '../../websocketTypes';
+import { WebSocketMessageType, WebSocketMessageData } from '../../../api/websocketTypes';
 
 export interface IMessageBroadcaster {
     broadcast<T extends WebSocketMessageType>(type: T, data: WebSocketMessageData<T>): void;

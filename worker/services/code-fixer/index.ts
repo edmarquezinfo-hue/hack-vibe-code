@@ -101,10 +101,10 @@ function createFileMap(files: FileObject[]): FileMap {
     
     for (const file of files) {
         // Only include script files
-        if (isScriptFile(file.file_path)) {
-            fileMap.set(file.file_path, {
-                filePath: file.file_path,
-                content: file.file_contents,
+        if (isScriptFile(file.filePath)) {
+            fileMap.set(file.filePath, {
+                filePath: file.filePath,
+                content: file.fileContents,
                 ast: undefined // Lazy-loaded
             });
         }
@@ -265,15 +265,15 @@ function mergeFixResults(results: FixResult[], preSeparatedUnfixableIssues: Code
     
     // Add modified files (with validation)
     for (const file of allModifiedFiles) {
-        if (canModifyFile(file.file_path)) {
-            filesByPath.set(file.file_path, file);
+        if (canModifyFile(file.filePath)) {
+            filesByPath.set(file.filePath, file);
         }
     }
     
     // Add new files (with validation)
     for (const file of allNewFiles) {
-        if (canModifyFile(file.file_path)) {
-            filesByPath.set(file.file_path, file);
+        if (canModifyFile(file.filePath)) {
+            filesByPath.set(file.filePath, file);
         }
     }
     

@@ -1,5 +1,5 @@
 import { Router } from '../router';
-import { CodeGenController } from '../controllers/codeGenController';
+import { CodingAgentController } from '../controllers/codingAgentController';
 import { setupAuthRoutes } from './authRoutes';
 import { setupAppRoutes } from './appRoutes';
 import { setupStatsRoutes } from './statsRoutes';
@@ -16,25 +16,17 @@ import { setupModelConfigRoutes } from './modelConfigRoutes';
  */
 export function setupRouter(): Router {
     const router = new Router();
-    const codeGenController = new CodeGenController();
+    const codingAgentController = new CodingAgentController();
 
     // Code generation endpoints - modern incremental API
-    // router.get('/api/codegen/template', codeGenController.searchTemplates.bind(codeGenController));
-    router.post('/api/codegen/incremental', codeGenController.startCodeGeneration.bind(codeGenController));
-    router.get('/api/codegen/incremental/:agentId', codeGenController.getCodeGenerationProgress.bind(codeGenController));
-
+    router.post('/api/agent', codingAgentController.startCodeGeneration.bind(codingAgentController));
     // WebSocket endpoint for real-time code generation updates
-    router.register('/api/codegen/ws/:agentId', codeGenController.handleWebSocketConnection.bind(codeGenController), ['GET']);
-
+    router.register('/api/agent/:agentId/ws', codingAgentController.handleWebSocketConnection.bind(codingAgentController), ['GET']);
     // Connect to existing agent
-    router.get('/api/agent/:agentId', codeGenController.connectToExistingAgent.bind(codeGenController));
-    
+    router.get('/api/agent/:agentId/connect', codingAgentController.connectToExistingAgent.bind(codingAgentController));    
     // Get comprehensive agent state (for app viewing)
-    router.get('/api/agent/:agentId/state', codeGenController.getAgentState.bind(codeGenController));
+    router.get('/api/agent/:agentId', codingAgentController.getAgentState.bind(codingAgentController));
 
-    // Default codegen path
-    router.post('/api/codegen', codeGenController.startCodeGeneration.bind(codeGenController));
-    
     // Authentication and user management routes
     setupAuthRoutes(router);
     

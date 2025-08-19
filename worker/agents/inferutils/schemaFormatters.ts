@@ -54,7 +54,7 @@ export function formatSchemaAsMarkdown<T extends z.ZodRawShape>(schema: z.ZodObj
 //     const instructions = `# Instructions for Generation
 
 // Please fill out the following structure.
-// - Use the headings provided (e.g., \`## name\`, \`#### file_path\`).
+// - Use the headings provided (e.g., \`## name\`, \`#### filePath\`).
 // - Place the value for each field inside triple backticks (\`\`\`) on the line(s) following the heading and description.
 // - For arrays (like \`files\`), use a heading like \`### File 1\`, \`### File 2\`, etc., for each item in the list, where "File" is the singular form of the array name.
 // - Provide all required fields. Optional sections can be omitted entirely or have an empty code block if explicitly empty.
@@ -1585,7 +1585,7 @@ const markdownPrompt = (template: string) => `
 Output format: Structured Markdown based schema
 
 Please fill out the following structure.
-    - Use the headings provided (e.g., \`## name\`, \`#### file_path\`) as is. These are schema field names and must not be changed.
+    - Use the headings provided (e.g., \`## name\`, \`#### filePath\`) as is. These are schema field names and must not be changed.
     - Place the value for each field inside triple backticks (\`\`\`) on the line(s) following the heading.
     - For arrays (like \`files\`), use a heading like \`### File 1\`, \`### File 2\`, etc., for each item in the list, where "File" is the singular form of the array name.
     - Provide all required fields. Optional sections can be omitted entirely or have an empty code block if explicitly empty.

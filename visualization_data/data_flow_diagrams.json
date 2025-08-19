@@ -44,7 +44,7 @@
         "data": {
           "type": "HTTP Request",
           "method": "POST",
-          "endpoint": "/api/codegen/incremental",
+          "endpoint": "/api/agent",
           "payload": {
             "query": "User webapp description",
             "sessionToken": "Anonymous session (optional)",
@@ -171,7 +171,7 @@
         "to": "CodeGeneratorAgent (WebSocket)",
         "data": {
           "type": "WebSocket Connection",
-          "url": "/api/codegen/ws/:agentId",
+          "url": "/api/agent/:agentId/ws",
           "initialMessage": {
             "type": "connection_established",
             "clientInfo": "Browser and session information"
@@ -244,15 +244,15 @@
                 {
                   "type": "FILE_GENERATING",
                   "data": {
-                    "file_path": "File being generated",
-                    "file_purpose": "Purpose and role description",
+                    "filePath": "File being generated",
+                    "filePurpose": "Purpose and role description",
                     "is_regeneration": "false"
                   }
                 },
                 {
                   "type": "FILE_CHUNK_GENERATED", 
                   "data": {
-                    "file_path": "Current file",
+                    "filePath": "Current file",
                     "chunk": "Content chunk (up to 256 bytes)",
                     "format": "full_content or unified_diff"
                   }
@@ -261,9 +261,9 @@
                   "type": "FILE_GENERATED",
                   "data": {
                     "file": {
-                      "file_path": "Complete file path",
-                      "file_contents": "Full file content",
-                      "file_purpose": "File description"
+                      "filePath": "Complete file path",
+                      "fileContents": "Full file content",
+                      "filePurpose": "File description"
                     },
                     "message": "Generation completion notification"
                   }
@@ -603,8 +603,8 @@
           "data": {
             "type": "file_progress",
             "payload": {
-              "file_path": "File being generated",
-              "file_purpose": "File purpose description",
+              "filePath": "File being generated",
+              "filePurpose": "File purpose description",
               "is_regeneration": "Boolean indicating if this is a fix",
               "phase": "Current generation phase",
               "progress": "Overall progress percentage"
@@ -620,7 +620,7 @@
           "data": {
             "type": "streaming_content",
             "payload": {
-              "file_path": "Current file path",
+              "filePath": "Current file path",
               "chunk": "Content chunk (up to 256 bytes)",
               "format": "full_content or unified_diff",
               "position": "Chunk position in file",
@@ -697,7 +697,7 @@
     },
     "connectionManagement": {
       "establishment": {
-        "url": "/api/codegen/ws/:agentId",
+        "url": "/api/agent/:agentId/ws",
         "protocol": "WebSocket over HTTPS (WSS)",
         "authentication": "JWT token or session validation",
         "timeout": "30 seconds connection timeout"
@@ -1005,7 +1005,7 @@
         "operation": "App Creation and Management",
         "steps": [
           {
-            "from": "CodeGenController",
+            "from": "CodingAgentController",
             "to": "DatabaseService",
             "data": {
               "type": "App Creation",

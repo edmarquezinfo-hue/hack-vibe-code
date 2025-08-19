@@ -47,8 +47,8 @@ EOF
             expect(result.completedFiles.has('src/index.ts')).toBe(true);
             
             const file = result.completedFiles.get('src/index.ts');
-            expect(file?.file_path).toBe('src/index.ts');
-            expect(file?.file_contents).toBe(`export function main() {
+            expect(file?.filePath).toBe('src/index.ts');
+            expect(file?.fileContents).toBe(`export function main() {
     console.log('Hello World');
 }`);
             expect(file?.format).toBe('full_content');
@@ -242,9 +242,9 @@ EOF
             const files = scofParser.deserialize(serialized);
             
             expect(files).toHaveLength(2);
-            expect(files[0].file_path).toBe('test.js');
+            expect(files[0].filePath).toBe('test.js');
             expect(files[0].format).toBe('full_content');
-            expect(files[1].file_path).toBe('other.js');
+            expect(files[1].filePath).toBe('other.js');
             expect(files[1].format).toBe('unified_diff');
         });
     });

@@ -47,9 +47,9 @@ Path: {{filePath}}
 Purpose: {{filePurpose}}
 </file_info>
 
-<file_contents>
+<fileContents>
 {{fileContents}}
-</file_contents>
+</fileContents>
 
 {{issues}}
 
@@ -162,9 +162,9 @@ const userPromptFormatter = (user_prompt: string, query: string, file: FileOutpu
     let prompt = user_prompt
         .replaceAll('{{query}}', query)
         .replaceAll('{{previousFiles}}', previousFiles ? PROMPT_UTILS.serializeFiles(previousFiles) : '')
-        .replaceAll('{{filePath}}', file.file_path)
-        .replaceAll('{{filePurpose}}', file.file_purpose)
-        .replaceAll('{{fileContents}}', file.file_contents)
+        .replaceAll('{{filePath}}', file.filePath)
+        .replaceAll('{{filePurpose}}', file.filePurpose)
+        .replaceAll('{{fileContents}}', file.fileContents)
         .replaceAll('{{phaseConcept}}', currentPhase ? `
 Current project phase overview:
 <current_phase>
@@ -175,7 +175,7 @@ ${JSON.stringify(currentPhase, null, 2)}
 Here are some issues that were found via static analysis. These may or may not be false positives:
 ${issues.join('\n')}
 </issues>` : '');
-        if(file.file_path.endsWith('.tsx') || file.file_path.endsWith('.jsx')) {
+        if(file.filePath.endsWith('.tsx') || file.filePath.endsWith('.jsx')) {
             prompt = prompt.replaceAll('{{appendix}}', EXTRA_JSX_SPECIFIC);
         } else {
             prompt = prompt.replaceAll('{{appendix}}', '');
@@ -226,12 +226,12 @@ export class RealtimeCodeFixer extends Assistant<Env> {
     ): Promise<FileOutputType> {
         try {
             // Ignore css or json files or *.config.js
-            if (generatedFile.file_path.endsWith('.css') || generatedFile.file_path.endsWith('.json') || generatedFile.file_path.endsWith('.config.js')) {
-                this.logger.info(`Skipping realtime code fixer for file: ${generatedFile.file_path}`);
+            if (generatedFile.filePath.endsWith('.css') || generatedFile.filePath.endsWith('.json') || generatedFile.filePath.endsWith('.config.js')) {
+                this.logger.info(`Skipping realtime code fixer for file: ${generatedFile.filePath}`);
                 return generatedFile;
             }
 
-            let content = generatedFile.file_contents;
+            let content = generatedFile.fileContents;
 
             this.save([createSystemMessage(this.systemPrompt)]);
 
@@ -240,9 +240,9 @@ export class RealtimeCodeFixer extends Assistant<Env> {
             let i = 0;
             while (searchBlocks !== 0 && i < passes) {
                 // Do a static analysis of the file
-                // const analysis = await analyzeTypeScriptFile(generatedFile.file_path, content);
+                // const analysis = await analyzeTypeScriptFile(generatedFile.filePath, content);
                 // issues = [...issues, ...analysis.issues.map(issue => JSON.stringify(issue, null, 2))];
-                this.logger.info(`Running realtime code fixer for file: ${generatedFile.file_path} (pass ${i + 1}/${passes}), issues: ${JSON.stringify(issues, null, 2)}`);
+                this.logger.info(`Running realtime code fixer for file: ${generatedFile.filePath} (pass ${i + 1}/${passes}), issues: ${JSON.stringify(issues, null, 2)}`);
                 const messages = this.save([
                     i === 0 ? createUserMessage(userPromptFormatter(this.userPrompt, context.query, generatedFile, context.previousFiles, currentPhase, issues)) : 
                     createUserMessage(`
@@ -280,7 +280,7 @@ Don't be nitpicky, If there are no actual issues, just say "No issues found".
                 });
 
                 if (!fixResult) {
-                    this.logger.warn(`Realtime code fixer returned no fix for file: ${generatedFile.file_path}`);
+                    this.logger.warn(`Realtime code fixer returned no fix for file: ${generatedFile.filePath}`);
                     return generatedFile;
                 }
 
@@ -299,7 +299,7 @@ Don't be nitpicky, If there are no actual issues, just say "No issues found".
                 // Search the number of search blocks in fixResult
                 searchBlocks = fixResult.string.match(/<<<\s+SEARCH/g)?.length ?? 0;
 
-                this.logger.info(`Applied search replace diff to file: ${generatedFile.file_path}
+                this.logger.info(`Applied search replace diff to file: ${generatedFile.filePath}
 ================================================================================
 Raw content (pass ${i + 1}, found ${searchBlocks} search blocks): 
 ${content}
@@ -318,14 +318,14 @@ ${content}
                 i++;
             }
             const endTime = Date.now();
-            this.logger.info(`Realtime code fixer completed for file: ${generatedFile.file_path} in ${endTime - startTime}ms, found ${searchBlocks} search blocks`);
+            this.logger.info(`Realtime code fixer completed for file: ${generatedFile.filePath} in ${endTime - startTime}ms, found ${searchBlocks} search blocks`);
 
             return {
                 ...generatedFile,
-                file_contents: content
+                fileContents: content
             };
         } catch (error) {
-            this.logger.error(`Error during realtime code fixer for file ${generatedFile.file_path}:`, error);
+            this.logger.error(`Error during realtime code fixer for file ${generatedFile.filePath}:`, error);
         }
         return generatedFile;
     }

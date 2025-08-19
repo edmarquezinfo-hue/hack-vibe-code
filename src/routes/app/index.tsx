@@ -61,17 +61,17 @@ interface AppDetails {
 	};
 	blueprint?: Blueprint;
 	generatedCode?: Array<{
-		file_path: string;
-		file_contents: string;
+		filePath: string;
+		fileContents: string;
 		explanation?: string;
 	}>;
 }
 
 interface AgentState {
 	generatedCode: Array<{
-		file_path: string;
-		file_contents: string;
-		file_purpose?: string;
+		filePath: string;
+		fileContents: string;
+		filePurpose?: string;
 	}>;
 	conversationMessages: Array<{
 		type: 'user' | 'assistant';
@@ -86,8 +86,8 @@ interface AgentState {
 
 // Match chat FileType interface
 interface FileType {
-	file_path: string;
-	file_contents: string;
+	filePath: string;
+	fileContents: string;
 	explanation?: string;
 	isGenerating?: boolean;
 	needsFixing?: boolean;
@@ -166,10 +166,10 @@ export default function AppView() {
 	const files = useMemo<FileType[]>(() => {
 		if (!agentState?.generatedCode) return [];
 		return agentState.generatedCode.map((file) => ({
-			file_path: file.file_path,
-			file_contents: file.file_contents,
-			explanation: file.file_purpose,
-			language: getFileType(file.file_path),
+			filePath: file.filePath,
+			fileContents: file.fileContents,
+			explanation: file.filePurpose,
+			language: getFileType(file.filePath),
 			isGenerating: false,
 			needsFixing: false,
 			hasErrors: false,
@@ -178,19 +178,19 @@ export default function AppView() {
 
 	// Get active file
 	const activeFile = useMemo(() => {
-		return files.find((file) => file.file_path === activeFilePath);
+		return files.find((file) => file.filePath === activeFilePath);
 	}, [files, activeFilePath]);
 
 	// Auto-select first file when files are loaded
 	useEffect(() => {
 		if (files.length > 0 && !activeFilePath) {
-			setActiveFilePath(files[0].file_path);
+			setActiveFilePath(files[0].filePath);
 		}
 	}, [files, activeFilePath]);
 
 	// File click handler
 	const handleFileClick = useCallback((file: FileType) => {
-		setActiveFilePath(file.file_path);
+		setActiveFilePath(file.filePath);
 	}, []);
 
 	const handleFavorite = async () => {
@@ -300,7 +300,7 @@ export default function AppView() {
 			setDeploymentProgress('Connecting to agent...');
 
 			// Connect to existing agent
-			const response = await fetch(`/api/agent/${app.id}`, {
+			const response = await fetch(`/api/agent/${app.id}/connect`, {
 				method: 'GET',
 				credentials: 'include',
 			});
@@ -745,7 +745,7 @@ export default function AppView() {
 											variant="ghost"
 											size="sm"
 											onClick={() => {
-												navigator.clipboard.writeText(activeFile.file_contents);
+												navigator.clipboard.writeText(activeFile.fileContents);
 												toast.success('Code copied to clipboard');
 											}}
 											className="gap-2"
@@ -768,18 +768,18 @@ export default function AppView() {
 												<div className="flex flex-col">
 													{files.map((file) => (
 														<button
-															key={file.file_path}
+															key={file.filePath}
 															onClick={() => handleFileClick(file)}
 															className={cn(
 																"flex items-center w-full gap-2 py-2 px-3 text-left text-sm transition-colors",
-																activeFile?.file_path === file.file_path
+																activeFile?.filePath === file.filePath
 																	? "bg-blue-100 text-blue-900 border-r-2 border-blue-500"
 																	: "hover:bg-muted text-muted-foreground hover:text-foreground"
 															)}
 														>
 															<Code2 className="h-4 w-4 flex-shrink-0" />
 															<span className="truncate font-mono text-xs">
-																{file.file_path}
+																{file.filePath}
 															</span>
 														</button>
 													))}
@@ -793,7 +793,7 @@ export default function AppView() {
 															<div className="flex items-center gap-2 flex-1">
 																<Code2 className="h-4 w-4" />
 																<span className="text-sm font-mono">
-																	{activeFile.file_path}
+																	{activeFile.filePath}
 																</span>
 																{activeFile.explanation && (
 																	<span className="text-xs text-muted-foreground ml-3">
@@ -807,7 +807,7 @@ export default function AppView() {
 															<MonacoEditor
 																className="h-full"
 																createOptions={{
-																	value: activeFile.file_contents,
+																	value: activeFile.fileContents,
 																	language: activeFile.language || 'plaintext',
 																	readOnly: true,
 																	minimap: { enabled: false },

@@ -17,8 +17,8 @@ export interface PhaseImplementationInputs {
     issues: IssueReport
     technicalInstructions?: TechnicalInstructionType | null
     isFirstPhase: boolean
-    fileGeneratingCallback: (file_path: string, file_purpose: string) => void
-    fileChunkGeneratedCallback: (file_path: string, chunk: string, format: 'full_content' | 'unified_diff') => void
+    fileGeneratingCallback: (filePath: string, filePurpose: string) => void
+    fileChunkGeneratedCallback: (filePath: string, chunk: string, format: 'full_content' | 'unified_diff') => void
     fileClosedCallback: (file: FileOutputType, message: string) => void
 }
 
@@ -265,15 +265,15 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
         
         // // Pre-compute expensive operations outside the callback for efficiency
         // const filesBeingGenerated = new Set(phase.files.map(f => f.path));
-        // const allFilesLookup = context.allFiles.reduce((acc, file) => ({ ...acc, [file.file_path]: file }), {});
+        // const allFilesLookup = context.allFiles.reduce((acc, file) => ({ ...acc, [file.filePath]: file }), {});
         
         // // Pre-filter existing files that won't be generated in this phase
         // const existingFilesNotBeingGenerated = context.allFiles
-        //     .filter(f => !filesBeingGenerated.has(f.file_path))
+        //     .filter(f => !filesBeingGenerated.has(f.filePath))
         //     .map(f => ({
-        //         file_path: f.file_path,
-        //         file_contents: f.file_contents,
-        //         file_purpose: FileProcessing.findFilePurpose(f.file_path, phase, allFilesLookup)
+        //         filePath: f.filePath,
+        //         fileContents: f.fileContents,
+        //         filePurpose: FileProcessing.findFilePurpose(f.filePath, phase, allFilesLookup)
         //     }));
 
         let modelConfig = AGENT_CONFIG.phaseImplementation;
@@ -295,26 +295,26 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
                         chunk,
                         streamingState,
                         // File generation started
-                        (file_path: string) => {
-                            logger.info(`Starting generation of file: ${file_path}`);
-                            inputs.fileGeneratingCallback(file_path, FileProcessing.findFilePurpose(file_path, phase, context.allFiles.reduce((acc, f) => ({ ...acc, [f.file_path]: f }), {})));
+                        (filePath: string) => {
+                            logger.info(`Starting generation of file: ${filePath}`);
+                            inputs.fileGeneratingCallback(filePath, FileProcessing.findFilePurpose(filePath, phase, context.allFiles.reduce((acc, f) => ({ ...acc, [f.filePath]: f }), {})));
                         },
                         // Stream file content chunks
-                        (file_path: string, fileChunk: string, format: 'full_content' | 'unified_diff') => {
-                            inputs.fileChunkGeneratedCallback(file_path, fileChunk, format);
+                        (filePath: string, fileChunk: string, format: 'full_content' | 'unified_diff') => {
+                            inputs.fileChunkGeneratedCallback(filePath, fileChunk, format);
                         },
                         // onFileClose callback
-                        (file_path: string) => {
-                            logger.info(`Completed generation of file: ${file_path}`);
-                            const completedFile = streamingState.completedFiles.get(file_path);
+                        (filePath: string) => {
+                            logger.info(`Completed generation of file: ${filePath}`);
+                            const completedFile = streamingState.completedFiles.get(filePath);
                             if (!completedFile) {
-                                logger.error(`Completed file not found: ${file_path}`);
+                                logger.error(`Completed file not found: ${filePath}`);
                                 return;
                             }
     
                             // Process the file contents
-                            const originalContents = context.allFiles.find(f => f.file_path === file_path)?.file_contents || '';
-                            completedFile.file_contents = FileProcessing.processGeneratedFileContents(
+                            const originalContents = context.allFiles.find(f => f.filePath === filePath)?.fileContents || '';
+                            completedFile.fileContents = FileProcessing.processGeneratedFileContents(
                                 completedFile,
                                 originalContents,
                                 logger
@@ -322,21 +322,21 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
     
                             const generatedFile: FileOutputType = {
                                 ...completedFile,
-                                file_purpose: FileProcessing.findFilePurpose(
-                                    file_path, 
+                                filePurpose: FileProcessing.findFilePurpose(
+                                    filePath, 
                                     phase, 
-                                    context.allFiles.reduce((acc, f) => ({ ...acc, [f.file_path]: f }), {})
+                                    context.allFiles.reduce((acc, f) => ({ ...acc, [f.filePath]: f }), {})
                                 )
                             };
     
                             // // Build previousFiles efficiently using pre-computed values
                             // // Get files already generated in this phase (excluding current file)
                             // const generatedFilesInPhase = Array.from(streamingState.completedFiles.values())
-                            //     .filter(f => f.file_path !== file_path)
+                            //     .filter(f => f.filePath !== filePath)
                             //     .map(f => ({
-                            //         file_path: f.file_path,
-                            //         file_contents: f.file_contents,
-                            //         file_purpose: FileProcessing.findFilePurpose(f.file_path, phase, allFilesLookup)
+                            //         filePath: f.filePath,
+                            //         fileContents: f.fileContents,
+                            //         filePurpose: FileProcessing.findFilePurpose(f.filePath, phase, allFilesLookup)
                             //     }));
                             
                             // // Combine pre-computed existing files + already generated files for realtime code fixer
@@ -360,7 +360,7 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
                             
                             fixedFilePromises.push(fixPromise);
     
-                            inputs.fileClosedCallback(generatedFile, `Completed generation of ${file_path}`);
+                            inputs.fileClosedCallback(generatedFile, `Completed generation of ${filePath}`);
                         }
                     );
                 }

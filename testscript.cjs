@@ -223,7 +223,7 @@ async function run() {
 			// Step 1: Start the code generation process with POST request
 			timings.startStep('Initial API Request');
 			console.log('Step 1: Initiating code generation with a POST request...');
-			const response = await fetch(`${config.codegenURL}/api/codegen/incremental`, {
+			const response = await fetch(`${config.codegenURL}/api/agent`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -376,7 +376,7 @@ async function run() {
 			console.log('\nStep 2: Checking the agent status with a GET request...');
 			await setTimeoutPromise(2000); // Give the agent a moment to initialize
 
-			const statusResponse = await fetch(`${config.codegenURL}/api/codegen/incremental/${agentId}`, {
+			const statusResponse = await fetch(`${config.codegenURL}/api/agent/${agentId}`, {
 				method: 'GET',
 			});
 
@@ -535,20 +535,20 @@ async function run() {
                                         phases.phaseGeneration.phases.push({
                                             name: message.phase.name,
                                             description: message.phase.description,
-                                            files: message.phase.files.map(f => f.file_path)
+                                            files: message.phase.files.map(f => f.filePath)
                                         });
                                     }
                                     
                                     timings.trackEvent('Phase Generation Complete');
                                     break;
                                 case 'file_generating':
-									console.log(`${chalk.blue('Generating file:')} ${message.file_path}, purpose: ${message.file_purpose}`);
+									console.log(`${chalk.blue('Generating file:')} ${message.filePath}, purpose: ${message.filePurpose}`);
 									break;
 								case 'file_generated':
 									console.log(`${chalk.green('✅')} ${message.file} generated`);
 									break;
 								case 'file_chunk_generated':
-									// console.log(`${chalk.yellow('Generating file chunk:')} ${message.file_path} length: ${message.chunk.length}`);
+									// console.log(`${chalk.yellow('Generating file chunk:')} ${message.filePath} length: ${message.chunk.length}`);
 									break;
                                 // Phase Implementation 
                                 case 'phase_implementing':
@@ -597,16 +597,16 @@ async function run() {
                                         message.phase.files.forEach(file => {
                                             // Add to generatedFiles array for tracking
                                             generatedFiles.push({
-                                                file_path: file.file_path,
-                                                file_contents: file.file_contents,
+                                                filePath: file.filePath,
+                                                fileContents: file.fileContents,
                                             });
                                             
                                             // Add to phase tracking
                                             if (phases.phaseImplementation.phases[implementedPhaseName]) {
-                                                phases.phaseImplementation.phases[implementedPhaseName].files.push(file.file_path);
+                                                phases.phaseImplementation.phases[implementedPhaseName].files.push(file.filePath);
                                             }
 
-                                            console.log(`  - ${chalk.yellow(file.file_path)}: ${file.file_purpose || 'Generated successfully'}`);
+                                            console.log(`  - ${chalk.yellow(file.filePath)}: ${file.filePurpose || 'Generated successfully'}`);
                                         });
                                     }
 
@@ -631,7 +631,7 @@ async function run() {
                                     }
                                     
                                     enhancedFiles++;
-                                    console.log(`\n${chalk.magenta('🔍 Enhanced file:')} ${chalk.yellow(message.file_path)}`);
+                                    console.log(`\n${chalk.magenta('🔍 Enhanced file:')} ${chalk.yellow(message.filePath)}`);
                                     
                                     if (message.issues_fixed && message.issues_fixed.length > 0) {
                                         console.log(chalk.magenta('Issues fixed:'));
@@ -641,28 +641,28 @@ async function run() {
                                     }
                                     
                                     // Track file enhancement time
-                                    phases.enhancement.files[message.file_path] = {
+                                    phases.enhancement.files[message.filePath] = {
                                         completed: Date.now()
                                     };
                                     break;
 
 								case 'file_regenerated':
-									console.log(`\n${chalk.yellow('🔄 File regenerated:')} ${chalk.bold(message.file.file_path)}`);
+									console.log(`\n${chalk.yellow('🔄 File regenerated:')} ${chalk.bold(message.file.filePath)}`);
 									console.log(`${chalk.dim('Original issues:')} ${message.original_issues || 'None'}`);
 									timings.trackEvent('File Regenerated');
 
 									// Update the file in generatedFiles array
-									const existingIndex = generatedFiles.findIndex(f => f.file_path === message.file.file_path);
+									const existingIndex = generatedFiles.findIndex(f => f.filePath === message.file.filePath);
 									if (existingIndex !== -1) {
 										generatedFiles[existingIndex] = {
-											file_path: message.file.file_path,
-											file_contents: message.file.file_contents,
+											filePath: message.file.filePath,
+											fileContents: message.file.fileContents,
 										};
 										console.log(`${chalk.dim('Updated file in our local collection.')}`);
 									} else {
 										generatedFiles.push({
-											file_path: message.file.file_path,
-											file_contents: message.file.file_contents,
+											filePath: message.file.filePath,
+											fileContents: message.file.fileContents,
 										});
 										console.log(`${chalk.dim('Added regenerated file to our local collection.')}`);
 									}
@@ -742,16 +742,16 @@ async function run() {
 
 									console.log(`\n${chalk.magenta('🔍 Code review results received')}`);
 									if (message.review) {
-										console.log(`${chalk.blue('Issues found:')} ${message.review.issues_found ? chalk.red('Yes') : chalk.green('No')}`);
+										console.log(`${chalk.blue('Issues found:')} ${message.review.issuesFound ? chalk.red('Yes') : chalk.green('No')}`);
 										console.log(`${chalk.blue('Summary:')} ${chalk.dim(message.review.summary)}`);
                                         
                                         // Store if issues were found to track review cycles
-                                        phases.codeReview.hasIssues = message.review.issues_found;
+                                        phases.codeReview.hasIssues = message.review.issuesFound;
 
-										if (message.review.issues_found && message.review.files_to_fix) {
-											console.log(`${chalk.yellow(`Files that need fixing: ${message.review.files_to_fix.length}`)}`);
-											message.review.files_to_fix.forEach(fileFix => {
-												console.log(`  - ${chalk.yellow(fileFix.file_path)}: ${chalk.red(`${fileFix.issues.length} issues`)}`);
+										if (message.review.issuesFound && message.review.filesToFix) {
+											console.log(`${chalk.yellow(`Files that need fixing: ${message.review.filesToFix.length}`)}`);
+											message.review.filesToFix.forEach(fileFix => {
+												console.log(`  - ${chalk.yellow(fileFix.filePath)}: ${chalk.red(`${fileFix.issues.length} issues`)}`);
 											});
 										} else {
                                             // No issues found, we can close connection after final deployment
@@ -775,9 +775,9 @@ async function run() {
 											});
 										}
 
-										if (message.review.dependencies_not_met) {
+										if (message.review.dependenciesNotMet) {
 											console.log(chalk.red('Dependencies not met:'));
-											message.review.dependencies_not_met.forEach((dep, i) => {
+											message.review.dependenciesNotMet.forEach((dep, i) => {
 												console.log(`  ${i + 1}. ${chalk.red(dep)}`);
 											});
 										}

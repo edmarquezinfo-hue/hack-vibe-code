@@ -50,7 +50,7 @@ EOF
             expect(result.completedFiles.has('test.js')).toBe(true);
             
             const file = result.completedFiles.get('test.js');
-            expect(file?.file_contents).toBe("console.log('Hello World');");
+            expect(file?.fileContents).toBe("console.log('Hello World');");
         });
 
         it('should handle double-quoted EOF markers', () => {
@@ -65,7 +65,7 @@ EOF
             
             expect(result.completedFiles.has('test.py')).toBe(true);
             const file = result.completedFiles.get('test.py');
-            expect(file?.file_contents).toBe('def hello():\n        print("Hello")');
+            expect(file?.fileContents).toBe('def hello():\n        print("Hello")');
         });
 
         it('should handle unquoted EOF markers', () => {
@@ -163,7 +163,7 @@ MARKER
             
             expect(result.completedFiles.has('script.sh')).toBe(true);
             const file = result.completedFiles.get('script.sh');
-            expect(file?.file_contents).toContain('Parameter is EOF');
+            expect(file?.fileContents).toContain('Parameter is EOF');
         });
 
         it('should handle special characters in content', () => {
@@ -178,8 +178,8 @@ EOF
             const result = processChunk(chunk, state);
             
             const file = result.completedFiles.get('special.txt');
-            expect(file?.file_contents).toContain('!@#$%^&*()');
-            expect(file?.file_contents).toContain('你好 🌍 émojis');
+            expect(file?.fileContents).toContain('!@#$%^&*()');
+            expect(file?.fileContents).toContain('你好 🌍 émojis');
         });
 
         it('should handle empty files', () => {
@@ -192,7 +192,7 @@ EOF
             
             expect(result.completedFiles.has('empty.txt')).toBe(true);
             const file = result.completedFiles.get('empty.txt');
-            expect(file?.file_contents).toBe('');
+            expect(file?.fileContents).toBe('');
         });
 
         it('should handle very long lines', () => {
@@ -206,7 +206,7 @@ EOF
             const result = processChunk(chunk, state);
             
             const file = result.completedFiles.get('long.txt');
-            expect(file?.file_contents).toBe(longLine);
+            expect(file?.fileContents).toBe(longLine);
         });
     });
 
@@ -233,7 +233,7 @@ EOF
             state = processChunk(chunk2, state);
             
             const file = state.completedFiles.get('multi.js');
-            expect(file?.file_contents).toContain('const x = 42;');
+            expect(file?.fileContents).toContain('const x = 42;');
         });
 
         it('should handle EOF marker split across chunks', () => {
@@ -412,8 +412,8 @@ EOF
             const result = processChunk(chunk, state);
             
             const file = result.completedFiles.get('Button.jsx');
-            expect(file?.file_contents).toContain('export const Button');
-            expect(file?.file_contents).toContain('<button onClick={onClick}>');
+            expect(file?.fileContents).toContain('export const Button');
+            expect(file?.fileContents).toContain('<button onClick={onClick}>');
         });
 
         it('should handle package.json creation with proper JSON', () => {
@@ -437,7 +437,7 @@ EOF
             
             const file = result.completedFiles.get('package.json');
             // Should be valid JSON
-            expect(() => JSON.parse(file?.file_contents || '')).not.toThrow();
+            expect(() => JSON.parse(file?.fileContents || '')).not.toThrow();
         });
 
         it('should handle creating nested directory files', () => {
@@ -485,7 +485,7 @@ EOF
             const result = processChunk(chunk, state);
             
             const file = result.completedFiles.get('large.txt');
-            expect(file?.file_contents.trim()).toBe(largeContent);
+            expect(file?.fileContents.trim()).toBe(largeContent);
         });
     });
 });

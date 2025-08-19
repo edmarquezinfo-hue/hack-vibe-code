@@ -1,6 +1,6 @@
 // export interface CompleteFileObject {
-//     file_path: string;
-//     file_contents: string;
+//     filePath: string;
+//     fileContents: string;
 // }
 
 import { FileGenerationOutputType } from "../schemas";
@@ -16,7 +16,7 @@ import { FileGenerationOutputType } from "../schemas";
  */
 
 // export interface ParsedChunk {
-//     file_path: string;
+//     filePath: string;
 //     chunk: string;
 //     isPartial: boolean;
 //     // Maybe add more fields? or change the structure
@@ -92,9 +92,9 @@ export abstract class CodeGenerationFormat {
     abstract parseStreamingChunks(
         chunk: string, 
         state: CodeGenerationStreamingState,
-        onFileOpen: (file_path: string) => void,    // To be called when a new file is opened
-        onFileChunk: (file_path: string, chunk: string, format: 'full_content' | 'unified_diff') => void,    // To be called to pass the chunk of a file
-        onFileClose: (file_path: string) => void    // To be called when a file is closed
+        onFileOpen: (filePath: string) => void,    // To be called when a new file is opened
+        onFileChunk: (filePath: string, chunk: string, format: 'full_content' | 'unified_diff') => void,    // To be called to pass the chunk of a file
+        onFileClose: (filePath: string) => void    // To be called when a file is closed
     ): CodeGenerationStreamingState;
 
     // Serialize FileObject array to a string

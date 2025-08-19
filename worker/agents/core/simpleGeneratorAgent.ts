@@ -39,7 +39,7 @@ import * as schema from '../../database/schema';
 import { eq } from 'drizzle-orm';
 import { BaseSandboxService } from '../../services/sandbox/BaseSandboxService';
 import { getSandboxService } from '../../services/sandbox/factory';
-import { WebSocketMessageData, WebSocketMessageType } from '../websocketTypes';
+import { WebSocketMessageData, WebSocketMessageType } from '../../api/websocketTypes';
 import { ConversationMessage } from '../inferutils/common';
 import { InferenceContext, AGENT_CONFIG, AgentActionKey } from '../inferutils/config';
 import { ModelConfigService } from '../../services/modelConfig/ModelConfigService';
@@ -169,8 +169,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             templateName: templateDetails?.name
         });
 
-        const packageJsonFile = templateDetails?.files.find(file => file.file_path === 'package.json');
-        const packageJson = packageJsonFile ? packageJsonFile.file_contents : '';
+        const packageJsonFile = templateDetails?.files.find(file => file.filePath === 'package.json');
+        const packageJson = packageJsonFile ? packageJsonFile.fileContents : '';
         
         // Initialize inference context with user configurations
         let inferenceContext: InferenceContext = {
@@ -250,6 +250,10 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         });
 
         this.logger.info("Agent initialized successfully");
+    }
+
+    async isInitialized() {
+        return this.state.sessionId ? true : false
     }
 
     getProjectSetupAssistant(): ProjectSetupAssistant {
@@ -522,18 +526,18 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                     break;
                 }
 
-                const issuesFound = reviewResult.issues_found;
+                const issuesFound = reviewResult.issuesFound;
 
                 if (issuesFound) {
                     this.logger.info(`Issues found in review cycle ${i + 1}`);
                     const promises = [];
 
-                    for (const fileToFix of reviewResult.files_to_fix) {
+                    for (const fileToFix of reviewResult.filesToFix) {
                         if (!fileToFix.require_code_changes) continue;
                         
-                        const fileToRegenerate = this.state.generatedFilesMap[fileToFix.file_path];
+                        const fileToRegenerate = this.state.generatedFilesMap[fileToFix.filePath];
                         if (!fileToRegenerate) {
-                            this.logger.warn(`File to fix not found in generated files: ${fileToFix.file_path}`);
+                            this.logger.warn(`File to fix not found in generated files: ${fileToFix.filePath}`);
                             continue;
                         }
                         
@@ -727,17 +731,17 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 issues, 
                 technicalInstructions, 
                 isFirstPhase: this.state.generatedPhases.filter(p => p.completed).length === 0,
-                fileGeneratingCallback: (file_path: string, file_purpose: string) => {
+                fileGeneratingCallback: (filePath: string, filePurpose: string) => {
                     this.broadcast(WebSocketMessageResponses.FILE_GENERATING, {
-                        message: `Generating file: ${file_path}`,
-                        file_path: file_path,
-                        file_purpose: file_purpose
+                        message: `Generating file: ${filePath}`,
+                        filePath: filePath,
+                        filePurpose: filePurpose
                     });
                 },
-                fileChunkGeneratedCallback: (file_path: string, chunk: string, format: 'full_content' | 'unified_diff') => {
+                fileChunkGeneratedCallback: (filePath: string, chunk: string, format: 'full_content' | 'unified_diff') => {
                     this.broadcast(WebSocketMessageResponses.FILE_CHUNK_GENERATED, {
-                        message: `Generating file: ${file_path}`,
-                        file_path: file_path,
+                        message: `Generating file: ${filePath}`,
+                        filePath: filePath,
                         chunk,
                         format,
                     });
@@ -777,7 +781,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         // Update state with completed phase
         this.fileManager.saveGeneratedFiles(finalFiles);
 
-        this.logger.info("Files generated for phase:", phase.name, finalFiles.map(f => f.file_path));
+        this.logger.info("Files generated for phase:", phase.name, finalFiles.map(f => f.filePath));
 
         // Execute commands if provided
         if (result.commands && result.commands.length > 0) {
@@ -798,7 +802,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             phase: phase
         });
     
-        this.logger.info("Files generated for phase:", phase.name, finalFiles.map(f => f.file_path));
+        this.logger.info("Files generated for phase:", phase.name, finalFiles.map(f => f.filePath));
     
         this.logger.info(`Validation complete for phase: ${phase.name}`);
     
@@ -807,9 +811,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             phase: {
                 name: phase.name,
                 files: finalFiles.map(f => ({
-                    path: f.file_path,
-                    purpose: f.file_purpose,
-                    contents: f.file_contents
+                    path: f.filePath,
+                    purpose: f.filePurpose,
+                    contents: f.fileContents
                 })),
                 description: phase.description
             },
@@ -945,8 +949,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     async regenerateFile(file: FileOutputType, issues: string[], retryIndex: number = 0) {
         const context = GenerationContext.from(this.state, this.logger);
         this.broadcast(WebSocketMessageResponses.FILE_REGENERATING, {
-            message: `Regenerating file: ${file.file_path}`,
-            file_path: file.file_path,
+            message: `Regenerating file: ${file.filePath}`,
+            filePath: file.filePath,
             original_issues: issues,
         });
         
@@ -964,7 +968,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         this.fileManager.saveGeneratedFile(result);
 
         this.broadcast(WebSocketMessageResponses.FILE_REGENERATED, {
-            message: `Regenerated file: ${file.file_path}`,
+            message: `Regenerated file: ${file.filePath}`,
             file: result,
             original_issues: issues,
         });
@@ -1166,9 +1170,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                     if (result.success && result.files.length > 0) {
                         this.logger.info(`Successfully fetched file: ${filePath}`);
                         return {
-                            file_path: filePath,
-                            file_contents: result.files[0].file_contents,
-                            file_purpose: `Fetched file: ${filePath}`
+                            filePath: filePath,
+                            fileContents: result.files[0].fileContents,
+                            filePurpose: `Fetched file: ${filePath}`
                         };
                     } else {
                         this.logger.debug(`File not found: ${filePath}`);
@@ -1181,9 +1185,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             
             const fixResult = await fixProjectIssues(
                 allFiles.map(file => ({
-                    file_path: file.file_path,
-                    file_contents: file.file_contents,
-                    file_purpose: ''
+                    filePath: file.filePath,
+                    fileContents: file.fileContents,
+                    filePurpose: ''
                 })),
                 typeCheckIssues,
                 fileFetcher
@@ -1198,9 +1202,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 if (fixResult.modifiedFiles.length > 0) {
                         this.logger.info("Applying deterministic fixes to files, Fixes: ", JSON.stringify(fixResult, null, 2));
                         const fixedFiles = fixResult.modifiedFiles.map(file => ({
-                            file_path: file.file_path,
-                            file_purpose: allFiles.find(f => f.file_path === file.file_path)?.file_purpose || '',
-                            file_contents: file.file_contents
+                            filePath: file.filePath,
+                            filePurpose: allFiles.find(f => f.filePath === file.filePath)?.filePurpose || '',
+                            fileContents: file.fileContents
                     }));
                     this.fileManager.saveGeneratedFiles(fixedFiles);
                     
@@ -1337,7 +1341,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         this.broadcast(WebSocketMessageResponses.DEPLOYMENT_STARTED, {
             message: "Deploying code to sandbox service",
             files: files.map(file => ({
-                file_path: file.file_path,
+                filePath: file.filePath,
             }))
         });
 
@@ -1392,12 +1396,12 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             // Deploy files
             const filesToWrite = files.length > 0 
                 ? files.map(file => ({
-                    file_path: file.file_path,
-                    file_contents: file.file_contents
+                    filePath: file.filePath,
+                    fileContents: file.fileContents
                 }))
                 : Object.values(generatedFilesMap).map(file => ({
-                    file_path: file.file_path,
-                    file_contents: file.file_contents
+                    filePath: file.filePath,
+                    fileContents: file.fileContents
                 }));
 
             if (filesToWrite.length > 0) {

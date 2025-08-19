@@ -1,25 +1,8 @@
-import type { Blueprint, ClientReportedErrorType, CodeReviewOutputType, FileConceptType, FileOutputType, TechnicalInstructionType } from "./schemas";
-import type { CodeGenState } from "./core/state";
+import type { ClientReportedErrorType, CodeReviewOutputType, FileConceptType, FileOutputType, TechnicalInstructionType } from "../agents/schemas";
+import type { CodeGenState } from "../agents/core/state";
 import type { CodeIssue, RuntimeError, StaticAnalysisResponse } from "../services/sandbox/sandboxTypes";
 import type { CodeFixResult } from "../services/code-fixer";
-import { IssueReport } from "./domain/values/IssueReport";
-
-/**
- * Generation REST API response
- */
-export interface ApiResponse {
-	success: boolean;
-	data: {
-		text_explanation: string;
-		generated_code?: FileOutputType[];
-		progress?: {
-			completedFiles: number;
-			totalFiles: number;
-		};
-		blueprint?: Blueprint;
-	};
-	statusCode: number;
-}
+import { IssueReport } from "../agents/domain/values/IssueReport";
 
 type ErrorMessage = {
     type: 'error';
@@ -39,19 +22,19 @@ type GenerationStartedMessage = {
 
 type FileGeneratingMessage = {
 	type: 'file_generating';
-	file_path: string;
-	file_purpose: string;
+	filePath: string;
+	filePurpose: string;
 };
 
 type FileRegeneratingMessage = {
 	type: 'file_regenerating';
-	file_path: string;
+	filePath: string;
 	original_issues?: string;
 };
 
 type FileChunkGeneratedMessage = {
 	type: 'file_chunk_generated';
-	file_path: string;
+	filePath: string;
 	chunk: string;
 };
 
@@ -75,7 +58,7 @@ type GenerationCompleteMessage = {
 type DeploymentStartedMessage = {
 	type: 'deployment_started';
 	message: string;
-	files: { file_path: string }[];
+	files: { filePath: string }[];
 };
 
 type DeploymentFailedMessage = {

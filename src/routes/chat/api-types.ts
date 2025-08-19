@@ -1,4 +1,5 @@
-export type { WebSocketMessage, ApiResponse, CodeFixEdits } from "worker/agents/websocketTypes";
+export type { WebSocketMessage, CodeFixEdits } from "worker/api/websocketTypes";
+export type { CodeGenerationResponse } from "worker/api/httpApiTypes";
 export type { Blueprint as BlueprintType } from "worker/agents/schemas";
 export type { ClientReportedErrorType } from "worker/agents/schemas";
 export type { CodeReviewOutputType } from "worker/agents/schemas";

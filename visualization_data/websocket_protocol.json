@@ -8,7 +8,7 @@
 
   "connectionManagement": {
     "establishment": {
-      "endpoint": "/api/codegen/ws/:agentId",
+      "endpoint": "/api/agent/:agentId/ws",
       "protocol": "WebSocket over HTTPS (WSS)",
       "upgradeProcess": [
         {
@@ -541,8 +541,8 @@
       "payload": {
         "type": "file_generating",
         "data": {
-          "file_path": "Path of file being generated",
-          "file_purpose": "Purpose and role of the file",
+          "filePath": "Path of file being generated",
+          "filePurpose": "Purpose and role of the file",
           "is_regeneration": "Boolean indicating if this is a fix/improvement",
           "issue": "Specific issue being addressed (if regeneration)",
           "phase": "Current phase name",
@@ -561,7 +561,7 @@
       "payload": {
         "type": "file_chunk_generated",
         "data": {
-          "file_path": "File being updated",
+          "filePath": "File being updated",
           "chunk": "Content chunk (up to 256 bytes)",
           "format": "full_content | unified_diff",
           "position": {
@@ -585,9 +585,9 @@
         "type": "file_generated",
         "data": {
           "file": {
-            "file_path": "Complete file path",
-            "file_contents": "Complete file content",
-            "file_purpose": "File purpose and description",
+            "filePath": "Complete file path",
+            "fileContents": "Complete file content",
+            "filePurpose": "File purpose and description",
             "size": "Final file size in bytes",
             "language": "Programming language/file type"
           },
@@ -611,8 +611,8 @@
         "type": "file_regenerated",
         "data": {
           "file": {
-            "file_path": "Regenerated file path",
-            "file_contents": "New file content",
+            "filePath": "Regenerated file path",
+            "fileContents": "New file content",
             "previousVersion": "Previous version for comparison",
             "changes": "Summary of changes made"
           },

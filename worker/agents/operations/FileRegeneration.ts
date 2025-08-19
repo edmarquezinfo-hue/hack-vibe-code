@@ -29,9 +29,9 @@ Path: {{filePath}}
 Purpose: {{filePurpose}}
 </file_info>
 
-<file_contents>
+<fileContents>
 {{fileContents}}
-</file_contents>
+</fileContents>
 </file_to_fix>
 
 **Identified Issues Requiring Patch:**

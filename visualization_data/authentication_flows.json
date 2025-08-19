@@ -617,7 +617,7 @@
       {
         "step": 4,
         "name": "Content Association",
-        "actor": "CodeGenController",
+        "actor": "CodingAgentController",
         "action": "Associate generated apps with anonymous session",
         "appRecord": {
           "userId": "null",

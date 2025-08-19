@@ -63,8 +63,8 @@ The heart of the system is the `CodeGeneratorAgent` Durable Object that implemen
 - **Runner Service**: External service for code execution and validation
 
 ### Frontend-Worker Communication
-- **Initial Request**: POST `/api/codegen/incremental`
-- **WebSocket Connection**: `/api/codegen/ws/:agentId` for real-time updates
+- **Initial Request**: POST `/api/agent`
+- **WebSocket Connection**: `/api/agent/:agentId/ws` for real-time updates
 - **Message Types**: Typed protocol for file updates, errors, phase transitions
 
 ## Areas Under Development

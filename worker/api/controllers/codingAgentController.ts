@@ -1,7 +1,5 @@
 import { createObjectLogger, Trace, StructuredLogger } from '../../logger'
 import { generateBlueprint } from '../../agents/planning/blueprint';
-import { SmartCodeGeneratorAgent } from '../../agents/core/smartGeneratorAgent';
-import { getAgentByName } from 'agents';
 import { selectTemplate } from '../../agents/planning/templateSelector';
 import { SandboxSdkClient } from '../../services/sandbox/sandboxSdkClient';
 import { WebSocketMessageResponses } from '../../agents/constants';
@@ -11,6 +9,7 @@ import { BaseController } from './BaseController';
 import { getSandboxService } from '../../services/sandbox/factory';
 import { generateId } from '../../utils/idGenerator';
 import { CodeGenState } from '../../agents/core/state';
+import { getAgentStub } from '../../agents';
 
 interface CodeGenArgs {
     query: string;
@@ -28,17 +27,11 @@ const defaultCodeGenArgs: CodeGenArgs = {
     agentMode: 'deterministic',
 };
 
-async function getAgentStub(_request: Request, env: Env, agentId: string) : Promise<DurableObjectStub<SmartCodeGeneratorAgent>> {
-    return getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, agentId, {
-        locationHint: 'enam'
-        // jurisdiction:'eu',
-    });
-}
 
 /**
- * CodeGenController to handle all code generation related endpoints
+ * CodingAgentController to handle all code generation related endpoints
  */
-export class CodeGenController extends BaseController {
+export class CodingAgentController extends BaseController {
     private codeGenLogger: StructuredLogger;
 
     constructor() {
@@ -54,7 +47,7 @@ export class CodeGenController extends BaseController {
         const chatId = generateId();
         const requestId = chatId;
         const requestContext = Trace.startRequest(requestId, {
-            endpoint: '/api/codegen/incremental',
+            endpoint: '/api/agent',
             method: 'POST',
             userAgent: request.headers.get('user-agent') || 'unknown',
             timestamp: new Date().toISOString()
@@ -64,7 +57,7 @@ export class CodeGenController extends BaseController {
             this.codeGenLogger.info('Starting code generation process', {
                 requestId,
                 traceId: requestContext.getCurrentTraceId(),
-                endpoint: '/api/codegen/incremental'
+                endpoint: '/api/agent'
             });
 
             const url = new URL(request.url);
@@ -87,7 +80,7 @@ export class CodeGenController extends BaseController {
             const agentMode = body.agentMode || defaultCodeGenArgs.agentMode;
 
             // Create a new agent instance with a generated ID - spawn the correct agent type
-            const agentInstance = await getAgentStub(request, env, chatId)
+            const agentInstance = await getAgentStub(env, chatId)
 
             this.codeGenLogger.info('Created new agent instance with ID: {chatId}', {
                 chatId,
@@ -141,8 +134,8 @@ export class CodeGenController extends BaseController {
             this.codeGenLogger.info(`Using language: ${language}, frameworks: ${frameworks ? frameworks.join(", ") : "none"}`);
 
             // Construct the response URLs
-            const websocketUrl = `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/api/codegen/ws/${chatId}`;
-            const httpStatusUrl = `${url.origin}/api/codegen/incremental/${chatId}`;
+            const websocketUrl = `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/api/agent/${chatId}/ws`;
+            const httpStatusUrl = `${url.origin}/api/agent/${chatId}`;
 
             const { readable, writable } = new TransformStream({
                 transform(chunk, controller) {
@@ -260,93 +253,6 @@ export class CodeGenController extends BaseController {
     }
 
     /**
-     * Get the current progress of code generation
-     */
-    async getCodeGenerationProgress(
-        _: Request,
-        env: Env,
-        __: ExecutionContext,
-        params?: Record<string, string>
-    ): Promise<Response> {
-        try {
-            const chatId = params?.agentId; // URL param is still agentId for backward compatibility
-            if (!chatId) {
-                return this.createErrorResponse('Missing agent ID parameter', 400);
-            }
-
-            this.codeGenLogger.info(`Getting code generation progress for chat: ${chatId}`);
-
-            // Get the agent instance and its current state
-            const agentInstance = await getAgentStub(_, env, chatId);
-            const codeProgress = await agentInstance.getProgress();
-
-            this.codeGenLogger.info('Retrieved code generation progress successfully');
-
-            return this.createSuccessResponse({
-                text_explanation: codeProgress.text_explaination,
-                generated_code: codeProgress.generated_code,
-                progress: {
-                    completedFiles: codeProgress.generated_code.length,
-                    totalFiles: codeProgress.total_files || 'unknown'
-                }
-            });
-        } catch (error) {
-            this.codeGenLogger.error('Error getting code generation progress', error);
-            return this.handleError(error, 'get code generation progress');
-        }
-    }
-
-    /**
-     * Connect to an existing agent instance
-     * Returns connection information for an already created agent
-     */
-    async connectToExistingAgent(
-        request: Request,
-        env: Env,
-        _: ExecutionContext,
-        params?: Record<string, string>
-    ): Promise<Response> {
-        try {
-            const agentId = params?.agentId;
-            if (!agentId) {
-                return this.createErrorResponse('Missing agent ID parameter', 400);
-            }
-
-            this.codeGenLogger.info(`Connecting to existing agent: ${agentId}`);
-
-            try {
-                // Verify the agent instance exists
-                const agentInstance = await getAgentStub(request, env, agentId);
-                
-                // Get agent status
-                const agentState = await agentInstance.getProgress();
-                
-                this.codeGenLogger.info(`Successfully connected to existing agent: ${agentId}`);
-
-                // Construct WebSocket URL
-                const url = new URL(request.url);
-                const websocketUrl = `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/api/codegen/ws/${agentId}`;
-
-                return this.createSuccessResponse({
-                    agentId,
-                    websocketUrl,
-                    // status: await agentInstance.isCodeGenerating() ? 'generating' : 'idle',
-                    progress: {
-                        completedFiles: agentState.generated_code.length,
-                        totalFiles: agentState.total_files || 'unknown'
-                    }
-                });
-            } catch (error) {
-                this.codeGenLogger.error(`Failed to connect to agent ${agentId}:`, error);
-                return this.createErrorResponse(`Agent instance not found or unavailable: ${error instanceof Error ? error.message : String(error)}`, 404);
-            }
-        } catch (error) {
-            this.codeGenLogger.error('Error connecting to existing agent', error);
-            return this.handleError(error, 'connect to existing agent');
-        }
-    }
-
-    /**
      * Handle WebSocket connections for code generation
      * This routes the WebSocket connection directly to the Agent
      */
@@ -382,7 +288,7 @@ export class CodeGenController extends BaseController {
 
             try {
                 // Get the agent instance to handle the WebSocket connection
-                const agentInstance = await getAgentStub(request, env, chatId);
+                const agentInstance = await getAgentStub(env, chatId);
                 
                 this.codeGenLogger.info(`Successfully got agent instance for chat: ${chatId}`);
 
@@ -414,6 +320,49 @@ export class CodeGenController extends BaseController {
     }
 
     /**
+     * Connect to an existing agent instance
+     * Returns connection information for an already created agent
+     */
+    async connectToExistingAgent(
+        request: Request,
+        env: Env,
+        _: ExecutionContext,
+        params?: Record<string, string>
+    ): Promise<Response> {
+        try {
+            const agentId = params?.agentId;
+            if (!agentId) {
+                return this.createErrorResponse('Missing agent ID parameter', 400);
+            }
+
+            this.codeGenLogger.info(`Connecting to existing agent: ${agentId}`);
+
+            try {
+                // Verify the agent instance exists
+                const agentInstance = await getAgentStub(env, agentId);
+                if (!agentInstance || !(await agentInstance.isInitialized())) {
+                    return this.createErrorResponse('Agent instance not found or not initialized', 404);
+                }
+                this.codeGenLogger.info(`Successfully connected to existing agent: ${agentId}`);
+
+                // Construct WebSocket URL
+                const url = new URL(request.url);
+                const websocketUrl = `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/api/agent/ws/${agentId}`;
+
+                return this.createSuccessResponse({
+                    websocketUrl,
+                    agentId,
+                });
+            } catch (error) {
+                this.codeGenLogger.error(`Failed to connect to agent ${agentId}:`, error);
+                return this.createErrorResponse(`Agent instance not found or unavailable: ${error instanceof Error ? error.message : String(error)}`, 404);
+            }
+        } catch (error) {
+            this.codeGenLogger.error('Error connecting to existing agent', error);
+            return this.handleError(error, 'connect to existing agent');
+        }
+    }
+    /**
      * Get comprehensive agent state for app viewing
      */
     async getAgentState(request: Request, env: Env, _ctx: ExecutionContext, params?: Record<string, string>): Promise<Response> {
@@ -427,7 +376,7 @@ export class CodeGenController extends BaseController {
 
             try {
                 // Get the agent instance
-                const agentInstance = await getAgentStub(request, env, agentId);
+                const agentInstance = await getAgentStub(env, agentId);
                 
                 // Get current progress (includes generated code)
                 const agentProgress = await agentInstance.getProgress();
@@ -438,28 +387,23 @@ export class CodeGenController extends BaseController {
                     agentId,
                     state: fullState,
                 });
+                // Construct WebSocket URL
+                const url = new URL(request.url);
+                const websocketUrl = `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/api/agent/ws/${agentId}`;
                 
                 // Prepare response with comprehensive agent data
                 const response = {
                     agentId,
-                    generatedCode: agentProgress.generated_code || [],
-                    totalFiles: agentProgress.total_files || 0,
-                    textExplanation: agentProgress.text_explaination || '',
-                    conversationMessages: fullState.conversationMessages || [],
-                    originalPrompt: fullState.query || '',
-                    blueprint: fullState.blueprint || null,
-                    generatedPhases: fullState.generatedPhases || [],
-                    previewUrl: fullState.previewURL || null,
-                    tunnelUrl: fullState.tunnelURL || null,
-                    sandboxInstanceId: fullState.sandboxInstanceId || null,
-                    isGenerating: await agentInstance.isCodeGenerating() || false
+                    websocketUrl,
+                    progress: agentProgress,
+                    state: fullState,
                 };
 
                 this.codeGenLogger.info('Agent state fetched successfully', {
                     agentId,
-                    codeFiles: response.generatedCode.length,
-                    conversationMessages: response.conversationMessages.length,
-                    phases: response.generatedPhases.length
+                    codeFiles: response.progress.generatedCode.length,
+                    conversationMessages: response.state.conversationMessages.length,
+                    phases: response.state.generatedPhases.length
                 });
 
                 return this.createSuccessResponse(response);

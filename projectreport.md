@@ -124,8 +124,8 @@ interface PhaseImplementationInputs {
     issues: IssueReport
     technicalInstructions?: TechnicalInstructionType
     isFirstPhase: boolean
-    fileGeneratingCallback: (file_path: string, file_purpose: string) => void
-    fileChunkGeneratedCallback: (file_path: string, chunk: string, format: 'full_content' | 'unified_diff') => void
+    fileGeneratingCallback: (filePath: string, filePurpose: string) => void
+    fileChunkGeneratedCallback: (filePath: string, chunk: string, format: 'full_content' | 'unified_diff') => void
     fileClosedCallback: (file: FileOutputType, message: string) => void
 }
 ```

@@ -125,11 +125,11 @@ export class AppViewController extends BaseController {
             const agentInstance = await getAgentByName(env.CodeGenObject, appResult.id);
             const agentProgress = await agentInstance.getProgress();
             
-            if (agentProgress && agentProgress.generated_code && agentProgress.generated_code.length > 0) {
+            if (agentProgress && agentProgress.generatedCode && agentProgress.generatedCode.length > 0) {
                 // Convert agent progress format to expected frontend format
-                generatedCode = agentProgress.generated_code.map((file: { file_path: string; file_contents: string; explanation?: string }) => ({
-                    file_path: file.file_path,
-                    file_contents: file.file_contents,
+                generatedCode = agentProgress.generatedCode.map((file: { filePath: string; fileContents: string; explanation?: string }) => ({
+                    filePath: file.filePath,
+                    fileContents: file.fileContents,
                     explanation: file.explanation
                 }));
             }

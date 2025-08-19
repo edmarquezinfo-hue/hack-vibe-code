@@ -112,7 +112,7 @@
               "methods": ["POST /register", "POST /login", "POST /refresh", "GET /profile"],
               "oauth": ["GET /oauth/:provider", "GET /callback/:provider"]
             },
-            "/api/codegen/*": {
+            "/api/agent/*": {
               "description": "AI-powered code generation and real-time streaming",
               "methods": ["POST /incremental", "GET /incremental/:agentId", "GET /ws/:agentId"]
             },
@@ -793,8 +793,8 @@
           "steps": [
             "User submits query via React frontend",
             "Anonymous users get session token from localStorage",
-            "POST request to /api/codegen/incremental with query",
-            "CodeGenController validates and processes request"
+            "POST request to /api/agent with query",
+            "CodingAgentController validates and processes request"
           ]
         },
         {

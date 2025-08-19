@@ -1,18 +1,18 @@
 import z from 'zod';
 
 export const FileOutputSchema = z.object({
-    file_path: z.string().describe('The name of the file including path'),
-    file_contents: z.string().describe('The complete contents of the file'),
-    file_purpose: z.string().describe('Concise purpose of the file and it\'s expected contents')
+    filePath: z.string().describe('The name of the file including path'),
+    fileContents: z.string().describe('The complete contents of the file'),
+    filePurpose: z.string().describe('Concise purpose of the file and it\'s expected contents')
 });
 
 /**
  * Schema for code generation output
  */
 export const CodeOutput = z.object({
-    text_explaination: z.string().describe('A detailed explanation of the generated code'),
-    generated_code: z.array(FileOutputSchema),
-    total_files: z.number().describe('Total number of files to be generated')
+    textExplaination: z.string().describe('A detailed explanation of the generated code'),
+    generatedCode: z.array(FileOutputSchema),
+    totalFiles: z.number().describe('Total number of files to be generated')
 });
 
 export const FileConceptSchema = z.object({
@@ -60,13 +60,13 @@ export const DocumentationOutput = z.object({
  */
 export const CodeReviewOutput = z.object({
     // dependencies_already_installed: z.array(z.string()).describe('List of dependencies that are already installed in the project'),
-    dependencies_not_met: z.array(z.string()).describe('List of dependencies that are not met in the project'),
-    issues_found: z.boolean().describe('Whether any issues were found in the code review'),
-    frontend_issues: z.array(z.string()).describe('Issues related to the frontend code'),
-    backend_issues: z.array(z.string()).describe('Issues related to the backend code'),
+    dependenciesNotMet: z.array(z.string()).describe('List of dependencies that are not met in the project'),
+    issuesFound: z.boolean().describe('Whether any issues were found in the code review'),
+    frontendIssues: z.array(z.string()).describe('Issues related to the frontend code'),
+    backendIssues: z.array(z.string()).describe('Issues related to the backend code'),
     // summary: z.string().describe('Detailed summary of the issues found in the code review'),
-    files_to_fix: z.array(z.object({
-        file_path: z.string().describe('Path to the file that needs fixing'),
+    filesToFix: z.array(z.object({
+        filePath: z.string().describe('Path to the file that needs fixing'),
         issues: z.array(z.string()).describe('List of issues found in this file and actionable recommendations for fixing them'),
         require_code_changes: z.boolean().describe('Whether code changes are required to fix the issues'),
     })).describe('List of files that need to be fixed'),

@@ -933,7 +933,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             const results = [];
 
             const writePromises = files.map(file => {
-                return sandbox.writeFile(`${instanceId}/${file.file_path}`, file.file_contents);
+                return sandbox.writeFile(`${instanceId}/${file.filePath}`, file.fileContents);
             });
             
             const writeResults = await Promise.all(writePromises);
@@ -967,7 +967,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             this.logger.error('writeFiles', error, { instanceId });
             return {
                 success: false,
-                results: files.map(f => ({ file: f.file_path, success: false, error: 'Instance error' })),
+                results: files.map(f => ({ file: f.filePath, success: false, error: 'Instance error' })),
                 error: `Failed to write files: ${error instanceof Error ? error.message : 'Unknown error'}`
             };
         }
@@ -1036,8 +1036,8 @@ export class SandboxSdkClient extends BaseSandboxService {
                     const { result, filePath } = readResult.value;
                     if (result && result.success) {
                         files.push({
-                            file_path: filePath,
-                            file_contents: applyFilter && donttouchPaths.includes(filePath) ? '[REDACTED]' : result.content
+                            filePath: filePath,
+                            fileContents: applyFilter && donttouchPaths.includes(filePath) ? '[REDACTED]' : result.content
                         });
                         
                         this.logger.info(`Successfully read file: ${filePath}`);
@@ -1467,9 +1467,9 @@ export class SandboxSdkClient extends BaseSandboxService {
                     if (result.success) {
                         this.logger.info(`Successfully fetched file: ${filePath}`);
                         return {
-                            file_path: filePath,
-                            file_contents: result.content,
-                            file_purpose: `Fetched file: ${filePath}`
+                            filePath: filePath,
+                            fileContents: result.content,
+                            filePurpose: `Fetched file: ${filePath}`
                         };
                     } else {
                         this.logger.debug(`File not found: ${filePath}`);
@@ -1483,15 +1483,15 @@ export class SandboxSdkClient extends BaseSandboxService {
             // Use the new functional API
             const fixResult = await fixProjectIssues(
                 files.map(file => ({
-                    file_path: file.file_path,
-                    file_contents: file.file_contents,
-                    file_purpose: ''
+                    filePath: file.filePath,
+                    fileContents: file.fileContents,
+                    filePurpose: ''
                 })),
                 analysisResult.typecheck.issues,
                 fileFetcher
             );
             fixResult.modifiedFiles.forEach((file: FileObject) => {
-                this.getSandbox().writeFile(`${instanceId}/${file.file_path}`, file.file_contents);
+                this.getSandbox().writeFile(`${instanceId}/${file.filePath}`, file.fileContents);
             });
             this.logger.info(`Code fix completed for ${instanceId}`);
             return fixResult;

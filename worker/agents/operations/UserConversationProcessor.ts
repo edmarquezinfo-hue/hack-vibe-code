@@ -4,7 +4,7 @@ import { executeInference } from "../inferutils/infer";
 import { getSystemPromptWithProjectContext } from "./common";
 import { TemplateRegistry } from "../inferutils/schemaFormatters";
 import { WebSocketMessageResponses } from "../constants";
-import { WebSocketMessageData } from "../websocketTypes";
+import { WebSocketMessageData } from "../../api/websocketTypes";
 import { AgentOperation, OperationOptions } from "../operations/common";
 import { ConversationMessage } from "../inferutils/common";
 import { StructuredLogger } from "../../logger";

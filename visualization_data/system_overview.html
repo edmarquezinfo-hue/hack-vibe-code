@@ -285,7 +285,7 @@ flowchart TD
     II --> JJ{Issues found?}
     
     JJ -->|No| KK[Review Complete - No issues]
-    JJ -->|Yes| LL[Process files_to_fix array]
+    JJ -->|Yes| LL[Process filesToFix array]
     LL --> MM{File requires code_changes?}
     MM -->|Yes| NN[BROADCAST FILE_GENERATING - is_regeneration true]
     MM -->|No| OO[Next file]

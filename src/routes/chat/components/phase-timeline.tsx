@@ -52,10 +52,10 @@ function calculateIncrementalLineCount(
 	phaseTimeline: PhaseTimelineItem[], 
 	globalFiles: FileType[]
 ): number {
-	const globalFile = globalFiles.find(f => f.file_path === currentFilePath);
+	const globalFile = globalFiles.find(f => f.filePath === currentFilePath);
 	if (!globalFile) return 0;
 	
-	const currentTotalLines = globalFile.file_contents.split('\n').length;
+	const currentTotalLines = globalFile.fileContents.split('\n').length;
 	
 	// Find the previous phase that contains this same file
 	for (let i = currentPhaseIndex - 1; i >= 0; i--) {
@@ -188,8 +188,8 @@ export function PhaseTimeline({ phaseTimeline, files, view, activeFile, onFileCl
 						<div className="ml-6 space-y-0.5">
 							{phase.files.map((phaseFile) => {
 								// Check if this file exists in the global files array for click handling
-								const globalFile = files.find(f => f.file_path === phaseFile.path);
-								const isFileActive = view === 'editor' && activeFile?.file_path === phaseFile.path;
+								const globalFile = files.find(f => f.filePath === phaseFile.path);
+								const isFileActive = view === 'editor' && activeFile?.filePath === phaseFile.path;
 								
 								return (
 									<button
@@ -282,10 +282,10 @@ export function PhaseTimeline({ phaseTimeline, files, view, activeFile, onFileCl
 			
 			{/* Fallback for existing files when no phase timeline */}
 			{phaseTimeline.length === 0 && files.map((file) => {
-				const isFileActive = view === 'editor' && activeFile?.file_path === file.file_path;
+				const isFileActive = view === 'editor' && activeFile?.filePath === file.filePath;
 				return (
 					<button
-						key={file.file_path}
+						key={file.filePath}
 						onClick={() => onFileClick(file)}
 						className="flex items-start gap-2 py-1 font-mono w-full text-left group hover:bg-zinc-50/5 rounded px-2 min-h-0"
 					>
@@ -297,14 +297,14 @@ export function PhaseTimeline({ phaseTimeline, files, view, activeFile, onFileCl
 						<div className="flex-1 min-w-0">
 							<span 
 								className={clsx('text-xs block break-all leading-tight', isFileActive ? 'text-brand font-medium' : 'text-text/80')}
-								title={file.file_path}
+								title={file.filePath}
 							>
-								{truncateFilePath(file.file_path)}
+								{truncateFilePath(file.filePath)}
 							</span>
 						</div>
 						
 						<span className="flex-shrink-0 text-zinc-400 text-xs font-mono text-right w-12 ml-2 mt-0.5">
-							+{file.file_contents.split('\n').length}
+							+{file.fileContents.split('\n').length}
 						</span>
 					</button>
 				);

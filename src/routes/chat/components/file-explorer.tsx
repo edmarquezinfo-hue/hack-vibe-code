@@ -6,7 +6,7 @@ import clsx from 'clsx';
 interface FileTreeItem {
 	name: string;
 	type: 'file' | 'folder';
-	file_path: string;
+	filePath: string;
 	children?: { [key: string]: FileTreeItem };
 	file?: FileType;
 }
@@ -23,7 +23,7 @@ export function FileTreeItem({
 	onFileClick: (file: FileType) => void;
 }) {
 	const [isExpanded, setIsExpanded] = useState(true);
-	const isCurrentFile = currentFile?.file_path === item.file_path;
+	const isCurrentFile = currentFile?.filePath === item.filePath;
 
 	if (item.type === 'file' && item.file) {
 		return (
@@ -70,7 +70,7 @@ export function FileTreeItem({
 				<div>
 					{Object.values(item.children).map((child) => (
 						<FileTreeItem
-							key={child.file_path}
+							key={child.filePath}
 							item={child}
 							level={level + 1}
 							currentFile={currentFile}
@@ -87,7 +87,7 @@ function buildFileTree(files: FileType[]): FileTreeItem[] {
 	const root: { [key: string]: FileTreeItem } = {};
 
 	files.forEach((file) => {
-		const parts = file.file_path.split('/');
+		const parts = file.filePath.split('/');
 		let currentLevel: { [key: string]: FileTreeItem } = root;
 
 		for (let i = 0; i < parts.length - 1; i++) {
@@ -96,7 +96,7 @@ function buildFileTree(files: FileType[]): FileTreeItem[] {
 				currentLevel[part] = {
 					name: part,
 					type: 'folder',
-					file_path: parts.slice(0, i + 1).join('/'),
+					filePath: parts.slice(0, i + 1).join('/'),
 					children: {},
 				};
 			}
@@ -110,7 +110,7 @@ function buildFileTree(files: FileType[]): FileTreeItem[] {
 		currentLevel[fileName] = {
 			name: fileName,
 			type: 'file',
-			file_path: file.file_path,
+			filePath: file.filePath,
 			file: file,
 		};
 	});
@@ -140,7 +140,7 @@ export function FileExplorer({
 			<div className="flex flex-col">
 				{fileTree.map((item) => (
 					<FileTreeItem
-						key={item.file_path}
+						key={item.filePath}
 						item={item}
 						currentFile={currentFile}
 						onFileClick={onFileClick}

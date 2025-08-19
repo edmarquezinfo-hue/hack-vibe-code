@@ -196,7 +196,7 @@ export default function Chat() {
 	const handleFileClick = useCallback((file: FileType) => {
 		logger.debug('handleFileClick()', file);
 		clearEdit();
-		setActiveFilePath(file.file_path);
+		setActiveFilePath(file.filePath);
 		setView('editor');
 		if (!hasSwitchedFile.current) {
 			hasSwitchedFile.current = true;
@@ -237,13 +237,13 @@ export default function Chat() {
 		}
 		if (!hasSwitchedFile.current && isBootstrapping) {
 			return streamedBootstrapFiles.find(
-				(file) => file.file_path === activeFilePath,
+				(file) => file.filePath === activeFilePath,
 			);
 		}
 		return (
-			files.find((file) => file.file_path === activeFilePath) ??
+			files.find((file) => file.filePath === activeFilePath) ??
 			streamedBootstrapFiles.find(
-				(file) => file.file_path === activeFilePath,
+				(file) => file.filePath === activeFilePath,
 			)
 		);
 	}, [
@@ -288,7 +288,7 @@ export default function Chat() {
 
 	useEffect(() => {
 		if (!edit) return;
-		if (files.some((file) => file.file_path === edit.filePath)) {
+		if (files.some((file) => file.filePath === edit.filePath)) {
 			setActiveFilePath(edit.filePath);
 			setView('editor');
 		}
@@ -300,14 +300,14 @@ export default function Chat() {
 			streamedBootstrapFiles.length > 0 &&
 			!hasSwitchedFile.current
 		) {
-			setActiveFilePath(streamedBootstrapFiles.at(-1)!.file_path);
+			setActiveFilePath(streamedBootstrapFiles.at(-1)!.filePath);
 		} else if (
 			view === 'editor' &&
 			!activeFile &&
 			files.length > 0 &&
 			!hasSwitchedFile.current
 		) {
-			setActiveFilePath(files.at(-1)!.file_path);
+			setActiveFilePath(files.at(-1)!.filePath);
 		}
 	}, [view, activeFile, files, isBootstrapping, streamedBootstrapFiles]);
 
@@ -880,7 +880,7 @@ export default function Chat() {
 											<div className="flex items-center justify-center">
 												<div className="flex items-center gap-2">
 													<span className="text-sm font-mono text-text-50/70">
-														{activeFile.file_path}
+														{activeFile.filePath}
 													</span>
 													{previewUrl && (
 														<Copy
@@ -953,7 +953,7 @@ export default function Chat() {
 													className="h-full"
 													createOptions={{
 														value:
-															activeFile?.file_contents ||
+															activeFile?.fileContents ||
 															'',
 														language:
 															activeFile?.language ||
@@ -971,14 +971,14 @@ export default function Chat() {
 													find={
 														edit &&
 														edit.filePath ===
-															activeFile?.file_path
+															activeFile?.filePath
 															? edit.search
 															: undefined
 													}
 													replace={
 														edit &&
 														edit.filePath ===
-															activeFile?.file_path
+															activeFile?.filePath
 															? edit.replacement
 															: undefined
 													}
