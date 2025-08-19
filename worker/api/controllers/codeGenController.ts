@@ -30,8 +30,8 @@ const defaultCodeGenArgs: CodeGenArgs = {
 
 async function getAgentStub(_request: Request, env: Env, agentId: string) : Promise<DurableObjectStub<SmartCodeGeneratorAgent>> {
     return getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, agentId, {
-        // locationHint: 'enam'
-        jurisdiction:'eu',
+        locationHint: 'enam'
+        // jurisdiction:'eu',
     });
 }
 
