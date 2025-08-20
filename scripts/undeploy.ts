@@ -18,7 +18,7 @@
  *   bun scripts/undeploy.ts all --force  # Complete cleanup (destroys everything)
  */
 
-import { execSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -165,14 +165,18 @@ class CloudflareUndeploymentManager {
         NODE_ENV: 'production'
       } : process.env;
 
-      // Use validated command with proper escaping - safe string interpolation
-      const fullCommand = `wrangler ${command}`;
-      execSync(fullCommand, {
+      // Use secure array-based execution - eliminates command injection vectors
+      const args = command.trim().split(/\s+/);
+      const result = spawnSync('wrangler', args, {
         stdio: 'pipe',
         cwd: PROJECT_ROOT,
         encoding: 'utf8',
         env: env
       });
+      
+      if (result.status !== 0) {
+        throw new Error(result.stderr || result.stdout || 'Command failed');
+      }
       console.log(`✅ ${description} completed successfully`);
       return true;
     } catch (error) {
@@ -201,14 +205,18 @@ class CloudflareUndeploymentManager {
             NODE_ENV: 'production'
           } : process.env;
 
-          // Use validated command with proper escaping - safe string interpolation
-          const fullCommand = `wrangler ${command}`;
-          execSync(fullCommand, {
+          // Use secure array-based execution - eliminates command injection vectors
+          const args = command.trim().split(/\s+/);
+          const result = spawnSync('wrangler', args, {
             stdio: 'pipe',
             cwd: PROJECT_ROOT,
             encoding: 'utf8',
             env: env
           });
+          
+          if (result.status !== 0) {
+            throw new Error(result.stderr || result.stdout || 'Command failed');
+          }
           console.log(`✅ ${description} completed successfully`);
           resolve(true);
         } catch (error) {
