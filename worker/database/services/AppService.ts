@@ -6,7 +6,7 @@
 
 import { BaseService } from './BaseService';
 import * as schema from '../schema';
-import { eq, and, or, desc, sql, SQL } from 'drizzle-orm';
+import { eq, and, or, desc, sql, SQL, isNull, inArray } from 'drizzle-orm';
 import { generateId } from '../../utils/idGenerator';
 import { formatRelativeTime } from '../../utils/timeFormatter';
 import type {
@@ -102,41 +102,6 @@ export class AppService extends BaseService {
         `.as('isFavorite');
     }
 
-    /**
-     * Helper function to create star count query
-     */
-    private createStarCountQuery() {
-        return sql<number>`COALESCE((
-            SELECT COUNT(*) FROM ${schema.stars} 
-            WHERE ${schema.stars.appId} = ${schema.apps.id}
-        ), 0)`.as('starCount');
-    }
-
-    /**
-     * Helper function to create user starred query
-     */
-    private createUserStarredQuery(userId?: string) {
-        return userId 
-            ? sql<boolean>`EXISTS(
-                SELECT 1 FROM ${schema.stars} 
-                WHERE ${schema.stars.appId} = ${schema.apps.id} 
-                AND ${schema.stars.userId} = ${userId}
-            )`.as('userStarred')
-            : sql<boolean>`false`.as('userStarred');
-    }
-
-    /**
-     * Helper function to create user favorited query
-     */
-    private createUserFavoritedQuery(userId?: string) {
-        return userId
-            ? sql<boolean>`EXISTS(
-                SELECT 1 FROM ${schema.favorites} 
-                WHERE ${schema.favorites.appId} = ${schema.apps.id} 
-                AND ${schema.favorites.userId} = ${userId}
-            )`.as('userFavorited')
-            : sql<boolean>`false`.as('userFavorited');
-    }
 
     // ========================================
     // APP OPERATIONS
@@ -226,6 +191,7 @@ export class AppService extends BaseService {
 
     /**
      * Get enhanced public apps with user stats and pagination
+     * Uses unified analytics approach for consistency
      */
     async getPublicAppsEnhanced(options: PublicAppQueryOptions = {}): Promise<PaginatedResult<EnhancedAppData>> {
         const { 
@@ -240,15 +206,12 @@ export class AppService extends BaseService {
         const whereConditions = this.buildPublicAppConditions(boardId, framework, search);
         const whereClause = this.buildWhereConditions(whereConditions);
 
-        // Get enhanced apps with user data and stats
-        const apps = await this.database
+        // Get basic apps with user data first
+        const basicApps = await this.database
             .select({
                 ...this.APP_SELECT_FIELDS,
                 userName: schema.users.displayName,
                 userAvatar: schema.users.avatarUrl,
-                starCount: this.createStarCountQuery(),
-                userStarred: this.createUserStarredQuery(userId),
-                userFavorited: this.createUserFavoritedQuery(userId),
             })
             .from(schema.apps)
             .leftJoin(schema.users, eq(schema.apps.userId, schema.users.id))
@@ -265,12 +228,23 @@ export class AppService extends BaseService {
 
         const total = totalCountResult[0]?.count || 0;
 
+        if (basicApps.length === 0) {
+            return {
+                data: [],
+                pagination: {
+                    limit,
+                    offset,
+                    total,
+                    hasMore: false
+                }
+            };
+        }
+
+        // Use unified analytics enhancement approach
+        const enhancedApps = await this.enhanceAppsWithAnalytics(basicApps, userId, true);
+
         return {
-            data: apps.map(app => ({
-                ...app,
-                userName: app.userName || null,
-                userAvatar: app.userAvatar || null,
-            })),
+            data: enhancedApps,
             pagination: {
                 limit,
                 offset,
@@ -289,9 +263,10 @@ export class AppService extends BaseService {
         search?: string
     ): WhereCondition[] {
         const whereConditions: WhereCondition[] = [
+            // Only show public apps or apps from anonymous users
             or(
                 eq(schema.apps.visibility, 'public'),
-                eq(schema.apps.visibility, 'board')
+                isNull(schema.apps.userId)
             ),
             or(
                 eq(schema.apps.status, 'completed'),
@@ -542,6 +517,7 @@ export class AppService extends BaseService {
      * Combines app data, user info, and analytics in single optimized query
      */
     async getAppDetailsEnhanced(appId: string, userId?: string): Promise<EnhancedAppData | null> {
+        this.logger.info('getAppDetailsEnhanced - called with appId:', appId, 'userId:', userId);
         // Get app with user info using full app selection
         const appResult = await this.database
             .select({
@@ -559,6 +535,7 @@ export class AppService extends BaseService {
         }
 
         // Get stats in parallel using same pattern as analytics service
+        this.logger.info('getAppDetailsEnhanced - about to fetch stats for appId:', appId, 'userId:', userId);
         const [viewCount, starCount, isFavorite, userHasStarred] = await Promise.all([
             // View count
             this.database
@@ -598,6 +575,14 @@ export class AppService extends BaseService {
                 .get()
                 .then(r => !!r) : false
         ]);
+
+        this.logger.info('getAppDetailsEnhanced - fetched stats:', {
+            appId,
+            viewCount,
+            starCount,
+            isFavorite,
+            userHasStarred
+        });
 
         return {
             ...appResult,
@@ -729,10 +714,11 @@ export class AppService extends BaseService {
 
     /**
      * Get user apps with analytics data integrated
-     * Consolidates app retrieval with analytics for consistent patterns
+     * Uses unified analytics approach for consistency
      */
     async getUserAppsWithAnalytics(userId: string, options: Partial<AppQueryOptions> = {}): Promise<EnhancedAppData[]> {
         const { limit = 50, offset = 0, status, visibility, teamId, boardId } = options;
+        this.logger.info('getUserAppsWithAnalytics - called with userId:', userId);
 
         // Build where conditions like in getUserApps but with enhanced data
         const whereConditions: WhereCondition[] = [
@@ -745,13 +731,10 @@ export class AppService extends BaseService {
 
         const whereClause = this.buildWhereConditions(whereConditions);
 
-        // Get user apps with enhanced data in single query
-        const apps = await this.database
+        // Get basic user apps first  
+        const basicApps = await this.database
             .select({
                 ...this.APP_SELECT_FIELDS,
-                starCount: this.createStarCountQuery(),
-                userStarred: this.createUserStarredQuery(userId),
-                userFavorited: this.createUserFavoritedQuery(userId),
             })
             .from(schema.apps)
             .where(whereClause)
@@ -759,20 +742,91 @@ export class AppService extends BaseService {
             .limit(limit)
             .offset(offset);
 
-        if (apps.length === 0) {
+        if (basicApps.length === 0) {
             return [];
         }
 
-        // Get analytics for all apps using existing AnalyticsService
-        const analyticsService = new AnalyticsService(this.db);
-        const appIds = apps.map(app => app.id);
-        const analyticsData = await analyticsService.batchGetAppStats(appIds);
+        // Use unified analytics enhancement approach
+        return await this.enhanceAppsWithAnalytics(basicApps, userId, false);
+    }
 
-        // Enhance apps with analytics and user data
-        return apps.map(app => ({
+    // ========================================
+    // UNIFIED ANALYTICS HELPER
+    // ========================================
+
+    /**
+     * Unified analytics enhancement for app collections
+     * OPTIMIZED: Uses batch queries to eliminate N+1 problems and minimize database round trips
+     * All analytics data fetched in 6 total queries regardless of app count
+     */
+    private async enhanceAppsWithAnalytics(
+        basicApps: (typeof schema.apps.$inferSelect & { userName?: string | null; userAvatar?: string | null })[], 
+        userId?: string,
+        includeUserInfo: boolean = false
+    ): Promise<EnhancedAppData[]> {
+        if (basicApps.length === 0) return [];
+
+        const appIds = basicApps.map(app => app.id);
+        
+        // BATCH FETCH ALL ANALYTICS DATA IN PARALLEL (6 queries total, not N*3 queries)
+        const [
+            analyticsData,
+            starCounts,
+            userStars,
+            userFavorites
+        ] = await Promise.all([
+            // 1. Batch analytics (views, forks, likes) - 3 queries in parallel
+            new AnalyticsService(this.db).batchGetAppStats(appIds),
+            
+            // 2. Batch star counts for all apps - 1 query
+            this.database
+                .select({
+                    appId: schema.stars.appId,
+                    count: sql<number>`COUNT(*)`.as('count')
+                })
+                .from(schema.stars)
+                .where(inArray(schema.stars.appId, appIds))
+                .groupBy(schema.stars.appId)
+                .all(),
+            
+            // 3. Batch user stars - 1 query (only if userId provided)
+            userId ? this.database
+                .select({
+                    appId: schema.stars.appId
+                })
+                .from(schema.stars)
+                .where(and(
+                    eq(schema.stars.userId, userId),
+                    inArray(schema.stars.appId, appIds)
+                ))
+                .all() : [],
+            
+            // 4. Batch user favorites - 1 query (only if userId provided)
+            userId ? this.database
+                .select({
+                    appId: schema.favorites.appId
+                })
+                .from(schema.favorites)
+                .where(and(
+                    eq(schema.favorites.userId, userId),
+                    inArray(schema.favorites.appId, appIds)
+                ))
+                .all() : []
+        ]);
+
+        // Create lookup maps for O(1) access
+        const starCountMap = new Map(starCounts.map(s => [s.appId, s.count]));
+        const userStarMap = new Set(userStars.map(s => s.appId));
+        const userFavoriteMap = new Set(userFavorites.map(f => f.appId));
+
+        // Transform apps with O(1) lookups instead of additional queries
+        return basicApps.map(app => ({
             ...app,
-            userName: null, // Apps belong to current user
-            userAvatar: null,
+            userName: includeUserInfo ? (app.userName || null) : null,
+            userAvatar: includeUserInfo ? (app.userAvatar || null) : null,
+            starCount: starCountMap.get(app.id) || 0,
+            userStarred: userStarMap.has(app.id),
+            userFavorited: userFavoriteMap.has(app.id),
             viewCount: analyticsData[app.id]?.viewCount || 0,
             forkCount: analyticsData[app.id]?.forkCount || 0,
             likeCount: analyticsData[app.id]?.likeCount || 0

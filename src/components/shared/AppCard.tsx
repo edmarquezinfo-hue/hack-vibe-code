@@ -127,7 +127,7 @@ export const AppCard = React.memo<AppCardProps>(({
           </Badge>
 
           {/* Visibility Badge for User Apps */}
-          {isUserApp(app) && (
+          {(isUserApp(app) || isEnhancedApp(app)) && (
             <div className="absolute top-2 left-2 bg-background/90 dark:bg-card/90 backdrop-blur-sm rounded-md p-1">
               {getVisibilityIcon(app.visibility)}
             </div>
@@ -235,7 +235,7 @@ export const AppCard = React.memo<AppCardProps>(({
                   </div>
                 </>
               )}
-              {isUserApp(app) && (app as any).viewCount !== undefined && (
+              {(isUserApp(app) || isEnhancedApp(app)) && (
                 <>
                   <div className="flex items-center gap-1">
                     <Eye className="h-3.5 w-3.5" />

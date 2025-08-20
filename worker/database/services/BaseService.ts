@@ -5,7 +5,7 @@
  */
 
 import { DatabaseService } from '../database';
-import { SQL } from 'drizzle-orm';
+import { SQL, and } from 'drizzle-orm';
 import { createLogger } from '../../logger';
 
 /**
@@ -25,7 +25,8 @@ export abstract class BaseService {
         const validConditions = conditions.filter((c): c is SQL<unknown> => c !== undefined);
         if (validConditions.length === 0) return undefined;
         if (validConditions.length === 1) return validConditions[0];
-        return validConditions.reduce((acc, condition) => acc && condition);
+        // Use Drizzle's and() function to properly combine conditions
+        return and(...validConditions);
     }
 
     /**

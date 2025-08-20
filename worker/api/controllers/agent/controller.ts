@@ -395,7 +395,7 @@ export class CodingAgentController extends BaseController {
                 const fullState = await agentInstance.getState() as CodeGenState;
                 this.logger.info('Agent state fetched successfully', {
                     agentId,
-                    state: fullState,
+                    // state: fullState,
                 });
                 // Construct WebSocket URL
                 const url = new URL(request.url);

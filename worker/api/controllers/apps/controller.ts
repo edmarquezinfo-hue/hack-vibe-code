@@ -173,9 +173,12 @@ export class AppController extends BaseController {
             const dbService = this.createDbService(env);
             const url = new URL(request.url);
             
-            // Pagination and filtering
+            // Pagination and filtering - handle both page and offset params
             const limit = Math.min(parseInt(url.searchParams.get('limit') || '20'), 100);
-            const offset = parseInt(url.searchParams.get('offset') || '0');
+            const page = parseInt(url.searchParams.get('page') || '1');
+            const offset = url.searchParams.get('offset') ? 
+                parseInt(url.searchParams.get('offset') || '0') : 
+                (page - 1) * limit;
             const sort = url.searchParams.get('sort') || 'recent';
             const boardId = url.searchParams.get('boardId') || undefined;
             const framework = url.searchParams.get('framework') || undefined;
@@ -199,7 +202,7 @@ export class AppController extends BaseController {
             const { data: apps, pagination } = result;
             
             // Handle analytics sorting if needed
-            let finalApps = apps;
+            let finalApps = apps; 
             let analyticsData: BatchAppStats = {};
             
             if (sort === 'popular' || sort === 'trending') {
@@ -267,9 +270,9 @@ export class AppController extends BaseController {
                     userName: app.userId ? app.userName : 'Anonymous User',
                     userAvatar: app.userId ? app.userAvatar : null,
                     updatedAtFormatted: formatRelativeTime(app.updatedAt),
-                    viewCount: app.viewCount || 0,
-                    forkCount: app.forkCount || 0,
-                    likeCount: app.likeCount || 0
+                    viewCount: analyticsData[app.id]?.viewCount || 0,
+                    forkCount: analyticsData[app.id]?.forkCount || 0,
+                    likeCount: analyticsData[app.id]?.likeCount || 0
                 })),
                 pagination: {
                     total: pagination.total,
