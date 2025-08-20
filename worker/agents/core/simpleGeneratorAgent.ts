@@ -175,7 +175,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         const packageJson = packageJsonFile ? packageJsonFile.fileContents : '';
         
         // Initialize inference context with user configurations
-        let inferenceContext: InferenceContext = {
+        const inferenceContext: InferenceContext = {
             agentId: sessionId,
             userId: userId,
         };
@@ -546,7 +546,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                     }
 
                     const fileResults = await Promise.allSettled(promises);
-                    let files: FileOutputType[] = fileResults.map(result => result.status === "fulfilled" ? result.value : null).filter((result) => result !== null);
+                    const files: FileOutputType[] = fileResults.map(result => result.status === "fulfilled" ? result.value : null).filter((result) => result !== null);
 
                     await this.deployToSandbox(files);
 

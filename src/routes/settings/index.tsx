@@ -16,6 +16,7 @@ import {
 	Lock,
 } from 'lucide-react';
 import { ModelConfigTabs } from '@/components/model-config-tabs';
+import type { ModelConfigsData } from '@/api-types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -152,8 +153,8 @@ export default function SettingsPage() {
 
 	// Model configurations state
 	const [agentConfigs, setAgentConfigs] = useState<Array<{key: string, name: string, description: string}>>([]);
-	const [modelConfigs, setModelConfigs] = useState<Record<string, any>>({});
-	const [defaultConfigs, setDefaultConfigs] = useState<Record<string, any>>({});
+	const [modelConfigs, setModelConfigs] = useState<ModelConfigsData['configs']>({} as ModelConfigsData['configs']);
+	const [defaultConfigs, setDefaultConfigs] = useState<ModelConfigsData['defaults']>({} as ModelConfigsData['defaults']);
 	const [loadingConfigs, setLoadingConfigs] = useState(true);
 	const [savingConfigs, setSavingConfigs] = useState(false);
 	const [testingConfig, setTestingConfig] = useState<string | null>(null);
@@ -245,7 +246,7 @@ export default function SettingsPage() {
 	};
 
 	// Save model configuration
-	const saveModelConfig = async (agentAction: string, config: any) => {
+	const saveModelConfig = async (agentAction: string, config: unknown) => {
 		try {
 			const response = await apiClient.updateModelConfig(agentAction, config);
 			

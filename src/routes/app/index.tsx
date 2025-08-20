@@ -20,6 +20,7 @@ import {
 	Bookmark,
 	Shuffle,
 	Globe,
+	Trash2,
 } from 'lucide-react';
 import { MonacoEditor } from '../../components/monaco-editor/monaco-editor';
 import { getFileType } from '../../utils/string';
@@ -40,6 +41,8 @@ import { toggleFavorite } from '@/hooks/use-apps';
 import { formatDistanceToNow, isValid } from 'date-fns';
 import { toast } from 'sonner';
 import { capitalizeFirstLetter, cn, getPreviewUrl } from '@/lib/utils';
+import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
+import { appEvents } from '@/lib/app-events';
 
 // Use proper types from API types
 type AppDetails = AppDetailsData;
@@ -59,6 +62,8 @@ export default function AppView() {
 	const [websocket, setWebsocket] = useState<WebSocket | null>(null);
 	const [deploymentProgress, setDeploymentProgress] = useState<string>('');
 	const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false);
+	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+	const [isDeleting, setIsDeleting] = useState(false);
 	const [activeFilePath, setActiveFilePath] = useState<string>();
 	const previewIframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -353,6 +358,40 @@ export default function AppView() {
 		}
 	};
 
+	const handleDeleteApp = async () => {
+		if (!app) return;
+		
+		try {
+			setIsDeleting(true);
+			const response = await apiClient.deleteApp(app.id);
+			
+			if (response.success) {
+				toast.success('App deleted successfully');
+				setIsDeleteDialogOpen(false);
+				
+				// Emit global app deleted event
+				appEvents.emitAppDeleted(app.id);
+				
+				// Smart navigation after deletion
+				// Use window.history to go back if possible, otherwise navigate to apps page
+				if (window.history.length > 1) {
+					// Try to go back to previous page
+					window.history.back();
+				} else {
+					// No history available, go to apps page
+					navigate('/apps');
+				}
+			} else {
+				toast.error(response.error || 'Failed to delete app');
+			}
+		} catch (error) {
+			console.error('Error deleting app:', error);
+			toast.error('An unexpected error occurred while deleting the app');
+		} finally {
+			setIsDeleting(false);
+		}
+	};
+
 	if (loading) {
 		return (
 			<div className="min-h-screen bg-bg-3 flex items-center justify-center">
@@ -488,6 +527,18 @@ export default function AppView() {
 								)}
 								{isOwner ? 'Continue Editing' : 'Remix'}
 							</Button>
+
+							{isOwner && (
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => setIsDeleteDialogOpen(true)}
+									className="gap-2 text-destructive border-destructive hover:bg-destructive/10 hover:border-destructive/70 transition-colors"
+								>
+									<Trash2 className="h-4 w-4" />
+									Delete App
+								</Button>
+							)}
 						</div>
 
 						{app.description && (
@@ -846,6 +897,15 @@ export default function AppView() {
 					</TabsContent>
 				</Tabs>
 			</div>
+
+			{/* Delete Confirmation Dialog */}
+			<ConfirmDeleteDialog
+				open={isDeleteDialogOpen}
+				onOpenChange={setIsDeleteDialogOpen}
+				onConfirm={handleDeleteApp}
+				isLoading={isDeleting}
+				appTitle={app?.title}
+			/>
 		</div>
 	);
 }

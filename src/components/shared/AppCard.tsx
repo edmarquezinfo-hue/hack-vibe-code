@@ -13,14 +13,117 @@ import {
   Lock, 
   Users2, 
   Globe,
-  Bookmark
+  Bookmark,
+  Cloud,
+  CloudOff,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import type { AppWithFavoriteStatus, AppWithUserAndStats, EnhancedAppData } from '@/api-types';
+import { AppActionsDropdown } from './AppActionsDropdown';
+import type { LucideIcon } from 'lucide-react';
 
 // Union type for both app types - make updatedAtFormatted optional
 type AppCardData = AppWithFavoriteStatus | (EnhancedAppData & { updatedAtFormatted?: string }) | AppWithUserAndStats;
+
+// Type definitions for deployment and stats
+type DeploymentStatus = 'none' | 'deploying' | 'deployed' | 'failed';
+
+interface AppWithDeployment {
+  deploymentStatus?: DeploymentStatus;
+  deploymentUrl?: string;
+}
+
+interface DeploymentStatusInfo {
+  icon: LucideIcon;
+  color: string;
+  bgColor: string;
+  text: string;
+  animate?: boolean;
+}
+
+interface StatsData {
+  viewCount?: number;
+  starCount?: number;
+  forkCount?: number;
+  userStarred?: boolean;
+}
+
+// Constants - Single source of truth for deployment status configurations
+const DEPLOYMENT_STATUS_CONFIG: Record<DeploymentStatus, DeploymentStatusInfo> = {
+  deployed: {
+    icon: Cloud,
+    color: 'text-green-600',
+    bgColor: 'bg-green-50 dark:bg-green-950',
+    text: ''
+  },
+  deploying: {
+    icon: Loader2,
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-50 dark:bg-orange-950',
+    text: 'Deploying',
+    animate: true
+  },
+  failed: {
+    icon: CloudOff,
+    color: 'text-red-600',
+    bgColor: 'bg-red-50 dark:bg-red-950',
+    text: 'Deploy Failed'
+  },
+  none: {
+    icon: CloudOff,
+    color: 'text-gray-500',
+    bgColor: 'bg-gray-50 dark:bg-gray-950',
+    text: 'Not Deployed'
+  }
+};
+
+// Stats icons mapping
+const STATS_ICONS = {
+  viewCount: Eye,
+  starCount: Star,
+  forkCount: GitBranch
+} as const;
+
+// Type-safe utility functions
+function hasDeploymentFields(app: AppCardData): app is AppCardData & AppWithDeployment {
+  return 'deploymentStatus' in app || 'deploymentUrl' in app;
+}
+
+function getAppDeploymentStatus(app: AppCardData): DeploymentStatus {
+  if (!hasDeploymentFields(app)) return 'none';
+  
+  // If has deployment URL, it's deployed
+  if (app.deploymentUrl) return 'deployed';
+  
+  // Return deployment status or default to 'none'
+  return app.deploymentStatus || 'none';
+}
+
+function getAppStats(app: AppCardData): StatsData {
+  if (isPublicApp(app)) {
+    return {
+      viewCount: app.viewCount,
+      starCount: app.starCount,
+      forkCount: app.forkCount,
+      userStarred: app.userStarred
+    };
+  }
+  
+  if (isUserApp(app) || isEnhancedApp(app)) {
+    // Type-safe access to stats fields that exist on enhanced/user app types
+    const enhancedApp = app as EnhancedAppData;
+    return {
+      viewCount: enhancedApp.viewCount,
+      starCount: enhancedApp.starCount,
+      forkCount: enhancedApp.forkCount,
+      userStarred: enhancedApp.userStarred
+    };
+  }
+  
+  return {};
+}
 
 // Type guards
 function isPublicApp(app: AppCardData): app is AppWithUserAndStats {
@@ -41,6 +144,7 @@ interface AppCardProps {
   onToggleFavorite?: (appId: string) => void;
   showStats?: boolean;
   showUser?: boolean;
+  showActions?: boolean;
   className?: string;
 }
 
@@ -58,12 +162,75 @@ const getVisibilityIcon = (visibility: string) => {
   }
 };
 
+function getDeploymentStatusInfo(app: AppCardData): DeploymentStatusInfo | null {
+  if (!hasDeploymentFields(app)) return null;
+  
+  const status = getAppDeploymentStatus(app);
+  return DEPLOYMENT_STATUS_CONFIG[status];
+}
+
+// Reusable components to eliminate duplicate JSX
+const StatItem = ({ icon: Icon, value, highlighted = false }: { 
+  icon: LucideIcon; 
+  value: number; 
+  highlighted?: boolean; 
+}) => (
+  <div className="flex items-center gap-1">
+    <Icon className={cn("h-3.5 w-3.5", highlighted && "fill-yellow-500 text-yellow-500")} />
+    <span>{value || 0}</span>
+  </div>
+);
+
+const StatsDisplay = ({ stats }: { stats: StatsData }) => (
+  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+    <StatItem 
+      icon={STATS_ICONS.viewCount} 
+      value={stats.viewCount || 0} 
+    />
+    <StatItem 
+      icon={STATS_ICONS.starCount} 
+      value={stats.starCount || 0} 
+      highlighted={stats.userStarred} 
+    />
+    <StatItem 
+      icon={STATS_ICONS.forkCount} 
+      value={stats.forkCount || 0} 
+    />
+  </div>
+);
+
+const DeploymentBadge = ({ app, showUser }: { app: AppCardData; showUser: boolean }) => {
+  // Only show on My Apps page (when showUser is false)
+  if (showUser) return null;
+  
+  const deploymentStatus = getDeploymentStatusInfo(app);
+  if (!deploymentStatus) return null;
+  
+  const IconComponent = deploymentStatus.icon;
+  return (
+    <div className={cn(
+      "flex items-center gap-1 px-2 py-1 rounded-md backdrop-blur-sm text-xs font-medium",
+      deploymentStatus.bgColor,
+      deploymentStatus.color
+    )}>
+      <IconComponent 
+        className={cn(
+          "h-3 w-3",
+          deploymentStatus.animate && "animate-spin"
+        )} 
+      />
+      <span className="hidden sm:inline">{deploymentStatus.text}</span>
+    </div>
+  );
+};
+
 export const AppCard = React.memo<AppCardProps>(({ 
   app, 
   onClick, 
   onToggleFavorite,
   showStats = true,
   showUser = false,
+  showActions = false,
   className 
 }) => {
   const handleFavoriteClick = (e: React.MouseEvent) => {
@@ -82,11 +249,26 @@ export const AppCard = React.memo<AppCardProps>(({
         type: "spring" as const,
         stiffness: 100
       }
+    },
+    exit: {
+      y: -20,
+      opacity: 0,
+      scale: 0.95,
+      transition: {
+        duration: 0.2
+      }
     }
   };
 
   return (
-    <motion.div variants={itemVariants} className={className}>
+    <motion.div 
+      variants={itemVariants} 
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      layout
+      className={className}
+    >
       <Card 
         className="h-full hover:shadow-lg transition-all duration-200 cursor-pointer group"
         onClick={() => onClick(app.id)}
@@ -118,18 +300,30 @@ export const AppCard = React.memo<AppCardProps>(({
             <Code2 className="h-16 w-16 text-orange-300" />
           </div>
           
-          {/* Framework Badge */}
-          <Badge 
-            variant="secondary" 
-            className="absolute top-2 right-2 bg-background/90 dark:bg-card/90 backdrop-blur-sm"
-          >
-            {app.framework || 'React'}
-          </Badge>
 
-          {/* Visibility Badge for User Apps */}
+          {/* Actions Dropdown - positioned in top-right on hover */}
+          {showActions && (
+            <div className="absolute top-2 right-2">
+              <AppActionsDropdown
+                appId={app.id}
+                appTitle={app.title}
+                showOnHover={true}
+                className="h-6 w-6 text-muted-foreground hover:text-foreground bg-background/90 backdrop-blur-sm hover:bg-background"
+                size="sm"
+              />
+            </div>
+          )}
+
+          {/* Badges for User Apps - Visibility and Deployment Status */}
           {(isUserApp(app) || isEnhancedApp(app)) && (
-            <div className="absolute top-2 left-2 bg-background/90 dark:bg-card/90 backdrop-blur-sm rounded-md p-1">
-              {getVisibilityIcon(app.visibility)}
+            <div className="absolute top-2 left-2 flex items-center gap-1">
+              {/* Visibility Badge */}
+              <div className="bg-background/90 dark:bg-card/90 backdrop-blur-sm rounded-md p-1">
+                {getVisibilityIcon(app.visibility)}
+              </div>
+              
+              {/* Deployment Status Badge - only for My Apps (not Discover) */}
+              <DeploymentBadge app={app} showUser={showUser} />
             </div>
           )}
         </div>
@@ -167,11 +361,6 @@ export const AppCard = React.memo<AppCardProps>(({
             )}
           </div>
           
-          {app.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-              {app.description}
-            </p>
-          )}
         </CardHeader>
 
         <CardContent className="pt-0">
@@ -217,42 +406,7 @@ export const AppCard = React.memo<AppCardProps>(({
           )}
 
           {/* Stats - show for public apps or user apps with stats */}
-          {showStats && (
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              {isPublicApp(app) && (
-                <>
-                  <div className="flex items-center gap-1">
-                    <Eye className="h-3.5 w-3.5" />
-                    <span>{app.viewCount || 0}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Star className={cn("h-3.5 w-3.5", app.userStarred && "fill-yellow-500 text-yellow-500")} />
-                    <span>{app.starCount || 0}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <GitBranch className="h-3.5 w-3.5" />
-                    <span>{app.forkCount || 0}</span>
-                  </div>
-                </>
-              )}
-              {(isUserApp(app) || isEnhancedApp(app)) && (
-                <>
-                  <div className="flex items-center gap-1">
-                    <Eye className="h-3.5 w-3.5" />
-                    <span>{(app as any).viewCount || 0}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Star className="h-3.5 w-3.5" />
-                    <span>{(app as any).starCount || 0}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <GitBranch className="h-3.5 w-3.5" />
-                    <span>{(app as any).forkCount || 0}</span>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+          {showStats && <StatsDisplay stats={getAppStats(app)} />}
         </CardContent>
       </Card>
     </motion.div>

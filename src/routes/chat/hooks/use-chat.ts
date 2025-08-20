@@ -959,7 +959,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 			default:
 				console.warn('Unhandled message:', message);
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+		 
 	};
 
 	// Enhanced WebSocket connection with retry logic

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
 import { Plus, Search, Clock, TrendingUp, Star } from 'lucide-react';
@@ -10,34 +9,41 @@ import { toggleFavorite } from '@/hooks/use-apps';
 import { usePaginatedApps } from '@/hooks/use-paginated-apps';
 import { AppListContainer } from '@/components/shared/AppListContainer';
 import { TimePeriodSelector } from '@/components/shared/TimePeriodSelector';
-import type { AppSortOption, TimePeriod } from '@/api-types';
 
 export default function AppsPage() {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterFramework, setFilterFramework] = useState<string>('all');
-  const [filterVisibility, setFilterVisibility] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<AppSortOption>('recent');
-  const [period, setPeriod] = useState<TimePeriod>('all');
-
-  // Use unified paginated apps hook with server-side sorting
+  
   const {
+    // Filter state
+    searchQuery,
+    setSearchQuery,
+    filterFramework,
+    filterVisibility,
+    sortBy,
+    period,
+    
+    // Data state
     apps,
     loading,
     loadingMore,
     error,
     totalCount,
     hasMore,
+    
+    // Form handlers
+    handleSearchSubmit,
+    handleSortChange,
+    handlePeriodChange,
+    handleFrameworkChange,
+    handleVisibilityChange,
+    
+    // Pagination handlers
     refetch,
     loadMore,
-    updateFilters
   } = usePaginatedApps({
     type: 'user',
-    sort: sortBy,
-    period: period,
-    framework: filterFramework === 'all' ? undefined : filterFramework,
-    search: searchQuery || undefined,
-    visibility: filterVisibility === 'all' ? undefined : filterVisibility,
+    defaultSort: 'recent',
+    includeVisibility: true,
     limit: 20
   });
 
@@ -48,32 +54,6 @@ export default function AppsPage() {
     } catch (error) {
       console.error('Failed to toggle favorite:', error);
     }
-  };
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateFilters({ search: searchQuery || undefined });
-  };
-
-  const handleSortChange = (newSort: string) => {
-    const sort = newSort as AppSortOption;
-    setSortBy(sort);
-    updateFilters({ sort });
-  };
-
-  const handlePeriodChange = (newPeriod: TimePeriod) => {
-    setPeriod(newPeriod);
-    updateFilters({ period: newPeriod });
-  };
-
-  const handleFrameworkChange = (framework: string) => {
-    setFilterFramework(framework);
-    updateFilters({ framework: framework === 'all' ? undefined : framework });
-  };
-
-  const handleVisibilityChange = (visibility: string) => {
-    setFilterVisibility(visibility);
-    updateFilters({ visibility: visibility === 'all' ? undefined : visibility });
   };
 
   return (
@@ -96,7 +76,7 @@ export default function AppsPage() {
 
           {/* Search and Filters */}
           <div className="max-w-4xl mx-auto mb-8">
-            <form onSubmit={handleSearch} className="flex gap-2 mb-4">
+            <form onSubmit={handleSearchSubmit} className="flex gap-2 mb-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -176,6 +156,8 @@ export default function AppsPage() {
             onRetry={refetch}
             showUser={false}
             showStats={true}
+            showActions={true}
+            infiniteScroll={true}
             emptyState={
               !searchQuery && filterFramework === 'all' && filterVisibility === 'all' && sortBy === 'recent' && totalCount === 0
                 ? {

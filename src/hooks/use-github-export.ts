@@ -27,7 +27,7 @@ export interface GitHubExportState {
     isModalOpen: boolean;
 }
 
-export function useGitHubExport(websocket?: WebSocket | any) {
+export function useGitHubExport(websocket?: WebSocket | null) {
     const { user, isAuthenticated } = useAuth();
     const [state, setState] = useState<GitHubExportState>({
         isExporting: false,

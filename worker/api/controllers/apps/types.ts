@@ -59,4 +59,12 @@ export interface UpdateAppVisibilityData {
         updatedAt: Date | null;
     };
     message: string;
-};
+}
+
+/**
+ * Response data for deleteApp
+ */
+export interface AppDeleteData {
+    success: boolean;
+    message: string;
+}

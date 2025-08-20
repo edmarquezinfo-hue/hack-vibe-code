@@ -94,7 +94,7 @@ export async function findModuleFile(
     fetchedFiles?: Set<string>
 ): Promise<string | null> {
     // Handle path aliases like @/components/ui/button
-    let resolvedSpecifier = resolvePathAlias(importSpecifier);
+    const resolvedSpecifier = resolvePathAlias(importSpecifier);
     
     // Try exact match first (relative/absolute paths)
     const exactMatch = await resolveImportPath(resolvedSpecifier, currentFilePath, files, fileFetcher, fetchedFiles);
@@ -216,7 +216,7 @@ export function resolveImportToFilePath(importSpecifier: string, currentFilePath
             }
         }
         
-        let resolvedPath = normalizedParts.join('/');
+        const resolvedPath = normalizedParts.join('/');
         
         // Add appropriate extension if not present
         if (!resolvedPath.match(/\.(ts|tsx|js|jsx)$/)) {

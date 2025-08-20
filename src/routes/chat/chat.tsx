@@ -21,6 +21,7 @@ import { DebugPanel, type DebugMessage } from './components/debug-panel';
 import { DeploymentControls } from './components/deployment-controls';
 import { useChat, type FileType } from './hooks/use-chat';
 import type { BlueprintType } from './api-types';
+import type { ModelConfigsData } from '@/api-types';
 import { Copy } from './components/copy';
 import { useFileContentStream } from './hooks/use-file-content-stream';
 import { logger } from '../../utils/logger';
@@ -134,11 +135,11 @@ export default function Chat() {
 	// Debug panel state
 	const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
 
-	// Model config info state
+	// Model config info state  
 	const [modelConfigs, setModelConfigs] = useState<{
 		agents: Array<{ key: string; name: string; description: string; }>;
-		userConfigs: Record<string, any>;
-		defaultConfigs: Record<string, any>;
+		userConfigs: ModelConfigsData['configs'];
+		defaultConfigs: ModelConfigsData['defaults'];
 	} | undefined>();
 	const [loadingConfigs, setLoadingConfigs] = useState(false);
 
