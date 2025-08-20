@@ -58,7 +58,7 @@ export default function DiscoverPage() {
               Discover Amazing Apps
             </h1>
             <p className="text-muted-foreground text-lg">
-              Explore apps built by the community with AI
+              Explore apps built by the community
             </p>
           </div>
 

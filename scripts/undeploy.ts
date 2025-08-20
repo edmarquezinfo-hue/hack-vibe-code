@@ -165,8 +165,9 @@ class CloudflareUndeploymentManager {
         NODE_ENV: 'production'
       } : process.env;
 
-      // Use validated command with proper escaping
-      execSync(`wrangler ${command}`, {
+      // Use validated command with proper escaping - safe string interpolation
+      const fullCommand = `wrangler ${command}`;
+      execSync(fullCommand, {
         stdio: 'pipe',
         cwd: PROJECT_ROOT,
         encoding: 'utf8',
@@ -200,8 +201,9 @@ class CloudflareUndeploymentManager {
             NODE_ENV: 'production'
           } : process.env;
 
-          // Use validated command with proper escaping
-          execSync(`wrangler ${command}`, {
+          // Use validated command with proper escaping - safe string interpolation
+          const fullCommand = `wrangler ${command}`;
+          execSync(fullCommand, {
             stdio: 'pipe',
             cwd: PROJECT_ROOT,
             encoding: 'utf8',

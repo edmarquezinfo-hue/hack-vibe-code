@@ -1,7 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { 
@@ -16,7 +15,8 @@ import {
   Bookmark,
   Cloud,
   CloudOff,
-  Loader2
+  Loader2,
+  ExternalLink
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -48,6 +48,16 @@ interface StatsData {
   starCount?: number;
   forkCount?: number;
   userStarred?: boolean;
+}
+
+// Layout and design types for enhanced UI
+type CardLayout = 'compact' | 'detailed';
+
+interface LayoutConfig {
+  layout: CardLayout;
+  showUserInfo: boolean;
+  primaryMetadata: 'deployment' | 'social' | 'timestamp';
+  showDeploymentStatus: boolean;
 }
 
 // Constants - Single source of truth for deployment status configurations
@@ -169,20 +179,33 @@ function getDeploymentStatusInfo(app: AppCardData): DeploymentStatusInfo | null 
   return DEPLOYMENT_STATUS_CONFIG[status];
 }
 
+function getLayoutConfig(showUser: boolean, showActions: boolean): LayoutConfig {
+  return {
+    layout: showUser ? 'detailed' : 'compact',
+    showUserInfo: showUser,
+    primaryMetadata: showUser ? 'social' : 'deployment',
+    showDeploymentStatus: !showUser && showActions
+  };
+}
+
 // Reusable components to eliminate duplicate JSX
 const StatItem = ({ icon: Icon, value, highlighted = false }: { 
   icon: LucideIcon; 
   value: number; 
   highlighted?: boolean; 
 }) => (
-  <div className="flex items-center gap-1">
-    <Icon className={cn("h-3.5 w-3.5", highlighted && "fill-yellow-500 text-yellow-500")} />
-    <span>{value || 0}</span>
+  <div className="flex items-center gap-1 group-hover:scale-105 transition-transform duration-200">
+    <Icon className={cn(
+      "h-3.5 w-3.5 transition-all duration-200", 
+      highlighted && "fill-yellow-500 text-yellow-500 drop-shadow-sm",
+      !highlighted && "group-hover:text-muted-foreground"
+    )} />
+    <span className="font-medium text-xs">{value || 0}</span>
   </div>
 );
 
 const StatsDisplay = ({ stats }: { stats: StatsData }) => (
-  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+  <div className="flex items-center gap-4 text-sm text-muted-foreground/80">
     <StatItem 
       icon={STATS_ICONS.viewCount} 
       value={stats.viewCount || 0} 
@@ -199,27 +222,89 @@ const StatsDisplay = ({ stats }: { stats: StatsData }) => (
   </div>
 );
 
-const DeploymentBadge = ({ app, showUser }: { app: AppCardData; showUser: boolean }) => {
-  // Only show on My Apps page (when showUser is false)
-  if (showUser) return null;
+
+// Enhanced metadata component that adapts to layout
+const AdaptiveMetadata = ({ app, layoutConfig, hasOverlayStatus }: { 
+  app: AppCardData; 
+  layoutConfig: LayoutConfig; 
+  hasOverlayStatus?: boolean;
+}) => {
+  if (layoutConfig.primaryMetadata === 'social' && isPublicApp(app)) {
+    // Discover page layout - show user info
+    return (
+      <div className="flex items-center gap-2.5 text-sm">
+        {app.userName === 'Anonymous User' ? (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <div className="h-5 w-5 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center shadow-sm">
+              <User className="h-2.5 w-2.5 text-white" />
+            </div>
+            <span className="text-xs font-medium">Anonymous User</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Avatar className="h-5 w-5 ring-1 ring-border/10">
+              <AvatarImage src={app.userAvatar || undefined} />
+              <AvatarFallback className="text-[10px] bg-gradient-to-br from-orange-200 to-orange-300 font-semibold">
+                {app.userName?.charAt(0).toUpperCase() || '?'}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-xs text-muted-foreground font-medium hover:text-foreground transition-colors">{app.userName}</span>
+          </div>
+        )}
+        <span className="text-muted-foreground/60">•</span>
+        <span className="text-xs text-muted-foreground/80 font-medium">
+          {app.createdAt ? formatDistanceToNow(new Date(app.createdAt), { addSuffix: true }) : 'Recently'}
+        </span>
+      </div>
+    );
+  }
   
-  const deploymentStatus = getDeploymentStatusInfo(app);
-  if (!deploymentStatus) return null;
+  if (layoutConfig.primaryMetadata === 'deployment' && (isUserApp(app) || isEnhancedApp(app))) {
+    // My Apps page layout - show deployment status and update time
+    const deploymentStatus = getDeploymentStatusInfo(app);
+    return (
+      <div className="flex items-center gap-2.5 text-sm">
+        {/* Only show deployment status if there's no overlay status indicator */}
+        {deploymentStatus && !hasOverlayStatus && (
+          <>
+            <div className="flex items-center gap-1.5">
+              <div className={cn(
+                "w-2 h-2 rounded-full transition-all duration-200",
+                deploymentStatus.color === 'text-green-600' && "bg-green-500 shadow-sm shadow-green-500/20",
+                deploymentStatus.color === 'text-orange-600' && "bg-orange-500 animate-pulse shadow-sm shadow-orange-500/20",
+                deploymentStatus.color === 'text-red-600' && "bg-red-500 shadow-sm shadow-red-500/20",
+                deploymentStatus.color === 'text-gray-500' && "bg-gray-400"
+              )} />
+              <span className={cn(
+                "text-xs font-medium transition-colors",
+                deploymentStatus.color === 'text-green-600' && "text-green-600",
+                deploymentStatus.color === 'text-orange-600' && "text-orange-600", 
+                deploymentStatus.color === 'text-red-600' && "text-red-600",
+                deploymentStatus.color === 'text-gray-500' && "text-muted-foreground"
+              )}>
+                {deploymentStatus.text}
+              </span>
+            </div>
+            <span className="text-muted-foreground/60">•</span>
+          </>
+        )}
+        <span className="text-xs text-muted-foreground/80 font-medium">
+          Updated {
+            isUserApp(app) ? app.updatedAtFormatted : 
+            isEnhancedApp(app) && app.updatedAt ? formatDistanceToNow(new Date(app.updatedAt), { addSuffix: true }) : 
+            'Recently'
+          }
+        </span>
+      </div>
+    );
+  }
   
-  const IconComponent = deploymentStatus.icon;
+  // Fallback for other cases
   return (
-    <div className={cn(
-      "flex items-center gap-1 px-2 py-1 rounded-md backdrop-blur-sm text-xs font-medium",
-      deploymentStatus.bgColor,
-      deploymentStatus.color
-    )}>
-      <IconComponent 
-        className={cn(
-          "h-3 w-3",
-          deploymentStatus.animate && "animate-spin"
-        )} 
-      />
-      <span className="hidden sm:inline">{deploymentStatus.text}</span>
+    <div className="flex items-center gap-2 text-sm">
+      <span className="text-xs text-muted-foreground/80 font-medium">
+        {isUserApp(app) ? `Updated ${app.updatedAtFormatted}` : 'Recently updated'}
+      </span>
     </div>
   );
 };
@@ -233,6 +318,9 @@ export const AppCard = React.memo<AppCardProps>(({
   showActions = false,
   className 
 }) => {
+  const layoutConfig = getLayoutConfig(showUser, showActions);
+  const deploymentStatus = getDeploymentStatusInfo(app);
+  
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onToggleFavorite) {
@@ -270,10 +358,20 @@ export const AppCard = React.memo<AppCardProps>(({
       className={className}
     >
       <Card 
-        className="h-full hover:shadow-lg transition-all duration-200 cursor-pointer group"
+        className={cn(
+          "h-full transition-all duration-300 ease-out cursor-pointer group relative overflow-hidden",
+          "hover:shadow-xl hover:shadow-black/8 hover:-translate-y-1",
+          "border border-border/40 hover:border-border/60",
+          // Status-aware enhancements with subtle gradients
+          deploymentStatus?.color === 'text-green-600' && "hover:shadow-green-500/20 hover:border-green-200/30 hover:bg-gradient-to-br hover:from-green-50/30 hover:to-transparent dark:hover:from-green-950/20",
+          deploymentStatus?.color === 'text-orange-600' && "hover:shadow-orange-500/20 hover:border-orange-200/30 hover:bg-gradient-to-br hover:from-orange-50/30 hover:to-transparent dark:hover:from-orange-950/20",
+          deploymentStatus?.color === 'text-red-600' && "hover:shadow-red-500/20 hover:border-red-200/30 hover:bg-gradient-to-br hover:from-red-50/30 hover:to-transparent dark:hover:from-red-950/20",
+          // Default enhanced styling
+          !deploymentStatus && "hover:bg-gradient-to-br hover:from-orange-50/20 hover:to-transparent dark:hover:from-orange-950/10"
+        )}
         onClick={() => onClick(app.id)}
       >
-        {/* Preview Image or Placeholder */}
+        {/* Enhanced Preview Section */}
         <div className="relative h-48 bg-gradient-to-br from-orange-50 to-orange-100 overflow-hidden">
           {app.screenshotUrl ? (
             <img 
@@ -300,6 +398,49 @@ export const AppCard = React.memo<AppCardProps>(({
             <Code2 className="h-16 w-16 text-orange-300" />
           </div>
           
+          {/* Enhanced status indicator for deployed apps - transforms from dot to share button on hover */}
+          {deploymentStatus?.color === 'text-green-600' && (
+            <button
+              className="absolute top-2 left-2 group/status h-5 w-5 hover:h-6 hover:w-6 rounded-full bg-green-600/70 backdrop-blur-sm hover:bg-green-700/80 transition-all duration-300 ease-out flex items-center justify-center shadow-sm hover:shadow-lg border border-green-500/15 hover:border-green-400/25"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (hasDeploymentFields(app) && app.deploymentUrl) {
+                  window.open(app.deploymentUrl, '_blank', 'noopener,noreferrer');
+                }
+              }}
+              title="Open deployed app"
+              aria-label="Open deployed app in new tab"
+            >
+              {/* Subtle dot indicator - visible by default */}
+              <div className="w-1.5 h-1.5 bg-white/80 rounded-full animate-pulse group-hover/status:opacity-0 transition-opacity duration-200" />
+              
+              {/* Share icon - visible on hover */}
+              <ExternalLink className="w-3 h-3 text-white/90 opacity-0 group-hover/status:opacity-100 transition-all duration-200 absolute" />
+            </button>
+          )}
+          
+          {/* Deploying status indicator - simple loader dot without text */}
+          {deploymentStatus?.color === 'text-orange-600' && (
+            <div 
+              className="absolute top-2 left-2 h-5 w-5 hover:h-6 hover:w-6 rounded-full bg-orange-600/70 backdrop-blur-sm transition-all duration-300 ease-out flex items-center justify-center shadow-sm hover:shadow-lg hover:bg-orange-700/80 border border-orange-500/15 hover:border-orange-400/25"
+              title="App is deploying"
+              aria-label="App deployment in progress"
+            >
+              <Loader2 className="w-2.5 h-2.5 text-white/80 animate-spin" />
+            </div>
+          )}
+          
+          {/* Failed deployment status indicator */}
+          {deploymentStatus?.color === 'text-red-600' && (
+            <div 
+              className="absolute top-2 left-2 h-5 w-5 hover:h-6 hover:w-6 rounded-full bg-red-600/70 backdrop-blur-sm transition-all duration-300 ease-out flex items-center justify-center shadow-sm hover:shadow-lg hover:bg-red-700/80 border border-red-500/15 hover:border-red-400/25"
+              title="Deployment failed"
+              aria-label="App deployment failed"
+            >
+              <CloudOff className="w-2.5 h-2.5 text-white/80" />
+            </div>
+          )}
+          
 
           {/* Actions Dropdown - positioned in top-right on hover */}
           {showActions && (
@@ -314,25 +455,37 @@ export const AppCard = React.memo<AppCardProps>(({
             </div>
           )}
 
-          {/* Badges for User Apps - Visibility and Deployment Status */}
-          {(isUserApp(app) || isEnhancedApp(app)) && (
-            <div className="absolute top-2 left-2 flex items-center gap-1">
-              {/* Visibility Badge */}
-              <div className="bg-background/90 dark:bg-card/90 backdrop-blur-sm rounded-md p-1">
-                {getVisibilityIcon(app.visibility)}
-              </div>
-              
-              {/* Deployment Status Badge - only for My Apps (not Discover) */}
-              <DeploymentBadge app={app} showUser={showUser} />
+          {/* Visibility Badge for user apps (when not showing status overlays) */}
+          {(isUserApp(app) || isEnhancedApp(app)) && !deploymentStatus && (
+            <div className="absolute bottom-2 left-2 bg-background/90 dark:bg-card/90 backdrop-blur-sm rounded-md p-1">
+              {getVisibilityIcon(app.visibility)}
+            </div>
+          )}
+          
+          {/* Visibility Badge positioned differently when status overlay exists */}
+          {(isUserApp(app) || isEnhancedApp(app)) && deploymentStatus && (
+            <div className="absolute bottom-2 left-2 bg-background/90 dark:bg-card/90 backdrop-blur-sm rounded-md p-1">
+              {getVisibilityIcon(app.visibility)}
             </div>
           )}
         </div>
 
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="font-semibold text-lg line-clamp-1 group-hover:text-orange-600 transition-colors">
-              {app.title}
-            </h3>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-lg line-clamp-1 group-hover:text-orange-600 transition-all duration-200 ease-out group-hover:translate-x-0.5 mb-2">
+                {app.title}
+              </h3>
+              
+              {/* Enhanced Adaptive Metadata - replaces old separate sections */}
+              <div className="transition-all duration-200 ease-out group-hover:translate-x-0.5">
+                <AdaptiveMetadata 
+                  app={app} 
+                  layoutConfig={layoutConfig} 
+                  hasOverlayStatus={!!deploymentStatus && deploymentStatus.color !== 'text-gray-500'}
+                />
+              </div>
+            </div>
             
             {/* Favorite/Star Button */}
             {onToggleFavorite && (
@@ -360,51 +513,9 @@ export const AppCard = React.memo<AppCardProps>(({
               </Button>
             )}
           </div>
-          
         </CardHeader>
 
         <CardContent className="pt-0">
-          {/* User Info - for public apps */}
-          {showUser && isPublicApp(app) && (
-            <div className="flex items-center gap-2 mb-3">
-              {app.userName === 'Anonymous User' ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <div className="h-6 w-6 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                    <User className="h-3 w-3 text-white" />
-                  </div>
-                  <span>Anonymous User</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-sm">
-                  <Avatar className="h-6 w-6">
-                    <AvatarImage src={app.userAvatar || undefined} />
-                    <AvatarFallback className="text-xs">
-                      {app.userName?.charAt(0).toUpperCase() || '?'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-muted-foreground">{app.userName}</span>
-                </div>
-              )}
-              <span className="text-muted-foreground">•</span>
-              <span className="text-sm text-muted-foreground">
-                {app.createdAt ? formatDistanceToNow(new Date(app.createdAt), { addSuffix: true }) : 'Recently'}
-              </span>
-            </div>
-          )}
-
-          {/* Time info for user apps */}
-          {!showUser && (isUserApp(app) || isEnhancedApp(app)) && (
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-sm text-muted-foreground">
-                Updated {
-                  isUserApp(app) ? app.updatedAtFormatted : 
-                  isEnhancedApp(app) && app.updatedAt ? formatDistanceToNow(new Date(app.updatedAt), { addSuffix: true }) : 
-                  'Recently'
-                }
-              </span>
-            </div>
-          )}
-
           {/* Stats - show for public apps or user apps with stats */}
           {showStats && <StatsDisplay stats={getAppStats(app)} />}
         </CardContent>

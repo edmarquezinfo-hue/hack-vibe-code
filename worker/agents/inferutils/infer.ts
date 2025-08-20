@@ -4,9 +4,9 @@ import z from 'zod';
 // import { CodeEnhancementOutput, CodeEnhancementOutputType } from '../codegen/phasewiseGenerator';
 import { SchemaFormat } from './schemaFormatters';
 import { ChatCompletionTool, ReasoningEffort } from 'openai/resources.mjs';
-import { AGENT_CONFIG, AgentActionKey, AIModels, InferenceContext } from './config';
+import { AgentActionKey, AIModels, InferenceContext, ModelConfig } from './config.types';
+import { AGENT_CONFIG } from './config';
 import { createLogger } from '../../logger';
-import { ModelConfig } from './config';
 
 const logger = createLogger('InferenceUtils');
 

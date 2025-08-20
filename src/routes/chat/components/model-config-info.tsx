@@ -10,7 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import type { ModelConfig, AgentConfig } from '@/components/model-config-tabs';
+import type { ModelConfig, UserModelConfigWithMetadata } from '@/api-types';
+import type { AgentDisplayConfig } from '@/components/model-config-tabs';
 
 // Reuse workflow tabs from settings (DRY principle)
 const WORKFLOW_TABS = {
@@ -122,8 +123,8 @@ function ConfigInfoCard({
   userConfig, 
   defaultConfig 
 }: { 
-  agent: AgentConfig; 
-  userConfig?: ModelConfig; 
+  agent: AgentDisplayConfig; 
+  userConfig?: UserModelConfigWithMetadata; 
   defaultConfig?: ModelConfig; 
 }) {
   const isCustomized = userConfig?.isUserOverride || false;
@@ -191,8 +192,8 @@ function ConfigInfoCard({
 
 interface ModelConfigInfoProps {
   configs?: {
-    agents: AgentConfig[];
-    userConfigs: Record<string, ModelConfig>;
+    agents: AgentDisplayConfig[];
+    userConfigs: Record<string, UserModelConfigWithMetadata>;
     defaultConfigs: Record<string, ModelConfig>;
   };
   onRequestConfigs: () => void;

@@ -63,6 +63,16 @@ export type {
   ModelConfigDeleteData
 } from 'worker/api/controllers/modelConfig/types';
 
+// Frontend model config update interface that matches backend schema
+export interface ModelConfigUpdate {
+  modelName?: string | null;
+  maxTokens?: number | null;
+  temperature?: number | null;
+  reasoningEffort?: string | null;
+  fallbackModel?: string | null;
+  isUserOverride?: boolean;
+}
+
 // Secrets API Types
 export type {
   SecretsData,
@@ -133,6 +143,8 @@ export type {
 // Config/Inference Types
 export type { 
   AgentActionKey,
+  AgentConfig,
+  AIModels,
   ModelConfig,
   ReasoningEffortType as ReasoningEffort,
   ProviderOverrideType as ProviderOverride

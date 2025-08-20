@@ -5,7 +5,7 @@ import { generalSystemPromptBuilder, PROMPT_UTILS } from '../prompts';
 import { createAssistantMessage, createSystemMessage, createUserMessage } from "../inferutils/common";
 import { executeInference, } from "../inferutils/infer";
 import Assistant from "./assistant";
-import { AIModels, InferenceContext } from "../inferutils/config";
+import { AIModels, InferenceContext } from "../inferutils/config.types";
 import { extractCommands } from "../utils/common";
 
 interface GenerateSetupCommandsArgs {
