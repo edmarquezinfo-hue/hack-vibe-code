@@ -2,6 +2,7 @@
 import { BaseController } from '../BaseController';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
 import { UserService } from '../../../database/services/UserService';
+import type { AppSortOption, SortOrder, TimePeriod } from '../../../database/types';
 import { 
     DashboardData, 
     UserAppsData, 
@@ -66,27 +67,38 @@ export class UserController extends BaseController {
             const status = url.searchParams.get('status') as 'generating' | 'completed' | undefined;
             const visibility = url.searchParams.get('visibility') as 'private' | 'public' | 'team' | 'board' | undefined;
             const teamId = url.searchParams.get('teamId') || undefined;
+            const sort = (url.searchParams.get('sort') || 'recent') as AppSortOption;
+            const order = (url.searchParams.get('order') || 'desc') as SortOrder;
+            const period = (url.searchParams.get('period') || 'all') as TimePeriod;
             const offset = (page - 1) * limit;
 
             const dbService = this.createDbService(env);
             const userService = new UserService(dbService);
             
-            // Get user apps with analytics using user service
-            const apps = await userService.getUserAppsWithAnalytics(authResult.user!.id, {
+            const queryOptions = {
                 limit,
                 offset,
                 status,
                 visibility,
-                teamId
-            });
+                teamId,
+                sort,
+                order,
+                period
+            };
+            
+            // Get user apps with analytics and proper total count
+            const [apps, totalCount] = await Promise.all([
+                userService.getUserAppsWithAnalytics(authResult.user!.id, queryOptions),
+                userService.getUserAppsCount(authResult.user!.id, queryOptions)
+            ]);
 
             const responseData: UserAppsData = {
                 apps,
                 pagination: {
                     limit,
                     offset,
-                    total: apps.length,
-                    hasMore: apps.length === limit
+                    total: totalCount,
+                    hasMore: offset + limit < totalCount
                 }
             };
 

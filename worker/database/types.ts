@@ -78,6 +78,21 @@ export interface PaginationOptions {
 // ========================================
 
 /**
+ * Time period for analytics and trending
+ */
+export type TimePeriod = 'today' | 'week' | 'month' | 'all';
+
+/**
+ * Sort options for app listings
+ */
+export type AppSortOption = 'recent' | 'popular' | 'trending' | 'starred';
+
+/**
+ * Sort order options
+ */
+export type SortOrder = 'asc' | 'desc';
+
+/**
  * App query options with filters and pagination
  */
 export interface AppQueryOptions extends PaginationOptions {
@@ -85,6 +100,9 @@ export interface AppQueryOptions extends PaginationOptions {
     visibility?: 'private' | 'public' | 'team' | 'board';
     teamId?: string;
     boardId?: string;
+    sort?: AppSortOption;
+    order?: SortOrder;
+    period?: TimePeriod;
 }
 
 /**
@@ -94,7 +112,9 @@ export interface PublicAppQueryOptions extends PaginationOptions {
     boardId?: string;
     framework?: string;
     search?: string;
-    sort?: 'recent' | 'popular' | 'trending';
+    sort?: AppSortOption;
+    order?: SortOrder;
+    period?: TimePeriod;
     userId?: string; // For user-specific data like favorites
 }
 

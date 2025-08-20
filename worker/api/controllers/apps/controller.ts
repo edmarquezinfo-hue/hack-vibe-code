@@ -179,7 +179,9 @@ export class AppController extends BaseController {
             const offset = url.searchParams.get('offset') ? 
                 parseInt(url.searchParams.get('offset') || '0') : 
                 (page - 1) * limit;
-            const sort = url.searchParams.get('sort') || 'recent';
+            const sort = (url.searchParams.get('sort') || 'recent') as 'recent' | 'popular' | 'trending';
+            const order = (url.searchParams.get('order') || 'desc') as 'asc' | 'desc';
+            const period = (url.searchParams.get('period') || 'all') as 'today' | 'week' | 'month' | 'all';
             const boardId = url.searchParams.get('boardId') || undefined;
             const framework = url.searchParams.get('framework') || undefined;
             const search = url.searchParams.get('search') || undefined;
@@ -194,7 +196,9 @@ export class AppController extends BaseController {
                 boardId,
                 limit,
                 offset,
-                sort: sort as 'recent' | 'popular' | 'trending',
+                sort,
+                order,
+                period,
                 framework,
                 search,
                 userId

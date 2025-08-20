@@ -42,9 +42,14 @@ export class AppViewController extends BaseController {
                 return this.createErrorResponse<AppDetailsData>('App not found', 404);
             }
 
-            // Track view (if not owner)
-            if (userId && userId !== appResult.userId) {
+            // Track view for all users (including owners and anonymous users)
+            if (userId) {
+                // Authenticated user view
                 await appService.recordAppView(appId, userId);
+            } else {
+                // Anonymous user view - use a special anonymous identifier
+                // This could be enhanced with session tracking or IP-based deduplication
+                await appService.recordAppView(appId, 'anonymous-' + Date.now());
             }
 
             // Try to fetch current agent state to get latest generated code

@@ -6,7 +6,7 @@
 
 import { BaseService } from './BaseService';
 import * as schema from '../schema';
-import { eq, and, or, desc, sql, SQL, isNull, inArray } from 'drizzle-orm';
+import { eq, and, or, desc, asc, sql, SQL, isNull, inArray } from 'drizzle-orm';
 import { generateId } from '../../utils/idGenerator';
 import { formatRelativeTime } from '../../utils/timeFormatter';
 import type {
@@ -19,7 +19,10 @@ import type {
     PublicAppQueryOptions,
     OwnershipResult,
     AppVisibilityUpdateResult,
-    SimpleAppCreation
+    SimpleAppCreation,
+    TimePeriod,
+    AppSortOption,
+    SortOrder
 } from '../types';
 import { AnalyticsService } from './AnalyticsService';
 
@@ -191,7 +194,7 @@ export class AppService extends BaseService {
 
     /**
      * Get enhanced public apps with user stats and pagination
-     * Uses unified analytics approach for consistency
+     * Uses unified analytics approach for consistency with server-side sorting
      */
     async getPublicAppsEnhanced(options: PublicAppQueryOptions = {}): Promise<PaginatedResult<EnhancedAppData>> {
         const { 
@@ -200,13 +203,19 @@ export class AppService extends BaseService {
             offset = 0, 
             framework, 
             search, 
+            sort = 'recent',
+            order = 'desc',
+            period = 'all',
             userId 
         } = options;
 
         const whereConditions = this.buildPublicAppConditions(boardId, framework, search);
         const whereClause = this.buildWhereConditions(whereConditions);
+        
+        // Create sort clauses using server-side sorting
+        const sortClauses = this.createSortClause(sort, order, period);
 
-        // Get basic apps with user data first
+        // Get basic apps with user data and server-side sorting
         const basicApps = await this.database
             .select({
                 ...this.APP_SELECT_FIELDS,
@@ -216,7 +225,7 @@ export class AppService extends BaseService {
             .from(schema.apps)
             .leftJoin(schema.users, eq(schema.apps.userId, schema.users.id))
             .where(whereClause)
-            .orderBy(desc(schema.apps.createdAt))
+            .orderBy(...sortClauses)
             .limit(limit)
             .offset(offset);
 
@@ -517,7 +526,6 @@ export class AppService extends BaseService {
      * Combines app data, user info, and analytics in single optimized query
      */
     async getAppDetailsEnhanced(appId: string, userId?: string): Promise<EnhancedAppData | null> {
-        this.logger.info('getAppDetailsEnhanced - called with appId:', appId, 'userId:', userId);
         // Get app with user info using full app selection
         const appResult = await this.database
             .select({
@@ -535,7 +543,6 @@ export class AppService extends BaseService {
         }
 
         // Get stats in parallel using same pattern as analytics service
-        this.logger.info('getAppDetailsEnhanced - about to fetch stats for appId:', appId, 'userId:', userId);
         const [viewCount, starCount, isFavorite, userHasStarred] = await Promise.all([
             // View count
             this.database
@@ -575,14 +582,6 @@ export class AppService extends BaseService {
                 .get()
                 .then(r => !!r) : false
         ]);
-
-        this.logger.info('getAppDetailsEnhanced - fetched stats:', {
-            appId,
-            viewCount,
-            starCount,
-            isFavorite,
-            userHasStarred
-        });
 
         return {
             ...appResult,
@@ -717,8 +716,17 @@ export class AppService extends BaseService {
      * Uses unified analytics approach for consistency
      */
     async getUserAppsWithAnalytics(userId: string, options: Partial<AppQueryOptions> = {}): Promise<EnhancedAppData[]> {
-        const { limit = 50, offset = 0, status, visibility, teamId, boardId } = options;
-        this.logger.info('getUserAppsWithAnalytics - called with userId:', userId);
+        const { 
+            limit = 50, 
+            offset = 0, 
+            status, 
+            visibility, 
+            teamId, 
+            boardId, 
+            sort = 'recent', 
+            order = 'desc', 
+            period = 'all' 
+        } = options;
 
         // Build where conditions like in getUserApps but with enhanced data
         const whereConditions: WhereCondition[] = [
@@ -730,17 +738,36 @@ export class AppService extends BaseService {
         ];
 
         const whereClause = this.buildWhereConditions(whereConditions);
+        
+        // Create sort clauses using server-side sorting
+        const sortClauses = this.createSortClause(sort, order, period);
 
-        // Get basic user apps first  
-        const basicApps = await this.database
-            .select({
-                ...this.APP_SELECT_FIELDS,
-            })
-            .from(schema.apps)
-            .where(whereClause)
-            .orderBy(desc(schema.apps.updatedAt))
-            .limit(limit)
-            .offset(offset);
+        // For "starred" sort, we need to join with favorites table and filter
+        let basicApps;
+
+        if (sort === 'starred') {
+            // Join with favorites and add favorite user filter
+            basicApps = await this.database
+                .select({
+                    ...this.APP_SELECT_FIELDS,
+                })
+                .from(schema.apps)
+                .innerJoin(schema.favorites, eq(schema.favorites.appId, schema.apps.id))
+                .where(and(whereClause, eq(schema.favorites.userId, userId)))
+                .orderBy(...sortClauses)
+                .limit(limit)
+                .offset(offset);
+        } else {
+            basicApps = await this.database
+                .select({
+                    ...this.APP_SELECT_FIELDS,
+                })
+                .from(schema.apps)
+                .where(whereClause)
+                .orderBy(...sortClauses)
+                .limit(limit)
+                .offset(offset);
+        }
 
         if (basicApps.length === 0) {
             return [];
@@ -748,6 +775,38 @@ export class AppService extends BaseService {
 
         // Use unified analytics enhancement approach
         return await this.enhanceAppsWithAnalytics(basicApps, userId, false);
+    }
+
+    /**
+     * Get total count of user apps with filters (for pagination)
+     */
+    async getUserAppsCount(userId: string, options: Partial<AppQueryOptions> = {}): Promise<number> {
+        const { status, visibility, teamId, boardId, sort = 'recent' } = options;
+
+        const whereConditions: WhereCondition[] = [
+            eq(schema.apps.userId, userId),
+            teamId ? eq(schema.apps.teamId, teamId) : undefined,
+            status ? eq(schema.apps.status, status) : undefined,
+            visibility ? eq(schema.apps.visibility, visibility) : undefined,
+            boardId ? eq(schema.apps.boardId, boardId) : undefined,
+        ];
+
+        const whereClause = this.buildWhereConditions(whereConditions);
+
+        // For "starred" sort, we need to join with favorites table
+        const countQuery = this.database
+            .select({ count: sql<number>`COUNT(*)` })
+            .from(schema.apps);
+
+        if (sort === 'starred') {
+            const countResult = await countQuery
+                .innerJoin(schema.favorites, eq(schema.favorites.appId, schema.apps.id))
+                .where(and(whereClause, eq(schema.favorites.userId, userId)));
+            return countResult[0]?.count || 0;
+        } else {
+            const countResult = await countQuery.where(whereClause);
+            return countResult[0]?.count || 0;
+        }
     }
 
     // ========================================
@@ -836,6 +895,95 @@ export class AppService extends BaseService {
     // ========================================
     // UTILITY METHODS
     // ========================================
+
+    /**
+     * Get date threshold for time period filtering
+     */
+    private getTimePeriodThreshold(period: TimePeriod): Date {
+        const now = new Date();
+        switch (period) {
+            case 'today':
+                return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            case 'week':
+                const weekAgo = new Date(now);
+                weekAgo.setDate(now.getDate() - 7);
+                return weekAgo;
+            case 'month':
+                const monthAgo = new Date(now);
+                monthAgo.setMonth(now.getMonth() - 1);
+                return monthAgo;
+            case 'all':
+            default:
+                return new Date(0); // Beginning of time
+        }
+    }
+
+    /**
+     * Create ORDER BY clause based on sort option, order, and time period
+     */
+    private createSortClause(sort: AppSortOption = 'recent', order: SortOrder = 'desc', period: TimePeriod = 'all') {
+        const direction = order === 'asc' ? asc : desc;
+        const periodThreshold = this.getTimePeriodThreshold(period);
+
+        switch (sort) {
+            case 'popular': {
+                // Sort by popularity score with time-based filtering
+                if (period === 'all') {
+                    return [
+                        direction(sql<number>`(
+                            COALESCE((SELECT COUNT(*) FROM ${schema.appViews} WHERE ${schema.appViews.appId} = ${schema.apps.id}), 0) +
+                            COALESCE((SELECT COUNT(*) * 2 FROM ${schema.stars} WHERE ${schema.stars.appId} = ${schema.apps.id}), 0) +
+                            COALESCE((SELECT COUNT(*) * 3 FROM ${schema.apps} AS forks WHERE forks.parent_app_id = ${schema.apps.id}), 0)
+                        )`),
+                        desc(schema.apps.createdAt) // Secondary sort
+                    ];
+                } else {
+                    return [
+                        direction(sql<number>`(
+                            COALESCE((SELECT COUNT(*) FROM ${schema.appViews} WHERE ${schema.appViews.appId} = ${schema.apps.id} AND ${schema.appViews.viewedAt} >= ${periodThreshold.toISOString()}), 0) +
+                            COALESCE((SELECT COUNT(*) * 2 FROM ${schema.stars} WHERE ${schema.stars.appId} = ${schema.apps.id} AND ${schema.stars.starredAt} >= ${periodThreshold.toISOString()}), 0) +
+                            COALESCE((SELECT COUNT(*) * 3 FROM ${schema.apps} AS forks WHERE forks.parent_app_id = ${schema.apps.id} AND forks.createdAt >= ${periodThreshold.toISOString()}), 0)
+                        )`),
+                        desc(schema.apps.createdAt)
+                    ];
+                }
+            }
+
+            case 'trending': {
+                // Sort by trending score (popularity / age)
+                if (period === 'all') {
+                    return [
+                        direction(sql<number>`(
+                            (COALESCE((SELECT COUNT(*) FROM ${schema.appViews} WHERE ${schema.appViews.appId} = ${schema.apps.id}), 0) +
+                             COALESCE((SELECT COUNT(*) * 2 FROM ${schema.stars} WHERE ${schema.stars.appId} = ${schema.apps.id}), 0) +
+                             COALESCE((SELECT COUNT(*) * 3 FROM ${schema.apps} AS forks WHERE forks.parent_app_id = ${schema.apps.id}), 0)) /
+                            (CASE WHEN julianday('now') - julianday(${schema.apps.createdAt}) < 1 THEN 1 ELSE julianday('now') - julianday(${schema.apps.createdAt}) END)
+                        )`),
+                        desc(schema.apps.createdAt)
+                    ];
+                } else {
+                    return [
+                        direction(sql<number>`(
+                            (COALESCE((SELECT COUNT(*) FROM ${schema.appViews} WHERE ${schema.appViews.appId} = ${schema.apps.id} AND ${schema.appViews.viewedAt} >= ${periodThreshold.toISOString()}), 0) +
+                             COALESCE((SELECT COUNT(*) * 2 FROM ${schema.stars} WHERE ${schema.stars.appId} = ${schema.apps.id} AND ${schema.stars.starredAt} >= ${periodThreshold.toISOString()}), 0) +
+                             COALESCE((SELECT COUNT(*) * 3 FROM ${schema.apps} AS forks WHERE forks.parent_app_id = ${schema.apps.id} AND forks.createdAt >= ${periodThreshold.toISOString()}), 0)) /
+                            (CASE WHEN julianday('now') - julianday(${schema.apps.createdAt}) < 1 THEN 1 ELSE julianday('now') - julianday(${schema.apps.createdAt}) END)
+                        )`),
+                        desc(schema.apps.createdAt)
+                    ];
+                }
+            }
+
+            case 'starred':
+                // Sort by favorited date (most recently favorited first)
+                // Note: This requires the query to already be filtered by favorites
+                return [desc(sql<Date>`(SELECT ${schema.favorites.createdAt} FROM ${schema.favorites} WHERE ${schema.favorites.appId} = ${schema.apps.id})`)];
+
+            case 'recent':
+            default:
+                return [direction(schema.apps.updatedAt)];
+        }
+    }
 
     private generateSlug(text: string): string {
         return text

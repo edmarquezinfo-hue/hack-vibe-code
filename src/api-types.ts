@@ -6,6 +6,18 @@
 // Base API Response Types
 export type { ControllerResponse, ApiResponse } from 'worker/api/controllers/BaseController.types';
 
+// Database Types
+export type {
+  PaginationInfo,
+  EnhancedAppData,
+  AppWithFavoriteStatus,
+  TimePeriod,
+  AppSortOption,
+  SortOrder,
+  AppQueryOptions,
+  PublicAppQueryOptions
+} from 'worker/database/types';
+
 // App-related API Types
 export type { 
   AppsListData,
@@ -89,9 +101,6 @@ export type {
 } from 'worker/database/schema';
 
 export type {
-  EnhancedAppData,
-  AppWithFavoriteStatus,
-  PaginationInfo,
   FavoriteToggleResult,
   EnhancedUserStats,
   UserActivity,

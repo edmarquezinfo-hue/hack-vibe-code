@@ -1,135 +1,62 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
-import { apiClient } from '@/lib/api-client';
-import type { AppWithUserAndStats, PaginationInfo as ApiPaginationInfo } from '@/api-types';
-import { 
-  Clock, 
-  TrendingUp, 
-  Star, 
-  Search,
-  Loader2,
-  Sparkles,
-  Code2
-} from 'lucide-react';
+import { Clock, TrendingUp, Star, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AppCard } from '@/components/shared/AppCard';
-
-// Use proper types from API
-type PublicApp = AppWithUserAndStats;
-type PaginationInfo = ApiPaginationInfo;
+import { usePaginatedApps } from '@/hooks/use-paginated-apps';
+import { AppListContainer } from '@/components/shared/AppListContainer';
+import { TimePeriodSelector } from '@/components/shared/TimePeriodSelector';
+import type { AppSortOption, TimePeriod } from '@/api-types';
 
 export default function DiscoverPage() {
   const navigate = useNavigate();
-  
-  const [apps, setApps] = useState<PublicApp[]>([]);
-  const [trendingApps, setTrendingApps] = useState<PublicApp[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [framework, setFramework] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'trending'>('recent');
-  const [pagination, setPagination] = useState<PaginationInfo>({
-    total: 0,
-    limit: 20,
-    offset: 0,
-    hasMore: true
+  const [filterFramework, setFilterFramework] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<AppSortOption>('recent');
+  const [period, setPeriod] = useState<TimePeriod>('all');
+
+  // Use unified paginated apps hook for public apps with server-side sorting
+  const {
+    apps,
+    loading,
+    loadingMore,
+    error,
+    totalCount,
+    hasMore,
+    refetch,
+    loadMore,
+    updateFilters
+  } = usePaginatedApps({
+    type: 'public',
+    sort: sortBy,
+    period: period,
+    framework: filterFramework === 'all' ? undefined : filterFramework,
+    search: searchQuery || undefined,
+    limit: 20
   });
-
-  // Fetch public apps
-  const fetchApps = async (append = false) => {
-    try {
-      if (!append) setLoading(true);
-      else setLoadingMore(true);
-
-      const paginationParams = {
-        limit: pagination.limit,
-        page: append ? Math.floor(pagination.offset / pagination.limit) + 2 : 1,
-        sort: sortBy === 'recent' ? 'updatedAt' : sortBy === 'trending' ? 'starCount' : 'createdAt',
-        order: 'desc' as const
-      };
-      
-      const response = await apiClient.getPublicApps(paginationParams);
-      
-      if (response.success && response.data) {
-        const data = response.data;
-        
-        if (append) {
-          setApps(prev => [...prev, ...data.apps]);
-        } else {
-          setApps(data.apps);
-        }
-        
-        setPagination(data.pagination);
-      } else {
-        throw new Error(response.error || 'Failed to fetch apps');
-      }
-    } catch (error) {
-      console.error('Error fetching apps:', error);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  };
-
-  // Fetch trending apps
-  const fetchTrendingApps = async () => {
-    try {
-      const response = await apiClient.getPublicApps({
-        limit: 10,
-        sort: 'starCount',
-        order: 'desc'
-      });
-      
-      if (response.success && response.data) {
-        setTrendingApps(response.data.apps);
-      } else {
-        throw new Error(response.error || 'Failed to fetch trending apps');
-      }
-    } catch (error) {
-      console.error('Error fetching trending apps:', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchApps();
-    fetchTrendingApps();
-  }, [sortBy, framework, searchQuery]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchApps();
+    updateFilters({ search: searchQuery || undefined });
   };
 
-  const handleLoadMore = () => {
-    if (pagination.hasMore && !loadingMore) {
-      fetchApps(true);
-    }
+  const handleSortChange = (newSort: string) => {
+    const sort = newSort as AppSortOption;
+    setSortBy(sort);
+    updateFilters({ sort });
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
+  const handlePeriodChange = (newPeriod: TimePeriod) => {
+    setPeriod(newPeriod);
+    updateFilters({ period: newPeriod });
   };
 
-  const PublicAppCard = ({ app }: { app: PublicApp }) => {
-    return (
-      <AppCard 
-        app={app}
-        onClick={(appId) => navigate(`/app/${appId}`)}
-        showStats={true}
-        showUser={true}
-        className="h-full"
-      />
-    );
+  const handleFrameworkChange = (framework: string) => {
+    setFilterFramework(framework);
+    updateFilters({ framework: framework === 'all' ? undefined : framework });
   };
 
   return (
@@ -163,7 +90,7 @@ export default function DiscoverPage() {
                   className="pl-10"
                 />
               </div>
-              <Select value={framework} onValueChange={setFramework}>
+              <Select value={filterFramework} onValueChange={handleFrameworkChange}>
                 <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="Framework" />
                 </SelectTrigger>
@@ -176,13 +103,21 @@ export default function DiscoverPage() {
                   <SelectItem value="vanilla">Vanilla JS</SelectItem>
                 </SelectContent>
               </Select>
+              {(sortBy === 'popular' || sortBy === 'trending') && (
+                <TimePeriodSelector
+                  value={period}
+                  onValueChange={handlePeriodChange}
+                  className="w-[120px]"
+                  showForSort={sortBy}
+                />
+              )}
               <Button type="submit">
                 Search
               </Button>
             </form>
 
             {/* Sort Tabs */}
-            <Tabs value={sortBy} onValueChange={(v) => setSortBy(v as any)} className="w-full">
+            <Tabs value={sortBy} onValueChange={handleSortChange} className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="recent" className="flex items-center gap-2">
                   <Clock className="h-4 w-4" />
@@ -200,74 +135,21 @@ export default function DiscoverPage() {
             </Tabs>
           </div>
 
-          {/* Trending Section */}
-          {trendingApps.length > 0 && sortBy === 'trending' && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
-              className="mb-12"
-            >
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles className="h-5 w-5 text-orange-500" />
-                <h2 className="text-2xl font-semibold">Trending This Week</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {trendingApps.slice(0, 4).map(app => (
-                  <PublicAppCard key={app.id} app={app} />
-                ))}
-              </div>
-            </motion.div>
-          )}
-
-          {/* Main Apps Grid */}
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : apps.length === 0 ? (
-            <div className="text-center py-20">
-              <Code2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-xl font-semibold mb-2">No apps found</h3>
-              <p className="text-muted-foreground">
-                Try adjusting your filters or search query
-              </p>
-            </div>
-          ) : (
-            <>
-              <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-              >
-                {apps.map(app => (
-                  <PublicAppCard key={app.id} app={app} />
-                ))}
-              </motion.div>
-
-              {/* Load More Button */}
-              {pagination.hasMore && (
-                <div className="flex justify-center mt-8">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={handleLoadMore}
-                    disabled={loadingMore}
-                  >
-                    {loadingMore ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      'Load More'
-                    )}
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
+          {/* Unified App List */}
+          <AppListContainer
+            apps={apps}
+            loading={loading}
+            loadingMore={loadingMore}
+            error={error}
+            hasMore={hasMore}
+            totalCount={totalCount}
+            sortBy={sortBy}
+            onAppClick={(appId) => navigate(`/app/${appId}`)}
+            onLoadMore={loadMore}
+            onRetry={refetch}
+            showUser={true}
+            showStats={true}
+          />
         </motion.div>
       </div>
     </div>

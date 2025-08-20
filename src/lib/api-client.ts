@@ -83,6 +83,18 @@ interface PaginationParams {
 }
 
 /**
+ * User apps parameters with filtering and sorting
+ */
+interface UserAppsParams extends PaginationParams {
+  period?: 'today' | 'week' | 'month' | 'all';
+  framework?: string;
+  search?: string;
+  visibility?: 'private' | 'public' | 'team' | 'board';
+  status?: 'generating' | 'completed';
+  teamId?: string;
+}
+
+/**
  * Unified API Client class
  */
 class ApiClient {
@@ -285,10 +297,18 @@ class ApiClient {
   /**
    * Get user apps with pagination
    */
-  async getUserAppsWithPagination(params?: PaginationParams): Promise<ApiResponse<UserAppsData>> {
+  async getUserAppsWithPagination(params?: UserAppsParams): Promise<ApiResponse<UserAppsData>> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.set('page', params.page.toString());
     if (params?.limit) queryParams.set('limit', params.limit.toString());
+    if (params?.sort) queryParams.set('sort', params.sort);
+    if (params?.order) queryParams.set('order', params.order);
+    if (params?.period) queryParams.set('period', params.period);
+    if (params?.framework) queryParams.set('framework', params.framework);
+    if (params?.search) queryParams.set('search', params.search);
+    if (params?.visibility) queryParams.set('visibility', params.visibility);
+    if (params?.status) queryParams.set('status', params.status);
+    if (params?.teamId) queryParams.set('teamId', params.teamId);
     
     const endpoint = `/api/user/apps${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     return this.request<UserAppsData>(endpoint);

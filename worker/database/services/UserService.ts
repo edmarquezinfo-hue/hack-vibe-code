@@ -234,6 +234,15 @@ export class UserService extends BaseService {
     }
 
     /**
+     * Get total count of user apps with filters (for pagination)
+     */
+    async getUserAppsCount(userId: string, options: Partial<AppQueryOptions> = {}): Promise<number> {
+        // Use AppService for consistent app operations
+        const appService = new AppService(this.db);
+        return appService.getUserAppsCount(userId, options);
+    }
+
+    /**
      * Get recent apps with analytics for dashboard
      * Specialized method for dashboard's recent apps section
      */

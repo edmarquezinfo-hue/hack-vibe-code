@@ -1,47 +1,44 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
-import { Plus, Search, Clock, TrendingUp, Star, Loader2, Code2, X, RefreshCw } from 'lucide-react';
+import { Plus, Search, Clock, TrendingUp, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useEnhancedApps, toggleFavorite } from '@/hooks/use-apps';
-import { AppCard } from '@/components/shared/AppCard';
+import { toggleFavorite } from '@/hooks/use-apps';
+import { usePaginatedApps } from '@/hooks/use-paginated-apps';
+import { AppListContainer } from '@/components/shared/AppListContainer';
+import { TimePeriodSelector } from '@/components/shared/TimePeriodSelector';
+import type { AppSortOption, TimePeriod } from '@/api-types';
 
 export default function AppsPage() {
   const navigate = useNavigate();
-  const { apps, loading, error, refetch } = useEnhancedApps();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterFramework, setFilterFramework] = useState<string>('all');
   const [filterVisibility, setFilterVisibility] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'starred'>('recent');
+  const [sortBy, setSortBy] = useState<AppSortOption>('recent');
+  const [period, setPeriod] = useState<TimePeriod>('all');
 
-  // Filter and sort apps
-  const filteredApps = apps.filter(app => {
-    const matchesSearch = app.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFramework = filterFramework === 'all' || app.framework === filterFramework;
-    const matchesVisibility = filterVisibility === 'all' || app.visibility === filterVisibility;
-    
-    return matchesSearch && matchesFramework && matchesVisibility;
-  });
-
-  // Sort filtered apps
-  const sortedApps = [...filteredApps].sort((a, b) => {
-    switch (sortBy) {
-      case 'popular':
-        const aScore = (a.viewCount || 0) + (a.starCount || 0) * 2 + (a.forkCount || 0) * 3;
-        const bScore = (b.viewCount || 0) + (b.starCount || 0) * 2 + (b.forkCount || 0) * 3;
-        return bScore - aScore;
-      case 'starred':
-        if (a.userFavorited && !b.userFavorited) return -1;
-        if (!a.userFavorited && b.userFavorited) return 1;
-        return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
-      case 'recent':
-      default:
-        return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
-    }
+  // Use unified paginated apps hook with server-side sorting
+  const {
+    apps,
+    loading,
+    loadingMore,
+    error,
+    totalCount,
+    hasMore,
+    refetch,
+    loadMore,
+    updateFilters
+  } = usePaginatedApps({
+    type: 'user',
+    sort: sortBy,
+    period: period,
+    framework: filterFramework === 'all' ? undefined : filterFramework,
+    search: searchQuery || undefined,
+    visibility: filterVisibility === 'all' ? undefined : filterVisibility,
+    limit: 20
   });
 
   const handleToggleFavorite = async (appId: string) => {
@@ -55,17 +52,28 @@ export default function AppsPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    // Search happens automatically through filtering
+    updateFilters({ search: searchQuery || undefined });
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
+  const handleSortChange = (newSort: string) => {
+    const sort = newSort as AppSortOption;
+    setSortBy(sort);
+    updateFilters({ sort });
+  };
+
+  const handlePeriodChange = (newPeriod: TimePeriod) => {
+    setPeriod(newPeriod);
+    updateFilters({ period: newPeriod });
+  };
+
+  const handleFrameworkChange = (framework: string) => {
+    setFilterFramework(framework);
+    updateFilters({ framework: framework === 'all' ? undefined : framework });
+  };
+
+  const handleVisibilityChange = (visibility: string) => {
+    setFilterVisibility(visibility);
+    updateFilters({ visibility: visibility === 'all' ? undefined : visibility });
   };
 
   return (
@@ -82,7 +90,7 @@ export default function AppsPage() {
               My Apps
             </h1>
             <p className="text-muted-foreground text-lg">
-              {apps.length} app{apps.length !== 1 ? 's' : ''} in your workspace
+              {loading ? 'Loading...' : `${totalCount} app${totalCount !== 1 ? 's' : ''} in your workspace`}
             </p>
           </div>
 
@@ -99,7 +107,7 @@ export default function AppsPage() {
                   className="pl-10"
                 />
               </div>
-              <Select value={filterFramework} onValueChange={setFilterFramework}>
+              <Select value={filterFramework} onValueChange={handleFrameworkChange}>
                 <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="Framework" />
                 </SelectTrigger>
@@ -112,7 +120,7 @@ export default function AppsPage() {
                   <SelectItem value="vanilla">Vanilla JS</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={filterVisibility} onValueChange={setFilterVisibility}>
+              <Select value={filterVisibility} onValueChange={handleVisibilityChange}>
                 <SelectTrigger className="w-[130px]">
                   <SelectValue placeholder="Visibility" />
                 </SelectTrigger>
@@ -124,10 +132,18 @@ export default function AppsPage() {
                   <SelectItem value="public">Public</SelectItem>
                 </SelectContent>
               </Select>
+              {(sortBy === 'popular' || sortBy === 'trending') && (
+                <TimePeriodSelector
+                  value={period}
+                  onValueChange={handlePeriodChange}
+                  className="w-[120px]"
+                  showForSort={sortBy}
+                />
+              )}
             </form>
 
             {/* Sort Tabs */}
-            <Tabs value={sortBy} onValueChange={(v) => setSortBy(v as any)} className="w-full">
+            <Tabs value={sortBy} onValueChange={handleSortChange} className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="recent" className="flex items-center gap-2">
                   <Clock className="h-4 w-4" />
@@ -145,65 +161,39 @@ export default function AppsPage() {
             </Tabs>
           </div>
 
-          {/* Main Apps Grid */}
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : error ? (
-            <div className="text-center py-20">
-              <div className="rounded-full bg-destructive/10 p-3 mb-4 inline-flex">
-                <X className="h-6 w-6 text-destructive" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Failed to load apps</h3>
-              <p className="text-muted-foreground mb-6">{error}</p>
-              <Button onClick={refetch} variant="outline">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Retry
-              </Button>
-            </div>
-          ) : sortedApps.length === 0 ? (
-            <div className="text-center py-20">
-              <Code2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-xl font-semibold mb-2">
-                {searchQuery || filterFramework !== 'all' || filterVisibility !== 'all' 
-                  ? 'No apps match your filters' 
-                  : 'No apps yet'}
-              </h3>
-              <p className="text-muted-foreground mb-6">
-                {searchQuery || filterFramework !== 'all' || filterVisibility !== 'all' 
-                  ? 'Try adjusting your search or filters to find what you\'re looking for.'
-                  : 'Start building your first app with AI assistance.'}
-              </p>
-              {!searchQuery && filterFramework === 'all' && filterVisibility === 'all' && (
-                <Button 
-                  onClick={() => navigate('/')} 
-                  className="bg-gradient-to-r from-[#f48120] to-[#faae42] hover:from-[#faae42] hover:to-[#f48120] text-white"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create your first app
-                </Button>
-              )}
-            </div>
-          ) : (
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-            >
-              {sortedApps.map(app => (
-                <AppCard 
-                  key={app.id} 
-                  app={app}
-                  onClick={(appId) => navigate(`/app/${appId}`)}
-                  onToggleFavorite={handleToggleFavorite}
-                  showStats={true}
-                  showUser={false}
-                />
-              ))}
-            </motion.div>
-          )}
+          {/* Unified App List */}
+          <AppListContainer
+            apps={apps}
+            loading={loading}
+            loadingMore={loadingMore}
+            error={error}
+            hasMore={hasMore}
+            totalCount={totalCount}
+            sortBy={sortBy === 'starred' ? 'starred' : sortBy}
+            onAppClick={(appId) => navigate(`/app/${appId}`)}
+            onToggleFavorite={handleToggleFavorite}
+            onLoadMore={loadMore}
+            onRetry={refetch}
+            showUser={false}
+            showStats={true}
+            emptyState={
+              !searchQuery && filterFramework === 'all' && filterVisibility === 'all' && sortBy === 'recent' && totalCount === 0
+                ? {
+                    title: 'No apps yet',
+                    description: 'Start building your first app with AI assistance.',
+                    action: (
+                      <Button 
+                        onClick={() => navigate('/')} 
+                        className="bg-gradient-to-r from-[#f48120] to-[#faae42] hover:from-[#faae42] hover:to-[#f48120] text-white"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create your first app
+                      </Button>
+                    )
+                  }
+                : undefined
+            }
+          />
         </motion.div>
       </div>
     </div>
