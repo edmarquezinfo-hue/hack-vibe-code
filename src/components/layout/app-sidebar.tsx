@@ -10,6 +10,7 @@ import {
 	Globe,
 	Lock,
 	Users2,
+	Bookmark,
 	// LayoutGrid,
 	Compass,
 } from 'lucide-react';
@@ -48,6 +49,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { formatDistanceToNow, isValid } from 'date-fns';
 
 interface App {
 	id: string;
@@ -175,7 +177,7 @@ export function AppSidebar() {
 										<TooltipTrigger asChild>
 											<button
 												className={cn(
-													'group flex w-full border-[0.5px] border-bg-2 items-center gap-2 bg-bg-1 font-semibold hover:opacity-80 hover:cursor-pointer text-lg p-2 rounded-md cursor-hand text-text-secondary hover:text-text-primary',
+													'group flex w-full border-[0.5px] border-bg-2 items-center gap-2 bg-bg-1 font-medium hover:opacity-80 hover:cursor-pointer p-2 rounded-md cursor-hand text-text-secondary hover:text-text-primary',
 													isCollapsed
 														? 'justify-center'
 														: 'justify-start',
@@ -184,7 +186,7 @@ export function AppSidebar() {
 											>
 												<Plus className="h-4 w-4 text-primary/40" />
 												{!isCollapsed && (
-													<span className="">
+													<span className="font-medium text-primary/80">
 														New build
 													</span>
 												)}
@@ -197,7 +199,9 @@ export function AppSidebar() {
 					</SidebarGroup>
 
 					{!isCollapsed && (
-						<ScrollArea className="flex-1 px-1">
+						<ScrollArea className="flex-1 px-1 relative">
+							{/* Gradient fade overlay for app names at sidebar edge */}
+							<div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-bg-2 to-transparent pointer-events-none z-10"></div>
 							{/* Navigation */}
 							<SidebarGroup>
 								{expandedGroups.includes('apps') && (
@@ -213,7 +217,7 @@ export function AppSidebar() {
 														e.target.value,
 													)
 												}
-												className="h-10 w-full pl-8 text-lg placeholder:text-lg placeholder:text-primary/40"
+												className="h-10 w-full pl-8 placeholder:text-primary/40"
 											/>
 										</div>
 										<SidebarMenu>
@@ -244,7 +248,7 @@ export function AppSidebar() {
 
 														<div className="flex-1 min-w-0">
 															<div className="flex items-center gap-2">
-																<span className="truncate font-medium text-base text-primary/80">
+																<span className="truncate font-medium text-primary/80">
 																	{app.title}
 																</span>
 																<div className="opacity-0 group-hover:opacity-100 transition-opacity">
@@ -254,7 +258,12 @@ export function AppSidebar() {
 																</div>
 															</div>
 															<p className="text-xs text-muted-foreground">
-																{app.updatedAt}
+																{app.updatedAt ? (
+																	(() => {
+																		const date = new Date(app.updatedAt);
+																		return isValid(date) ? formatDistanceToNow(date, { addSuffix: true }) : 'Recently';
+																	})()
+																) : 'Recently'}
 															</p>
 														</div>
 													</SidebarMenuButton>
@@ -307,7 +316,7 @@ export function AppSidebar() {
 													>
 														<ChevronRight className="h-4 w-4" />
 														{!isCollapsed && (
-															<span className="text-sm">
+															<span className="font-medium text-primary/80">
 																View all apps →
 															</span>
 														)}
@@ -331,8 +340,8 @@ export function AppSidebar() {
 													'justify-center px-0',
 											)}
 										>
-											<Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
-											{!isCollapsed && 'Favorites'}
+											<Bookmark className="h-4 w-4 fill-yellow-500 text-yellow-500" />
+											{!isCollapsed && 'Bookmarked'}
 										</SidebarGroupLabel>
 										<SidebarGroupContent>
 											<SidebarMenu>
@@ -350,7 +359,7 @@ export function AppSidebar() {
 															className="favorite-item-button"
 														>
 															{getFrameworkIcon(
-																app.framework,
+																app.framework || undefined,
 															)}
 															{!isCollapsed && (
 																<span className="truncate">
@@ -447,9 +456,7 @@ export function AppSidebar() {
 																{!isCollapsed && (
 																	<div className="flex-1 min-w-0">
 																		<p className="text-sm font-medium truncate">
-																			{
-																				board.name
-																			}
+																			{board.name}
 																		</p>
 																		<p className="text-xs text-muted-foreground truncate">
 																			{
@@ -479,7 +486,7 @@ export function AppSidebar() {
 														>
 															<Plus className="h-4 w-4" />
 															{!isCollapsed && (
-																<span className="text-sm ml-2">
+																<span className="font-medium text-primary/80 ml-2">
 																	Browse all
 																	boards
 																</span>

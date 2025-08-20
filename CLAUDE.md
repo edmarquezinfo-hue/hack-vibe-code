@@ -117,6 +117,8 @@ Required in `.dev.vars` for local development:
 - Keep code quality high and maintainability in mind
 - Always research and understand the codebase before making changes
 - Never use 'any' type. If you see 'any', Find the proper appropriate type in the project and then replace it. If nothing is found, then write a type for it. 
+- Never use dynamic imports. If you see dynamic imports, Correct it!
+- Implement everything the 'right' and 'correct' way instead of 'fast' and 'quick'.
 
 ## Common Tasks
 

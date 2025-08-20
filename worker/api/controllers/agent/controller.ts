@@ -1,15 +1,17 @@
-import { createObjectLogger, Trace, StructuredLogger } from '../../logger'
-import { generateBlueprint } from '../../agents/planning/blueprint';
-import { selectTemplate } from '../../agents/planning/templateSelector';
-import { SandboxSdkClient } from '../../services/sandbox/sandboxSdkClient';
-import { WebSocketMessageResponses } from '../../agents/constants';
-import { authMiddleware } from '../../middleware/security/auth';
-import * as schema from '../../database/schema';
-import { BaseController } from './BaseController';
-import { getSandboxService } from '../../services/sandbox/factory';
-import { generateId } from '../../utils/idGenerator';
-import { CodeGenState } from '../../agents/core/state';
-import { getAgentStub } from '../../agents';
+import { createObjectLogger, Trace, StructuredLogger } from '../../../logger'
+import { generateBlueprint } from '../../../agents/planning/blueprint';
+import { selectTemplate } from '../../../agents/planning/templateSelector';
+import { SandboxSdkClient } from '../../../services/sandbox/sandboxSdkClient';
+import { WebSocketMessageResponses } from '../../../agents/constants';
+import { authMiddleware } from '../../../middleware/security/auth';
+import * as schema from '../../../database/schema';
+import { BaseController } from '../BaseController';
+import { getSandboxService } from '../../../services/sandbox/factory';
+import { generateId } from '../../../utils/idGenerator';
+import { CodeGenState } from '../../../agents/core/state';
+import { getAgentStub } from '../../../agents';
+import { AgentStateData, AgentConnectionData } from './types';
+import { ApiResponse, ControllerResponse } from '../BaseController.types';
 
 interface CodeGenArgs {
     query: string;
@@ -328,11 +330,11 @@ export class CodingAgentController extends BaseController {
         env: Env,
         _: ExecutionContext,
         params?: Record<string, string>
-    ): Promise<Response> {
+    ): Promise<ControllerResponse<ApiResponse<AgentConnectionData>>> {
         try {
             const agentId = params?.agentId;
             if (!agentId) {
-                return this.createErrorResponse('Missing agent ID parameter', 400);
+                return this.createErrorResponse<AgentConnectionData>('Missing agent ID parameter', 400);
             }
 
             this.codeGenLogger.info(`Connecting to existing agent: ${agentId}`);
@@ -341,35 +343,43 @@ export class CodingAgentController extends BaseController {
                 // Verify the agent instance exists
                 const agentInstance = await getAgentStub(env, agentId);
                 if (!agentInstance || !(await agentInstance.isInitialized())) {
-                    return this.createErrorResponse('Agent instance not found or not initialized', 404);
+                    return this.createErrorResponse<AgentConnectionData>('Agent instance not found or not initialized', 404);
                 }
                 this.codeGenLogger.info(`Successfully connected to existing agent: ${agentId}`);
 
                 // Construct WebSocket URL
                 const url = new URL(request.url);
-                const websocketUrl = `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/api/agent/ws/${agentId}`;
+                const websocketUrl = `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/api/agent/${agentId}/ws`;
 
-                return this.createSuccessResponse({
+                const responseData: AgentConnectionData = {
                     websocketUrl,
                     agentId,
-                });
+                };
+
+                return this.createSuccessResponse(responseData);
             } catch (error) {
                 this.codeGenLogger.error(`Failed to connect to agent ${agentId}:`, error);
-                return this.createErrorResponse(`Agent instance not found or unavailable: ${error instanceof Error ? error.message : String(error)}`, 404);
+                return this.createErrorResponse<AgentConnectionData>(`Agent instance not found or unavailable: ${error instanceof Error ? error.message : String(error)}`, 404);
             }
         } catch (error) {
             this.codeGenLogger.error('Error connecting to existing agent', error);
-            return this.handleError(error, 'connect to existing agent');
+            return this.handleError(error, 'connect to existing agent') as ControllerResponse<ApiResponse<AgentConnectionData>>;
         }
     }
     /**
      * Get comprehensive agent state for app viewing
+     * Returns strictly typed response matching AgentStateData interface
      */
-    async getAgentState(request: Request, env: Env, _ctx: ExecutionContext, params?: Record<string, string>): Promise<Response> {
+    async getAgentState(
+        request: Request, 
+        env: Env, 
+        _ctx: ExecutionContext, 
+        params?: Record<string, string>
+    ): Promise<ControllerResponse<ApiResponse<AgentStateData>>> {
         try {
             const agentId = params?.agentId;
             if (!agentId) {
-                return this.createErrorResponse('Missing agent ID parameter', 400);
+                return this.createErrorResponse<AgentStateData>('Missing agent ID parameter', 400);
             }
 
             this.codeGenLogger.info(`Fetching agent state: ${agentId}`);
@@ -389,10 +399,10 @@ export class CodingAgentController extends BaseController {
                 });
                 // Construct WebSocket URL
                 const url = new URL(request.url);
-                const websocketUrl = `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/api/agent/ws/${agentId}`;
+                const websocketUrl = `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/api/agent/${agentId}/ws`;
                 
-                // Prepare response with comprehensive agent data
-                const response = {
+                // Prepare response with comprehensive agent data matching AgentStateData interface
+                const responseData: AgentStateData = {
                     agentId,
                     websocketUrl,
                     progress: agentProgress,
@@ -401,21 +411,23 @@ export class CodingAgentController extends BaseController {
 
                 this.codeGenLogger.info('Agent state fetched successfully', {
                     agentId,
-                    codeFiles: response.progress.generatedCode.length,
-                    conversationMessages: response.state.conversationMessages.length,
-                    phases: response.state.generatedPhases.length
+                    codeFiles: responseData.progress.generatedCode.length,
+                    conversationMessages: responseData.state.conversationMessages.length,
+                    phases: responseData.state.generatedPhases.length
                 });
 
-                return this.createSuccessResponse(response);
+                return this.createSuccessResponse(responseData);
 
             } catch (agentError) {
                 this.codeGenLogger.error('Failed to fetch agent instance', { agentId, error: agentError });
-                return this.createErrorResponse('Agent instance not found or inaccessible', 404);
+                return this.createErrorResponse<AgentStateData>('Agent instance not found or inaccessible', 404);
             }
 
         } catch (error) {
             this.codeGenLogger.error('Error fetching agent state', error);
-            return this.handleError(error, 'fetch agent state');
+            // Use the typed error handling approach
+            const appError = this.handleError(error, 'fetch agent state') as ControllerResponse<ApiResponse<AgentStateData>>;
+            return appError;
         }
     }
 }

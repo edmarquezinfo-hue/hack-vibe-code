@@ -54,6 +54,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { apiClient } from '@/lib/api-client';
 
 export default function SettingsPage() {
 	const { user } = useAuth();
@@ -227,16 +228,13 @@ export default function SettingsPage() {
 	const loadModelConfigs = async () => {
 		try {
 			setLoadingConfigs(true);
-			const response = await fetch('/api/model-configs', {
-				credentials: 'include'
-			});
+			const response = await apiClient.getModelConfigs();
 			
-			if (response.ok) {
-				const data = await response.json();
-				if (data.success) {
-					setModelConfigs(data.data.configs || {});
-					setDefaultConfigs(data.data.defaults || {});
-				}
+			if (response.success && response.data) {
+				setModelConfigs(response.data.configs || {});
+				setDefaultConfigs(response.data.defaults || {});
+			} else {
+				throw new Error(response.error || 'Failed to load model configurations');
 			}
 		} catch (error) {
 			console.error('Error loading model configurations:', error);
@@ -249,21 +247,13 @@ export default function SettingsPage() {
 	// Save model configuration
 	const saveModelConfig = async (agentAction: string, config: any) => {
 		try {
-			const response = await fetch(`/api/model-configs/${agentAction}`, {
-				method: 'PUT',
-				credentials: 'include',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify(config)
-			});
+			const response = await apiClient.updateModelConfig(agentAction, config);
 			
-			if (response.ok) {
+			if (response.success) {
 				toast.success('Configuration saved successfully');
 				await loadModelConfigs(); // Reload to get updated data
 			} else {
-				const data = await response.json();
-				toast.error(data.error?.message || 'Failed to save configuration');
+				toast.error(response.error || 'Failed to save configuration');
 			}
 		} catch (error) {
 			console.error('Error saving model configuration:', error);
@@ -275,29 +265,17 @@ export default function SettingsPage() {
 	const testModelConfig = async (agentAction: string) => {
 		try {
 			setTestingConfig(agentAction);
-			const response = await fetch('/api/model-configs/test', {
-				method: 'POST',
-				credentials: 'include',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					agentActionName: agentAction,
-					useUserKeys: true
-				})
-			});
+			const response = await apiClient.testModelConfig(agentAction);
 			
-			const data = await response.json();
-			
-			if (response.ok && data.success) {
-				const result = data.data.testResult;
+			if (response.success && response.data) {
+				const result = response.data.testResult;
 				if (result.success) {
 					toast.success(`Test successful! Model: ${result.modelUsed}, Response time: ${result.latencyMs}ms`);
 				} else {
 					toast.error(`Test failed: ${result.error}`);
 				}
 			} else {
-				toast.error(data.error?.message || 'Test failed');
+				toast.error(response.error || 'Test failed');
 			}
 		} catch (error) {
 			console.error('Error testing configuration:', error);

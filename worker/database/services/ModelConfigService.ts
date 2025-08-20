@@ -1,51 +1,41 @@
 /**
  * Model Configuration Service
  * Handles CRUD operations for user model configurations
+ * Moved from /services/modelConfig/ to maintain consistent database service patterns
  */
 
-import { DatabaseService } from '../../database/database';
-import { UserModelConfig, NewUserModelConfig, userModelConfigs } from '../../database/schema';
+import { BaseService } from './BaseService';
+import { UserModelConfig, NewUserModelConfig, userModelConfigs } from '../schema';
 import { eq, and } from 'drizzle-orm';
-import { AgentActionKey, AGENT_CONFIG, ModelConfig, AIModels, ProviderOverrideType, ReasoningEffortType } from '../../agents/inferutils/config';
+import { AgentActionKey, AGENT_CONFIG, ModelConfig, AIModels } from '../../agents/inferutils/config';
+import type { ReasoningEffort } from 'openai/resources.mjs';
 import { generateId } from '../../utils/idGenerator';
+import type { UserModelConfigWithMetadata } from '../types';
 
-export interface MergedModelConfig extends ModelConfig {
-    isUserOverride: boolean;
-    userConfigId?: string;
-}
-
-export class ModelConfigService {
-    constructor(private db: DatabaseService) {}
+export class ModelConfigService extends BaseService {
 
     /**
-     * Safely convert database text value to AIModels enum
+     * Safely cast database string to ReasoningEffort type
      */
-    private safeConvertToAIModel(value: string | null): AIModels | undefined {
+    private castToReasoningEffort(value: string | null): ReasoningEffort | undefined {
         if (!value) return undefined;
-        return Object.values(AIModels).includes(value as AIModels) ? (value as AIModels) : undefined;
+        return value as ReasoningEffort;
     }
 
     /**
-     * Safely convert database text value to ReasoningEffortType
+     * Safely cast database string to provider override type
      */
-    private safeConvertToReasoningEffort(value: string | null): ReasoningEffortType | undefined {
+    private castToProviderOverride(value: string | null): 'cloudflare' | 'direct' | undefined {
         if (!value) return undefined;
-        return ['low', 'medium', 'high'].includes(value as ReasoningEffortType) ? (value as ReasoningEffortType) : undefined;
+        return value as 'cloudflare' | 'direct';
     }
 
-    /**
-     * Safely convert database text value to ProviderOverrideType
-     */
-    private safeConvertToProviderOverride(value: string | null): ProviderOverrideType | undefined {
-        if (!value) return undefined;
-        return ['cloudflare', 'direct'].includes(value as ProviderOverrideType) ? (value as ProviderOverrideType) : undefined;
-    }
 
     /**
      * Get all model configurations for a user (merged with defaults)
      */
-    async getUserModelConfigs(userId: string): Promise<Record<AgentActionKey, MergedModelConfig>> {
-        const userConfigs = await this.db.db
+    async getUserModelConfigs(userId: string): Promise<Record<AgentActionKey, UserModelConfigWithMetadata>> {
+        const userConfigs = await this.database
             .select()
             .from(userModelConfigs)
             .where(and(
@@ -53,7 +43,7 @@ export class ModelConfigService {
                 eq(userModelConfigs.isActive, true)
             ));
 
-        const result: Record<string, MergedModelConfig> = {};
+        const result: Record<string, UserModelConfigWithMetadata> = {};
 
         // Start with all default configurations
         for (const [actionKey, defaultConfig] of Object.entries(AGENT_CONFIG)) {
@@ -62,12 +52,12 @@ export class ModelConfigService {
             if (userConfig) {
                 // Merge user config with defaults (user config takes precedence, null values use defaults)
                 result[actionKey] = {
-                    name: this.safeConvertToAIModel(userConfig.modelName) || defaultConfig.name,
-                    max_tokens: userConfig.maxTokens || defaultConfig.max_tokens,
+                    name: (userConfig.modelName as AIModels) ?? defaultConfig.name,
+                    max_tokens: userConfig.maxTokens ?? defaultConfig.max_tokens,
                     temperature: userConfig.temperature !== null ? userConfig.temperature : defaultConfig.temperature,
-                    reasoning_effort: this.safeConvertToReasoningEffort(userConfig.reasoningEffort) || defaultConfig.reasoning_effort,
-                    providerOverride: this.safeConvertToProviderOverride(userConfig.providerOverride) || defaultConfig.providerOverride,
-                    fallbackModel: this.safeConvertToAIModel(userConfig.fallbackModel) || defaultConfig.fallbackModel,
+                    reasoning_effort: this.castToReasoningEffort(userConfig.reasoningEffort) ?? defaultConfig.reasoning_effort,
+                    providerOverride: this.castToProviderOverride(userConfig.providerOverride) ?? defaultConfig.providerOverride,
+                    fallbackModel: (userConfig.fallbackModel as AIModels) ?? defaultConfig.fallbackModel,
                     isUserOverride: true,
                     userConfigId: userConfig.id
                 };
@@ -80,14 +70,14 @@ export class ModelConfigService {
             }
         }
 
-        return result as Record<AgentActionKey, MergedModelConfig>;
+        return result as Record<AgentActionKey, UserModelConfigWithMetadata>;
     }
 
     /**
      * Get a specific model configuration for a user (merged with defaults for UI display)
      */
-    async getUserModelConfig(userId: string, agentActionName: AgentActionKey): Promise<MergedModelConfig> {
-        const userConfig = await this.db.db
+    async getUserModelConfig(userId: string, agentActionName: AgentActionKey): Promise<UserModelConfigWithMetadata> {
+        const userConfig = await this.database
             .select()
             .from(userModelConfigs)
             .where(and(
@@ -102,12 +92,12 @@ export class ModelConfigService {
         if (userConfig.length > 0) {
             const config = userConfig[0];
             return {
-                name: this.safeConvertToAIModel(config.modelName) || defaultConfig.name,
-                max_tokens: config.maxTokens || defaultConfig.max_tokens,
+                name: (config.modelName as AIModels) ?? defaultConfig.name,
+                max_tokens: config.maxTokens ?? defaultConfig.max_tokens,
                 temperature: config.temperature !== null ? config.temperature : defaultConfig.temperature,
-                reasoning_effort: this.safeConvertToReasoningEffort(config.reasoningEffort) || defaultConfig.reasoning_effort,
-                providerOverride: this.safeConvertToProviderOverride(config.providerOverride) || defaultConfig.providerOverride,
-                fallbackModel: this.safeConvertToAIModel(config.fallbackModel) || defaultConfig.fallbackModel,
+                reasoning_effort: this.castToReasoningEffort(config.reasoningEffort) ?? defaultConfig.reasoning_effort,
+                providerOverride: this.castToProviderOverride(config.providerOverride) ?? defaultConfig.providerOverride,
+                fallbackModel: (config.fallbackModel as AIModels) ?? defaultConfig.fallbackModel,
                 isUserOverride: true,
                 userConfigId: config.id
             };
@@ -124,7 +114,7 @@ export class ModelConfigService {
      * Returns null if user has no custom config (for executeInference usage)
      */
     async getRawUserModelConfig(userId: string, agentActionName: AgentActionKey): Promise<ModelConfig | null> {
-        const userConfig = await this.db.db
+        const userConfig = await this.database
             .select()
             .from(userModelConfigs)
             .where(and(
@@ -144,14 +134,15 @@ export class ModelConfigService {
             
             if (hasOverrides) {
                 const defaultConfig = AGENT_CONFIG[agentActionName];
-                return {
-                    name: config.modelName as any || defaultConfig.name,
+                const modelConfig: ModelConfig = {
+                    name: (config.modelName as AIModels) || defaultConfig.name,
                     max_tokens: config.maxTokens || defaultConfig.max_tokens,
                     temperature: config.temperature !== null ? config.temperature : defaultConfig.temperature,
-                    reasoning_effort: config.reasoningEffort as any || defaultConfig.reasoning_effort,
-                    providerOverride: config.providerOverride as any || defaultConfig.providerOverride,
-                    fallbackModel: config.fallbackModel as any || defaultConfig.fallbackModel,
+                    reasoning_effort: this.castToReasoningEffort(config.reasoningEffort) ?? defaultConfig.reasoning_effort,
+                    providerOverride: this.castToProviderOverride(config.providerOverride) ?? defaultConfig.providerOverride,
+                    fallbackModel: (config.fallbackModel as AIModels) || defaultConfig.fallbackModel,
                 };
+                return modelConfig;
             }
         }
 
@@ -167,7 +158,7 @@ export class ModelConfigService {
         agentActionName: AgentActionKey,
         config: Partial<ModelConfig>
     ): Promise<UserModelConfig> {
-        const existingConfig = await this.db.db
+        const existingConfig = await this.database
             .select()
             .from(userModelConfigs)
             .where(and(
@@ -182,7 +173,7 @@ export class ModelConfigService {
             modelName: config.name || null,
             maxTokens: config.max_tokens || null,
             temperature: config.temperature !== undefined ? config.temperature : null,
-            reasoningEffort: config.reasoning_effort === 'minimal' ? 'low' : (config.reasoning_effort || null),
+            reasoningEffort: (config.reasoning_effort && config.reasoning_effort !== 'minimal') ? config.reasoning_effort : null,
             providerOverride: config.providerOverride || null,
             fallbackModel: config.fallbackModel || null,
             isActive: true,
@@ -191,7 +182,7 @@ export class ModelConfigService {
 
         if (existingConfig.length > 0) {
             // Update existing config
-            const updated = await this.db.db
+            const updated = await this.database
                 .update(userModelConfigs)
                 .set(configData)
                 .where(eq(userModelConfigs.id, existingConfig[0].id))
@@ -206,7 +197,7 @@ export class ModelConfigService {
                 createdAt: new Date()
             } as NewUserModelConfig;
 
-            const created = await this.db.db
+            const created = await this.database
                 .insert(userModelConfigs)
                 .values(newConfig)
                 .returning();
@@ -219,7 +210,7 @@ export class ModelConfigService {
      * Delete/reset a user model configuration (revert to default)
      */
     async deleteUserModelConfig(userId: string, agentActionName: AgentActionKey): Promise<boolean> {
-        const result = await this.db.db
+        const result = await this.database
             .delete(userModelConfigs)
             .where(and(
                 eq(userModelConfigs.userId, userId),
@@ -240,7 +231,7 @@ export class ModelConfigService {
      * Check if user has any custom configurations
      */
     async hasUserOverrides(userId: string): Promise<boolean> {
-        const count = await this.db.db
+        const count = await this.database
             .select({ count: userModelConfigs.id })
             .from(userModelConfigs)
             .where(and(
@@ -255,7 +246,7 @@ export class ModelConfigService {
      * Reset all user configurations to defaults
      */
     async resetAllUserConfigs(userId: string): Promise<number> {
-        const result = await this.db.db
+        const result = await this.database
             .delete(userModelConfigs)
             .where(eq(userModelConfigs.userId, userId));
 

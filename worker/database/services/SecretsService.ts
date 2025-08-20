@@ -1,49 +1,23 @@
 /**
  * Secrets Service
  * Handles encryption/decryption and management of user API keys and secrets
+ * Moved from /services/secrets/ to maintain consistent database service patterns
  */
 
-import { DatabaseService } from '../../database/database';
-import * as schema from '../../database/schema';
+import { BaseService } from './BaseService';
+import * as schema from '../schema';
 import { eq, and } from 'drizzle-orm';
-import { createLogger } from '../../logger';
 import { generateId } from '../../utils/idGenerator';
+import type { SecretData, EncryptedSecret } from '../types';
+import { DatabaseService } from '../database';
 
-const logger = createLogger('SecretsService');
-
-export interface SecretData {
-    id?: string;
-    name: string;
-    provider: string;
-    secretType: string;
-    value: string;
-    environment?: string;
-    description?: string;
-    expiresAt?: Date;
-}
-
-export interface EncryptedSecret {
-    id: string;
-    userId: string;
-    name: string;
-    provider: string;
-    secretType: string;
-    keyPreview: string;
-    environment: string;
-    description?: string;
-    expiresAt?: Date;
-    lastUsed?: Date;
-    usageCount: number;
-    isActive: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-}
-
-export class SecretsService {
+export class SecretsService extends BaseService {
     constructor(
-        private db: DatabaseService,
+        db: DatabaseService,
         private env: Env
-    ) {}
+    ) {
+        super(db);
+    }
 
     /**
      * Encrypt a secret value using AES-256-GCM
@@ -83,7 +57,7 @@ export class SecretsService {
 
             return { encryptedValue, keyPreview };
         } catch (error) {
-            logger.error('Failed to encrypt secret', error);
+            this.logger.error('Failed to encrypt secret', error);
             throw new Error('Encryption failed');
         }
     }
@@ -116,7 +90,7 @@ export class SecretsService {
 
             return new TextDecoder().decode(decrypted);
         } catch (error) {
-            logger.error('Failed to decrypt secret', error);
+            this.logger.error('Failed to decrypt secret', error);
             throw new Error('Decryption failed');
         }
     }
@@ -144,17 +118,18 @@ export class SecretsService {
                 encryptedValue,
                 keyPreview,
                 environment: secretData.environment || 'production',
-                description: secretData.description,
-                expiresAt: secretData.expiresAt,
+                description: secretData.description ?? null,
+                expiresAt: secretData.expiresAt ?? null,
+                lastUsed: null,
                 isActive: true,
                 usageCount: 0,
                 createdAt: new Date(),
                 updatedAt: new Date()
             };
 
-            await this.db.db.insert(schema.userSecrets).values(newSecret);
+            await this.database.insert(schema.userSecrets).values(newSecret);
 
-            logger.info('Secret stored successfully', { 
+            this.logger.info('Secret stored successfully', { 
                 userId, 
                 provider: secretData.provider, 
                 secretType: secretData.secretType 
@@ -163,7 +138,7 @@ export class SecretsService {
             // Return without encrypted value
             return this.formatSecretResponse(newSecret);
         } catch (error) {
-            logger.error('Failed to store secret', error);
+            this.logger.error('Failed to store secret', error);
             throw error;
         }
     }
@@ -173,7 +148,7 @@ export class SecretsService {
      */
     async getUserSecrets(userId: string): Promise<EncryptedSecret[]> {
         try {
-            const secrets = await this.db.db
+            const secrets = await this.database
                 .select()
                 .from(schema.userSecrets)
                 .where(
@@ -186,7 +161,7 @@ export class SecretsService {
 
             return secrets.map(secret => this.formatSecretResponse(secret));
         } catch (error) {
-            logger.error('Failed to get user secrets', error);
+            this.logger.error('Failed to get user secrets', error);
             throw error;
         }
     }
@@ -196,7 +171,7 @@ export class SecretsService {
      */
     async getSecretValue(userId: string, secretId: string): Promise<string> {
         try {
-            const secret = await this.db.db
+            const secret = await this.database
                 .select()
                 .from(schema.userSecrets)
                 .where(
@@ -213,7 +188,7 @@ export class SecretsService {
             }
 
             // Update last used
-            await this.db.db
+            await this.database
                 .update(schema.userSecrets)
                 .set({
                     lastUsed: new Date(),
@@ -223,7 +198,7 @@ export class SecretsService {
 
             return await this.decryptSecret(secret.encryptedValue);
         } catch (error) {
-            logger.error('Failed to get secret value', error);
+            this.logger.error('Failed to get secret value', error);
             throw error;
         }
     }
@@ -233,7 +208,7 @@ export class SecretsService {
      */
     async deleteSecret(userId: string, secretId: string): Promise<void> {
         try {
-            await this.db.db
+            await this.database
                 .update(schema.userSecrets)
                 .set({
                     isActive: false,
@@ -246,9 +221,9 @@ export class SecretsService {
                     )
                 );
 
-            logger.info('Secret deleted successfully', { userId, secretId });
+            this.logger.info('Secret deleted successfully', { userId, secretId });
         } catch (error) {
-            logger.error('Failed to delete secret', error);
+            this.logger.error('Failed to delete secret', error);
             throw error;
         }
     }
@@ -259,7 +234,7 @@ export class SecretsService {
      */
     async getUserProviderKeysMap(userId: string): Promise<Map<string, string>> {
         try {
-            const secrets = await this.db.db
+            const secrets = await this.database
                 .select()
                 .from(schema.userSecrets)
                 .where(
@@ -277,14 +252,14 @@ export class SecretsService {
                     const decryptedKey = await this.decryptSecret(secret.encryptedValue);
                     keyMap.set(secret.provider, decryptedKey);
                 } catch (error) {
-                    logger.error(`Failed to decrypt key for provider ${secret.provider}:`, error);
+                    this.logger.error(`Failed to decrypt key for provider ${secret.provider}:`, error);
                 }
             }
 
-            logger.info(`Loaded ${keyMap.size} user API keys from secrets system`, { userId });
+            this.logger.info(`Loaded ${keyMap.size} user API keys from secrets system`, { userId });
             return keyMap;
         } catch (error) {
-            logger.error('Failed to get user provider keys map', error);
+            this.logger.error('Failed to get user provider keys map', error);
             return new Map();
         }
     }
@@ -292,7 +267,7 @@ export class SecretsService {
     /**
      * Format secret response (remove sensitive data)
      */
-    private formatSecretResponse(secret: any): EncryptedSecret {
+    private formatSecretResponse(secret: schema.UserSecret): EncryptedSecret {
         return {
             id: secret.id,
             userId: secret.userId,

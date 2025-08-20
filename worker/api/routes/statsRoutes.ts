@@ -1,5 +1,5 @@
 import { Router } from '../router';
-import { StatsController } from '../controllers/statsController';
+import { StatsController } from '../controllers/stats/controller';
 
 /**
  * Setup user statistics routes

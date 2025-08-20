@@ -4,7 +4,7 @@
  */
 
 import { Router } from '../router';
-import { AuthController } from '../controllers/authController';
+import { AuthController } from '../controllers/auth/controller';
 // Removed redundant authMiddleware import - AuthController methods handle their own authentication
 
 /**

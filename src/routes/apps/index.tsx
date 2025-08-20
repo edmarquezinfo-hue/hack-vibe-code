@@ -10,17 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useApps, toggleFavorite } from '@/hooks/use-apps';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow, isValid } from 'date-fns';
-
-interface App {
-  id: string;
-  title: string;
-  description?: string;
-  framework?: string;
-  updatedAt: string;
-  visibility: 'private' | 'team' | 'board' | 'public';
-  isFavorite?: boolean;
-  iconUrl?: string | null;
-}
+import type { AppWithFavoriteStatus } from '@/api-types';
 
 export default function AppsPage() {
   const navigate = useNavigate();
@@ -43,7 +33,7 @@ export default function AppsPage() {
     }
   };
 
-  const getVisibilityIcon = (visibility: App['visibility']) => {
+  const getVisibilityIcon = (visibility: AppWithFavoriteStatus['visibility']) => {
     switch (visibility) {
       case 'private':
         return <Lock className="h-4 w-4" />;
@@ -207,12 +197,13 @@ export default function AppsPage() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-3">
                         <div className="rounded-lg bg-sidebar-accent/50 p-2 flex-shrink-0">
-                          {getFrameworkIcon(app.framework)}
+                          {getFrameworkIcon(app.framework || undefined)}
                         </div>
                         <div className="min-w-0 flex-1">
                           <CardTitle className="text-base truncate">{app.title}</CardTitle>
                           <CardDescription className="text-xs">
                             {(() => {
+                              if (!app.updatedAt) return 'Recently';
                               const date = new Date(app.updatedAt);
                               return isValid(date) ? formatDistanceToNow(date, { addSuffix: true }) : 'Recently';
                             })()}

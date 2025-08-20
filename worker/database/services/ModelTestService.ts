@@ -1,40 +1,26 @@
 /**
  * Model Test Service
  * Handles testing of model configurations with user API keys
+ * Moved from /services/modelConfig/ to maintain consistent database service patterns
  */
 
-import { ModelConfig } from '../../agents/inferutils/config';
+import { BaseService } from './BaseService';
+import { AIModels } from '../../agents/inferutils/config';
 import { infer, InferError } from '../../agents/inferutils/core';
 import { createUserMessage } from '../../agents/inferutils/common';
 
-export interface TestResult {
-    success: boolean;
-    error?: string;
-    model?: string;
-    latencyMs?: number;
-}
+// Import centralized types
+import type { TestResult, ModelTestRequest, ModelTestResult } from '../types';
+import { isErrorWithMessage } from '../types';
+import { DatabaseService } from '../database';
 
-export interface ModelTestRequest {
-    modelConfig: ModelConfig;
-    userApiKeys?: Map<string, string>;
-    testPrompt?: string;
-}
-
-export interface ModelTestResult {
-    success: boolean;
-    error?: string;
-    responsePreview?: string;
-    latencyMs: number;
-    modelUsed: string;
-    tokensUsed?: {
-        prompt: number;
-        completion: number;
-        total: number;
-    };
-}
-
-export class ModelTestService {
-    constructor(private env: Env) {}
+export class ModelTestService extends BaseService {
+    constructor(
+        db: DatabaseService,
+        private env: Env
+    ) {
+        super(db);
+    }
 
     /**
      * Test a model configuration by making a simple chat request using core inference
@@ -92,13 +78,12 @@ export class ModelTestService {
                 rawError = error.message;
             } else if (error instanceof Error) {
                 rawError = error.message;
-            } else if (typeof error === 'object' && error !== null) {
+            } else if (isErrorWithMessage(error)) {
                 // Handle error objects from the core system
-                const errorObj = error as any;
-                if (errorObj.message) {
-                    rawError = errorObj.message;
-                } else if (errorObj.error?.message) {
-                    rawError = errorObj.error.message;
+                if (error.message) {
+                    rawError = error.message;
+                } else if (error.error?.message) {
+                    rawError = error.error.message;
                 } else {
                     rawError = JSON.stringify(error);
                 }
@@ -176,13 +161,12 @@ export class ModelTestService {
                 rawError = error.message;
             } else if (error instanceof Error) {
                 rawError = error.message;
-            } else if (typeof error === 'object' && error !== null) {
+            } else if (isErrorWithMessage(error)) {
                 // Handle error objects from the core system
-                const errorObj = error as any;
-                if (errorObj.message) {
-                    rawError = errorObj.message;
-                } else if (errorObj.error?.message) {
-                    rawError = errorObj.error.message;
+                if (error.message) {
+                    rawError = error.message;
+                } else if (error.error?.message) {
+                    rawError = error.error.message;
                 } else {
                     rawError = JSON.stringify(error);
                 }
@@ -198,18 +182,17 @@ export class ModelTestService {
         }
     }
 
-
     /**
      * Get a simple test model for a given provider
      */
     private getTestModelForProvider(provider: string): string | null {
         const testModels: Record<string, string> = {
-            'openai': 'openai/gpt-4o-mini',
-            'anthropic': 'anthropic/claude-3-haiku-20240307',
-            'google-ai-studio': 'google-ai-studio/gemini-1.5-flash',
-            'gemini': '[gemini]gemini-1.5-flash',
-            'openrouter': '[openrouter]openai/gpt-4o-mini',
-            'cerebras': 'cerebras/llama3.1-8b'
+            'openai': AIModels.OPENAI_5_MINI,
+            'anthropic': AIModels.CLAUDE_4_SONNET,
+            'google-ai-studio': AIModels.GEMINI_2_5_FLASH,
+            'gemini': AIModels.GEMINI_2_5_FLASH,
+            'openrouter': AIModels.OPENROUTER_QWEN_3_CODER,
+            'cerebras': AIModels.CEREBRAS_GPT_OSS
         };
 
         return testModels[provider] || null;

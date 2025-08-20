@@ -12,13 +12,8 @@ import { TokenService } from '../../services/auth/tokenService';
 import { DatabaseQueryHelpers } from '../../utils/DatabaseQueryHelpers';
 import { ControllerErrorHandler, ErrorHandler } from '../../utils/ErrorHandling';
 import { createLogger } from '../../logger';
-import { AuthUser } from '../../types/auth-types';
-
-export interface AuthResult {
-    success: boolean;
-    user?: AuthUser;
-    response?: Response;
-}
+// Import types from separate types file to maintain consistency
+import type { ControllerResponse, ApiResponse, AuthResult } from './BaseController.types';
 
 /**
  * Base controller class that provides common functionality
@@ -179,29 +174,52 @@ export abstract class BaseController {
     /**
      * Validate required parameters
      */
-    protected validateRequiredParams(params: Record<string, any>, requiredFields: string[]): void {
+    protected validateRequiredParams(params: Record<string, unknown>, requiredFields: string[]): void {
         ControllerErrorHandler.validateRequiredParams(params, requiredFields);
     }
 
     /**
      * Require authentication with standardized error
      */
-    protected requireAuthentication(user: any): void {
+    protected requireAuthentication(user: unknown): void {
         ControllerErrorHandler.requireAuthentication(user);
     }
 
     /**
-     * Create a standardized success response
+     * Create a typed success response that enforces response interface compliance
+     * This method ensures the response data matches the expected type T at compile time
      */
-    protected createSuccessResponse<T>(data: T): Response {
-        return successResponse(data);
+    protected createSuccessResponse<T>(data: T): ControllerResponse<ApiResponse<T>> {
+        const response = successResponse(data) as ControllerResponse<ApiResponse<T>>;
+        // The phantom type helps TypeScript understand this response contains type T
+        return response;
     }
 
     /**
-     * Create a standardized error response
+     * Create a typed error response with proper type annotation
      */
-    protected createErrorResponse(message: string, statusCode: number = 500): Response {
-        return errorResponse(message, statusCode);
+    protected createErrorResponse<T = never>(message: string, statusCode: number = 500): ControllerResponse<ApiResponse<T>> {
+        const response = errorResponse(message, statusCode) as ControllerResponse<ApiResponse<T>>;
+        return response;
+    }
+
+    /**
+     * Execute a typed controller operation with automatic error handling and type safety
+     * This method wraps controller operations to ensure they return properly typed responses
+     */
+    protected async executeTypedOperation<T>(
+        operation: () => Promise<T>,
+        operationName: string,
+        context?: Record<string, any>
+    ): Promise<ControllerResponse<ApiResponse<T>>> {
+        try {
+            const result = await operation();
+            return this.createSuccessResponse(result);
+        } catch (error) {
+            this.logger.error(`Error in ${operationName}`, { error, context });
+            const appError = ErrorHandler.handleError(error, operationName, context);
+            return ErrorHandler.toResponse(appError) as ControllerResponse<ApiResponse<T>>;
+        }
     }
 
     /**

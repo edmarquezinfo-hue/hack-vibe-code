@@ -1,39 +1,30 @@
 import { useState, useEffect, useMemo } from 'react';
-
-interface App {
-  id: string;
-  title: string;
-  description?: string;
-  framework?: string;
-  updatedAt: string;
-  visibility: 'private' | 'team' | 'board' | 'public';
-  isFavorite?: boolean;
-  iconUrl?: string | null;
-  status?: 'generating' | 'completed';
-  createdAt?: string;
-}
+import { apiClient, ApiError } from '@/lib/api-client';
+import type { AppWithFavoriteStatus } from '@/api-types';
 
 export function useApps() {
-  const [apps, setApps] = useState<App[]>([]);
+  const [apps, setApps] = useState<AppWithFavoriteStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchApps = async () => {
     try {
-      const response = await fetch(`/api/apps`, {
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch apps');
+      setLoading(true);
+      setError(null);
+      const response = await apiClient.getUserApps();
+      
+      if (response.success) {
+        setApps(response.data?.apps || []);
+      } else {
+        setError(response.error || 'Failed to fetch apps');
       }
-
-      const data = await response.json();
-      console.log('Apps API response:', data);
-      setApps(data.data?.apps || []);
     } catch (err) {
       console.error('Error fetching apps:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch apps');
+      if (err instanceof ApiError) {
+        setError(`${err.message} (${err.status})`);
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to fetch apps');
+      }
     } finally {
       setLoading(false);
     }
@@ -55,9 +46,11 @@ export function useRecentApps() {
   
   // Memoized sorted recent apps (last 10)
   const recentApps = useMemo(() => 
-    [...apps].sort((a, b) => 
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    ).slice(0, TOPK),
+    [...apps].sort((a, b) => {
+      const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return bTime - aTime;
+    }).slice(0, TOPK),
     [apps]
   );
 
@@ -71,32 +64,56 @@ export function useRecentApps() {
 }
 
 export function useFavoriteApps() {
-  const { apps, loading, error } = useApps();
-  
-  // Memoized filtered favorite apps
-  const favoriteApps = useMemo(() => 
-    apps.filter(app => app.isFavorite), 
-    [apps]
-  );
+  const [favoriteApps, setFavoriteApps] = useState<AppWithFavoriteStatus[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchFavorites = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiClient.getFavoriteApps();
+      
+      if (response.success) {
+        setFavoriteApps(response.data?.apps || []);
+      } else {
+        setError(response.error || 'Failed to fetch favorite apps');
+      }
+    } catch (err) {
+      console.error('Error fetching favorite apps:', err);
+      if (err instanceof ApiError) {
+        setError(`${err.message} (${err.status})`);
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to fetch favorite apps');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFavorites();
+  }, []);
 
   return { 
     apps: favoriteApps, 
     loading, 
     error, 
-    refetch: () => {} // Favorites will update when main apps refetch
+    refetch: fetchFavorites
   };
 }
 
 export async function toggleFavorite(appId: string): Promise<boolean> {
-  const response = await fetch(`/api/apps/${appId}/favorite`, {
-    method: 'POST',
-    credentials: 'include'
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to toggle favorite');
+  try {
+    const response = await apiClient.toggleFavorite(appId);
+    if (response.success && response.data) {
+      return response.data.isFavorite;
+    }
+    throw new Error(response.error || 'Failed to toggle favorite');
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw new Error(`Failed to toggle favorite: ${err.message}`);
+    }
+    throw err;
   }
-
-  const data = await response.json();
-  return data.data.isFavorite;
 }

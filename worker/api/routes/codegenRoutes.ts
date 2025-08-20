@@ -1,5 +1,5 @@
 import { Router } from '../router';
-import { CodingAgentController } from '../controllers/codingAgentController';
+import { CodingAgentController } from '../controllers/agent/controller';
 import { setupAuthRoutes } from './authRoutes';
 import { setupAppRoutes } from './appRoutes';
 import { setupStatsRoutes } from './statsRoutes';

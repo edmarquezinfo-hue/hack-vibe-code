@@ -4,7 +4,7 @@ import type { Blueprint, ClientReportedErrorType, PhaseConceptType ,
 import type { TemplateDetails } from '../../services/sandbox/sandboxTypes';
 import type { ScreenshotData } from './types';
 import type { ConversationMessage } from '../inferutils/common';
-import type { InferenceContext } from '../inferutils/config';
+import type { InferenceContext } from '../inferutils/config.types';
 
 export interface FileState extends FileOutputType {
     last_hash: string;

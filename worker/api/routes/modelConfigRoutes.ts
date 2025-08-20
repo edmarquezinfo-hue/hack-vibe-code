@@ -5,30 +5,23 @@
  */
 
 import { Router } from '../router';
-import { ModelConfigController } from '../controllers/modelConfigController';
+import { ModelConfigController } from '../controllers/modelConfig/controller';
 
 /**
  * Setup model configuration routes
  * All routes are protected and require authentication
  */
 export function setupModelConfigRoutes(router: Router): Router {
-    // Create controller handlers that capture env
-    const createModelConfigHandler = (method: keyof ModelConfigController) => {
-        return async (request: Request, env: Env, _ctx: ExecutionContext) => {
-            const controller = new ModelConfigController(env);
-            return controller[method](request);
-        };
-    };
-
+    const modelConfigController = new ModelConfigController();
 
     // Model Configuration Routes
-    router.get('/api/model-configs', createModelConfigHandler('getModelConfigs'));
-    router.get('/api/model-configs/defaults', createModelConfigHandler('getDefaults'));
-    router.get('/api/model-configs/:agentAction', createModelConfigHandler('getModelConfig'));
-    router.put('/api/model-configs/:agentAction', createModelConfigHandler('updateModelConfig'));
-    router.delete('/api/model-configs/:agentAction', createModelConfigHandler('deleteModelConfig'));
-    router.post('/api/model-configs/test', createModelConfigHandler('testModelConfig'));
-    router.post('/api/model-configs/reset-all', createModelConfigHandler('resetAllConfigs'));
+    router.get('/api/model-configs', modelConfigController.getModelConfigs.bind(modelConfigController));
+    router.get('/api/model-configs/defaults', modelConfigController.getDefaults.bind(modelConfigController));
+    router.get('/api/model-configs/:agentAction', modelConfigController.getModelConfig.bind(modelConfigController));
+    router.put('/api/model-configs/:agentAction', modelConfigController.updateModelConfig.bind(modelConfigController));
+    router.delete('/api/model-configs/:agentAction', modelConfigController.deleteModelConfig.bind(modelConfigController));
+    router.post('/api/model-configs/test', modelConfigController.testModelConfig.bind(modelConfigController));
+    router.post('/api/model-configs/reset-all', modelConfigController.resetAllConfigs.bind(modelConfigController));
 
     return router;
 }

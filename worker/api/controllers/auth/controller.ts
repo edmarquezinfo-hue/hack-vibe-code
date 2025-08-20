@@ -3,28 +3,30 @@
  * Handles all authentication endpoints with proper separation of concerns
  */
 
-import { BaseController } from './BaseController';
-import { generateId } from '../../utils/idGenerator';
-import { AuthService } from '../../services/auth/authService';
-import { SessionService } from '../../services/auth/sessionService';
-import { TokenService } from '../../services/auth/tokenService';
+import { BaseController } from '../BaseController';
+import { generateId } from '../../../utils/idGenerator';
+import { AuthService } from '../../../services/auth/authService';
+import { SessionService } from '../../../services/auth/sessionService';
+import { TokenService } from '../../../services/auth/tokenService';
 import { 
     loginSchema, 
     registerSchema, 
     refreshTokenSchema,
     oauthProviderSchema
-} from '../../services/auth/validators/authSchemas';
-import { SecurityError } from '../../types/security';
+} from '../../../services/auth/validators/authSchemas';
+import { SecurityError } from '../../../types/security';
 import { 
     setSecureAuthCookies, 
     clearAuthCookies, 
     extractRefreshToken,
     formatAuthResponse,
     mapUserResponse
-} from '../../utils/authUtils';
-import { OAuthIntegrationService } from '../../services/auth/OAuthIntegrationService';
-import * as schema from '../../database/schema';
+} from '../../../utils/authUtils';
+import { OAuthIntegrationService } from '../../../services/auth/OAuthIntegrationService';
+import { UserService } from '../../../database/services/UserService';
+import * as schema from '../../../database/schema';
 import { eq, and, desc, ne } from 'drizzle-orm';
+import { GitHubIntegrationController } from '../githubIntegration/controller';
 
 /**
  * Authentication Controller
@@ -156,7 +158,8 @@ export class AuthController extends BaseController {
             }
             
             const db = this.createDbService(this.env);
-            const fullUser = await db.findUserById(session.userId);
+            const userService = new UserService(db);
+            const fullUser = await userService.findUserById(session.userId);
             
             if (!fullUser) {
                 return this.createErrorResponse('User not found', 404);
@@ -231,7 +234,8 @@ export class AuthController extends BaseController {
                 .where(eq(schema.users.id, session.userId));
             
             // Return updated user data
-            const updatedUser = await db.findUserById(session.userId);
+            const userService = new UserService(db);
+            const updatedUser = await userService.findUserById(session.userId);
             
             if (!updatedUser) {
                 return this.createErrorResponse('User not found', 404);
@@ -349,7 +353,6 @@ export class AuthController extends BaseController {
             const integrationData = await oauthService.processIntegration(code, 'github');
 
             // Store the integration using GitHubIntegrationController
-            const { GitHubIntegrationController } = await import('./githubIntegrationController');
             await GitHubIntegrationController.storeIntegration(userId, integrationData, this.env);
 
             this.logger.info('GitHub integration completed', { 
@@ -429,7 +432,8 @@ export class AuthController extends BaseController {
             }
             
             const db = this.createDbService(this.env);
-            const user = await db.findUserById(session.userId);
+            const userService = new UserService(db);
+            const user = await userService.findUserById(session.userId);
             
             return this.createSuccessResponse({
                 authenticated: true,

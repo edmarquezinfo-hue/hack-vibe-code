@@ -28,6 +28,7 @@ import { capitalizeFirstLetter, cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useUserStats, useUserActivity } from '@/hooks/use-stats';
+import { apiClient } from '@/lib/api-client';
 import { useUserApps } from '@/hooks/use-apps';
 
 export default function Profile() {
@@ -67,24 +68,20 @@ export default function Profile() {
     try {
       setIsSaving(true);
       
-      const response = await fetch('/api/auth/profile', {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(profileData),
+      const response = await apiClient.updateProfile({
+        displayName: profileData.displayName,
+        username: profileData.username,
+        bio: profileData.bio,
+        timezone: profileData.timezone
       });
       
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
+      if (response.success) {
         toast.success('Profile updated successfully');
         // Refresh user data in auth context
         await refreshUser();
         setIsEditing(false);
       } else {
-        toast.error(data.error?.message || 'Failed to update profile');
+        toast.error(response.error || response.message || 'Failed to update profile');
       }
     } catch (error) {
       console.error('Profile update error:', error);

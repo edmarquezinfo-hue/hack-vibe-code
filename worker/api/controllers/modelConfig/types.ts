@@ -1,0 +1,66 @@
+/**
+ * Type definitions for ModelConfig Controller responses
+ */
+
+import type { UserModelConfigWithMetadata, ModelTestResult } from '../../../database/types';
+import type { AgentActionKey, ModelConfig } from '../../../agents/inferutils/config';
+import { UserModelConfig } from '../../../database/schema';
+
+/**
+ * Response data for getModelConfigs
+ */
+export interface ModelConfigsData {
+    configs: Record<AgentActionKey, UserModelConfigWithMetadata>;
+    defaults: Record<AgentActionKey, ModelConfig>;
+    message: string;
+}
+
+/**
+ * Response data for getModelConfig
+ */
+export interface ModelConfigData {
+    config: UserModelConfigWithMetadata;
+    defaultConfig: ModelConfig;
+    message: string;
+}
+
+/**
+ * Response data for updateModelConfig
+ */
+export interface ModelConfigUpdateData {
+    config: UserModelConfig;
+    message: string;
+}
+
+/**
+ * Response data for testModelConfig
+ */
+export interface ModelConfigTestData {
+    testResult: ModelTestResult;
+    message: string;
+}
+
+/**
+ * Response data for resetAllConfigs
+ * Simple result interface - no duplication needed
+ */
+export interface ModelConfigResetData {
+    resetCount: number;
+    message: string;
+}
+
+/**
+ * Response data for getDefaults
+ */
+export interface ModelConfigDefaultsData {
+    defaults: Record<AgentActionKey, ModelConfig>;
+    message: string;
+}
+
+/**
+ * Response data for deleteModelConfig
+ * Simple message response
+ */
+export interface ModelConfigDeleteData {
+    message: string;
+}

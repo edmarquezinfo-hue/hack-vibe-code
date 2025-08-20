@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import type { Blueprint } from '../../../worker/agents/schemas';
+import type { AppDetailsData, BlueprintType } from '@/api-types';
+import { apiClient, ApiError } from '@/lib/api-client';
 import {
 	Star,
 	Eye,
@@ -40,32 +41,8 @@ import { formatDistanceToNow, isValid } from 'date-fns';
 import { toast } from 'sonner';
 import { capitalizeFirstLetter, cn, getPreviewUrl } from '@/lib/utils';
 
-interface AppDetails {
-	id: string;
-	title: string;
-	description?: string;
-	framework?: string;
-	visibility: 'private' | 'team' | 'board' | 'public';
-	isFavorite?: boolean;
-	views?: number;
-	stars?: number;
-	cloudflareUrl?: string;
-	previewUrl?: string;
-	createdAt: string;
-	updatedAt: string;
-	userId: string;
-	user?: {
-		id: string;
-		displayName: string;
-		avatarUrl?: string;
-	};
-	blueprint?: Blueprint;
-	generatedCode?: Array<{
-		filePath: string;
-		fileContents: string;
-		explanation?: string;
-	}>;
-}
+// Use proper types from API types
+type AppDetails = AppDetailsData;
 
 interface AgentState {
 	generatedCode: Array<{
@@ -79,7 +56,7 @@ interface AgentState {
 		timestamp?: string;
 	}>;
 	originalPrompt: string;
-	blueprint?: Blueprint;
+	blueprint?: BlueprintType;
 	totalFiles: number;
 	isGenerating: boolean;
 }
@@ -119,40 +96,58 @@ export default function AppView() {
 
 		try {
 			setLoading(true);
+			setError(null);
 			
-			// Fetch app details and agent state in parallel
-			const [appResponse, agentResponse] = await Promise.allSettled([
-				fetch(`/api/apps/${id}`, { credentials: 'include' }),
-				fetch(`/api/agent/${id}/state`, { credentials: 'include' })
-			]);
-
-			// Handle app details response
-			if (appResponse.status === 'fulfilled' && appResponse.value.ok) {
-				const appData = await appResponse.value.json();
-				setApp(appData.data);
-				setIsFavorited(appData.data.isFavorite || false);
-				setIsStarred(appData.data.userHasStarred || false);
-			} else if (appResponse.status === 'fulfilled') {
-				if (appResponse.value.status === 404) {
-					throw new Error('App not found');
-				}
-				throw new Error('Failed to fetch app details');
+			// Fetch app details using API client
+			const appResponse = await apiClient.getAppDetails(id);
+			
+			if (appResponse.success && appResponse.data) {
+				const appData = appResponse.data;
+				setApp(appData);
+				setIsFavorited(appData.userFavorited || false);
+				setIsStarred(appData.userStarred || false);
 			} else {
-				throw new Error('Failed to fetch app details');
+				throw new Error(appResponse.error || 'Failed to fetch app details');
 			}
 
-			// Handle agent state response (optional - may not exist for some apps)
-			if (agentResponse.status === 'fulfilled' && agentResponse.value.ok) {
-				const agentData = await agentResponse.value.json();
-				setAgentState(agentData.data);
-			} else {
-				console.log('Agent state not available - this may be normal for some apps');
+			// Try to fetch agent state (optional - may not exist for some apps)
+			try {
+				const agentResponse = await apiClient.getAgentState(id);
+				if (agentResponse.success && agentResponse.data) {
+					// Map API response to local AgentState format
+					const backendState = agentResponse.data.state;
+					const backendProgress = agentResponse.data.progress;
+					
+					const agentData: AgentState = {
+						originalPrompt: backendState.query, // Map backend 'query' to frontend 'originalPrompt'
+						blueprint: backendState.blueprint,
+						generatedCode: backendProgress.generatedCode || [],
+						conversationMessages: backendState.conversationMessages || [],
+						totalFiles: Object.keys(backendState.generatedFilesMap || {}).length,
+						isGenerating: backendState.shouldBeGenerating || false,
+					};
+					
+					setAgentState(agentData);
+				} else {
+					console.log('Agent state not available - this may be normal for some apps');
+					setAgentState(null);
+				}
+			} catch (agentError) {
+				console.log('Agent state not available:', agentError);
 				setAgentState(null);
 			}
 
 		} catch (err) {
 			console.error('Error fetching app:', err);
-			setError(err instanceof Error ? err.message : 'Failed to load app');
+			if (err instanceof ApiError) {
+				if (err.status === 404) {
+					setError('App not found');
+				} else {
+					setError(`Failed to load app: ${err.message}`);
+				}
+			} else {
+				setError(err instanceof Error ? err.message : 'Failed to load app');
+			}
 		} finally {
 			setLoading(false);
 		}
@@ -217,23 +212,20 @@ export default function AppView() {
 		}
 
 		try {
-			const response = await fetch(`/api/apps/${app.id}/star`, {
-				method: 'POST',
-				credentials: 'include',
-			});
-
-			if (!response.ok) {
-				throw new Error('Failed to star app');
+			const response = await apiClient.toggleAppStar(app.id);
+			
+			if (response.success && response.data) {
+				setIsStarred(response.data.isStarred);
+				setApp((prev) =>
+					prev ? { ...prev, starCount: response.data.starCount } : null,
+				);
+				toast.success(response.data.isStarred ? 'Starred!' : 'Unstarred');
+			} else {
+				throw new Error(response.error || 'Failed to star app');
 			}
-
-			const data = await response.json();
-			setIsStarred(data.data.isStarred);
-			setApp((prev) =>
-				prev ? { ...prev, stars: data.data.starCount } : null,
-			);
-			toast.success(data.data.isStarred ? 'Starred!' : 'Unstarred');
 		} catch (error) {
-			toast.error('Failed to update star');
+			console.error('Star error:', error);
+			toast.error(error instanceof ApiError ? error.message : 'Failed to update star');
 		}
 	};
 
@@ -244,27 +236,17 @@ export default function AppView() {
 		}
 
 		try {
-			const response = await fetch(`/api/apps/${app.id}/fork`, {
-				method: 'POST',
-				credentials: 'include',
-			});
-
-			if (!response.ok) {
-				throw new Error('Failed to fork app');
-			}
-
-			const data = await response.json();
-			console.log('Fork response:', data); // Debug log
+			const response = await apiClient.forkApp(app.id);
 			
-			if (!data.data?.forkedAppId) {
-				throw new Error('Invalid fork response: missing forkedAppId');
+			if (response.success && response.data) {
+				toast.success(response.data.message || 'App forked successfully!');
+				navigate(`/chat/${response.data.forkedAppId}`);
+			} else {
+				throw new Error(response.error || 'Failed to fork app');
 			}
-			
-			toast.success('App forked successfully!');
-			navigate(`/chat/${data.data.forkedAppId}`);
 		} catch (error) {
 			console.error('Fork error:', error);
-			toast.error('Failed to fork app');
+			toast.error(error instanceof ApiError ? error.message : 'Failed to fork app');
 		}
 	};
 
@@ -300,19 +282,13 @@ export default function AppView() {
 			setDeploymentProgress('Connecting to agent...');
 
 			// Connect to existing agent
-			const response = await fetch(`/api/agent/${app.id}/connect`, {
-				method: 'GET',
-				credentials: 'include',
-			});
+			const response = await apiClient.connectToAgent(app.id);
 
-			if (!response.ok) {
-				throw new Error('Failed to connect to agent');
-			}
-
-			const data = await response.json();
-			if (data.data.websocketUrl && data.data.agentId) {
+			if (response.success && response.data) {
+				const data = response.data;
+				if (data.websocketUrl && data.agentId) {
 				// Connect to WebSocket
-				const ws = new WebSocket(data.data.websocketUrl);
+				const ws = new WebSocket(data.websocketUrl);
 				setWebsocket(ws);
 
 				ws.onopen = () => {
@@ -323,7 +299,7 @@ export default function AppView() {
 					ws.send(
 						JSON.stringify({
 							type: 'preview',
-							agentId: data.data.agentId,
+							agentId: data.agentId,
 						}),
 					);
 				};
@@ -367,6 +343,11 @@ export default function AppView() {
 					setIsDeploying(false);
 					setWebsocket(null);
 				};
+				} else {
+					throw new Error('Invalid agent connection response');
+				}
+			} else {
+				throw new Error('Failed to connect to agent');
 			}
 		} catch (error) {
 			console.error('Error starting deployment:', error);
@@ -387,42 +368,25 @@ export default function AppView() {
 			const newVisibility =
 				app.visibility === 'private' ? 'public' : 'private';
 
-			const response = await fetch(`/api/apps/${app.id}/visibility`, {
-				method: 'PUT',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				credentials: 'include',
-				body: JSON.stringify({ visibility: newVisibility }),
-			});
+			const response = await apiClient.updateAppVisibility(app.id, newVisibility);
 
-			if (!response.ok) {
-				let errorMessage = 'Failed to update visibility';
-				try {
-					const errorData = await response.json();
-					errorMessage =
-						errorData.message || errorData.error || errorMessage;
-				} catch {
-					// If JSON parsing fails, use status-based message
-					errorMessage = `Server error (${response.status}): ${response.statusText}`;
-				}
-				throw new Error(errorMessage);
+			if (response.success && response.data) {
+				// Update the app state with new visibility
+				setApp((prev) =>
+					prev ? { ...prev, visibility: newVisibility } : null,
+				);
+
+				toast.success(
+					response.data.message || 
+					`App is now ${newVisibility === 'private' ? 'private' : 'public'}`,
+				);
+			} else {
+				throw new Error(response.error || 'Failed to update visibility');
 			}
-
-			await response.json();
-
-			// Update the app state with new visibility
-			setApp((prev) =>
-				prev ? { ...prev, visibility: newVisibility } : null,
-			);
-
-			toast.success(
-				`App is now ${newVisibility === 'private' ? 'private' : 'public'}`,
-			);
 		} catch (error) {
 			console.error('Error updating app visibility:', error);
 			toast.error(
-				error instanceof Error
+				error instanceof ApiError
 					? error.message
 					: 'Failed to update visibility',
 			);
@@ -468,7 +432,7 @@ export default function AppView() {
 
 	const isOwner = app.userId === user?.id;
 	const appUrl = getAppUrl();
-	const createdDate = new Date(app.createdAt);
+	const createdDate = app.createdAt ? new Date(app.createdAt) : new Date();
 
 	return (
 		<div className="min-h-screen bg-bg-3 flex flex-col">
@@ -593,11 +557,11 @@ export default function AppView() {
 							</div>
 							<div className="flex items-center gap-2">
 								<Eye className="h-4 w-4" />
-								<span>{app.views || 0}</span>
+								<span>{app.viewCount || 0}</span>
 							</div>
 							<div className="flex items-center gap-2">
 								<Star className="h-4 w-4" />
-								<span>{app.stars || 0}</span>
+								<span>{app.starCount || 0}</span>
 							</div>
 						</div>
 					</div>

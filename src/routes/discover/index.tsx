@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
+import { apiClient } from '@/lib/api-client';
+import type { AppWithUserAndStats, PaginationInfo as ApiPaginationInfo } from '@/api-types';
 import { 
   Clock, 
   TrendingUp, 
@@ -19,39 +21,16 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAuth } from '@/contexts/auth-context';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
-interface PublicApp {
-  id: string;
-  title: string;
-  description?: string;
-  framework: string;
-  deploymentUrl?: string;
-  cloudflareUrl?: string;
-  createdAt: string;
-  viewCount: number;
-  forkCount: number;
-  starCount: number;
-  userName?: string;
-  userAvatar?: string;
-  userStarred?: boolean;
-  userFavorited?: boolean;
-  screenshotUrl?: string;
-}
-
-interface PaginationInfo {
-  total: number;
-  limit: number;
-  offset: number;
-  hasMore: boolean;
-}
+// Use proper types from API
+type PublicApp = AppWithUserAndStats;
+type PaginationInfo = ApiPaginationInfo;
 
 export default function DiscoverPage() {
   const navigate = useNavigate();
-  const { token } = useAuth();
   
   const [apps, setApps] = useState<PublicApp[]>([]);
   const [trendingApps, setTrendingApps] = useState<PublicApp[]>([]);
@@ -73,31 +52,28 @@ export default function DiscoverPage() {
       if (!append) setLoading(true);
       else setLoadingMore(true);
 
-      const params = new URLSearchParams({
-        limit: pagination.limit.toString(),
-        offset: append ? (pagination.offset + pagination.limit).toString() : '0',
-        sort: sortBy
-      });
-
-      if (searchQuery) params.append('search', searchQuery);
-      if (framework !== 'all') params.append('framework', framework);
-
-      const headers: any = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const response = await fetch(`/api/apps/public?${params}`, { headers });
+      const paginationParams = {
+        limit: pagination.limit,
+        page: append ? Math.floor(pagination.offset / pagination.limit) + 2 : 1,
+        sort: sortBy === 'recent' ? 'updatedAt' : sortBy === 'trending' ? 'starCount' : 'createdAt',
+        order: 'desc' as const
+      };
       
-      if (!response.ok) throw new Error('Failed to fetch apps');
+      const response = await apiClient.getPublicApps(paginationParams);
       
-      const data = await response.json();
-      
-      if (append) {
-        setApps(prev => [...prev, ...data.data.apps]);
+      if (response.success && response.data) {
+        const data = response.data;
+        
+        if (append) {
+          setApps(prev => [...prev, ...data.apps]);
+        } else {
+          setApps(data.apps);
+        }
+        
+        setPagination(data.pagination);
       } else {
-        setApps(data.data.apps);
+        throw new Error(response.error || 'Failed to fetch apps');
       }
-      
-      setPagination(data.data.pagination);
     } catch (error) {
       console.error('Error fetching apps:', error);
     } finally {
@@ -109,16 +85,17 @@ export default function DiscoverPage() {
   // Fetch trending apps
   const fetchTrendingApps = async () => {
     try {
-      const headers: any = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      // Use the public endpoint with trending sort
-      const response = await fetch('/api/apps/public?sort=trending&limit=10', { headers });
+      const response = await apiClient.getPublicApps({
+        limit: 10,
+        sort: 'starCount',
+        order: 'desc'
+      });
       
-      if (!response.ok) throw new Error('Failed to fetch trending apps');
-      
-      const data = await response.json();
-      setTrendingApps(data.data.apps);
+      if (response.success && response.data) {
+        setTrendingApps(response.data.apps);
+      } else {
+        throw new Error(response.error || 'Failed to fetch trending apps');
+      }
     } catch (error) {
       console.error('Error fetching trending apps:', error);
     }
@@ -229,7 +206,7 @@ export default function DiscoverPage() {
               ) : (
                 <div className="flex items-center gap-2 text-sm">
                   <Avatar className="h-6 w-6">
-                    <AvatarImage src={app.userAvatar} />
+                    <AvatarImage src={app.userAvatar || undefined} />
                     <AvatarFallback className="text-xs">
                       {app.userName?.charAt(0).toUpperCase() || '?'}
                     </AvatarFallback>
@@ -239,7 +216,7 @@ export default function DiscoverPage() {
               )}
               <span className="text-muted-foreground">•</span>
               <span className="text-sm text-muted-foreground">
-                {formatDistanceToNow(new Date(app.createdAt), { addSuffix: true })}
+                {app.createdAt ? formatDistanceToNow(new Date(app.createdAt), { addSuffix: true }) : 'Recently'}
               </span>
             </div>
 

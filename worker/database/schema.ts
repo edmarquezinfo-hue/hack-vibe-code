@@ -1,6 +1,10 @@
 import { sql } from 'drizzle-orm';
 import { sqliteTable, text, integer, real, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
+// Schema enum arrays derived from config types  
+const REASONING_EFFORT_VALUES = ['low', 'medium', 'high'] as const;
+const PROVIDER_OVERRIDE_VALUES = ['cloudflare', 'direct'] as const;
+
 // ========================================
 // CORE USER AND IDENTITY MANAGEMENT
 // ========================================
@@ -763,8 +767,8 @@ export const userModelConfigs = sqliteTable('user_model_configs', {
     modelName: text('model_name'), // Override for AIModels - null means use default
     maxTokens: integer('max_tokens'), // Override max tokens - null means use default
     temperature: real('temperature'), // Override temperature - null means use default
-    reasoningEffort: text('reasoning_effort', { enum: ['low', 'medium', 'high'] }), // Override reasoning effort
-    providerOverride: text('provider_override', { enum: ['cloudflare', 'direct'] }), // Override provider
+    reasoningEffort: text('reasoning_effort', { enum: REASONING_EFFORT_VALUES }), // Override reasoning effort  
+    providerOverride: text('provider_override', { enum: PROVIDER_OVERRIDE_VALUES }), // Override provider
     fallbackModel: text('fallback_model'), // Override fallback model
     
     // Status and Metadata
@@ -912,3 +916,6 @@ export type NewUserModelConfig = typeof userModelConfigs.$inferInsert;
 
 export type UserProviderKey = typeof userProviderKeys.$inferSelect;
 export type NewUserProviderKey = typeof userProviderKeys.$inferInsert;
+
+export type Star = typeof stars.$inferSelect;
+export type NewStar = typeof stars.$inferInsert;

@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
 	BlueprintType,
 	WebSocketMessage,
-    CodeGenerationResponse,
 	CodeFixEdits,
 } from '../api-types';
 import {
@@ -12,9 +11,9 @@ import {
 } from '../../../utils/ndjson-parser/ndjson-parser';
 import { getFileType } from '../../../utils/string';
 import { logger } from '../../../utils/logger';
-import { useAuth } from '@/contexts/auth-context';
 import { getPreviewUrl } from '@/lib/utils';
 import { generateId } from '../../../utils/id-generator';
+import { apiClient } from '@/lib/api-client';
 
 export interface FileType {
 	filePath: string;
@@ -71,15 +70,7 @@ type ChatMessage = {
 	isThinking?: boolean;
 };
 
-// Helper function to get or create session token for anonymous users
-function getOrCreateSessionToken(): string {
-	let token = localStorage.getItem('anonymous_session_token');
-	if (!token) {
-		token = generateId();
-		localStorage.setItem('anonymous_session_token', token);
-	}
-	return token;
-}
+// Session token management is now handled by the API client automatically
 
 export function useChat({
 	chatId: urlChatId,
@@ -92,7 +83,6 @@ export function useChat({
 	agentMode?: 'deterministic' | 'smart';
 	onDebugMessage?: (type: 'error' | 'warning' | 'info' | 'websocket', message: string, details?: string, source?: string, messageType?: string, rawMessage?: unknown) => void;
 }) {
-	const { user } = useAuth();
 	const connectionStatus = useRef<'idle' | 'connecting' | 'connected' | 'failed' | 'retrying'>('idle');
 	const retryCount = useRef(0);
 	const maxRetries = 5;
@@ -1144,26 +1134,14 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 						return;
 					}
 
-					// Start new code generation
-					const headers: HeadersInit = {
-						'Content-Type': 'application/json',
-					};
-					
-					// Add session token for anonymous users
-					if (!user) {
-						headers['X-Session-Token'] = getOrCreateSessionToken();
-					}
-					
-					const response = await fetch('/api/agent',
-						{
-							method: 'POST',
-							headers,
-							body: JSON.stringify({ query: userQuery, agentMode }),
-						},
-					);
+					// Start new code generation using API client
+					const response = await apiClient.createAgentSession({
+						query: userQuery,
+						agentMode,
+					});
 
-					if (!response.ok) {
-						throw new Error(`HTTP error ${response.status}`);
+					if (!response.success) {
+						throw new Error(response.error);
 					}
 
 					const parser = createRepairingJSONParser();
@@ -1189,7 +1167,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 						isThinking: true,
 					});
 
-					for await (const obj of ndjsonStream(response)) {
+					for await (const obj of ndjsonStream(response.stream)) {
 						if (obj.chunk) {
 							if (!startedBlueprintStream) {
 								sendMessage({
@@ -1247,15 +1225,12 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 						id: 'fetching-chat',
 						message: 'Fetching your previous chat...',
 					});
-					const response = await fetch(`/api/agent/${urlChatId}/connect`,
-						{
-							method: 'GET',
-						},
-					);
 
-					if (!response.ok) {
-						console.error(`Failed to fetch existing chat ${urlChatId}:`, response.status, response.statusText);
-						if (response.status === 404) {
+					const response = await apiClient.connectToAgent(urlChatId);
+
+					if (!response.success) {
+						console.error(`Failed to fetch existing chat ${urlChatId}:`, response.error);
+						if (response.statusCode === 404) {
 							sendMessage({
 								id: 'chat-not-found',
 								message: 'Chat session not found. Starting a new session...',
@@ -1267,20 +1242,12 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 							}, 1500);
 							return;
 						}
-						throw new Error(`HTTP error ${response.status}`);
+						throw new Error(response.error || 'Failed to connect to agent');
 					}
-
-					const result: CodeGenerationResponse = await response.json();
-
-					logger.debug('Existing agentId API result', result);
+					logger.debug('Existing agentId API result', response.data);
 
 					// Set the chatId for existing chat - this enables the chat input
 					setChatId(urlChatId);
-
-					// Optionally set total files if available for progress tracking
-					if (result.data.progress?.totalFiles) {
-						setTotalFiles(result.data.progress.totalFiles);
-					}
 
 					sendMessage({
 						id: 'resuming-chat',
@@ -1289,7 +1256,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 					});
 
 					logger.debug('connecting from init for existing chatId');
-                    connect(result.data.websocketUrl, {
+                    connect(response.data.websocketUrl, {
                         disableGenerate: true, // We'll handle generation resume in the WebSocket open handler
                     });
 				}

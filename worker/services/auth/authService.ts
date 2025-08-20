@@ -25,6 +25,7 @@ import { mapUserResponse } from '../../utils/authUtils';
 import { createLogger } from '../../logger';
 import { validateEmail, validatePassword } from '../../utils/validationUtils';
 import { extractRequestMetadata } from '../../utils/authUtils';
+import { GitHubIntegrationController } from '../../api/controllers/githubIntegration/controller';
 
 const logger = createLogger('AuthService');
 
@@ -419,7 +420,6 @@ export class AuthService {
             // Store GitHub integration if this is GitHub OAuth
             if (provider === 'github') {
                 try {
-                    const { GitHubIntegrationController } = await import('../../api/controllers/githubIntegrationController');
                     await GitHubIntegrationController.storeIntegration(
                         user.id,
                         {

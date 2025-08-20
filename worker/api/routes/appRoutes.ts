@@ -1,11 +1,12 @@
 import { Router } from '../router';
-import { appController } from '../controllers/appController';
-import { appViewController } from '../controllers/appViewController';
+import { AppController } from '../controllers/apps/controller';
+import { appViewController } from '../controllers/appView/controller';
 
 /**
  * Setup app management routes
  */
 export function setupAppRoutes(router: Router): Router {
+    const appController = new AppController();
     // Get all apps for the current user
     router.get('/api/apps', appController.getUserApps.bind(appController));
 

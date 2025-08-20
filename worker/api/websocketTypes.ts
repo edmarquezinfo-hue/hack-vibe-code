@@ -231,7 +231,7 @@ type ScreenshotCaptureErrorMessage = {
 	viewport: { width: number; height: number };
 	statusCode?: number;
 	statusText?: string;
-	apiResponse?: any;
+	apiResponse?: unknown;
 	screenshotCaptured?: boolean;
 	databaseError?: boolean;
 	configurationError?: boolean;

@@ -1,0 +1,569 @@
+/**
+ * Unified API Client - Premium quality abstraction for all worker API calls
+ * Provides type-safe methods for all endpoints with proper error handling
+ */
+
+import type {
+  ApiResponse,
+  AppsListData,
+  PublicAppsData,
+  FavoriteToggleData,
+  CreateAppData,
+  UpdateAppVisibilityData,
+  AppDetailsData,
+  AppStarToggleData,
+  ForkAppData,
+  DashboardData,
+  UserAppsData,
+  ProfileUpdateData,
+  UserTeamsData,
+  UserStatsData,
+  UserActivityData,
+  ModelConfigsData,
+  ModelConfigData,
+  ModelConfigUpdateData,
+  ModelConfigTestData,
+  ModelConfigResetData,
+  ModelConfigDefaultsData,
+  ModelConfigDeleteData,
+  SecretsData,
+  SecretStoreData,
+  SecretDeleteData,
+  SecretTemplatesData,
+  GitHubIntegrationStatusData,
+  GitHubIntegrationRemovalData,
+  AgentStateData,
+  AgentConnectionData,
+  CodeGenerationResponse,
+  AgentStreamingResponse,
+  App
+} from '@/api-types';
+
+/**
+ * API Client Error class with proper error context
+ */
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public statusText: string,
+    message: string,
+    public endpoint: string
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+/**
+ * Base API client configuration
+ */
+interface ApiClientConfig {
+  baseUrl?: string;
+  defaultHeaders?: Record<string, string>;
+}
+
+/**
+ * Request options for API calls
+ */
+interface RequestOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  headers?: Record<string, string>;
+  body?: unknown;
+  credentials?: RequestCredentials;
+}
+
+/**
+ * Pagination parameters for paginated endpoints
+ */
+interface PaginationParams {
+  page?: number;
+  limit?: number;
+  sort?: string;
+  order?: 'asc' | 'desc';
+}
+
+/**
+ * Unified API Client class
+ */
+class ApiClient {
+  private baseUrl: string;
+  private defaultHeaders: Record<string, string>;
+
+  constructor(config: ApiClientConfig = {}) {
+    this.baseUrl = config.baseUrl || '';
+    this.defaultHeaders = {
+      'Content-Type': 'application/json',
+      ...config.defaultHeaders,
+    };
+  }
+
+  /**
+   * Get authentication headers for API requests
+   */
+  private getAuthHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    
+    // Add session token for anonymous users if not authenticated
+    // This will be handled automatically by cookies/credentials for authenticated users
+    const sessionToken = localStorage.getItem('anonymous_session_token');
+    if (sessionToken && !document.cookie.includes('session=')) {
+      headers['X-Session-Token'] = sessionToken;
+    }
+    
+    return headers;
+  }
+
+  /**
+   * Ensure session token exists for anonymous users
+   */
+  private ensureSessionToken(): void {
+    if (!localStorage.getItem('anonymous_session_token') && !document.cookie.includes('session=')) {
+      localStorage.setItem('anonymous_session_token', crypto.randomUUID());
+    }
+  }
+
+  /**
+   * Make HTTP request with proper error handling and type safety
+   */
+  private async request<T>(
+    endpoint: string,
+    options: RequestOptions = {}
+  ): Promise<ApiResponse<T>> {
+    // Ensure session token exists for anonymous users
+    this.ensureSessionToken();
+    
+    const url = `${this.baseUrl}${endpoint}`;
+    const config: RequestInit = {
+      method: options.method || 'GET',
+      headers: {
+        ...this.defaultHeaders,
+        ...this.getAuthHeaders(),
+        ...options.headers,
+      },
+      credentials: options.credentials || 'include',
+    };
+
+    if (options.body) {
+      config.body = typeof options.body === 'string' 
+        ? options.body 
+        : JSON.stringify(options.body);
+    }
+
+    try {
+      const response = await fetch(url, config);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new ApiError(
+          response.status,
+          response.statusText,
+          data.error || data.message || 'Request failed',
+          endpoint
+        );
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(0, 'Network Error', error instanceof Error ? error.message : 'Unknown error', endpoint);
+    }
+  }
+
+  // ===============================
+  // Apps API Methods
+  // ===============================
+
+  /**
+   * Get all apps for the current user
+   */
+  async getUserApps(): Promise<ApiResponse<AppsListData>> {
+    return this.request<AppsListData>('/api/apps');
+  }
+
+  /**
+   * Get recent apps (last 10)
+   */
+  async getRecentApps(): Promise<ApiResponse<AppsListData>> {
+    return this.request<AppsListData>('/api/apps/recent');
+  }
+
+  /**
+   * Get favorite apps
+   */
+  async getFavoriteApps(): Promise<ApiResponse<AppsListData>> {
+    return this.request<AppsListData>('/api/apps/favorites');
+  }
+
+  /**
+   * Get public apps feed with pagination
+   */
+  async getPublicApps(params?: PaginationParams): Promise<ApiResponse<PublicAppsData>> {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.set('page', params.page.toString());
+    if (params?.limit) queryParams.set('limit', params.limit.toString());
+    if (params?.sort) queryParams.set('sort', params.sort);
+    if (params?.order) queryParams.set('order', params.order);
+    
+    const endpoint = `/api/apps/public${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.request<PublicAppsData>(endpoint);
+  }
+
+  /**
+   * Create a new app
+   */
+  async createApp(data: { title: string; description?: string }): Promise<ApiResponse<CreateAppData>> {
+    return this.request<CreateAppData>('/api/apps', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
+  /**
+   * Toggle favorite status of an app
+   */
+  async toggleFavorite(appId: string): Promise<ApiResponse<FavoriteToggleData>> {
+    return this.request<FavoriteToggleData>(`/api/apps/${appId}/favorite`, {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * Update app visibility
+   */
+  async updateAppVisibility(
+    appId: string, 
+    visibility: App['visibility']
+  ): Promise<ApiResponse<UpdateAppVisibilityData>> {
+    return this.request<UpdateAppVisibilityData>(`/api/apps/${appId}/visibility`, {
+      method: 'PUT',
+      body: { visibility },
+    });
+  }
+
+  // ===============================
+  // App View API Methods
+  // ===============================
+
+  /**
+   * Get detailed app information for viewing
+   */
+  async getAppDetails(appId: string): Promise<ApiResponse<AppDetailsData>> {
+    return this.request<AppDetailsData>(`/api/apps/${appId}`);
+  }
+
+  /**
+   * Toggle star status of an app (different from favorite)
+   */
+  async toggleAppStar(appId: string): Promise<ApiResponse<AppStarToggleData>> {
+    return this.request<AppStarToggleData>(`/api/apps/${appId}/star`, {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * Fork an app
+   */
+  async forkApp(appId: string): Promise<ApiResponse<ForkAppData>> {
+    return this.request<ForkAppData>(`/api/apps/${appId}/fork`, {
+      method: 'POST',
+    });
+  }
+
+  // ===============================
+  // User API Methods
+  // ===============================
+
+  /**
+   * Get user dashboard data
+   */
+  async getDashboard(): Promise<ApiResponse<DashboardData>> {
+    return this.request<DashboardData>('/api/user/dashboard');
+  }
+
+  /**
+   * Get user apps with pagination
+   */
+  async getUserAppsWithPagination(params?: PaginationParams): Promise<ApiResponse<UserAppsData>> {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.set('page', params.page.toString());
+    if (params?.limit) queryParams.set('limit', params.limit.toString());
+    
+    const endpoint = `/api/user/apps${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.request<UserAppsData>(endpoint);
+  }
+
+  /**
+   * Create new agent session for code generation
+   * Returns a wrapper with success/error info and the streaming response
+   */
+  async createAgentSession(data: { 
+    query: string; 
+    agentMode?: 'deterministic' | 'smart';
+    language?: string;
+    frameworks?: string[];
+    selectedTemplate?: string;
+  }): Promise<AgentStreamingResponse> {
+    // Ensure session token exists for anonymous users
+    this.ensureSessionToken();
+    
+    const url = `${this.baseUrl}/api/agent`;
+    const config: RequestInit = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getAuthHeaders(),
+      },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    };
+
+    try {
+      const response = await fetch(url, config);
+      
+      if (!response.ok) {
+        // Try to get error message from response
+        let errorMessage = 'Request failed';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch {
+          errorMessage = response.statusText || errorMessage;
+        }
+        
+        return {
+          success: false,
+          error: errorMessage,
+          statusCode: response.status,
+        };
+      }
+      
+      // Return the streaming response wrapped in success indicator
+      return {
+        success: true,
+        stream: response,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Network error',
+        statusCode: 0,
+      };
+    }
+  }
+
+  /**
+   * Update user profile
+   */
+  async updateProfile(data: { 
+    displayName?: string; 
+    username?: string;
+    bio?: string; 
+    timezone?: string;
+    theme?: 'light' | 'dark' | 'system';
+  }): Promise<ApiResponse<ProfileUpdateData>> {
+    return this.request<ProfileUpdateData>('/api/user/profile', {
+      method: 'PUT',
+      body: data,
+    });
+  }
+
+  /**
+   * Get user teams
+   */
+  async getUserTeams(): Promise<ApiResponse<UserTeamsData>> {
+    return this.request<UserTeamsData>('/api/user/teams');
+  }
+
+  // ===============================
+  // Stats API Methods
+  // ===============================
+
+  /**
+   * Get user statistics
+   */
+  async getUserStats(): Promise<ApiResponse<UserStatsData>> {
+    return this.request<UserStatsData>('/api/stats/user');
+  }
+
+  /**
+   * Get user activity timeline
+   */
+  async getUserActivity(): Promise<ApiResponse<UserActivityData>> {
+    return this.request<UserActivityData>('/api/stats/activity');
+  }
+
+  // ===============================
+  // Model Config API Methods
+  // ===============================
+
+  /**
+   * Get all model configurations
+   */
+  async getModelConfigs(): Promise<ApiResponse<ModelConfigsData>> {
+    return this.request<ModelConfigsData>('/api/model-configs');
+  }
+
+
+  /**
+   * Reset model configuration to default
+   */
+  async resetModelConfig(agentAction: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/api/model-configs/${agentAction}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /**
+   * Reset all model configurations to defaults
+   */
+  async resetAllModelConfigs(): Promise<ApiResponse<any>> {
+    return this.request<any>('/api/model-configs/reset-all', {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * Get specific model configuration
+   */
+  async getModelConfig(actionKey: string): Promise<ApiResponse<ModelConfigData>> {
+    return this.request<ModelConfigData>(`/api/model-configs/${actionKey}`);
+  }
+
+  /**
+   * Update model configuration
+   */
+  async updateModelConfig(actionKey: string, config: unknown): Promise<ApiResponse<ModelConfigUpdateData>> {
+    return this.request<ModelConfigUpdateData>(`/api/model-configs/${actionKey}`, {
+      method: 'PUT',
+      body: config,
+    });
+  }
+
+  /**
+   * Test model configuration
+   */
+  async testModelConfig(actionKey: string): Promise<ApiResponse<ModelConfigTestData>> {
+    return this.request<ModelConfigTestData>('/api/model-configs/test', {
+      method: 'POST',
+      body: { agentActionName: actionKey, useUserKeys: true },
+    });
+  }
+
+  /**
+   * Reset all model configurations
+   */
+  async resetAllConfigs(): Promise<ApiResponse<ModelConfigResetData>> {
+    return this.request<ModelConfigResetData>('/api/model-configs/reset-all', {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * Get default model configurations
+   */
+  async getModelDefaults(): Promise<ApiResponse<ModelConfigDefaultsData>> {
+    return this.request<ModelConfigDefaultsData>('/api/model-configs/defaults');
+  }
+
+  /**
+   * Delete model configuration
+   */
+  async deleteModelConfig(actionKey: string): Promise<ApiResponse<ModelConfigDeleteData>> {
+    return this.request<ModelConfigDeleteData>(`/api/model-configs/${actionKey}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ===============================
+  // Secrets API Methods
+  // ===============================
+
+  /**
+   * Get all user secrets
+   */
+  async getSecrets(): Promise<ApiResponse<SecretsData>> {
+    return this.request<SecretsData>('/api/secrets');
+  }
+
+  /**
+   * Store a new secret
+   */
+  async storeSecret(data: { key: string; value: string; description?: string }): Promise<ApiResponse<SecretStoreData>> {
+    return this.request<SecretStoreData>('/api/secrets', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
+  /**
+   * Delete a secret
+   */
+  async deleteSecret(secretId: string): Promise<ApiResponse<SecretDeleteData>> {
+    return this.request<SecretDeleteData>(`/api/secrets/${secretId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /**
+   * Get secret templates
+   */
+  async getSecretTemplates(): Promise<ApiResponse<SecretTemplatesData>> {
+    return this.request<SecretTemplatesData>('/api/secrets/templates');
+  }
+
+  // ===============================
+  // GitHub Integration API Methods
+  // ===============================
+
+  /**
+   * Get GitHub integration status
+   */
+  async getGitHubIntegrationStatus(): Promise<ApiResponse<GitHubIntegrationStatusData>> {
+    return this.request<GitHubIntegrationStatusData>('/api/integrations/github/status');
+  }
+
+  /**
+   * Remove GitHub integration
+   */
+  async removeGitHubIntegration(): Promise<ApiResponse<GitHubIntegrationRemovalData>> {
+    return this.request<GitHubIntegrationRemovalData>('/api/integrations/github', {
+      method: 'DELETE',
+    });
+  }
+
+  // ===============================
+  // Agent/CodeGen API Methods
+  // ===============================
+
+  /**
+   * Start new code generation
+   */
+  async startCodeGeneration(data: { prompt: string }): Promise<CodeGenerationResponse> {
+    return this.request<AgentStateData>('/api/agent', {
+      method: 'POST',
+      body: data,
+    }) as Promise<CodeGenerationResponse>;
+  }
+
+  /**
+   * Get agent state
+   */
+  async getAgentState(agentId: string): Promise<ApiResponse<AgentStateData>> {
+    return this.request<AgentStateData>(`/api/agent/${agentId}`);
+  }
+
+  /**
+   * Connect to existing agent
+   */
+  async connectToAgent(agentId: string): Promise<ApiResponse<AgentConnectionData>> {
+    return this.request<AgentConnectionData>(`/api/agent/${agentId}/connect`);
+  }
+}
+
+// Export singleton instance
+export const apiClient = new ApiClient();
+
+// Export class for testing/custom instances
+export { ApiClient };

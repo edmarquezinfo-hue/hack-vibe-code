@@ -2,19 +2,10 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Star } from 'lucide-react';
-
-interface App {
-  id: string;
-  title: string;
-  description?: string;
-  framework?: string;
-  updatedAt: string;
-  isFavorite?: boolean;
-  screenshotUrl?: string;
-}
+import type { AppWithFavoriteStatus } from '@/api-types';
 
 interface AppCardProps {
-  app: App;
+  app: AppWithFavoriteStatus;
   onClick: (appId: string) => void;
   formatDate: (dateString: string) => string;
 }
@@ -60,7 +51,7 @@ export const AppCard = React.memo<AppCardProps>(({ app, onClick, formatDate }) =
             {app.framework}
           </Badge>
           <span className="text-xs text-muted-foreground">
-            {formatDate(app.updatedAt)}
+            {formatDate(app.updatedAt ? app.updatedAt.toString() : '')}
           </span>
         </div>
       </CardContent>

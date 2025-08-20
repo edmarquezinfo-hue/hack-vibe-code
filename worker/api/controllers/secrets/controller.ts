@@ -1,21 +1,38 @@
 /**
  * Secrets Controller
  * Handles API endpoints for user secrets and API keys management
+ * Refactored to use new database service structure and proper typing
  */
 
-import { BaseController } from './BaseController';
-import { SecretsService } from '../../services/secrets/secretsService';
+import { BaseController } from '../BaseController';
+import { ApiResponse, ControllerResponse } from '../BaseController.types';
+import { SecretsService } from '../../../database/services/SecretsService';
+import {
+    SecretsData,
+    SecretStoreData,
+    SecretDeleteData,
+    SecretTemplatesData,
+    SecretTemplate
+} from './types';
 
 export class SecretsController extends BaseController {
     
-    constructor(private env: Env) {
+    constructor() {
         super();
+    }
+
+    /**
+     * Create service instance with proper database service integration
+     */
+    private createSecretsService(env: Env): SecretsService {
+        const dbService = this.createDbService(env);
+        return new SecretsService(dbService, env);
     }
 
     /**
      * Get templates data (helper method)
      */
-    private async getTemplatesData() {
+    private getTemplatesData(): SecretTemplate[] {
         const templates = [
             // Cloudflare (Priority - Required for deployments)
             {
@@ -191,24 +208,21 @@ export class SecretsController extends BaseController {
      * Get all user secrets (without decrypted values)
      * GET /api/secrets
      */
-    async getSecrets(request: Request): Promise<Response> {
+    async getSecrets(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<SecretsData>>> {
         try {
-            const session = await this.getSessionFromRequest(request, this.env);
-            
-            if (!session) {
-                return this.createErrorResponse('Unauthorized', 401);
+            const authResult = await this.requireAuth(request, env);
+            if (!authResult.success) {
+                return authResult.response! as ControllerResponse<ApiResponse<SecretsData>>;
             }
 
-            const db = this.createDbService(this.env);
-            const secretsService = new SecretsService(db, this.env);
-            
-            const secrets = await secretsService.getUserSecrets(session.userId);
+            const secretsService = this.createSecretsService(env);
+            const secrets = await secretsService.getUserSecrets(authResult.user!.id);
 
-            return this.createSuccessResponse({
-                secrets
-            });
+            const responseData: SecretsData = { secrets };
+            return this.createSuccessResponse(responseData);
         } catch (error) {
-            return this.handleError(error, 'get user secrets');
+            this.logger.error('Error getting user secrets:', error);
+            return this.createErrorResponse<SecretsData>('Failed to get user secrets', 500);
         }
     }
 
@@ -216,12 +230,11 @@ export class SecretsController extends BaseController {
      * Store a new secret
      * POST /api/secrets
      */
-    async storeSecret(request: Request): Promise<Response> {
+    async storeSecret(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<SecretStoreData>>> {
         try {
-            const session = await this.getSessionFromRequest(request, this.env);
-            
-            if (!session) {
-                return this.createErrorResponse('Unauthorized', 401);
+            const authResult = await this.requireAuth(request, env);
+            if (!authResult.success) {
+                return authResult.response! as ControllerResponse<ApiResponse<SecretStoreData>>;
             }
 
             const bodyResult = await this.parseJsonBody<{
@@ -234,30 +247,30 @@ export class SecretsController extends BaseController {
             }>(request);
 
             if (!bodyResult.success) {
-                return bodyResult.response!;
+                return bodyResult.response! as ControllerResponse<ApiResponse<SecretStoreData>>;
             }
 
             const { templateId, name, envVarName, value, environment, description } = bodyResult.data!;
 
             // Validate required fields
             if (!value) {
-                return this.createErrorResponse('Missing required field: value', 400);
+                return this.createErrorResponse<SecretStoreData>('Missing required field: value', 400);
             }
 
             let secretData;
 
             if (templateId) {
                 // Using predefined template
-                const templates = await this.getTemplatesData();
+                const templates = this.getTemplatesData();
                 const template = templates.find(t => t.id === templateId);
                 
                 if (!template) {
-                    return this.createErrorResponse('Invalid template ID', 400);
+                    return this.createErrorResponse<SecretStoreData>('Invalid template ID', 400);
                 }
 
                 // Validate against template validation if provided
                 if (template.validation && !new RegExp(template.validation).test(value)) {
-                    return this.createErrorResponse(`Invalid format for ${template.displayName}. Expected format: ${template.placeholder}`, 400);
+                    return this.createErrorResponse<SecretStoreData>(`Invalid format for ${template.displayName}. Expected format: ${template.placeholder}`, 400);
                 }
 
                 secretData = {
@@ -271,12 +284,12 @@ export class SecretsController extends BaseController {
             } else {
                 // Custom secret
                 if (!name || !envVarName) {
-                    return this.createErrorResponse('Missing required fields for custom secret: name, envVarName', 400);
+                    return this.createErrorResponse<SecretStoreData>('Missing required fields for custom secret: name, envVarName', 400);
                 }
 
                 // Validate environment variable name format
                 if (!/^[A-Z][A-Z0-9_]*$/.test(envVarName)) {
-                    return this.createErrorResponse('Environment variable name must be uppercase and contain only letters, numbers, and underscores', 400);
+                    return this.createErrorResponse<SecretStoreData>('Environment variable name must be uppercase and contain only letters, numbers, and underscores', 400);
                 }
 
                 secretData = {
@@ -289,17 +302,18 @@ export class SecretsController extends BaseController {
                 };
             }
 
-            const db = this.createDbService(this.env);
-            const secretsService = new SecretsService(db, this.env);
+            const secretsService = this.createSecretsService(env);
+            const storedSecret = await secretsService.storeSecret(authResult.user!.id, secretData);
 
-            const storedSecret = await secretsService.storeSecret(session.userId, secretData);
-
-            return this.createSuccessResponse({
+            const responseData: SecretStoreData = {
                 secret: storedSecret,
                 message: 'Secret stored successfully'
-            });
+            };
+
+            return this.createSuccessResponse(responseData);
         } catch (error) {
-            return this.handleError(error, 'store secret');
+            this.logger.error('Error storing secret:', error);
+            return this.createErrorResponse<SecretStoreData>('Failed to store secret', 500);
         }
     }
 
@@ -307,31 +321,31 @@ export class SecretsController extends BaseController {
      * Delete a secret
      * DELETE /api/secrets/:secretId
      */
-    async deleteSecret(request: Request): Promise<Response> {
+    async deleteSecret(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<SecretDeleteData>>> {
         try {
-            const session = await this.getSessionFromRequest(request, this.env);
-            
-            if (!session) {
-                return this.createErrorResponse('Unauthorized', 401);
+            const authResult = await this.requireAuth(request, env);
+            if (!authResult.success) {
+                return authResult.response! as ControllerResponse<ApiResponse<SecretDeleteData>>;
             }
 
             const pathParams = this.extractPathParams(request, ['secretId']);
             const secretId = pathParams.secretId;
 
             if (!secretId) {
-                return this.createErrorResponse('Secret ID is required', 400);
+                return this.createErrorResponse<SecretDeleteData>('Secret ID is required', 400);
             }
 
-            const db = this.createDbService(this.env);
-            const secretsService = new SecretsService(db, this.env);
+            const secretsService = this.createSecretsService(env);
+            await secretsService.deleteSecret(authResult.user!.id, secretId);
 
-            await secretsService.deleteSecret(session.userId, secretId);
-
-            return this.createSuccessResponse({
+            const responseData: SecretDeleteData = {
                 message: 'Secret deleted successfully'
-            });
+            };
+
+            return this.createSuccessResponse(responseData);
         } catch (error) {
-            return this.handleError(error, 'delete secret');
+            this.logger.error('Error deleting secret:', error);
+            return this.createErrorResponse<SecretDeleteData>('Failed to delete secret', 500);
         }
     }
 
@@ -339,12 +353,14 @@ export class SecretsController extends BaseController {
      * Get predefined secret templates for common providers
      * GET /api/secrets/templates
      */
-    async getTemplates(_request: Request): Promise<Response> {
+    async getTemplates(_request: Request, _env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<SecretTemplatesData>>> {
         try {
-            const templates = await this.getTemplatesData();
-            return this.createSuccessResponse({ templates });
+            const templates = this.getTemplatesData();
+            const responseData: SecretTemplatesData = { templates };
+            return this.createSuccessResponse(responseData);
         } catch (error) {
-            return this.handleError(error, 'get secret templates');
+            this.logger.error('Error getting secret templates:', error);
+            return this.createErrorResponse<SecretTemplatesData>('Failed to get secret templates', 500);
         }
     }
 }

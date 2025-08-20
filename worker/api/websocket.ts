@@ -13,7 +13,7 @@ export interface WebSocketMessage<T = any> {
  * WebSocket handler for processing messages
  */
 export type WebSocketMessageHandler = (
-    message: any,
+    message: unknown,
     webSocket: WebSocket,
     env: Env,
     ctx: ExecutionContext
