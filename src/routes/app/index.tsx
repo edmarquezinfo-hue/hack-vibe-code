@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import type { AppDetailsData, BlueprintType } from '@/api-types';
+import type { AgentStateData, AppDetailsData, FileType } from '@/api-types';
 import { apiClient, ApiError } from '@/lib/api-client';
 import {
 	Star,
@@ -43,41 +43,12 @@ import { capitalizeFirstLetter, cn, getPreviewUrl } from '@/lib/utils';
 
 // Use proper types from API types
 type AppDetails = AppDetailsData;
-
-interface AgentState {
-	generatedCode: Array<{
-		filePath: string;
-		fileContents: string;
-		filePurpose?: string;
-	}>;
-	conversationMessages: Array<{
-		type: 'user' | 'assistant';
-		content: string;
-		timestamp?: string;
-	}>;
-	originalPrompt: string;
-	blueprint?: BlueprintType;
-	totalFiles: number;
-	isGenerating: boolean;
-}
-
-// Match chat FileType interface
-interface FileType {
-	filePath: string;
-	fileContents: string;
-	explanation?: string;
-	isGenerating?: boolean;
-	needsFixing?: boolean;
-	hasErrors?: boolean;
-	language?: string;
-}
-
 export default function AppView() {
 	const { id } = useParams();
 	const navigate = useNavigate();
 	const { user } = useAuth();
 	const [app, setApp] = useState<AppDetails | null>(null);
-	const [agentState, setAgentState] = useState<AgentState | null>(null);
+	const [agentState, setAgentState] = useState<AgentStateData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [isFavorited, setIsFavorited] = useState(false);
@@ -114,20 +85,7 @@ export default function AppView() {
 			try {
 				const agentResponse = await apiClient.getAgentState(id);
 				if (agentResponse.success && agentResponse.data) {
-					// Map API response to local AgentState format
-					const backendState = agentResponse.data.state;
-					const backendProgress = agentResponse.data.progress;
-					
-					const agentData: AgentState = {
-						originalPrompt: backendState.query, // Map backend 'query' to frontend 'originalPrompt'
-						blueprint: backendState.blueprint,
-						generatedCode: backendProgress.generatedCode || [],
-						conversationMessages: backendState.conversationMessages || [],
-						totalFiles: Object.keys(backendState.generatedFilesMap || {}).length,
-						isGenerating: backendState.shouldBeGenerating || false,
-					};
-					
-					setAgentState(agentData);
+					setAgentState(agentResponse.data);
 				} else {
 					console.log('Agent state not available - this may be normal for some apps');
 					setAgentState(null);
@@ -159,8 +117,8 @@ export default function AppView() {
 
 	// Convert agent state files to chat FileType format
 	const files = useMemo<FileType[]>(() => {
-		if (!agentState?.generatedCode) return [];
-		return agentState.generatedCode.map((file) => ({
+		if (!agentState?.progress.generatedCode) return [];
+		return agentState.progress.generatedCode.map((file) => ({
 			filePath: file.filePath,
 			fileContents: file.fileContents,
 			explanation: file.filePurpose,
@@ -169,7 +127,7 @@ export default function AppView() {
 			needsFixing: false,
 			hasErrors: false,
 		}));
-	}, [agentState?.generatedCode]);
+	}, [agentState?.progress.generatedCode]);
 
 	// Get active file
 	const activeFile = useMemo(() => {
@@ -700,7 +658,7 @@ export default function AppView() {
 										<CardTitle>Generated Code</CardTitle>
 										{agentState && (
 											<p className="text-sm text-muted-foreground">
-												{files.length} files generated ({agentState.totalFiles} total planned)
+												{files.length} files generated ({agentState.progress.totalFiles} total planned)
 											</p>
 										)}
 									</div>
@@ -815,62 +773,57 @@ export default function AppView() {
 								</CardDescription>
 							</CardHeader>
 							<CardContent>
-								{agentState?.originalPrompt || agentState?.conversationMessages?.length ? (
+								{agentState?.state.query || agentState?.state.conversationMessages?.length ? (
 									<div className="space-y-4">
 										{/* Original Prompt */}
-										{agentState.originalPrompt && (
+										{agentState.state.query && (
 											<div className="border-l-4 border-blue-500 pl-4 py-2">
 												<div className="flex items-center gap-2 mb-2">
 													<User className="h-4 w-4 text-blue-600" />
 													<span className="text-sm font-medium text-blue-600">Original Prompt</span>
 												</div>
 												<p className="text-sm bg-blue-50 p-3 rounded">
-													{agentState.originalPrompt}
+													{agentState.state.query}
 												</p>
 											</div>
 										)}
 										
 										{/* Conversation Messages */}
-										{agentState.conversationMessages && agentState.conversationMessages.length > 0 && (
+										{agentState.state.conversationMessages && agentState.state.conversationMessages.length > 0 && (
 											<div className="space-y-3">
 												<h4 className="text-sm font-medium text-muted-foreground">Development Conversation</h4>
-												{agentState.conversationMessages.map((message, index) => (
+												{agentState.state.conversationMessages.map((message, index) => (
 													<div
 														key={index}
 														className={cn(
 															"border-l-4 pl-4 py-2",
-															message.type === 'user' 
+															message.role === 'user' 
 																? "border-green-500" 
 																: "border-gray-400"
 														)}
 													>
 														<div className="flex items-center gap-2 mb-2">
-															{message.type === 'user' ? (
+															{message.role === 'user' ? (
 																<User className="h-4 w-4 text-green-600" />
 															) : (
 																<MessageSquare className="h-4 w-4 text-gray-600" />
 															)}
 															<span className={cn(
 																"text-sm font-medium",
-																message.type === 'user' 
+																message.role === 'user' 
 																	? "text-green-600" 
 																	: "text-gray-600"
 															)}>
-																{message.type === 'user' ? 'User' : 'Assistant'}
+																{message.role === 'user' ? 'User' : 'Assistant'}
 															</span>
-															{message.timestamp && (
-																<span className="text-xs text-muted-foreground">
-																	{new Date(message.timestamp).toLocaleString()}
-																</span>
-															)}
 														</div>
 														<div className={cn(
 															"text-sm p-3 rounded",
-															message.type === 'user' 
+															message.role === 'user' 
 																? "bg-green-50" 
 																: "bg-gray-50"
 														)}>
-															{message.content}
+															{message.content as string}
 														</div>
 													</div>
 												))}

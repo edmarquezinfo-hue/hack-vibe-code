@@ -7,23 +7,16 @@ import {
   Clock, 
   TrendingUp, 
   Star, 
-  Eye, 
-  GitBranch,
-  Code2,
   Search,
   Loader2,
   Sparkles,
-  User
+  Code2
 } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { formatDistanceToNow } from 'date-fns';
-import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { AppCard } from '@/components/shared/AppCard';
 
 // Use proper types from API
 type PublicApp = AppWithUserAndStats;
@@ -127,117 +120,15 @@ export default function DiscoverPage() {
     }
   };
 
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        type: "spring" as const,
-        stiffness: 100
-      }
-    }
-  };
-
-  const AppCard = ({ app }: { app: PublicApp }) => {
+  const PublicAppCard = ({ app }: { app: PublicApp }) => {
     return (
-      <motion.div variants={itemVariants}>
-        <Card 
-          className="h-full hover:shadow-lg transition-all duration-200 cursor-pointer group"
-          onClick={() => navigate(`/app/${app.id}`)}
-        >
-          {/* Preview Image or Placeholder */}
-          <div className="relative h-48 bg-gradient-to-br from-orange-50 to-orange-100 overflow-hidden">
-            {app.screenshotUrl ? (
-              <img 
-                src={app.screenshotUrl} 
-                alt={`${app.title} preview`}
-                className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
-                onError={(e) => {
-                  // Fallback to placeholder if image fails to load
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  target.nextElementSibling?.classList.remove('hidden');
-                }}
-              />
-            ) : null}
-            
-            {/* Fallback placeholder - hidden when screenshot exists */}
-            <div className={cn(
-              "w-full h-full flex items-center justify-center absolute inset-0",
-              app.screenshotUrl ? "hidden" : ""
-            )}>
-              <Code2 className="h-16 w-16 text-orange-300" />
-            </div>
-            
-            {/* Framework Badge */}
-            <Badge 
-              variant="secondary" 
-              className="absolute top-2 right-2 bg-background/90 dark:bg-card/90 backdrop-blur-sm"
-            >
-              {app.framework}
-            </Badge>
-          </div>
-
-          <CardHeader className="pb-3">
-            <div className="flex items-start justify-between gap-2">
-              <h3 className="font-semibold text-lg line-clamp-1 group-hover:text-orange-600 transition-colors">
-                {app.title}
-              </h3>
-            </div>
-            
-            {app.description && (
-              <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                {app.description}
-              </p>
-            )}
-          </CardHeader>
-
-          <CardContent className="pt-0">
-            {/* User Info */}
-            <div className="flex items-center gap-2 mb-3">
-              {app.userName === 'Anonymous User' ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <div className="h-6 w-6 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                    <User className="h-3 w-3 text-white" />
-                  </div>
-                  <span>Anonymous User</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-sm">
-                  <Avatar className="h-6 w-6">
-                    <AvatarImage src={app.userAvatar || undefined} />
-                    <AvatarFallback className="text-xs">
-                      {app.userName?.charAt(0).toUpperCase() || '?'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-muted-foreground">{app.userName}</span>
-                </div>
-              )}
-              <span className="text-muted-foreground">•</span>
-              <span className="text-sm text-muted-foreground">
-                {app.createdAt ? formatDistanceToNow(new Date(app.createdAt), { addSuffix: true }) : 'Recently'}
-              </span>
-            </div>
-
-            {/* Stats */}
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-1">
-                <Eye className="h-3.5 w-3.5" />
-                <span>{app.viewCount}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Star className={cn("h-3.5 w-3.5", app.userStarred && "fill-yellow-500 text-yellow-500")} />
-                <span>{app.starCount}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <GitBranch className="h-3.5 w-3.5" />
-                <span>{app.forkCount}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+      <AppCard 
+        app={app}
+        onClick={(appId) => navigate(`/app/${appId}`)}
+        showStats={true}
+        showUser={true}
+        className="h-full"
+      />
     );
   };
 
@@ -323,7 +214,7 @@ export default function DiscoverPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {trendingApps.slice(0, 4).map(app => (
-                  <AppCard key={app.id} app={app} />
+                  <PublicAppCard key={app.id} app={app} />
                 ))}
               </div>
             </motion.div>
@@ -351,7 +242,7 @@ export default function DiscoverPage() {
                 className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
               >
                 {apps.map(app => (
-                  <AppCard key={app.id} app={app} />
+                  <PublicAppCard key={app.id} app={app} />
                 ))}
               </motion.div>
 

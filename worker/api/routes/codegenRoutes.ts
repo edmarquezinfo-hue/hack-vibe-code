@@ -2,6 +2,7 @@ import { Router } from '../router';
 import { CodingAgentController } from '../controllers/agent/controller';
 import { setupAuthRoutes } from './authRoutes';
 import { setupAppRoutes } from './appRoutes';
+import { setupUserRoutes } from './userRoutes';
 import { setupStatsRoutes } from './statsRoutes';
 import { setupWebhookRoutes } from './webhookRoutes';
 import { setupIntegrationRoutes } from './integrationRoutes';
@@ -29,6 +30,9 @@ export function setupRouter(): Router {
 
     // Authentication and user management routes
     setupAuthRoutes(router);
+    
+    // User dashboard and profile routes
+    setupUserRoutes(router);
     
     // App management routes
     setupAppRoutes(router);

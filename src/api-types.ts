@@ -128,6 +128,17 @@ export type {
   ProviderOverrideType as ProviderOverride
 } from 'worker/agents/inferutils/config.types';
 
+// Match chat FileType interface
+export interface FileType {
+	filePath: string;
+	fileContents: string;
+	explanation?: string;
+	isGenerating?: boolean;
+	needsFixing?: boolean;
+	hasErrors?: boolean;
+	language?: string;
+}
+
 // Streaming response wrapper types for agent session creation
 export interface StreamingResponse {
   success: true;

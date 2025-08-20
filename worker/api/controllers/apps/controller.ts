@@ -93,6 +93,7 @@ export class AppController extends BaseController {
         }
     }
 
+
     // Toggle favorite status
     async toggleFavorite(request: Request, env: Env, _ctx: ExecutionContext, params?: Record<string, string>): Promise<ControllerResponse<ApiResponse<FavoriteToggleData>>> {
         try {

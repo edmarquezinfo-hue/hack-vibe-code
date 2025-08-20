@@ -393,6 +393,7 @@ export class AppService extends BaseService {
         }));
     }
 
+
     /**
      * Toggle favorite status for an app
      */
@@ -731,26 +732,47 @@ export class AppService extends BaseService {
      * Consolidates app retrieval with analytics for consistent patterns
      */
     async getUserAppsWithAnalytics(userId: string, options: Partial<AppQueryOptions> = {}): Promise<EnhancedAppData[]> {
-        // Get user apps using existing method
-        const apps = await this.getUserApps(userId, options);
+        const { limit = 50, offset = 0, status, visibility, teamId, boardId } = options;
+
+        // Build where conditions like in getUserApps but with enhanced data
+        const whereConditions: WhereCondition[] = [
+            eq(schema.apps.userId, userId),
+            teamId ? eq(schema.apps.teamId, teamId) : undefined,
+            status ? eq(schema.apps.status, status) : undefined,
+            visibility ? eq(schema.apps.visibility, visibility) : undefined,
+            boardId ? eq(schema.apps.boardId, boardId) : undefined,
+        ];
+
+        const whereClause = this.buildWhereConditions(whereConditions);
+
+        // Get user apps with enhanced data in single query
+        const apps = await this.database
+            .select({
+                ...this.APP_SELECT_FIELDS,
+                starCount: this.createStarCountQuery(),
+                userStarred: this.createUserStarredQuery(userId),
+                userFavorited: this.createUserFavoritedQuery(userId),
+            })
+            .from(schema.apps)
+            .where(whereClause)
+            .orderBy(desc(schema.apps.updatedAt))
+            .limit(limit)
+            .offset(offset);
 
         if (apps.length === 0) {
             return [];
         }
 
-        // Get analytics for all apps
+        // Get analytics for all apps using existing AnalyticsService
         const analyticsService = new AnalyticsService(this.db);
         const appIds = apps.map(app => app.id);
         const analyticsData = await analyticsService.batchGetAppStats(appIds);
 
-        // Enhance apps with analytics
+        // Enhance apps with analytics and user data
         return apps.map(app => ({
             ...app,
             userName: null, // Apps belong to current user
             userAvatar: null,
-            starCount: 0, // TODO: Implement when star system is added
-            userStarred: false,
-            userFavorited: false, // TODO: Get from favorites
             viewCount: analyticsData[app.id]?.viewCount || 0,
             forkCount: analyticsData[app.id]?.forkCount || 0,
             likeCount: analyticsData[app.id]?.likeCount || 0
