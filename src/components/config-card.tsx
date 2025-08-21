@@ -56,18 +56,18 @@ const getAgentIcon = (agentKey: string) => {
 };
 
 // Helper function to format parameter values for display
-const formatParameterValue = (value: unknown, type: string) => {
+const formatParameterValue = (value: unknown, type: string): string | null => {
   if (value === null || value === undefined) return null;
   
   switch (type) {
     case 'temperature':
       return `T: ${value}`;
     case 'maxTokens':
-      return `${Math.round(value / 1000)}K tokens`;
+      return typeof value === 'number' ? `${Math.round(value / 1000)}K tokens` : String(value);
     case 'reasoningEffort':
-      return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+      return typeof value === 'string' ? `${value.charAt(0).toUpperCase()}${value.slice(1)}` : String(value);
     default:
-      return value;
+      return String(value);
   }
 };
 

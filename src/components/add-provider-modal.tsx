@@ -78,7 +78,7 @@ export function AddProviderModal({ trigger, onProviderAdded }: AddProviderModalP
       setIsOpen(false);
       
       // Notify parent component
-      onProviderAdded?.(provider);
+      onProviderAdded?.({ provider });
     }
 
     setIsCreating(false);

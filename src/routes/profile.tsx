@@ -60,7 +60,7 @@ export default function Profile() {
   const { apps: recentApps, loading: appsLoading } = useUserApps();
 
   // Transform achievements from stats
-  const achievements = stats.achievements || [];
+  const achievements = stats?.achievements || [];
 
   const handleSave = async () => {
     if (isSaving) return;
@@ -169,7 +169,7 @@ export default function Profile() {
           <Card className="text-center hover:shadow-lg hover:scale-[1.02] transition-all dark:bg-card/50">
             <CardContent className="pt-6 relative overflow-hidden">
               <Code2 className="h-32 w-32 text-blue-500 absolute -top-10 -left-6 opacity-10" />
-              <p className="text-6xl font-semibold text-gray-700">{statsLoading ? '-' : stats.totalApps}</p>
+              <p className="text-6xl font-semibold text-gray-700">{statsLoading ? '-' : stats?.appCount}</p>
               <p className="text-md text-gray-500">Total Apps</p>
             </CardContent>
           </Card>
@@ -177,7 +177,7 @@ export default function Profile() {
           <Card className="text-center hover:shadow-lg hover:scale-[1.02] transition-all dark:bg-card/50">
             <CardContent className="pt-6 relative overflow-hidden">
               <Globe className="h-32 w-32 text-green-500 absolute -top-10 -left-6 opacity-20" />
-              <p className="text-6xl font-semibold text-gray-700">{statsLoading ? '-' : stats.publicApps}</p>
+              <p className="text-6xl font-semibold text-gray-700">{statsLoading ? '-' : stats?.publicAppCount}</p>
               <p className="text-md text-gray-500">Public Apps</p>
             </CardContent>
           </Card>
@@ -185,7 +185,7 @@ export default function Profile() {
           <Card className="text-center hover:shadow-lg hover:scale-[1.02] transition-all dark:bg-card/50">
             <CardContent className="pt-6 relative overflow-hidden">
               <Activity className="h-32 w-32 text-purple-500 absolute -top-10 -left-6 opacity-10" />
-              <p className="text-6xl font-semibold text-gray-700">{statsLoading ? '-' : stats.totalViews}</p>
+              <p className="text-6xl font-semibold text-gray-700">{statsLoading ? '-' : stats?.totalViewsReceived}</p>
               <p className="text-md text-gray-500">Total Views</p>
             </CardContent>
           </Card>
@@ -193,7 +193,7 @@ export default function Profile() {
           <Card className="text-center hover:shadow-lg hover:scale-[1.02] transition-all dark:bg-card/50">
             <CardContent className="pt-6 relative overflow-hidden">
               <Star className="h-32 w-32 text-yellow-500 absolute -top-10 -left-6 opacity-20" />
-              <p className="text-6xl font-semibold text-gray-700">{statsLoading ? '-' : stats.totalLikes}</p>
+              <p className="text-6xl font-semibold text-gray-700">{statsLoading ? '-' : stats?.totalLikesReceived}</p>
               <p className="text-md text-gray-500">Total Likes</p>
             </CardContent>
           </Card>
@@ -351,23 +351,17 @@ export default function Profile() {
                 ) : achievements && achievements.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {achievements.map((achievement, index) => {
-                      const Icon = achievement.icon || Trophy;
                       return (
-                        <div key={achievement.id || index} className="p-4 rounded-lg border hover:shadow-md transition-shadow">
+                        <div key={index} className="p-4 rounded-lg border hover:shadow-md transition-shadow">
                           <div className="flex items-start gap-4">
-                            <div className={cn("p-3 rounded-lg", achievement.color || "bg-muted text-muted-foreground")}>
-                              <Icon className="h-6 w-6" />
+                            <div className="p-3 rounded-lg bg-muted text-muted-foreground">
+                              <Trophy className="h-6 w-6" />
                             </div>
                             <div className="flex-1">
-                              <h4 className="font-medium">{achievement.name}</h4>
+                              <h4 className="font-medium">{achievement}</h4>
                               <p className="text-sm text-muted-foreground mt-1">
-                                {achievement.description}
+                                Achievement unlocked!
                               </p>
-                              {achievement.unlockedAt && (
-                                <p className="text-xs text-muted-foreground mt-2">
-                                  Unlocked {format(new Date(achievement.unlockedAt), 'MMM d, yyyy')}
-                                </p>
-                              )}
                             </div>
                           </div>
                         </div>

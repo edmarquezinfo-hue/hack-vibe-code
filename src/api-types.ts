@@ -3,8 +3,6 @@
  * This file serves as the single source of truth for frontend-worker API communication
  */
 
-import { ApiKeyInfo, AuthSession } from 'worker/types/auth-types';
-
 // Base API Response Types
 export type { ControllerResponse, ApiResponse } from 'worker/api/controllers/BaseController.types';
 

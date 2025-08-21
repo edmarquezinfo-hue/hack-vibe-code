@@ -16,7 +16,7 @@ import {
 	Lock,
 } from 'lucide-react';
 import { ModelConfigTabs } from '@/components/model-config-tabs';
-import type { ModelConfigsData, ModelConfigUpdate, EncryptedSecret, ActiveSessionsData, ApiKeysData, SecretTemplate } from '@/api-types';
+import type { ModelConfigsData, ModelConfigUpdate, EncryptedSecret, ActiveSessionsData, SecretTemplate } from '@/api-types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -87,8 +87,8 @@ export default function SettingsPage() {
 	// Active sessions state
 	const [activeSessions, setActiveSessions] = useState<ActiveSessionsData & { loading: boolean }>({ sessions: [], loading: true });
 
-	// API Keys state
-	const [apiKeys, setApiKeys] = useState<ApiKeysData & { loading: boolean }>({ keys: [], loading: true });
+	// API Keys state - commented out since not used
+	// const [apiKeys, setApiKeys] = useState<ApiKeysData & { loading: boolean }>({ keys: [], loading: true });
 
 	// User Secrets state
 	const [userSecrets, setUserSecrets] = useState<{
@@ -296,7 +296,7 @@ export default function SettingsPage() {
 			const response = await apiClient.getGitHubIntegrationStatus();
 			setGithubIntegration({
 				hasIntegration: response.data?.hasIntegration || false,
-				githubUsername: response.data?.githubUsername,
+				githubUsername: response.data?.githubUsername || undefined,
 				loading: false,
 			});
 		} catch (error) {
@@ -334,8 +334,8 @@ export default function SettingsPage() {
 						id: 'current',
 						userAgent: navigator.userAgent,
 						ipAddress: 'Current location',
-						lastActivity: new Date().toISOString(),
-						createdAt: new Date().toISOString(),
+						lastActivity: new Date(),
+						createdAt: new Date(),
 						isCurrent: true,
 					},
 				],
@@ -349,8 +349,8 @@ export default function SettingsPage() {
 						id: 'current',
 						userAgent: navigator.userAgent,
 						ipAddress: 'Current location',
-						lastActivity: new Date().toISOString(),
-						createdAt: new Date().toISOString(),
+						lastActivity: new Date(),
+						createdAt: new Date(),
 						isCurrent: true,
 					},
 				],
@@ -370,8 +370,8 @@ export default function SettingsPage() {
 		}
 	};
 
-	// Load API keys
-	const loadApiKeys = async () => {
+	// Commented out unused function
+	/*const loadApiKeys = async () => {
 		try {
 			const response = await apiClient.getApiKeys();
 			setApiKeys({
@@ -385,9 +385,10 @@ export default function SettingsPage() {
 				loading: false,
 			});
 		}
-	};
+	};*/
 
-	const handleCreateApiKey = async () => {
+	// Commented out unused function
+	/*const handleCreateApiKey = async () => {
 		try {
 			const keyName = prompt('Enter a name for your API key:');
 			if (!keyName) return;
@@ -402,9 +403,10 @@ export default function SettingsPage() {
 			console.error('Error creating API key:', error);
 			toast.error('Failed to create API key');
 		}
-	};
+	};*/
 
-	const handleRevokeApiKey = async (keyId: string) => {
+	// Commented out unused function
+	/*const handleRevokeApiKey = async (keyId: string) => {
 		try {
 			await apiClient.revokeApiKey(keyId);
 			toast.success('API key revoked successfully');
@@ -413,7 +415,7 @@ export default function SettingsPage() {
 			console.error('Error revoking API key:', error);
 			toast.error('Failed to revoke API key');
 		}
-	};
+	};*/
 
 	// Load user secrets
 	const loadUserSecrets = async () => {
@@ -457,7 +459,7 @@ export default function SettingsPage() {
 						description: newSecret.description,
 					}
 				: {
-						templateId: selectedTemplate,
+						templateId: selectedTemplate || undefined,
 						value: newSecret.value,
 						environment: newSecret.environment,
 					};
@@ -567,7 +569,7 @@ export default function SettingsPage() {
 	React.useEffect(() => {
 		loadGithubIntegration();
 		loadActiveSessions();
-		loadApiKeys();
+		// loadApiKeys(); // Commented out unused function call
 		loadUserSecrets();
 		loadSecretTemplates();
 		loadModelConfigs();
