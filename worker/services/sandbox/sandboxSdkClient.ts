@@ -1,4 +1,4 @@
-import { getSandbox, Sandbox, parseSSEStream, type ExecEvent, ExecuteResponse, LogEvent } from '@cloudflare/sandbox';
+import { getSandbox, Sandbox, parseSSEStream, type ExecEvent, ExecuteResponse } from '@cloudflare/sandbox';
 
 import {
     TemplateDetailsResponse,
@@ -39,6 +39,9 @@ import { CodeFixResult, FileFetcher, fixProjectIssues } from '../code-fixer';
 import { FileObject } from '../code-fixer/types';
 import { createGitHubHeaders } from '../../utils/authUtils';
 import { generateId } from '../../utils/idGenerator';
+import { ResourceProvisioner } from './resourceProvisioner';
+import { TemplateParser } from './templateParser';
+import { ResourceProvisioningResult } from './types';
 // Export the Sandbox class in your Worker
 export { Sandbox as UserAppSandboxService, Sandbox as DeployerService} from "@cloudflare/sandbox";
 
@@ -527,58 +530,190 @@ export class SandboxSdkClient extends BaseSandboxService {
         }
     }
 
-    private async startCloudflaredTunnel(instanceId: string, port: number): Promise<string> {
-        try {
-            const process = await this.getSandbox().startProcess(
-                `cloudflared tunnel --url http://localhost:${port}`, 
-                { cwd: instanceId }
-            );
-            this.logger.info(`Started cloudflared tunnel for ${instanceId}`);
+    // private async startCloudflaredTunnel(instanceId: string, port: number): Promise<string> {
+    //     try {
+    //         const process = await this.getSandbox().startProcess(
+    //             `cloudflared tunnel --url http://localhost:${port}`, 
+    //             { cwd: instanceId }
+    //         );
+    //         this.logger.info(`Started cloudflared tunnel for ${instanceId}`);
 
-            // Stream process logs to extract the preview URL
-            const logStream = await this.getSandbox().streamProcessLogs(process.id);
+    //         // Stream process logs to extract the preview URL
+    //         const logStream = await this.getSandbox().streamProcessLogs(process.id);
             
-            return new Promise<string>((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                    // reject(new Error('Timeout waiting for cloudflared tunnel URL'));
-                    this.logger.warn('Timeout waiting for cloudflared tunnel URL');
-                    resolve('');
-                }, 20000); // 20 second timeout
+    //         return new Promise<string>((resolve, _reject) => {
+    //             const timeout = setTimeout(() => {
+    //                 // reject(new Error('Timeout waiting for cloudflared tunnel URL'));
+    //                 this.logger.warn('Timeout waiting for cloudflared tunnel URL');
+    //                 resolve('');
+    //             }, 20000); // 20 second timeout
 
-                const processLogs = async () => {
-                    try {
-                        for await (const event of parseSSEStream<LogEvent>(logStream)) {
-                            if (event.data) {
-                                const logLine = event.data;
-                                this.logger.info(`Cloudflared log ===> ${logLine}`);
+    //             const processLogs = async () => {
+    //                 try {
+    //                     for await (const event of parseSSEStream<LogEvent>(logStream)) {
+    //                         if (event.data) {
+    //                             const logLine = event.data;
+    //                             this.logger.info(`Cloudflared log ===> ${logLine}`);
                                 
-                                // Look for the preview URL in the logs
-                                // Format: https://subdomain.trycloudflare.com
-                                const urlMatch = logLine.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
-                                if (urlMatch) {
-                                    clearTimeout(timeout);
-                                    const previewURL = urlMatch[0];
-                                    this.logger.info(`Found cloudflared tunnel URL: ${previewURL}`);
-                                    resolve(previewURL);
-                                    return;
-                                }
-                            }
-                        }
-                    } catch (error) {
-                        this.logger.error('Cloudflare tunnel process failed', error);
-                        clearTimeout(timeout);
-                        reject(error);
-                    }
-                };
+    //                             // Look for the preview URL in the logs
+    //                             // Format: https://subdomain.trycloudflare.com
+    //                             const urlMatch = logLine.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
+    //                             if (urlMatch) {
+    //                                 clearTimeout(timeout);
+    //                                 const previewURL = urlMatch[0];
+    //                                 this.logger.info(`Found cloudflared tunnel URL: ${previewURL}`);
+    //                                 resolve(previewURL);
+    //                                 return;
+    //                             }
+    //                         }
+    //                     }
+    //                 } catch (error) {
+    //                     this.logger.error('Cloudflare tunnel process failed', error);
+    //                     clearTimeout(timeout);
+    //                     // reject(error);
+    //                     resolve('');
+    //                 }
+    //             };
 
-                processLogs();
-            });
+    //             processLogs();
+    //         });
+    //     } catch (error) {
+    //         this.logger.warn('Failed to start cloudflared tunnel', error);
+    //         throw error;
+    //     }
+    // }
+
+
+    /**
+     * Provisions Cloudflare resources for template placeholders in wrangler.jsonc
+     */
+    private async provisionTemplateResources(instanceId: string, projectName: string): Promise<ResourceProvisioningResult> {
+        try {
+            const sandbox = this.getSandbox();
+            
+            // Read wrangler.jsonc file
+            const wranglerFile = await sandbox.readFile(`${instanceId}/wrangler.jsonc`);
+            if (!wranglerFile.success) {
+                this.logger.info(`No wrangler.jsonc found for ${instanceId}, skipping resource provisioning`);
+                return {
+                    success: true,
+                    provisioned: [],
+                    failed: [],
+                    replacements: {},
+                    wranglerUpdated: false
+                };
+            }
+
+            // Parse and detect placeholders
+            const templateParser = new TemplateParser(this.logger);
+            const parseResult = templateParser.parseWranglerConfig(wranglerFile.content);
+
+            if (!parseResult.hasPlaceholders) {
+                this.logger.info(`No placeholders found in wrangler.jsonc for ${instanceId}`);
+                return {
+                    success: true,
+                    provisioned: [],
+                    failed: [],
+                    replacements: {},
+                    wranglerUpdated: false
+                };
+            }
+
+            this.logger.info(`Found ${parseResult.placeholders.length} placeholders to provision for ${instanceId}`);
+
+            // Initialize resource provisioner (skip if credentials are not available)
+            let resourceProvisioner: ResourceProvisioner;
+            try {
+                resourceProvisioner = new ResourceProvisioner(this.logger);
+            } catch (error) {
+                this.logger.warn(`Cannot initialize resource provisioner: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                return {
+                    success: true,
+                    provisioned: [],
+                    failed: parseResult.placeholders.map(p => ({
+                        placeholder: p.placeholder,
+                        resourceType: p.resourceType,
+                        error: 'Missing Cloudflare credentials',
+                        binding: p.binding
+                    })),
+                    replacements: {},
+                    wranglerUpdated: false
+                };
+            }
+            
+            const provisioned: ResourceProvisioningResult['provisioned'] = [];
+            const failed: ResourceProvisioningResult['failed'] = [];
+            const replacements: Record<string, string> = {};
+
+            // Provision each resource
+            for (const placeholderInfo of parseResult.placeholders) {
+                this.logger.info(`Provisioning ${placeholderInfo.resourceType} resource for placeholder ${placeholderInfo.placeholder}`);
+                
+                const provisionResult = await resourceProvisioner.provisionResource(
+                    placeholderInfo.resourceType,
+                    projectName
+                );
+
+                if (provisionResult.success && provisionResult.resourceId) {
+                    provisioned.push({
+                        placeholder: placeholderInfo.placeholder,
+                        resourceType: placeholderInfo.resourceType,
+                        resourceId: provisionResult.resourceId,
+                        binding: placeholderInfo.binding
+                    });
+                    replacements[placeholderInfo.placeholder] = provisionResult.resourceId;
+                } else {
+                    failed.push({
+                        placeholder: placeholderInfo.placeholder,
+                        resourceType: placeholderInfo.resourceType,
+                        error: provisionResult.error || 'Unknown error',
+                        binding: placeholderInfo.binding
+                    });
+                    this.logger.warn(`Failed to provision ${placeholderInfo.resourceType} for ${placeholderInfo.placeholder}: ${provisionResult.error}`);
+                }
+            }
+
+            // Update wrangler.jsonc if we have replacements
+            let wranglerUpdated = false;
+            if (Object.keys(replacements).length > 0) {
+                const updatedContent = templateParser.replacePlaceholders(wranglerFile.content, replacements);
+                const writeResult = await sandbox.writeFile(`${instanceId}/wrangler.jsonc`, updatedContent);
+                
+                if (writeResult.success) {
+                    wranglerUpdated = true;
+                    this.logger.info(`Updated wrangler.jsonc with ${Object.keys(replacements).length} resource IDs for ${instanceId}`);
+                    this.logger.info(templateParser.createReplacementSummary(replacements));
+                } else {
+                    this.logger.error(`Failed to update wrangler.jsonc for ${instanceId}`);
+                }
+            }
+
+            const result: ResourceProvisioningResult = {
+                success: failed.length === 0,
+                provisioned,
+                failed,
+                replacements,
+                wranglerUpdated
+            };
+
+            if (failed.length > 0) {
+                this.logger.warn(`Resource provisioning completed with ${failed.length} failures for ${instanceId}`);
+            } else {
+                this.logger.info(`Resource provisioning completed successfully for ${instanceId}`);
+            }
+
+            return result;
         } catch (error) {
-            this.logger.warn('Failed to start cloudflared tunnel', error);
-            throw error;
+            this.logger.error(`Exception during resource provisioning for ${instanceId}:`, error);
+            return {
+                success: false,
+                provisioned: [],
+                failed: [],
+                replacements: {},
+                wranglerUpdated: false
+            };
         }
     }
-
 
     /**
      * Updates project configuration files with the specified project name
@@ -631,11 +766,17 @@ export class SandboxSdkClient extends BaseSandboxService {
             // Update project configuration with the specified project name
             await this.updateProjectConfiguration(instanceId, projectName);
             
+            // Provision Cloudflare resources if template has placeholders
+            const resourceProvisioningResult = await this.provisionTemplateResources(instanceId, projectName);
+            if (!resourceProvisioningResult.success && resourceProvisioningResult.failed.length > 0) {
+                this.logger.warn(`Some resources failed to provision for ${instanceId}, but continuing setup process`);
+            }
+            
             // Allocate single port for both dev server and tunnel
             const allocatedPort = await this.allocateAvailablePort();
                 
             // Start cloudflared tunnel using the same port as dev server
-            const tunnelPromise = this.startCloudflaredTunnel(instanceId, allocatedPort);
+            // const tunnelPromise = this.startCloudflaredTunnel(instanceId, allocatedPort);
                 
             this.logger.info(`Installing dependencies for ${instanceId}`);
             const installResult = await this.executeCommand(instanceId, `bun install`);
@@ -648,9 +789,9 @@ export class SandboxSdkClient extends BaseSandboxService {
                     if (localEnvVars) {
                         await this.setLocalEnvVars(instanceId, localEnvVars);
                     }
-                    this.logger.info(`Running setup script for ${instanceId}`);
-                    const setupResult = await this.executeCommand(instanceId, `[ -f setup.sh ] && bash setup.sh ${projectName}`);
-                    this.logger.info(`Setup result: STDOUT: ${setupResult.stdout}, STDERR: ${setupResult.stderr}`);
+                    // this.logger.info(`Running setup script for ${instanceId}`);
+                    // const setupResult = await this.executeCommand(instanceId, `[ -f setup.sh ] && bash setup.sh ${projectName}`);
+                    // this.logger.info(`Setup result: STDOUT: ${setupResult.stdout}, STDERR: ${setupResult.stderr}`);
                     // Start dev server on allocated port
                     const processId = await this.startDevServer(instanceId, allocatedPort);
                     this.logger.info(`Successfully created instance ${instanceId}, processId: ${processId}, port: ${allocatedPort}`);
@@ -660,11 +801,11 @@ export class SandboxSdkClient extends BaseSandboxService {
                     const previewURL = previewResult.url;
                         
                     // Wait for tunnel URL (tunnel forwards to same port)
-                    const tunnelURL = await tunnelPromise;
+                    // const tunnelURL = await tunnelPromise;
                         
-                    this.logger.info(`Exposed preview URL: ${previewURL}, Tunnel URL: ${tunnelURL}`);
+                    this.logger.info(`Exposed preview URL: ${previewURL}`); //, Tunnel URL: ${tunnelURL}`);
                         
-                    return { previewURL, tunnelURL, processId, allocatedPort };
+                    return { previewURL, tunnelURL: '', processId, allocatedPort };
                 } catch (error) {
                     this.logger.warn('Failed to start dev server or tunnel', error);
                     return undefined;

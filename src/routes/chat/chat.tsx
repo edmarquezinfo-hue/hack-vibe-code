@@ -17,6 +17,7 @@ import { UserMessage, AIMessage } from './components/messages';
 import { PhaseTimeline } from './components/phase-timeline';
 import { SmartPreviewIframe } from './components/smart-preview-iframe';
 import { ViewModeSwitch } from './components/view-mode-switch';
+import { Terminal, type TerminalLog } from './components/terminal';
 import { DebugPanel, type DebugMessage } from './components/debug-panel';
 import { DeploymentControls } from './components/deployment-controls';
 import { useChat, type FileType } from './hooks/use-chat';
@@ -120,6 +121,9 @@ export default function Chat() {
 		query: userQuery,
 		agentMode: agentMode as 'deterministic' | 'smart',
 		onDebugMessage: addDebugMessage,
+		onTerminalMessage: (log) => {
+			setTerminalLogs(prev => [...prev, log]);
+		},
 	});
 
 	// GitHub export functionality
@@ -128,9 +132,12 @@ export default function Chat() {
 	const navigate = useNavigate();
 
 	const [activeFilePath, setActiveFilePath] = useState<string>();
-	const [view, setView] = useState<'editor' | 'preview' | 'blueprint'>(
+	const [view, setView] = useState<'editor' | 'preview' | 'blueprint' | 'terminal'>(
 		'editor',
 	);
+
+	// Terminal state
+	const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
 
 	// Debug panel state
 	const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
@@ -205,9 +212,30 @@ export default function Chat() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	const handleViewModeChange = useCallback((mode: 'preview' | 'editor') => {
+	const handleViewModeChange = useCallback((mode: 'preview' | 'editor' | 'terminal') => {
 		setView(mode);
 	}, []);
+
+	// Terminal functions
+	const handleTerminalCommand = useCallback((command: string) => {
+		if (websocket && websocket.readyState === WebSocket.OPEN) {
+			// Add command to terminal logs
+			const commandLog: TerminalLog = {
+				id: `cmd-${Date.now()}`,
+				content: command,
+				type: 'command',
+				timestamp: Date.now()
+			};
+			setTerminalLogs(prev => [...prev, commandLog]);
+
+			// Send command via WebSocket
+			websocket.send(JSON.stringify({
+				type: 'terminal_command',
+				command,
+				timestamp: Date.now()
+			}));
+		}
+	}, [websocket, setTerminalLogs]);
 
 	const generatingCount = useMemo(
 		() =>
@@ -746,6 +774,7 @@ export default function Chat() {
 												onChange={handleViewModeChange}
 												previewAvailable={!!previewUrl}
 												showTooltip={showTooltip}
+												terminalAvailable={true}
 											/>
 										</div>
 
@@ -861,6 +890,75 @@ export default function Chat() {
 								</div>
 							)}
 
+							{view === 'terminal' && (
+								<div className="flex-1 flex flex-col bg-bg-light rounded-xl shadow-md overflow-hidden border border-text/10">
+									<div className="grid grid-cols-3 px-2 h-10 bg-bg border-b">
+										<div className="flex items-center">
+											<ViewModeSwitch
+												view={view}
+												onChange={handleViewModeChange}
+												previewAvailable={!!previewUrl}
+												showTooltip={showTooltip}
+												terminalAvailable={true}
+											/>
+										</div>
+
+										<div className="flex items-center justify-center">
+											<div className="flex items-center gap-3">
+												<span className="text-sm font-mono text-text-50/70">
+													Terminal
+												</span>
+												<div className={clsx(
+													'flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium',
+													websocket && websocket.readyState === WebSocket.OPEN
+														? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+														: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+												)}>
+													<div className={clsx(
+														'size-1.5 rounded-full',
+														websocket && websocket.readyState === WebSocket.OPEN ? 'bg-green-500' : 'bg-red-500'
+													)} />
+													{websocket && websocket.readyState === WebSocket.OPEN ? 'Connected' : 'Disconnected'}
+												</div>
+											</div>
+										</div>
+
+										<div className="flex items-center justify-end gap-1.5">
+											<button
+												onClick={() => {
+													const logText = terminalLogs
+														.map(log => `[${new Date(log.timestamp).toLocaleTimeString()}] ${log.content}`)
+														.join('\n');
+													navigator.clipboard.writeText(logText);
+												}}
+												className={clsx(
+													"h-7 w-7 p-0 rounded-md transition-all duration-200",
+													"text-gray-500 hover:text-gray-700",
+													"dark:text-gray-400 dark:hover:text-gray-200",
+													"hover:bg-gray-100 dark:hover:bg-gray-700"
+												)}
+												title="Copy all logs"
+											>
+												<Copy text="" />
+											</button>
+											<ModelConfigInfo
+												configs={modelConfigs}
+												onRequestConfigs={handleRequestConfigs}
+												loading={loadingConfigs}
+											/>
+										</div>
+									</div>
+									<div className="flex-1">
+										<Terminal
+											logs={terminalLogs}
+											onCommand={handleTerminalCommand}
+											isConnected={!!websocket && websocket.readyState === WebSocket.OPEN}
+											className="h-full"
+										/>
+									</div>
+								</div>
+							)}
+
 							{view === 'editor' && (
 								<div className="flex-1 flex flex-col bg-bg-light rounded-xl shadow-md overflow-hidden border border-text/10">
 									{activeFile && (
@@ -875,6 +973,7 @@ export default function Chat() {
 														!!previewUrl
 													}
 													showTooltip={showTooltip}
+													terminalAvailable={true}
 												/>
 											</div>
 

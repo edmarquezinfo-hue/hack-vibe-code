@@ -131,7 +131,7 @@ export class ModelTestService extends BaseService {
                 modelName: testModel,
                 maxTokens: 10,
                 temperature: 0,
-                userApiKeys: testApiKeys
+                userApiKeys: Object.fromEntries(testApiKeys)
             });
 
             const endTime = Date.now();

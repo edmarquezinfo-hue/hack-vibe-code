@@ -67,6 +67,6 @@ export type AgentActionKey = keyof AgentConfig;
 export interface InferenceContext {
     agentId: string;
     userId?: string;
-    userModelConfigs?: Map<AgentActionKey, ModelConfig>;
-    userApiKeys?: Map<string, string>;
+    userModelConfigs?: Record<AgentActionKey, ModelConfig>;
+    userApiKeys?: Record<string, string>;
 }

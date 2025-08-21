@@ -208,12 +208,12 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 // Fetch all user API keys at once
                 const userApiKeys = await secretsService.getUserProviderKeysMap(userId);
                 
-                inferenceContext.userModelConfigs = userModelConfigs;
-                inferenceContext.userApiKeys = userApiKeys;
+                inferenceContext.userModelConfigs = Object.fromEntries(userModelConfigs);
+                inferenceContext.userApiKeys = Object.fromEntries(userApiKeys);
                 
                 this.logger.info(`Initialized inference context for user ${userId}`, {
-                    modelConfigsCount: userModelConfigs.size,
-                    apiKeysCount: userApiKeys.size
+                    modelConfigsCount: Object.keys(userModelConfigs).length,
+                    apiKeysCount: Object.keys(inferenceContext.userApiKeys || {}).length
                 });
             } catch (error) {
                 this.logger.warn('Failed to initialize user configurations for inference context', error);
@@ -1304,7 +1304,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         }
         const localEnvVars = {
             CF_AI_BASE_URL: `${baseUrl}/compat`,
-            CF_AI_API_KEY: this.env.CLOUDFLARE_AI_GATEWAY_TOKEN,
+            // CF_AI_API_KEY: this.env.CLOUDFLARE_AI_GATEWAY_TOKEN,
         }
         
         const createResponse = await this.getSandboxServiceClient().createInstance(templateName, `v1-${projectName}`, webhookUrl, true, localEnvVars);
@@ -2139,7 +2139,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
      */
     public async captureScreenshot(
         url: string, 
-        viewport: { width: number; height: number } = { width: 1920, height: 1080 }
+        viewport: { width: number; height: number } = { width: 1280, height: 720 }
     ): Promise<string> {
         if (!url) {
             const error = 'URL is required for screenshot capture';
@@ -2317,6 +2317,144 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             this.logger.error('Failed to capture and save screenshot:', error);
             // Error was already broadcast by captureScreenshot method
             // Don't throw - we don't want screenshot failures to break the generation flow
+        }
+    }
+
+    /**
+     * Execute a terminal command received from the frontend
+     * Uses the same infrastructure as the existing executeCommands method
+     */
+    async executeTerminalCommand(command: string, connection?: Connection): Promise<void> {
+        try {
+            this.logger.info('Executing terminal command', { command });
+            
+            // Send server log
+            const serverLogMessage = {
+                message: `Executing command: ${command}`,
+                level: 'info' as const,
+                timestamp: Date.now(),
+                source: 'terminal'
+            };
+            
+            if (connection) {
+                this.sendToConnection(connection, WebSocketMessageResponses.SERVER_LOG, serverLogMessage);
+            } else {
+                this.broadcast(WebSocketMessageResponses.SERVER_LOG, serverLogMessage);
+            }
+
+            const sanitizedCommand = command.trim();
+            if (!sanitizedCommand) {
+                throw new Error('Empty command');
+            }
+
+            const state = this.state;
+            if (!state.sandboxInstanceId) {
+                throw new Error('No sandbox instance available for executing commands');
+            }
+
+            // Use the existing sandbox service to execute the command
+            this.broadcast(WebSocketMessageResponses.COMMAND_EXECUTING, {
+                message: "Executing terminal command",
+                commands: [sanitizedCommand]
+            });
+
+            const resp = await this.getSandboxServiceClient().executeCommands(
+                state.sandboxInstanceId,
+                [sanitizedCommand]
+            );
+
+            if (!resp || !resp.results) {
+                throw new Error('Failed to execute command');
+            }
+
+            // Send the command output back to terminal
+            for (const result of resp.results) {
+                if (result.output) {
+                    const outputMessage = {
+                        output: result.output,
+                        outputType: result.success ? 'stdout' as const : 'stderr' as const,
+                        timestamp: Date.now()
+                    };
+                    
+                    if (connection) {
+                        this.sendToConnection(connection, WebSocketMessageResponses.TERMINAL_OUTPUT, outputMessage);
+                    } else {
+                        this.broadcast(WebSocketMessageResponses.TERMINAL_OUTPUT, outputMessage);
+                    }
+                }
+                
+                if (result.error) {
+                    const errorMessage = {
+                        output: result.error,
+                        outputType: 'stderr' as const,
+                        timestamp: Date.now()
+                    };
+                    
+                    if (connection) {
+                        this.sendToConnection(connection, WebSocketMessageResponses.TERMINAL_OUTPUT, errorMessage);
+                    } else {
+                        this.broadcast(WebSocketMessageResponses.TERMINAL_OUTPUT, errorMessage);
+                    }
+                }
+
+                // Show exit code if non-zero
+                if (result.exitCode !== 0) {
+                    const exitCodeMessage = {
+                        output: `Command exited with code ${result.exitCode}`,
+                        outputType: 'stderr' as const,
+                        timestamp: Date.now()
+                    };
+                    
+                    if (connection) {
+                        this.sendToConnection(connection, WebSocketMessageResponses.TERMINAL_OUTPUT, exitCodeMessage);
+                    } else {
+                        this.broadcast(WebSocketMessageResponses.TERMINAL_OUTPUT, exitCodeMessage);
+                    }
+                }
+            }
+            
+        } catch (error) {
+            this.logger.error('Error executing terminal command:', error);
+            
+            const errorMessage = {
+                output: `Error: ${error instanceof Error ? error.message : String(error)}`,
+                outputType: 'stderr' as const,
+                timestamp: Date.now()
+            };
+            
+            if (connection) {
+                this.sendToConnection(connection, WebSocketMessageResponses.TERMINAL_OUTPUT, errorMessage);
+            } else {
+                this.broadcast(WebSocketMessageResponses.TERMINAL_OUTPUT, errorMessage);
+            }
+        }
+    }
+
+    /**
+     * Send a server log message to terminals
+     */
+    broadcastServerLog(message: string, level: 'info' | 'warn' | 'error' | 'debug' = 'info', source?: string): void {
+        this.broadcast(WebSocketMessageResponses.SERVER_LOG, {
+            message,
+            level,
+            timestamp: Date.now(),
+            source
+        });
+    }
+
+    /**
+     * Send message to a specific connection
+     */
+    private sendToConnection(
+        connection: Connection, 
+        type: string, 
+        data: any
+    ): void {
+        try {
+            const message = { type, ...data };
+            connection.send(JSON.stringify(message));
+        } catch (error) {
+            this.logger.error('Error sending message to connection:', error);
         }
     }
 }

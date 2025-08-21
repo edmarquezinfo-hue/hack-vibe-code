@@ -346,8 +346,8 @@ export const SmartPreviewIframe = forwardRef<HTMLIFrameElement, SmartPreviewIfra
 														url: currentSrc,
 														timestamp: Date.now(),
 														viewport: { 
-															width: 1920, 
-															height: 1080 
+															width: 1280, 
+															height: 720 
 														}
 													}
 												}));

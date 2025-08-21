@@ -77,11 +77,13 @@ export function useChat({
 	query: userQuery,
 	agentMode = 'deterministic',
 	onDebugMessage,
+	onTerminalMessage,
 }: {
 	chatId?: string;
 	query: string | null;
 	agentMode?: 'deterministic' | 'smart';
 	onDebugMessage?: (type: 'error' | 'warning' | 'info' | 'websocket', message: string, details?: string, source?: string, messageType?: string, rawMessage?: unknown) => void;
+	onTerminalMessage?: (log: { id: string; content: string; type: 'command' | 'stdout' | 'stderr' | 'info' | 'error' | 'warn' | 'debug'; timestamp: number; source?: string }) => void;
 }) {
 	const connectionStatus = useRef<'idle' | 'connecting' | 'connected' | 'failed' | 'retrying'>('idle');
 	const retryCount = useRef(0);
@@ -952,6 +954,35 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 						id: messageId,
 						message: message.message,
 					});
+				}
+				break;
+			}
+
+			case 'terminal_output': {
+				// Handle terminal output from server
+				const terminalLog = {
+					id: `terminal-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+					content: message.output,
+					type: message.outputType as 'stdout' | 'stderr' | 'info',
+					timestamp: message.timestamp
+				};
+				if (onTerminalMessage) {
+					onTerminalMessage(terminalLog);
+				}
+				break;
+			}
+
+			case 'server_log': {
+				// Handle server logs
+				const serverLog = {
+					id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+					content: message.message,
+					type: message.level as 'info' | 'warn' | 'error' | 'debug',
+					timestamp: message.timestamp,
+					source: message.source
+				};
+				if (onTerminalMessage) {
+					onTerminalMessage(serverLog);
 				}
 				break;
 			}

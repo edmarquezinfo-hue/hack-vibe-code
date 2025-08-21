@@ -110,10 +110,10 @@ function isValidApiKey(apiKey: string): boolean {
     return true;
 }
 
-function getApiKey(provider: string, env: Env, userProviderKeys?: Map<string, string>): string {
+function getApiKey(provider: string, env: Env, userProviderKeys?: Record<string, string>): string {
     // First check if user has a custom API key for this provider
-    if (userProviderKeys && userProviderKeys.has(provider)) {
-        const userKey = userProviderKeys.get(provider);
+    if (userProviderKeys && provider in userProviderKeys) {
+        const userKey = userProviderKeys[provider];
         if (userKey && isValidApiKey(userKey)) {
             return userKey;
         }
@@ -134,7 +134,7 @@ function getApiKey(provider: string, env: Env, userProviderKeys?: Map<string, st
 export async function getConfigurationForModel(
     model: AIModels | string, 
     env: Env, 
-    userProviderKeys?: Map<string, string>
+    userProviderKeys?: Record<string, string>
 ): Promise<{
     baseURL: string,
     apiKey: string,
@@ -196,7 +196,7 @@ type InferArgsBase = {
 	};
 	tools?: ChatCompletionTool[];
 	providerOverride?: 'cloudflare' | 'direct';
-	userApiKeys?: Map<string, string>;
+	userApiKeys?: Record<string, string>;
 };
 
 type InferArgsStructured = InferArgsBase & {

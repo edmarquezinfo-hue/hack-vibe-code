@@ -286,7 +286,7 @@ export interface TestResult {
  */
 export interface ModelTestRequest {
     modelConfig: ModelConfig;
-    userApiKeys?: Map<string, string>;
+    userApiKeys?: Record<string, string>;
     testPrompt?: string;
 }
 

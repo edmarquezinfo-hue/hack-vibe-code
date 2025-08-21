@@ -79,7 +79,7 @@ export async function executeInference<T extends z.AnyZodObject>(   {
         conf = modelConfig;
     } else if (context?.userId && context?.userModelConfigs) {
         // Try to get user-specific configuration from context cache
-        conf = context.userModelConfigs.get(agentActionName);
+        conf = context.userModelConfigs[agentActionName];
         if (conf) {
             logger.info(`Using user configuration for ${agentActionName}: ${JSON.stringify(conf)}`);
         } else {
@@ -97,8 +97,8 @@ export async function executeInference<T extends z.AnyZodObject>(   {
 
     // Use user API keys from context cache
     const userApiKeys = context?.userApiKeys;
-    if (userApiKeys && userApiKeys.size > 0) {
-        logger.info(`Using ${userApiKeys.size} user API keys from context cache for inference`);
+    if (userApiKeys && Object.keys(userApiKeys).length > 0) {
+        logger.info(`Using ${Object.keys(userApiKeys).length} user API keys from context cache for inference`);
     }
 
     // Exponential backoff for retries

@@ -336,6 +336,27 @@ type ModelConfigsInfoMessage = {
 	};
 };
 
+type TerminalCommandMessage = {
+	type: 'terminal_command';
+	command: string;
+	timestamp: number;
+};
+
+type TerminalOutputMessage = {
+	type: 'terminal_output';
+	output: string;
+	outputType: 'stdout' | 'stderr' | 'info';
+	timestamp: number;
+};
+
+type ServerLogMessage = {
+	type: 'server_log';
+	message: string;
+	level: 'info' | 'warn' | 'error' | 'debug';
+	timestamp: number;
+	source?: string;
+};
+
 export type WebSocketMessage =
 	| StateMessage
 	| GenerationStartedMessage
@@ -379,7 +400,10 @@ export type WebSocketMessage =
 	| ConversationResponseMessage
     | DeterministicCodeFixStartedMessage
     | DeterministicCodeFixCompletedMessage
-	| ModelConfigsInfoMessage;
+	| ModelConfigsInfoMessage
+	| TerminalCommandMessage
+	| TerminalOutputMessage
+	| ServerLogMessage;
 
 // A type representing all possible message type strings (e.g., 'generation_started', 'file_generating', etc.)
 export type WebSocketMessageType = WebSocketMessage['type'];

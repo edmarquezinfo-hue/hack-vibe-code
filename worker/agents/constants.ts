@@ -62,6 +62,10 @@ export const WebSocketMessageResponses: Record<string, WebSocketMessageType> = {
     
     // Model configuration info
     MODEL_CONFIGS_INFO: 'model_configs_info',
+    
+    // Terminal messages
+    TERMINAL_OUTPUT: 'terminal_output',
+    SERVER_LOG: 'server_log',
 }
 
 // WebSocket message types
@@ -87,4 +91,7 @@ export const WebSocketMessageRequests = {
     
     // Model configuration info request
     GET_MODEL_CONFIGS: 'get_model_configs',
+    
+    // Terminal command request
+    TERMINAL_COMMAND: 'terminal_command',
 };
