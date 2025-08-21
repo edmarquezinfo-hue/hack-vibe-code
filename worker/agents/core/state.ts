@@ -2,7 +2,7 @@ import type { Blueprint, ClientReportedErrorType, PhaseConceptType ,
     FileOutputType,
 } from '../schemas';
 import type { TemplateDetails } from '../../services/sandbox/sandboxTypes';
-import type { ScreenshotData } from './types';
+// import type { ScreenshotData } from './types';
 import type { ConversationMessage } from '../inferutils/common';
 import type { InferenceContext } from '../inferutils/config.types';
 
@@ -41,7 +41,7 @@ export interface CodeGenState {
     // previewURL?: string;
     // tunnelURL?: string;
     clientReportedErrors: ClientReportedErrorType[];
-    latestScreenshot?: ScreenshotData; // Store captured screenshot
+    // latestScreenshot?: ScreenshotData; // Store captured screenshot
     shouldBeGenerating?: boolean; // Persistent flag indicating generation should be active
     agentMode: 'deterministic' | 'smart';
     sessionId: string;

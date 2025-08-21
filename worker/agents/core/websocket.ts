@@ -113,11 +113,11 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                     viewport: parsedMessage.data.viewport
                 });
                 
-                // Save screenshot to agent state
-                agent.setState({ 
-                    ...agent.state, 
-                    latestScreenshot: parsedMessage.data
-                });
+                // // Save screenshot to agent state
+                // agent.setState({ 
+                //     ...agent.state, 
+                //     latestScreenshot: parsedMessage.data
+                // });
                 
                 // Update database with screenshot
                 agent.saveScreenshotToDatabase(parsedMessage.data).catch(error => {

@@ -4,7 +4,6 @@ import {
     Blueprint, 
     CodeOutputType, 
     PhaseConceptGenerationSchemaType, 
-    ScreenshotAnalysisType,
     PhaseConceptType,
     FileOutputType,
     TechnicalInstructionType,
@@ -134,7 +133,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         commandsHistory: [],
         lastPackageJson: '',
         clientReportedErrors: [],
-        latestScreenshot: undefined,
+        // latestScreenshot: undefined,
         pendingUserInputs: [],
         inferenceContext: {} as InferenceContext,
         // conversationalAssistant: new ConversationalAssistant(this.env),
@@ -245,7 +244,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             });
         });
 
-        this.logger.info("Agent initialized successfully");
+        this.logger.info(`Agent ${this.state.sessionId} initialized successfully`);
     }
 
     async isInitialized() {
@@ -1012,39 +1011,83 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
      */
     private migrateStateIfNeeded(): void {
         let needsMigration = false;
-        const migratedFilesMap: Record<string, FileState> = {};
         
-        for (const [key, file] of Object.entries(this.state.generatedFilesMap)) {
-            // Check if this file has old snake_case format
-            const hasOldFormat = 'file_path' in (file as any) || 'file_contents' in (file as any) || 'file_purpose' in (file as any);
+        // Helper function to migrate a file object from snake_case to camelCase
+        const migrateFile = (file: any): any => {
+            const hasOldFormat = 'file_path' in file || 'file_contents' in file || 'file_purpose' in file;
             
             if (hasOldFormat) {
-                // Migrate from snake_case to camelCase
-                const oldFile = file as any;
-                migratedFilesMap[key] = {
-                    filePath: oldFile.filePath || oldFile.file_path,
-                    fileContents: oldFile.fileContents || oldFile.file_contents,
-                    filePurpose: oldFile.filePurpose || oldFile.file_purpose,
-                    // Preserve FileState-specific properties
-                    last_hash: oldFile.last_hash || '',
-                    last_modified: oldFile.last_modified || Date.now(),
-                    unmerged: oldFile.unmerged || []
+                return {
+                    filePath: file.filePath || file.file_path,
+                    fileContents: file.fileContents || file.file_contents,
+                    filePurpose: file.filePurpose || file.file_purpose,
                 };
+            }
+            return file;
+        };
+
+        // Migrate generatedFilesMap
+        const migratedFilesMap: Record<string, FileState> = {};
+        for (const [key, file] of Object.entries(this.state.generatedFilesMap)) {
+            const migratedFile = migrateFile(file);
+            
+            // Add FileState-specific properties if missing
+            migratedFilesMap[key] = {
+                ...migratedFile,
+                last_hash: migratedFile.last_hash || '',
+                last_modified: migratedFile.last_modified || Date.now(),
+                unmerged: migratedFile.unmerged || []
+            };
+            
+            if (migratedFile !== file) {
                 needsMigration = true;
-                this.logger.info(`Migrated file from snake_case to camelCase: ${migratedFilesMap[key].filePath}`);
-            } else {
-                // Already in new format
-                migratedFilesMap[key] = file;
             }
         }
-        
-        if (needsMigration) {
-            this.logger.info(`Migrated ${Object.keys(migratedFilesMap).length} files from snake_case to camelCase format`);
-            this.setState({
-                ...this.state,
-                generatedFilesMap: migratedFilesMap
+
+        // Migrate templateDetails.files
+        let migratedTemplateDetails = this.state.templateDetails;
+        if (migratedTemplateDetails?.files) {
+            const migratedTemplateFiles = migratedTemplateDetails.files.map(file => {
+                const migratedFile = migrateFile(file);
+                if (migratedFile !== file) {
+                    needsMigration = true;
+                }
+                return migratedFile;
             });
-            // The durable object will persist this change automatically
+            
+            if (needsMigration) {
+                migratedTemplateDetails = {
+                    ...migratedTemplateDetails,
+                    files: migratedTemplateFiles
+                };
+            }
+        }
+
+        // Check for deprecated properties
+        const stateHasDeprecatedProps = 'latestScreenshot' in (this.state as any);
+        if (stateHasDeprecatedProps) {
+            needsMigration = true;
+        }
+        
+        // Apply migration if needed
+        if (needsMigration) {
+            this.logger.info('Migrating state from snake_case to camelCase format', {
+                generatedFilesCount: Object.keys(migratedFilesMap).length,
+                templateFilesCount: migratedTemplateDetails?.files?.length || 0
+            });
+            
+            const newState = {
+                ...this.state,
+                generatedFilesMap: migratedFilesMap,
+                templateDetails: migratedTemplateDetails
+            };
+            
+            // Remove deprecated properties
+            if (stateHasDeprecatedProps) {
+                delete (newState as any).latestScreenshot;
+            }
+            
+            this.setState(newState);
         }
     }
 
@@ -1272,7 +1315,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                     const moduleNames = modulesNotFound.map(issue => issue.reason.match(/External package "(.+)"/)?.[1]);
                     
                     // Execute command
-                    await this.executeCommands(moduleNames.map(moduleName => `bun install ${moduleName}`));
+                    await this.executeCommands(moduleNames.filter(moduleName => moduleName !== undefined).map(moduleName => `bun install ${moduleName}`));
                     this.logger.info(`Deterministic code fixer installed missing modules: ${moduleNames.join(', ')}`);
                 }
             }
@@ -1593,27 +1636,27 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         }
     }
 
-    async analyzeScreenshot(): Promise<ScreenshotAnalysisType | null> {
-        const screenshotData = this.state.latestScreenshot;
-        if (!screenshotData) {
-            this.logger.warn('No screenshot available for analysis');
-            return null;
-        }
+    // async analyzeScreenshot(): Promise<ScreenshotAnalysisType | null> {
+    //     const screenshotData = this.state.latestScreenshot;
+    //     if (!screenshotData) {
+    //         this.logger.warn('No screenshot available for analysis');
+    //         return null;
+    //     }
 
-        const context = GenerationContext.from(this.state, this.logger);    
-        const result = await this.operations.analyzeScreenshot.execute(
-            {screenshotData},
-            {
-                env: this.env,
-                agentId: this.state.sessionId,
-                context,
-                logger: this.logger,
-                inferenceContext: this.state.inferenceContext,
-            }
-        );
+    //     const context = GenerationContext.from(this.state, this.logger);    
+    //     const result = await this.operations.analyzeScreenshot.execute(
+    //         {screenshotData},
+    //         {
+    //             env: this.env,
+    //             agentId: this.state.sessionId,
+    //             context,
+    //             logger: this.logger,
+    //             inferenceContext: this.state.inferenceContext,
+    //         }
+    //     );
 
-        return result || null;
-    }
+    //     return result || null;
+    // }
 
     async waitForGeneration(): Promise<void> {
         if (this.state.generationPromise) {
@@ -1799,7 +1842,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         }
 
         // Sanitize and prepare commands
-        commands = commands.join('\n').split('\n').filter(cmd => cmd.trim() !== '').filter(cmd => looksLikeCommand(cmd));
+        commands = commands.join('\n').split('\n').filter(cmd => cmd.trim() !== '').filter(cmd => looksLikeCommand(cmd) && !cmd.includes(' undefined'));
         if (commands.length === 0) {
             this.logger.warn("No commands to execute");
             return;
@@ -2363,14 +2406,14 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 screenshotUrl
             });
             
-            // Update agent state with latest screenshot
-            this.setState({
-                ...this.state,
-                latestScreenshot: {
-                    ...screenshotData,
-                    screenshot: screenshotUrl // Store base64 data URL
-                }
-            });
+            // // Update agent state with latest screenshot
+            // this.setState({
+            //     ...this.state,
+            //     latestScreenshot: {
+            //         ...screenshotData,
+            //         screenshot: screenshotUrl // Store base64 data URL
+            //     }
+            // });
             
         } catch (error) {
             this.logger.error('Failed to capture and save screenshot:', error);
