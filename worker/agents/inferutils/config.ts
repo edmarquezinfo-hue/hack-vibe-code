@@ -4,7 +4,6 @@ import { AgentConfig, AIModels } from "./config.types";
 export const AGENT_CONFIG: AgentConfig = {
     templateSelection: {
         name: AIModels.GEMINI_2_5_FLASH_LITE,
-        providerOverride: 'direct',
         // reasoning_effort: 'medium',
         max_tokens: 2000,
         fallbackModel: AIModels.GEMINI_2_5_FLASH,
@@ -109,7 +108,7 @@ export const AGENT_CONFIG: AgentConfig = {
         reasoning_effort: undefined,
         max_tokens: 64000,
         temperature: 0.0,
-        fallbackModel: AIModels.OPENROUTER_QWEN_3_CODER,
+        fallbackModel: AIModels.GEMINI_2_5_PRO,
     },
     conversationalResponse: {
         name: AIModels.GEMINI_2_5_FLASH,

@@ -199,7 +199,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                             max_tokens: mergedConfig.max_tokens,
                             temperature: mergedConfig.temperature,
                             reasoning_effort: mergedConfig.reasoning_effort,
-                            providerOverride: mergedConfig.providerOverride,
                             fallbackModel: mergedConfig.fallbackModel
                         };
                         userModelConfigs.set(actionKey, modelConfig);
@@ -1950,12 +1949,13 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 progress: 90
             });
 
-            // Update database with GitHub repository URL
+            // Update database with GitHub repository URL and visibility
             await DatabaseOperations.updateGitHubRepository(
                 this.env,
                 this.state.sessionId || '',
                 this.logger,
-                repositoryUrl || ''
+                repositoryUrl || '',
+                options.isPrivate ? 'private' : 'public'
             );
 
             // Broadcast success

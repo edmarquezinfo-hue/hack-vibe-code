@@ -94,7 +94,6 @@ export async function executeInference<T extends z.AnyZodObject>(   {
     temperature = temperature || finalConf.temperature || 0.2;
     maxTokens = maxTokens || finalConf.max_tokens || 16000;
     reasoning_effort = reasoning_effort || finalConf.reasoning_effort;
-    const providerOverride = finalConf.providerOverride;
 
     // Use user API keys from context cache
     const userApiKeys = context?.userApiKeys;
@@ -127,7 +126,6 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 stream,
                 reasoning_effort: useCheaperModel ? undefined : reasoning_effort,
                 temperature,
-                providerOverride,
                 userApiKeys: useCheaperModel ? undefined : userApiKeys
             }) : await infer({
                 env,
@@ -139,7 +137,6 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 stream,
                 reasoning_effort: useCheaperModel ? undefined : reasoning_effort,
                 temperature,
-                providerOverride,
                 userApiKeys: useCheaperModel ? undefined : userApiKeys
             });
             logger.info(`Successfully completed ${agentActionName} operation`);

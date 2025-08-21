@@ -23,13 +23,6 @@ export class ModelConfigService extends BaseService {
         return value as ReasoningEffort;
     }
 
-    /**
-     * Safely cast database string to provider override type
-     */
-    private castToProviderOverride(value: string | null): 'cloudflare' | 'direct' | undefined {
-        if (!value) return undefined;
-        return value as 'cloudflare' | 'direct';
-    }
 
 
     /**
@@ -57,7 +50,6 @@ export class ModelConfigService extends BaseService {
                     max_tokens: userConfig.maxTokens ?? defaultConfig.max_tokens,
                     temperature: userConfig.temperature !== null ? userConfig.temperature : defaultConfig.temperature,
                     reasoning_effort: this.castToReasoningEffort(userConfig.reasoningEffort) ?? defaultConfig.reasoning_effort,
-                    providerOverride: this.castToProviderOverride(userConfig.providerOverride) ?? defaultConfig.providerOverride,
                     fallbackModel: (userConfig.fallbackModel as AIModels) ?? defaultConfig.fallbackModel,
                     isUserOverride: true,
                     userConfigId: userConfig.id
@@ -97,7 +89,6 @@ export class ModelConfigService extends BaseService {
                 max_tokens: config.maxTokens ?? defaultConfig.max_tokens,
                 temperature: config.temperature !== null ? config.temperature : defaultConfig.temperature,
                 reasoning_effort: this.castToReasoningEffort(config.reasoningEffort) ?? defaultConfig.reasoning_effort,
-                providerOverride: this.castToProviderOverride(config.providerOverride) ?? defaultConfig.providerOverride,
                 fallbackModel: (config.fallbackModel as AIModels) ?? defaultConfig.fallbackModel,
                 isUserOverride: true,
                 userConfigId: config.id
@@ -131,7 +122,7 @@ export class ModelConfigService extends BaseService {
             // Only create ModelConfig if user has actual overrides
             const hasOverrides = config.modelName || config.maxTokens || 
                                 config.temperature !== null || config.reasoningEffort || 
-                                config.providerOverride || config.fallbackModel;
+                                config.fallbackModel;
             
             if (hasOverrides) {
                 const defaultConfig = AGENT_CONFIG[agentActionName];
@@ -140,7 +131,6 @@ export class ModelConfigService extends BaseService {
                     max_tokens: config.maxTokens || defaultConfig.max_tokens,
                     temperature: config.temperature !== null ? config.temperature : defaultConfig.temperature,
                     reasoning_effort: this.castToReasoningEffort(config.reasoningEffort) ?? defaultConfig.reasoning_effort,
-                    providerOverride: this.castToProviderOverride(config.providerOverride) ?? defaultConfig.providerOverride,
                     fallbackModel: (config.fallbackModel as AIModels) || defaultConfig.fallbackModel,
                 };
                 return modelConfig;
@@ -175,7 +165,6 @@ export class ModelConfigService extends BaseService {
             maxTokens: config.max_tokens || null,
             temperature: config.temperature !== undefined ? config.temperature : null,
             reasoningEffort: (config.reasoning_effort && config.reasoning_effort !== 'minimal') ? config.reasoning_effort : null,
-            providerOverride: config.providerOverride || null,
             fallbackModel: config.fallbackModel || null,
             isActive: true,
             updatedAt: new Date()

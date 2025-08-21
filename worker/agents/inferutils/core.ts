@@ -292,7 +292,6 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 	tools,
 	reasoning_effort,
 	temperature,
-	providerOverride,
 	userApiKeys,
 }: InferArgsBase & {
 	schema?: OutputSchema;
@@ -302,7 +301,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 }): Promise<InferResponseObject<OutputSchema> | InferResponseString> {
 	try {
         const { apiKey, baseURL, defaultHeaders } = await getConfigurationForModel(modelName, env, userApiKeys);
-		console.log(`baseUrl: ${baseURL}, providerOverride: ${providerOverride}, modelName: ${modelName}`);
+		console.log(`baseUrl: ${baseURL}, modelName: ${modelName}`);
 
         // Remove [*.] from model name
         modelName = modelName.replace(/\[.*?\]/, '');
@@ -369,7 +368,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
         //     console.log("===============================================================================================================================================")
         // });
 
-		console.log(`Running inference with ${modelName} using structured output with ${format} format, reasoning effort: ${reasoning_effort}, max tokens: ${maxTokens}, temperature: ${temperature}`);
+		console.log(`Running inference with ${modelName} using structured output with ${format} format, reasoning effort: ${reasoning_effort}, max tokens: ${maxTokens}, temperature: ${temperature}, baseURL: ${baseURL}, apiKey: ${apiKey}, defaultHeaders: ${defaultHeaders}`);
 		// Optimize messages to reduce token count
 		const optimizedMessages = optimizeInputs(messages);
 		console.log(`Token optimization: Original messages size ~${JSON.stringify(messages).length} chars, optimized size ~${JSON.stringify(optimizedMessages).length} chars`);

@@ -11,6 +11,7 @@ import {
     Loader
 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
+import { apiClient } from '@/lib/api-client';
 
 interface GitHubExportModalProps {
     isOpen: boolean;
@@ -58,18 +59,9 @@ export function GitHubExportModal({
         const checkIntegration = async () => {
             setCheckingIntegration(true);
             try {
-                const response = await fetch('/api/integrations/github/status', {
-                    credentials: 'include'
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    console.log('GitHub integration API response:', data);
-                    setHasGitHubIntegration(data.data?.hasIntegration || false);
-                } else {
-                    console.error('GitHub integration API error:', response.status, response.statusText);
-                    setHasGitHubIntegration(false);
-                }
+                const response = await apiClient.getGitHubIntegrationStatus();
+                console.log('GitHub integration API response:', response);
+                setHasGitHubIntegration(response.data?.hasIntegration || false);
             } catch (error) {
                 console.error('Error checking GitHub integration:', error);
                 setHasGitHubIntegration(false);

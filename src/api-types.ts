@@ -3,6 +3,8 @@
  * This file serves as the single source of truth for frontend-worker API communication
  */
 
+import { ApiKeyInfo, AuthSession } from 'worker/types/auth-types';
+
 // Base API Response Types
 export type { ControllerResponse, ApiResponse } from 'worker/api/controllers/BaseController.types';
 
@@ -60,8 +62,24 @@ export type {
   ModelConfigTestData,
   ModelConfigResetData,
   ModelConfigDefaultsData,
-  ModelConfigDeleteData
+  ModelConfigDeleteData,
+  ByokProvidersData,
+  UserProviderStatus,
+  ModelsByProvider
 } from 'worker/api/controllers/modelConfig/types';
+
+// Model Provider API Types
+export type {
+  ModelProvidersListData,
+  ModelProviderData,
+  ModelProviderCreateData,
+  ModelProviderUpdateData,
+  ModelProviderDeleteData,
+  ModelProviderTestData,
+  CreateProviderRequest,
+  UpdateProviderRequest,
+  TestProviderRequest
+} from 'worker/api/controllers/modelProviders/types';
 
 // Frontend model config update interface that matches backend schema
 export interface ModelConfigUpdate {
@@ -108,7 +126,8 @@ export type {
   App,
   User,
   CodeGenInstance,
-  UserModelConfig
+  UserModelConfig,
+  UserModelProvider
 } from 'worker/database/schema';
 
 export type {
@@ -144,11 +163,15 @@ export type {
 export type { 
   AgentActionKey,
   AgentConfig,
-  AIModels,
   ModelConfig,
   ReasoningEffortType as ReasoningEffort,
   ProviderOverrideType as ProviderOverride
 } from 'worker/agents/inferutils/config.types';
+
+export { AIModels } from 'worker/agents/inferutils/config.types';
+
+// Model selection types
+export type ModelSelectionMode = 'platform' | 'byok' | 'custom';
 
 // Match chat FileType interface
 export interface FileType {
@@ -174,3 +197,31 @@ export interface StreamingError {
 }
 
 export type AgentStreamingResponse = StreamingResponse | StreamingError;
+
+// Auth types imported from worker
+export type { AuthSession, ApiKeyInfo } from 'worker/types/auth-types';
+export type { UserResponse } from 'worker/utils/authUtils';
+
+// Active Sessions Response - matches getUserSessions + isCurrent from controller
+export interface ActiveSessionsData {
+  sessions: Array<{
+    id: string;
+    userAgent: string | null;
+    ipAddress: string | null;
+    lastActivity: Date;
+    createdAt: Date;
+    isCurrent: boolean;
+  }>;
+}
+
+// API Keys Response - matches controller response format
+export interface ApiKeysData {
+  keys: Array<{
+    id: string;
+    name: string;
+    keyPreview: string;
+    createdAt: Date | null;
+    lastUsed: Date | null;
+    isActive: boolean;
+  }>;
+}

@@ -3,7 +3,17 @@
  */
 
 import type { UserModelConfigWithMetadata, ModelTestResult } from '../../../database/types';
-import type { AgentActionKey, ModelConfig } from '../../../agents/inferutils/config.types';
+import type { AgentActionKey, ModelConfig, AIModels } from '../../../agents/inferutils/config.types';
+
+export interface UserProviderStatus {
+  provider: string;
+  hasValidKey: boolean;
+  keyPreview?: string;
+}
+
+export interface ModelsByProvider {
+  [provider: string]: AIModels[];
+}
 import { UserModelConfig } from '../../../database/schema';
 
 /**
@@ -63,4 +73,13 @@ export interface ModelConfigDefaultsData {
  */
 export interface ModelConfigDeleteData {
     message: string;
+}
+
+/**
+ * Response data for getByokProviders
+ */
+export interface ByokProvidersData {
+    providers: UserProviderStatus[];
+    modelsByProvider: ModelsByProvider;
+    platformModels: AIModels[];
 }

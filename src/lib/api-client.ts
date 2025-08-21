@@ -27,7 +27,16 @@ import type {
   ModelConfigResetData,
   ModelConfigDefaultsData,
   ModelConfigDeleteData,
+  ByokProvidersData,
   ModelConfigUpdate,
+  ModelProvidersListData,
+  ModelProviderCreateData,
+  ModelProviderUpdateData,
+  ModelProviderDeleteData,
+  ModelProviderTestData,
+  CreateProviderRequest,
+  UpdateProviderRequest,
+  TestProviderRequest,
   SecretsData,
   SecretStoreData,
   SecretDeleteData,
@@ -38,7 +47,9 @@ import type {
   AgentConnectionData,
   CodeGenerationResponse,
   AgentStreamingResponse,
-  App
+  App,
+  ActiveSessionsData,
+  ApiKeysData
 } from '@/api-types';
 
 /**
@@ -450,6 +461,20 @@ class ApiClient {
     return this.request<ModelConfigsData>('/api/model-configs');
   }
 
+  /**
+   * Get BYOK providers and available models
+   */
+  async getByokProviders(): Promise<ApiResponse<ByokProvidersData>> {
+    return this.request<ByokProvidersData>('/api/model-configs/byok-providers');
+  }
+
+  /**
+   * Get BYOK templates for dynamic provider configuration
+   */
+  async getBYOKTemplates(): Promise<ApiResponse<SecretTemplatesData>> {
+    return this.request<SecretTemplatesData>('/api/secrets/templates?category=byok');
+  }
+
 
   /**
    * Reset model configuration to default
@@ -489,10 +514,14 @@ class ApiClient {
   /**
    * Test model configuration
    */
-  async testModelConfig(actionKey: string): Promise<ApiResponse<ModelConfigTestData>> {
+  async testModelConfig(actionKey: string, tempConfig?: ModelConfigUpdate): Promise<ApiResponse<ModelConfigTestData>> {
     return this.request<ModelConfigTestData>('/api/model-configs/test', {
       method: 'POST',
-      body: { agentActionName: actionKey, useUserKeys: true },
+      body: { 
+        agentActionName: actionKey, 
+        useUserKeys: true,
+        ...(tempConfig && { tempConfig })
+      },
     });
   }
 
@@ -522,6 +551,56 @@ class ApiClient {
   }
 
   // ===============================
+  // Model Providers API Methods
+  // ===============================
+  
+  /**
+   * Get all custom model providers
+   */
+  async getModelProviders(): Promise<ApiResponse<ModelProvidersListData>> {
+    return this.request<ModelProvidersListData>('/api/user/providers');
+  }
+
+  /**
+   * Create a new custom model provider
+   */
+  async createModelProvider(data: CreateProviderRequest): Promise<ApiResponse<ModelProviderCreateData>> {
+    return this.request<ModelProviderCreateData>('/api/user/providers', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
+  /**
+   * Update an existing model provider
+   */
+  async updateModelProvider(providerId: string, data: UpdateProviderRequest): Promise<ApiResponse<ModelProviderUpdateData>> {
+    return this.request<ModelProviderUpdateData>(`/api/user/providers/${providerId}`, {
+      method: 'PUT',
+      body: data,
+    });
+  }
+
+  /**
+   * Delete a model provider
+   */
+  async deleteModelProvider(providerId: string): Promise<ApiResponse<ModelProviderDeleteData>> {
+    return this.request<ModelProviderDeleteData>(`/api/user/providers/${providerId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /**
+   * Test a model provider connection
+   */
+  async testModelProvider(data: TestProviderRequest): Promise<ApiResponse<ModelProviderTestData>> {
+    return this.request<ModelProviderTestData>('/api/user/providers/test', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
+  // ===============================
   // Secrets API Methods
   // ===============================
 
@@ -533,9 +612,23 @@ class ApiClient {
   }
 
   /**
+   * Get all user secrets including inactive ones (for management)
+   */
+  async getAllSecrets(): Promise<ApiResponse<SecretsData>> {
+    return this.request<SecretsData>('/api/secrets/all');
+  }
+
+  /**
    * Store a new secret
    */
-  async storeSecret(data: { key: string; value: string; description?: string }): Promise<ApiResponse<SecretStoreData>> {
+  async storeSecret(data: { 
+    templateId?: string;
+    name?: string;
+    envVarName?: string;
+    value: string;
+    environment?: string;
+    description?: string;
+  }): Promise<ApiResponse<SecretStoreData>> {
     return this.request<SecretStoreData>('/api/secrets', {
       method: 'POST',
       body: data,
@@ -548,6 +641,15 @@ class ApiClient {
   async deleteSecret(secretId: string): Promise<ApiResponse<SecretDeleteData>> {
     return this.request<SecretDeleteData>(`/api/secrets/${secretId}`, {
       method: 'DELETE',
+    });
+  }
+
+  /**
+   * Toggle secret active status
+   */
+  async toggleSecret(secretId: string): Promise<ApiResponse<SecretStoreData>> {
+    return this.request<SecretStoreData>(`/api/secrets/${secretId}/toggle`, {
+      method: 'PATCH',
     });
   }
 
@@ -604,6 +706,56 @@ class ApiClient {
    */
   async connectToAgent(agentId: string): Promise<ApiResponse<AgentConnectionData>> {
     return this.request<AgentConnectionData>(`/api/agent/${agentId}/connect`);
+  }
+
+  // ===============================
+  // Session Management API Methods
+  // ===============================
+
+  /**
+   * Get active user sessions
+   */
+  async getActiveSessions(): Promise<ApiResponse<ActiveSessionsData>> {
+    return this.request<ActiveSessionsData>('/api/auth/sessions');
+  }
+
+  /**
+   * Revoke a specific session
+   */
+  async revokeSession(sessionId: string): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>(`/api/auth/sessions/${sessionId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ===============================
+  // API Keys Management Methods  
+  // ===============================
+
+  /**
+   * Get user API keys
+   */
+  async getApiKeys(): Promise<ApiResponse<ApiKeysData>> {
+    return this.request<ApiKeysData>('/api/auth/api-keys');
+  }
+
+  /**
+   * Create a new API key
+   */
+  async createApiKey(data: { name: string }): Promise<ApiResponse<{ key: string; keyPreview: string; name: string; message: string }>> {
+    return this.request<{ key: string; keyPreview: string; name: string; message: string }>('/api/auth/api-keys', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
+  /**
+   * Revoke an API key
+   */
+  async revokeApiKey(keyId: string): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>(`/api/auth/api-keys/${keyId}`, {
+      method: 'DELETE',
+    });
   }
 }
 

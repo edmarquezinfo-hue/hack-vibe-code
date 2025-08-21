@@ -1,12 +1,18 @@
-import { useState, useEffect } from 'react';
-import { Settings, Play, RotateCcw, ChevronDown, ChevronUp, Info } from 'lucide-react';
+/**
+ * Redesigned Model Configuration Modal
+ * Three-mode interface: Platform Models, BYOK (Bring Your Own Key), Custom Providers
+ */
+
+import { useState, useEffect, useMemo } from 'react';
+import { Settings, Play, RotateCcw, Info, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ModelSelector } from '@/components/ui/model-selector';
+import { Check } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +22,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import type { ModelConfig, UserModelConfigWithMetadata, ModelConfigUpdate } from '@/api-types';
+import { apiClient } from '@/lib/api-client';
+import { ByokApiKeysModal } from './byok-api-keys-modal';
+import type { 
+  ModelConfig, 
+  UserModelConfigWithMetadata, 
+  ModelConfigUpdate, 
+  AIModels,
+  ByokProvidersData
+} from '@/api-types';
 import type { AgentDisplayConfig } from './model-config-tabs';
 
 interface ConfigModalProps {
@@ -26,110 +40,49 @@ interface ConfigModalProps {
   userConfig?: UserModelConfigWithMetadata;
   defaultConfig?: ModelConfig;
   onSave: (config: ModelConfigUpdate) => Promise<void>;
-  onTest: () => Promise<void>;
+  onTest: (tempConfig?: ModelConfigUpdate) => Promise<void>;
   onReset: () => Promise<void>;
   isTesting: boolean;
 }
 
-// Available models (same as in settings)
-const getAvailableModels = () => [
-  { value: 'default', label: 'Use default' },
-  // OpenAI Models
-  { value: 'openai/gpt-5', label: 'GPT-5 (OpenAI)' },
-  { value: 'openai/gpt-5-mini', label: 'GPT-5 Mini (OpenAI)' },
-  { value: 'openai/o3', label: 'O3 (OpenAI)' },
-  { value: 'openai/o4-mini', label: 'O4 Mini (OpenAI)' },
-  { value: 'openai/chatgpt-4o-latest', label: 'ChatGPT-4o Latest (OpenAI)' },
-  { value: 'openai/gpt-4.1-2025-04-14', label: 'GPT-4.1 (OpenAI)' },
-  { value: 'openai/gpt-oss-120b', label: 'GPT-OSS-120B (OpenAI)' },
-  // Anthropic Models
-  { value: 'anthropic/claude-3-5-sonnet-latest', label: 'Claude 3.5 Sonnet Latest (Anthropic)' },
-  { value: 'anthropic/claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet (Anthropic)' },
-  { value: 'anthropic/claude-opus-4-20250514', label: 'Claude 4 Opus (Anthropic)' },
-  { value: 'anthropic/claude-sonnet-4-20250514', label: 'Claude 4 Sonnet (Anthropic)' },
-  // Google Models
-  { value: 'google-ai-studio/gemini-2.5-pro', label: 'Gemini 2.5 Pro (Google)' },
-  { value: 'google-ai-studio/gemini-2.5-flash', label: 'Gemini 2.5 Flash (Google)' },
-  { value: '[gemini]gemini-2.5-flash-lite-preview-06-17', label: 'Gemini 2.5 Flash Lite (Google)' },
-  { value: 'google-ai-studio/gemini-2.0-flash', label: 'Gemini 2.0 Flash (Google)' },
-  { value: 'google-ai-studio/gemini-1.5-flash-8b-latest', label: 'Gemini 1.5 Flash 8B (Google)' },
-  // OpenRouter Models
-  { value: '[openrouter]qwen/qwen3-coder', label: 'Qwen 3 Coder (OpenRouter)' },
-  { value: '[openrouter]moonshotai/kimi-k2', label: 'Kimi K2 (OpenRouter)' },
-  // Cerebras Models
-  { value: 'cerebras/gpt-oss-120b', label: 'GPT-OSS-120B (Cerebras)' },
-  { value: 'cerebras/qwen-3-coder-480b', label: 'Qwen 3 Coder 480B (Cerebras)' }
-];
 
-// Reasoning effort options
-const getReasoningEffortOptions = () => [
-  { value: 'default', label: 'Use default' },
-  { value: 'low', label: 'Low (Fast)' },
-  { value: 'medium', label: 'Medium (Balanced)' },
-  { value: 'high', label: 'High (Deep)' }
-];
-
-// Helper to get model display name
-const getModelDisplayName = (modelValue: string) => {
-  const model = getAvailableModels().find(m => m.value === modelValue);
-  return model ? model.label : modelValue;
+// Helper to extract provider from model name (e.g., "openai/gpt-4" -> "openai")
+const getProviderFromModel = (modelName: string): string => {
+  if (!modelName || modelName === 'default') return '';
+  return modelName.split('/')[0] || '';
 };
 
-// Helper to get model recommendations
+// Helper to check if user has BYOK key for a model's provider
+const hasUserKeyForModel = (modelName: string, byokProviders: Array<{ provider: string; hasValidKey: boolean }>): boolean => {
+  const provider = getProviderFromModel(modelName);
+  if (!provider) return false;
+  
+  return byokProviders.some(p => p.provider === provider && p.hasValidKey);
+};
+
+// Helper to get clean model display name
+const getModelDisplayName = (model: AIModels | string): string => {
+  return typeof model === 'string' ? model : model;
+};
+
+// Model recommendations by agent
 const getModelRecommendation = (agentAction: string) => {
   const recommendations: Record<string, string> = {
-    templateSelection: '💡 Recommended: Fast models like Flash Lite or GPT-5 Mini for quick responses',
-    blueprint: '🏗️ Recommended: Creative models like GPT-5 or Claude 4 Sonnet for design thinking',
-    projectSetup: '⚙️ Recommended: Reliable instruction-following models like GPT-5 Mini or Claude Sonnet',
-    phaseGeneration: '📋 Recommended: Models with large context like GPT-5 or Gemini 2.5 Pro for planning',
-    firstPhaseImplementation: '🏁 Recommended: High-capability coding models like Gemini 2.5 Pro or Claude 4 Sonnet',
-    phaseImplementation: '⚡ Recommended: Strong coding models like Gemini 2.5 Pro or Claude 4 Sonnet',
-    realtimeCodeFixer: '🚀 Recommended: Fast debugging models like Claude 4 Sonnet or Cerebras models',
-    fastCodeFixer: '⚡ Recommended: Ultra-fast models like Cerebras Qwen or GPT-OSS for speed',
-    conversationalResponse: '💬 Recommended: Balanced models like Gemini 2.5 Flash or Claude 3.5 Sonnet',
-    userSuggestionProcessor: '🎯 Recommended: Understanding models like Gemini 2.5 Pro or GPT-5',
-    codeReview: '🔍 Recommended: Analytical models like Gemini 2.5 Pro with large context windows',
-    fileRegeneration: '📝 Recommended: Pure coding models like Claude 4 Sonnet or Cerebras Qwen',
-    screenshotAnalysis: '👁️ Recommended: Vision-capable models like Gemini 2.5 Pro for image analysis'
+    templateSelection: '💡 Recommended: Fast models for quick template selection',
+    blueprint: '🏗️ Recommended: Creative models for architecture design',
+    projectSetup: '⚙️ Recommended: Reliable models for precise setup',
+    phaseGeneration: '📋 Recommended: Large context models for comprehensive planning',
+    firstPhaseImplementation: '🏁 Recommended: High-capability models for foundation development',
+    phaseImplementation: '⚡ Recommended: Strong coding models for implementation',
+    realtimeCodeFixer: '🚀 Recommended: Fast debugging models',
+    fastCodeFixer: '⚡ Recommended: Ultra-fast models for quick fixes',
+    conversationalResponse: '💬 Recommended: Balanced models for natural conversation',
+    userSuggestionProcessor: '🎯 Recommended: Understanding models for user feedback',
+    codeReview: '🔍 Recommended: Analytical models with large context',
+    fileRegeneration: '📝 Recommended: Pure coding models',
+    screenshotAnalysis: '👁️ Recommended: Vision-capable models for image analysis'
   };
   return recommendations[agentAction] || '';
-};
-
-// Helper to get parameter guidance
-const getParameterGuidance = (param: string, agentAction: string) => {
-  const guidance: Record<string, Record<string, string>> = {
-    temperature: {
-      templateSelection: 'Low (0.1-0.3) for consistent template matching',
-      blueprint: 'Medium-High (0.7-1.0) for creative design ideas',
-      projectSetup: 'Low (0.1-0.3) for reliable, precise setup',
-      phaseGeneration: 'Medium (0.5-0.7) for structured planning',
-      phaseImplementation: 'Low-Medium (0.2-0.5) for accurate code',
-      realtimeCodeFixer: 'Low-Medium (0.3-0.5) for focused debugging',
-      fastCodeFixer: 'Very Low (0.0-0.2) for precise quick fixes',
-      codeReview: 'Low-Medium (0.2-0.4) for objective analysis'
-    },
-    maxTokens: {
-      templateSelection: 'Low (1K-2K) - Simple template selection',
-      blueprint: 'High (16K-64K) - Detailed architecture planning',
-      projectSetup: 'Medium (4K-10K) - Setup instructions and structure',
-      phaseGeneration: 'High (32K-64K) - Comprehensive project breakdown',
-      phaseImplementation: 'Very High (64K+) - Large code implementations',
-      realtimeCodeFixer: 'Medium (8K-32K) - Code analysis and fixes',
-      fastCodeFixer: 'Medium (8K-32K) - Quick focused fixes',
-      codeReview: 'High (32K-64K) - Thorough code analysis'
-    },
-    reasoningEffort: {
-      templateSelection: 'Low recommended - Speed is priority over deep thinking',
-      blueprint: 'Medium-High recommended - Creative thinking required for design',
-      projectSetup: 'Low recommended - Following instructions precisely',
-      phaseGeneration: 'Medium-High recommended - Strategic planning needs analysis',
-      phaseImplementation: 'Low recommended - Focus on execution over reasoning',
-      realtimeCodeFixer: 'Medium recommended - Balance speed with debugging analysis',
-      fastCodeFixer: 'Low recommended - Prioritize speed over deep analysis',
-      codeReview: 'High recommended - Thorough analysis of code quality'
-    }
-  };
-  return guidance[param]?.[agentAction] || '';
 };
 
 export function ConfigModal({
@@ -143,6 +96,7 @@ export function ConfigModal({
   onReset,
   isTesting
 }: ConfigModalProps) {
+  // Form state
   const [formData, setFormData] = useState({
     modelName: userConfig?.name || 'default',
     maxTokens: userConfig?.max_tokens?.toString() || '',
@@ -151,12 +105,36 @@ export function ConfigModal({
     fallbackModel: userConfig?.fallbackModel || 'default'
   });
 
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  // UI state
   const [hasChanges, setHasChanges] = useState(false);
+  const [byokModalOpen, setByokModalOpen] = useState(false);
+  
+  // Modal lifecycle tracking
+  const [isInitialOpen, setIsInitialOpen] = useState(false);
 
-  // Reset form when modal opens/closes or config changes
+  // BYOK data state
+  const [byokData, setByokData] = useState<ByokProvidersData | null>(null);
+  const [loadingByok, setLoadingByok] = useState(false);
+
+  // Load BYOK data
+  const loadByokData = async () => {
+    try {
+      setLoadingByok(true);
+      const response = await apiClient.getByokProviders();
+      if (response.success) {
+        setByokData(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to load BYOK data:', error);
+    } finally {
+      setLoadingByok(false);
+    }
+  };
+
+  // Handle modal open/close lifecycle
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !isInitialOpen) {
+      // First time opening - reset everything and load data
       setFormData({
         modelName: userConfig?.name || 'default',
         maxTokens: userConfig?.max_tokens?.toString() || '',
@@ -165,8 +143,21 @@ export function ConfigModal({
         fallbackModel: userConfig?.fallbackModel || 'default'
       });
       setHasChanges(false);
+      setByokModalOpen(false);
+      setIsInitialOpen(true);
+      loadByokData();
+    } else if (!isOpen && isInitialOpen) {
+      // Modal closed - reset for next time
+      setIsInitialOpen(false);
     }
-  }, [isOpen, userConfig]);
+  }, [isOpen, isInitialOpen, userConfig]);
+
+  // Load BYOK data when modal opens
+  useEffect(() => {
+    if (byokData && isInitialOpen) {
+      // BYOK data is loaded, ready for model selection
+    }
+  }, [byokData, isInitialOpen, userConfig?.name]);
 
   // Check for changes
   useEffect(() => {
@@ -181,8 +172,80 @@ export function ConfigModal({
     setHasChanges(JSON.stringify(formData) !== JSON.stringify(originalFormData));
   }, [formData, userConfig]);
 
-  const handleSave = async () => {
-    const config = {
+  // Get unified model list with BYOK status info
+  const availableModels = useMemo(() => {
+    if (!byokData) return [];
+
+    const models: { value: string; label: string; provider: string; hasUserKey: boolean; byokAvailable: boolean }[] = [];
+    const processedModels = new Set<string>();
+    
+    // First, add all BYOK models (they have BYOK capability)
+    Object.values(byokData.modelsByProvider).forEach(providerModels => {
+      providerModels.forEach(model => {
+        const modelStr = model as string;
+        if (!processedModels.has(modelStr)) {
+          const provider = getProviderFromModel(modelStr);
+          const hasUserKey = hasUserKeyForModel(modelStr, byokData.providers);
+          
+          models.push({
+            value: modelStr,
+            label: getModelDisplayName(modelStr),
+            provider,
+            hasUserKey,
+            byokAvailable: true
+          });
+          processedModels.add(modelStr);
+        }
+      });
+    });
+    
+    // Then, add platform-only models (no BYOK capability)
+    byokData.platformModels.forEach(model => {
+      const modelStr = model as string;
+      if (!processedModels.has(modelStr)) {
+        models.push({
+          value: modelStr,
+          label: getModelDisplayName(modelStr),
+          provider: '',
+          hasUserKey: false,
+          byokAvailable: false
+        });
+        processedModels.add(modelStr);
+      }
+    });
+    
+    return models.sort((a, b) => a.label.localeCompare(b.label));
+  }, [byokData]);
+
+  // Get current model's BYOK status
+  const selectedModelInfo = useMemo(() => {
+    const currentModel = formData.modelName && formData.modelName !== 'default' 
+      ? formData.modelName 
+      : '';
+      
+    if (!currentModel || !byokData) {
+      return { hasUserKey: false, provider: '', requiresBYOK: false, isPlatformModel: true };
+    }
+    
+    // Check if this is a BYOK-capable model
+    const isByokModel = Object.values(byokData.modelsByProvider).some(providerModels => 
+      providerModels.some(model => model === currentModel)
+    );
+    
+    const provider = getProviderFromModel(currentModel);
+    const hasUserKey = hasUserKeyForModel(currentModel, byokData.providers);
+    
+    return {
+      hasUserKey,
+      provider,
+      requiresBYOK: isByokModel && !hasUserKey, // Only BYOK-capable models can require keys
+      isPlatformModel: !isByokModel
+    };
+  }, [formData.modelName, byokData]);
+
+  // Create config object from current form state
+  const buildCurrentConfig = (): ModelConfigUpdate => {
+    return {
       ...(formData.modelName !== 'default' && { modelName: formData.modelName }),
       ...(formData.maxTokens && { maxTokens: parseInt(formData.maxTokens) }),
       ...(formData.temperature && { temperature: parseFloat(formData.temperature) }),
@@ -190,8 +253,17 @@ export function ConfigModal({
       ...(formData.fallbackModel !== 'default' && { fallbackModel: formData.fallbackModel }),
       isUserOverride: true
     };
-    
+  };
+
+  const handleSave = async () => {
+    const config = buildCurrentConfig();
     await onSave(config);
+  };
+
+  const handleTestWithCurrentConfig = async () => {
+    const currentConfig = buildCurrentConfig();
+    // We'll need to update the parent component to handle testing with temporary config
+    await onTest(currentConfig);
   };
 
   const handleReset = async () => {
@@ -199,11 +271,20 @@ export function ConfigModal({
     onClose();
   };
 
+  const openByokModal = () => {
+    setByokModalOpen(true);
+  };
+
+  const handleByokKeyAdded = () => {
+    // Refresh BYOK data after a key is added
+    loadByokData();
+  };
+
   const isUserOverride = userConfig?.isUserOverride || false;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="overflow-y-auto" style={{ maxWidth: '48rem', width: '95vw' }}>
+      <DialogContent className="overflow-y-auto max-w-3xl w-[90vw] max-h-[90vh] sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
@@ -236,51 +317,104 @@ export function ConfigModal({
             </Badge>
           </div>
 
-          {/* Core Configuration */}
+
+          {/* Model Selection Section */}
           <div className="space-y-4">
-            <h4 className="font-medium text-sm">Model Selection</h4>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-sm font-medium">Model Configuration</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select primary and fallback models - we'll use your API keys if available
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={openByokModal} className="gap-2">
+                <Key className="h-4 w-4" />
+                Manage Keys
+              </Button>
+            </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Two-Column Model Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Primary AI Model */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium">AI Model</Label>
-                <Select value={formData.modelName} onValueChange={(value) => setFormData({...formData, modelName: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select model..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getAvailableModels().map((model) => (
-                      <SelectItem key={model.value} value={model.value}>
-                        {model.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {defaultConfig?.name && (
-                  <p className="text-xs text-muted-foreground">
-                    🔧 System default: {getModelDisplayName(defaultConfig.name)}
-                  </p>
+                <ModelSelector
+                  value={formData.modelName}
+                  onValueChange={(value) => setFormData({...formData, modelName: value})}
+                  availableModels={availableModels}
+                  placeholder="Select model..."
+                  label="AI Model"
+                  systemDefault={defaultConfig?.name}
+                  disabled={loadingByok}
+                />
+                
+                {/* Model Status Messages */}
+                {selectedModelInfo.requiresBYOK && (
+                  <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 rounded-md border border-amber-200 dark:border-amber-800">
+                    <Key className="h-4 w-4" />
+                    <span>API key needed for {selectedModelInfo.provider}</span>
+                    <Button variant="link" size="sm" onClick={openByokModal} className="p-0 h-auto text-amber-600 hover:text-amber-700">
+                      Setup now
+                    </Button>
+                  </div>
+                )}
+                
+                {selectedModelInfo.isPlatformModel && formData.modelName && formData.modelName !== 'default' && (
+                  <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 dark:bg-blue-950/20 px-3 py-2 rounded-md border border-blue-200 dark:border-blue-800">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Platform model with usage limits. Consider BYOK for higher usage.</span>
+                  </div>
+                )}
+                
+                {formData.modelName && formData.modelName !== 'default' && selectedModelInfo.hasUserKey && (
+                  <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950/20 px-3 py-2 rounded-md border border-green-200 dark:border-green-800">
+                    <Check className="h-4 w-4" />
+                    <span>Using your {selectedModelInfo.provider} API key</span>
+                  </div>
                 )}
               </div>
 
+              {/* Fallback Model */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Fallback Model</Label>
-                <Select value={formData.fallbackModel} onValueChange={(value) => setFormData({...formData, fallbackModel: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select fallback model..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getAvailableModels().map((model) => (
-                      <SelectItem key={model.value} value={model.value}>
-                        {model.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {defaultConfig?.fallbackModel && (
-                  <p className="text-xs text-muted-foreground">
-                    🔧 System default: {getModelDisplayName(defaultConfig.fallbackModel)}
-                  </p>
-                )}
+                <ModelSelector
+                  value={formData.fallbackModel}
+                  onValueChange={(value) => setFormData({...formData, fallbackModel: value})}
+                  availableModels={availableModels}
+                  placeholder="Select fallback model..."
+                  label="Fallback Model"
+                  systemDefault={defaultConfig?.fallbackModel}
+                  includeDefaultOption={true}
+                  disabled={loadingByok}
+                />
+              </div>
+            </div>
+          </div>
+
+
+          <Separator />
+
+          {/* BYOK Information */}
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 rounded-lg border bg-blue-50/50 border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                  <h4 className="font-medium text-sm text-blue-900">Platform Models</h4>
+                </div>
+                <p className="text-xs text-blue-700">
+                  Models served through our platform with limited quota. No API keys required.
+                </p>
+              </div>
+              
+              <div className="p-4 rounded-lg border bg-green-50/50 border-green-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                  <h4 className="font-medium text-sm text-green-900">BYOK (Your Keys)</h4>
+                </div>
+                <p className="text-xs text-green-700">
+                  Your API keys are used for direct billing with providers. Unlimited usage based on your provider account.
+                </p>
               </div>
             </div>
           </div>
@@ -291,7 +425,8 @@ export function ConfigModal({
           <div className="space-y-4">
             <h4 className="font-medium text-sm">Parameters</h4>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Temperature */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Temperature</Label>
                 <Input
@@ -302,21 +437,16 @@ export function ConfigModal({
                   value={formData.temperature}
                   placeholder={defaultConfig?.temperature ? `${defaultConfig.temperature}` : '0.7'}
                   onChange={(e) => setFormData({...formData, temperature: e.target.value})}
+                  className="h-10"
                 />
-                <div className="space-y-1">
-                  {defaultConfig?.temperature && (
-                    <p className="text-xs text-muted-foreground">
-                      🔧 System default: {defaultConfig.temperature}
-                    </p>
-                  )}
-                  {getParameterGuidance('temperature', agentConfig.key) && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      💡 {getParameterGuidance('temperature', agentConfig.key)}
-                    </p>
-                  )}
-                </div>
+                {defaultConfig?.temperature && (
+                  <p className="text-xs text-muted-foreground">
+                    🔧 Default: {defaultConfig.temperature}
+                  </p>
+                )}
               </div>
 
+              {/* Max Tokens */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Max Tokens</Label>
                 <Input
@@ -326,67 +456,37 @@ export function ConfigModal({
                   value={formData.maxTokens}
                   placeholder={defaultConfig?.max_tokens ? `${defaultConfig.max_tokens}` : '4000'}
                   onChange={(e) => setFormData({...formData, maxTokens: e.target.value})}
+                  className="h-10"
                 />
-                <div className="space-y-1">
-                  {defaultConfig?.max_tokens && (
-                    <p className="text-xs text-muted-foreground">
-                      🔧 System default: {defaultConfig.max_tokens?.toLocaleString()}
-                    </p>
-                  )}
-                  {getParameterGuidance('maxTokens', agentConfig.key) && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      💡 {getParameterGuidance('maxTokens', agentConfig.key)}
-                    </p>
-                  )}
-                </div>
+                {defaultConfig?.max_tokens && (
+                  <p className="text-xs text-muted-foreground">
+                    🔧 Default: {defaultConfig.max_tokens?.toLocaleString()}
+                  </p>
+                )}
               </div>
 
+              {/* Reasoning Effort */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Reasoning Effort</Label>
                 <Select value={formData.reasoningEffort} onValueChange={(value) => setFormData({...formData, reasoningEffort: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select reasoning effort..." />
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="Select effort..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {getReasoningEffortOptions().map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="default">Use default</SelectItem>
+                    <SelectItem value="low">Low (Fast)</SelectItem>
+                    <SelectItem value="medium">Medium (Balanced)</SelectItem>
+                    <SelectItem value="high">High (Deep)</SelectItem>
                   </SelectContent>
                 </Select>
-                <div className="space-y-1">
-                  {defaultConfig?.reasoning_effort && (
-                    <p className="text-xs text-muted-foreground">
-                      🔧 System default: {defaultConfig.reasoning_effort}
-                    </p>
-                  )}
-                  {getParameterGuidance('reasoningEffort', agentConfig.key) && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      💡 {getParameterGuidance('reasoningEffort', agentConfig.key)}
-                    </p>
-                  )}
-                </div>
+                {defaultConfig?.reasoning_effort && (
+                  <p className="text-xs text-muted-foreground">
+                    🔧 Default: {defaultConfig.reasoning_effort}
+                  </p>
+                )}
               </div>
             </div>
           </div>
-
-          {/* Advanced Settings */}
-          <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" className="p-0 h-auto font-medium text-sm gap-2">
-                {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                Advanced Settings
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-4 mt-4">
-              <div className="p-4 border rounded-lg bg-muted/30">
-                <p className="text-sm text-muted-foreground">
-                  Additional configuration options like provider overrides and custom headers would be available here in a full implementation.
-                </p>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
         </div>
 
         <DialogFooter className="gap-3 flex-col sm:flex-row sm:justify-between">
@@ -394,7 +494,7 @@ export function ConfigModal({
             <Button
               variant="outline"
               size="sm"
-              onClick={onTest}
+              onClick={handleTestWithCurrentConfig}
               disabled={isTesting}
               className="gap-2"
             >
@@ -437,6 +537,13 @@ export function ConfigModal({
           </div>
         </DialogFooter>
       </DialogContent>
+
+      {/* BYOK API Keys Modal */}
+      <ByokApiKeysModal
+        isOpen={byokModalOpen}
+        onClose={() => setByokModalOpen(false)}
+        onKeyAdded={handleByokKeyAdded}
+      />
     </Dialog>
   );
 }

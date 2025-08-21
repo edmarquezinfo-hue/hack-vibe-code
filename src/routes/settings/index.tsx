@@ -16,7 +16,7 @@ import {
 	Lock,
 } from 'lucide-react';
 import { ModelConfigTabs } from '@/components/model-config-tabs';
-import type { ModelConfigsData, ModelConfigUpdate } from '@/api-types';
+import type { ModelConfigsData, ModelConfigUpdate, EncryptedSecret, ActiveSessionsData, ApiKeysData, SecretTemplate } from '@/api-types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -56,6 +56,14 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
+import { ByokApiKeysModal } from '@/components/byok-api-keys-modal';
+
+// Import provider logos (reusing existing pattern from BYOK modal)
+import OpenAILogo from '@/assets/provider-logos/openai.svg?react';
+import AnthropicLogo from '@/assets/provider-logos/anthropic.svg?react';
+import GoogleLogo from '@/assets/provider-logos/google.svg?react';
+import CerebrasLogo from '@/assets/provider-logos/cerebras.svg?react';
+import CloudflareLogo from '@/assets/provider-logos/cloudflare.svg?react';
 
 export default function SettingsPage() {
 	const { user } = useAuth();
@@ -77,63 +85,19 @@ export default function SettingsPage() {
 	}>({ hasIntegration: false, loading: true });
 
 	// Active sessions state
-	const [activeSessions, setActiveSessions] = useState<{
-		sessions: Array<{
-			id: string;
-			userAgent: string;
-			ipAddress: string;
-			lastActivity: string;
-			createdAt: string;
-			isCurrent: boolean;
-		}>;
-		loading: boolean;
-	}>({ sessions: [], loading: true });
+	const [activeSessions, setActiveSessions] = useState<ActiveSessionsData & { loading: boolean }>({ sessions: [], loading: true });
 
 	// API Keys state
-	const [apiKeys, setApiKeys] = useState<{
-		keys: Array<{
-			id: string;
-			name: string;
-			keyPreview: string;
-			createdAt: string;
-			lastUsed?: string;
-			isActive: boolean;
-		}>;
-		loading: boolean;
-	}>({ keys: [], loading: true });
+	const [apiKeys, setApiKeys] = useState<ApiKeysData & { loading: boolean }>({ keys: [], loading: true });
 
 	// User Secrets state
 	const [userSecrets, setUserSecrets] = useState<{
-		secrets: Array<{
-			id: string;
-			name: string;
-			provider: string;
-			secretType: string;
-			keyPreview: string;
-			environment: string;
-			description?: string;
-			createdAt: string;
-			lastUsed?: string;
-		}>;
+		secrets: EncryptedSecret[];
 		loading: boolean;
 	}>({ secrets: [], loading: true });
 
 	// Templates state
-	const [secretTemplates, setSecretTemplates] = useState<
-		Array<{
-			id: string;
-			displayName: string;
-			envVarName: string;
-			provider: string;
-			icon: string;
-			description: string;
-			instructions: string;
-			placeholder: string;
-			validation: string;
-			required: boolean;
-			category: string;
-		}>
-	>([]);
+	const [secretTemplates, setSecretTemplates] = useState<SecretTemplate[]>([]);
 
 	const [secretDialog, setSecretDialog] = useState(false);
 	const [selectedTemplate, setSelectedTemplate] = useState<string | null>(
@@ -158,6 +122,15 @@ export default function SettingsPage() {
 	const [loadingConfigs, setLoadingConfigs] = useState(true);
 	const [savingConfigs, setSavingConfigs] = useState(false);
 	const [testingConfig, setTestingConfig] = useState<string | null>(null);
+
+	// BYOK modal state
+	const [byokModalOpen, setByokModalOpen] = useState(false);
+	
+	// Handle BYOK key added/removed - refresh both secrets and model configs
+	const handleByokKeyAdded = () => {
+		loadUserSecrets();
+		loadModelConfigs(); // Refresh model configs since BYOK provider availability changed
+	};
 
 	// const handleSaveProfile = async () => {
 	// 	if (isSaving) return;
@@ -263,10 +236,10 @@ export default function SettingsPage() {
 	};
 
 	// Test model configuration
-	const testModelConfig = async (agentAction: string) => {
+	const testModelConfig = async (agentAction: string, tempConfig?: ModelConfigUpdate) => {
 		try {
 			setTestingConfig(agentAction);
-			const response = await apiClient.testModelConfig(agentAction);
+			const response = await apiClient.testModelConfig(agentAction, tempConfig);
 			
 			if (response.success && response.data) {
 				const result = response.data.testResult;
@@ -289,18 +262,9 @@ export default function SettingsPage() {
 	// Reset configuration to default
 	const resetConfigToDefault = async (agentAction: string) => {
 		try {
-			const response = await fetch(`/api/model-configs/${agentAction}`, {
-				method: 'DELETE',
-				credentials: 'include'
-			});
-			
-			if (response.ok) {
-				toast.success('Configuration reset to default');
-				await loadModelConfigs();
-			} else {
-				const data = await response.json();
-				toast.error(data.error?.message || 'Failed to reset configuration');
-			}
+			await apiClient.resetModelConfig(agentAction);
+			toast.success('Configuration reset to default');
+			await loadModelConfigs();
 		} catch (error) {
 			console.error('Error resetting configuration:', error);
 			toast.error('Failed to reset configuration');
@@ -311,19 +275,9 @@ export default function SettingsPage() {
 	const resetAllConfigs = async () => {
 		try {
 			setSavingConfigs(true);
-			const response = await fetch('/api/model-configs/reset-all', {
-				method: 'POST',
-				credentials: 'include'
-			});
-			
-			if (response.ok) {
-				const data = await response.json();
-				toast.success(`${data.data.resetCount} configurations reset to defaults`);
-				await loadModelConfigs();
-			} else {
-				const data = await response.json();
-				toast.error(data.error?.message || 'Failed to reset configurations');
-			}
+			const response = await apiClient.resetAllModelConfigs();
+			toast.success(`${response.data?.resetCount} configurations reset to defaults`);
+			await loadModelConfigs();
 		} catch (error) {
 			console.error('Error resetting all configurations:', error);
 			toast.error('Failed to reset all configurations');
@@ -339,18 +293,12 @@ export default function SettingsPage() {
 	// Load GitHub integration status
 	const loadGithubIntegration = async () => {
 		try {
-			const response = await fetch('/api/integrations/github/status', {
-				credentials: 'include',
+			const response = await apiClient.getGitHubIntegrationStatus();
+			setGithubIntegration({
+				hasIntegration: response.data?.hasIntegration || false,
+				githubUsername: response.data?.githubUsername,
+				loading: false,
 			});
-
-			if (response.ok) {
-				const data = await response.json();
-				setGithubIntegration({
-					hasIntegration: data.data?.hasIntegration || false,
-					githubUsername: data.data?.githubUsername,
-					loading: false,
-				});
-			}
 		} catch (error) {
 			console.error('Error loading GitHub integration:', error);
 			setGithubIntegration((prev) => ({ ...prev, loading: false }));
@@ -363,21 +311,13 @@ export default function SettingsPage() {
 
 	const handleDisconnectGithub = async () => {
 		try {
-			const response = await fetch('/api/integrations/github', {
-				method: 'DELETE',
-				credentials: 'include',
+			await apiClient.removeGitHubIntegration();
+			setGithubIntegration({
+				hasIntegration: false,
+				githubUsername: undefined,
+				loading: false,
 			});
-
-			if (response.ok) {
-				setGithubIntegration({
-					hasIntegration: false,
-					githubUsername: undefined,
-					loading: false,
-				});
-				toast.success('GitHub account disconnected');
-			} else {
-				toast.error('Failed to disconnect GitHub account');
-			}
+			toast.success('GitHub account disconnected');
 		} catch (error) {
 			console.error('Error disconnecting GitHub:', error);
 			toast.error('Failed to disconnect GitHub account');
@@ -387,40 +327,20 @@ export default function SettingsPage() {
 	// Load active sessions
 	const loadActiveSessions = async () => {
 		try {
-			const response = await fetch('/api/auth/sessions', {
-				credentials: 'include',
+			const response = await apiClient.getActiveSessions();
+			setActiveSessions({
+				sessions: response.data?.sessions || [
+					{
+						id: 'current',
+						userAgent: navigator.userAgent,
+						ipAddress: 'Current location',
+						lastActivity: new Date().toISOString(),
+						createdAt: new Date().toISOString(),
+						isCurrent: true,
+					},
+				],
+				loading: false,
 			});
-
-			if (response.ok) {
-				const data = await response.json();
-				setActiveSessions({
-					sessions: data.sessions || [
-						{
-							id: 'current',
-							userAgent: navigator.userAgent,
-							ipAddress: 'Current location',
-							lastActivity: new Date().toISOString(),
-							createdAt: new Date().toISOString(),
-							isCurrent: true,
-						},
-					],
-					loading: false,
-				});
-			} else {
-				setActiveSessions({
-					sessions: [
-						{
-							id: 'current',
-							userAgent: navigator.userAgent,
-							ipAddress: 'Current location',
-							lastActivity: new Date().toISOString(),
-							createdAt: new Date().toISOString(),
-							isCurrent: true,
-						},
-					],
-					loading: false,
-				});
-			}
 		} catch (error) {
 			console.error('Error loading active sessions:', error);
 			setActiveSessions({
@@ -441,17 +361,9 @@ export default function SettingsPage() {
 
 	const handleRevokeSession = async (sessionId: string) => {
 		try {
-			const response = await fetch(`/api/auth/sessions/${sessionId}`, {
-				method: 'DELETE',
-				credentials: 'include',
-			});
-
-			if (response.ok) {
-				toast.success('Session revoked successfully');
-				loadActiveSessions();
-			} else {
-				toast.error('Failed to revoke session');
-			}
+			await apiClient.revokeSession(sessionId);
+			toast.success('Session revoked successfully');
+			loadActiveSessions();
 		} catch (error) {
 			console.error('Error revoking session:', error);
 			toast.error('Failed to revoke session');
@@ -461,22 +373,11 @@ export default function SettingsPage() {
 	// Load API keys
 	const loadApiKeys = async () => {
 		try {
-			const response = await fetch('/api/auth/api-keys', {
-				credentials: 'include',
+			const response = await apiClient.getApiKeys();
+			setApiKeys({
+				keys: response.data?.keys || [],
+				loading: false,
 			});
-
-			if (response.ok) {
-				const data = await response.json();
-				setApiKeys({
-					keys: data.keys || [],
-					loading: false,
-				});
-			} else {
-				setApiKeys({
-					keys: [],
-					loading: false,
-				});
-			}
 		} catch (error) {
 			console.error('Error loading API keys:', error);
 			setApiKeys({
@@ -491,26 +392,12 @@ export default function SettingsPage() {
 			const keyName = prompt('Enter a name for your API key:');
 			if (!keyName) return;
 
-			const response = await fetch('/api/auth/api-keys', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				credentials: 'include',
-				body: JSON.stringify({ name: keyName }),
-			});
-
-			const data = await response.json();
-
-			if (response.ok && data.success) {
-				toast.success('API key created successfully');
-				alert(
-					`Your API key: ${data.data.key}\n\nPlease save this key - you won't be able to see it again!`,
-				);
-				loadApiKeys();
-			} else {
-				toast.error(data.error?.message || 'Failed to create API key');
-			}
+			const response = await apiClient.createApiKey({ name: keyName });
+			toast.success('API key created successfully');
+			alert(
+				`Your API key: ${response.data?.key}\n\nPlease save this key - you won't be able to see it again!`,
+			);
+			loadApiKeys();
 		} catch (error) {
 			console.error('Error creating API key:', error);
 			toast.error('Failed to create API key');
@@ -519,17 +406,9 @@ export default function SettingsPage() {
 
 	const handleRevokeApiKey = async (keyId: string) => {
 		try {
-			const response = await fetch(`/api/auth/api-keys/${keyId}`, {
-				method: 'DELETE',
-				credentials: 'include',
-			});
-
-			if (response.ok) {
-				toast.success('API key revoked successfully');
-				loadApiKeys();
-			} else {
-				toast.error('Failed to revoke API key');
-			}
+			await apiClient.revokeApiKey(keyId);
+			toast.success('API key revoked successfully');
+			loadApiKeys();
 		} catch (error) {
 			console.error('Error revoking API key:', error);
 			toast.error('Failed to revoke API key');
@@ -539,22 +418,11 @@ export default function SettingsPage() {
 	// Load user secrets
 	const loadUserSecrets = async () => {
 		try {
-			const response = await fetch('/api/secrets', {
-				credentials: 'include',
+			const response = await apiClient.getAllSecrets();
+			setUserSecrets({
+				secrets: response.data?.secrets || [],
+				loading: false,
 			});
-
-			if (response.ok) {
-				const data = await response.json();
-				setUserSecrets({
-					secrets: data.data?.secrets || [],
-					loading: false,
-				});
-			} else {
-				setUserSecrets({
-					secrets: [],
-					loading: false,
-				});
-			}
 		} catch (error) {
 			console.error('Error loading user secrets:', error);
 			setUserSecrets({
@@ -567,14 +435,8 @@ export default function SettingsPage() {
 	// Load secret templates
 	const loadSecretTemplates = async () => {
 		try {
-			const response = await fetch('/api/secrets/templates', {
-				credentials: 'include',
-			});
-
-			if (response.ok) {
-				const data = await response.json();
-				setSecretTemplates(data.data?.templates || []);
-			}
+			const response = await apiClient.getSecretTemplates();
+			setSecretTemplates(response.data?.templates || []);
 		} catch (error) {
 			console.error('Error loading secret templates:', error);
 		}
@@ -600,24 +462,10 @@ export default function SettingsPage() {
 						environment: newSecret.environment,
 					};
 
-			const response = await fetch('/api/secrets', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				credentials: 'include',
-				body: JSON.stringify(payload),
-			});
-
-			const data = await response.json();
-
-			if (response.ok && data.success) {
-				toast.success('Secret saved successfully');
-				resetSecretDialog();
-				loadUserSecrets();
-			} else {
-				toast.error(data.error?.message || 'Failed to save secret');
-			}
+			await apiClient.storeSecret(payload);
+			toast.success('Secret saved successfully');
+			resetSecretDialog();
+			loadUserSecrets();
 		} catch (error) {
 			console.error('Error saving secret:', error);
 			toast.error('Failed to save secret');
@@ -643,47 +491,45 @@ export default function SettingsPage() {
 
 	const handleDeleteSecret = async (secretId: string) => {
 		try {
-			const response = await fetch(`/api/secrets/${secretId}`, {
-				method: 'DELETE',
-				credentials: 'include',
-			});
-
-			if (response.ok) {
-				toast.success('Secret deleted successfully');
-				loadUserSecrets();
-			} else {
-				toast.error('Failed to delete secret');
-			}
+			await apiClient.deleteSecret(secretId);
+			toast.success('Secret deleted successfully');
+			loadUserSecrets();
+			// Also refresh model configs since BYOK provider availability may have changed
+			loadModelConfigs();
 		} catch (error) {
 			console.error('Error deleting secret:', error);
 			toast.error('Failed to delete secret');
 		}
 	};
 
-	const getProviderIcon = (provider: string) => {
-		switch (provider) {
-			case 'cloudflare':
-				return '☁️';
-			case 'stripe':
-				return '💳';
-			case 'openai':
-				return '🤖';
-			case 'anthropic':
-				return '🧠';
-			case 'github':
-				return '🐙';
-			case 'google':
-				return '🔷';
-			case 'vercel':
-				return '▲';
-			case 'supabase':
-				return '🗄️';
-			case 'custom':
-				return '🔑';
-			default:
-				return '🔑';
-		}
+	// Provider logo mapping (following existing BYOK modal pattern)
+	const PROVIDER_LOGOS: Record<string, React.ComponentType<{ className?: string }>> = {
+		openai: OpenAILogo,
+		anthropic: AnthropicLogo,
+		'google-ai-studio': GoogleLogo,
+		google: GoogleLogo,
+		cerebras: CerebrasLogo,
+		cloudflare: CloudflareLogo,
 	};
+
+	const getProviderLogo = (provider: string, className: string = "h-5 w-5") => {
+		const LogoComponent = PROVIDER_LOGOS[provider];
+		if (LogoComponent) {
+			return <LogoComponent className={className} />;
+		}
+		
+		// Fallback to emoji for unknown providers
+		const emojiMap: Record<string, string> = {
+			stripe: '💳',
+			github: '🐙',
+			vercel: '▲',
+			supabase: '🗄️',
+			custom: '🔑',
+		};
+		
+		return <span className="text-lg">{emojiMap[provider] || '🔑'}</span>;
+	};
+
 
 	// Update form data when user changes
 	// React.useEffect(() => {
@@ -701,11 +547,10 @@ export default function SettingsPage() {
 
 	// Load agent configurations dynamically from API
 	React.useEffect(() => {
-		fetch('/api/model-configs/defaults')
-			.then(res => res.json())
-			.then(data => {
-				if (data.success && data.data.defaults) {
-					const configs = Object.keys(data.data.defaults).map(key => ({
+		apiClient.getModelDefaults()
+			.then(response => {
+				if (response.success && response.data?.defaults) {
+					const configs = Object.keys(response.data.defaults).map(key => ({
 						key,
 						name: formatAgentConfigName(key),
 						description: getAgentConfigDescription(key)
@@ -960,6 +805,7 @@ export default function SettingsPage() {
 						</CardContent>
 					</Card>
 
+
 					{/* User Secrets Section */}
 					<Card id="secrets">
 						<CardHeader>
@@ -971,66 +817,16 @@ export default function SettingsPage() {
 							</div>
 						</CardHeader>
 						<CardContent className="space-y-6">
-							{/* Quick Setup for Cloudflare */}
-							<div className="rounded-lg bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-950/20 dark:to-orange-900/20 border border-orange-200 dark:border-orange-800 p-4">
-								<div className="flex items-start gap-3">
-									<div className="text-2xl">☁️</div>
-									<div className="flex-1">
-										<h4 className="font-medium text-orange-900 dark:text-orange-100">
-											Cloudflare Setup Required
-										</h4>
-										<p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
-											To deploy your generated apps,
-											please add your Cloudflare API Key
-											and Account ID
-										</p>
-										<div className="flex gap-2 mt-3">
-											<Dialog
-												open={secretDialog}
-												onOpenChange={setSecretDialog}
-											>
-												<DialogTrigger asChild>
-													<Button
-														size="sm"
-														className="bg-orange-600 hover:bg-orange-700 text-white"
-														onClick={() => {
-															setSelectedTemplate(
-																'CLOUDFLARE_API_KEY',
-															);
-															setIsCustomSecret(
-																false,
-															);
-															setNewSecret({
-																templateId:
-																	'CLOUDFLARE_API_KEY',
-																name: '',
-																envVarName: '',
-																value: '',
-																environment:
-																	'production',
-																description: '',
-															});
-															setSecretDialog(
-																true,
-															);
-														}}
-													>
-														<Plus className="h-4 w-4" />
-														Add Cloudflare Keys
-													</Button>
-												</DialogTrigger>
-											</Dialog>
-										</div>
-									</div>
-								</div>
-							</div>
 
-							{/* User Secrets List */}
+							{/* App Environment Variables Section */}
 							<div className="space-y-4">
 								<div className="flex justify-between items-center">
-									<h4 className="font-medium">
-										Your API Keys
-									</h4>
+									<div>
+										<h4 className="font-medium">App Environment Variables</h4>
+										<p className="text-xs text-muted-foreground">
+											API keys and secrets that will be available to your generated apps
+										</p>
+									</div>
 									<Dialog
 										open={secretDialog}
 										onOpenChange={(open) => {
@@ -1052,7 +848,7 @@ export default function SettingsPage() {
 										<DialogTrigger asChild>
 											<Button size="sm" className="gap-2">
 												<Plus className="h-4 w-4" />
-												Add Secret
+												Add Env Vars
 											</Button>
 										</DialogTrigger>
 									</Dialog>
@@ -1068,31 +864,48 @@ export default function SettingsPage() {
 								) : userSecrets.secrets.length === 0 ? (
 									<div className="text-center py-8 border-2 border-dashed border-muted rounded-lg">
 										<Key className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-										<p className="text-sm text-muted-foreground">
-											No API keys added yet
+										<p className="text-sm text-muted-foreground mb-1">
+											No environment variables configured
+										</p>
+										<p className="text-xs text-muted-foreground">
+											Add API keys and secrets that your generated apps can use
 										</p>
 									</div>
 								) : (
 									<div className="space-y-3">
-										{userSecrets.secrets.map((secret) => (
+										{userSecrets.secrets
+											.filter((secret) => !secret.secretType.endsWith('_BYOK'))
+											.map((secret) => (
 											<div
 												key={secret.id}
-												className="flex items-center justify-between p-4 border rounded-lg bg-card"
+												className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${
+													secret.isActive 
+														? 'bg-card' 
+														: 'bg-muted/20 border-dashed opacity-70'
+												}`}
 											>
 												<div className="flex items-center gap-3">
-													<div className="text-xl">
-														{getProviderIcon(
-															secret.provider,
-														)}
+													<div className={`flex items-center justify-center w-8 h-8 rounded-md border shadow-sm ${
+														secret.isActive 
+															? 'bg-white' 
+															: 'bg-muted border-dashed opacity-60'
+													}`}>
+														{getProviderLogo(secret.provider, `h-5 w-5 ${secret.isActive ? '' : 'opacity-60'}`)}
 													</div>
 													<div>
-														<p className="font-medium">
+														<p className={`font-medium ${secret.isActive ? '' : 'opacity-60'}`}>
 															{secret.name}
 														</p>
 														<div className="flex items-center gap-2 mt-1">
 															<Badge
+																variant={secret.isActive ? "default" : "outline"}
+																className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
+															>
+																{secret.isActive ? "Active" : "Inactive"}
+															</Badge>
+															<Badge
 																variant="outline"
-																className="text-xs"
+																className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
 															>
 																{
 																	secret.provider
@@ -1100,7 +913,7 @@ export default function SettingsPage() {
 															</Badge>
 															<Badge
 																variant="secondary"
-																className="text-xs"
+																className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
 															>
 																{secret.secretType.replace(
 																	'_',
@@ -1182,6 +995,147 @@ export default function SettingsPage() {
 										))}
 									</div>
 								)}
+							</div>
+
+							<Separator />
+
+							{/* BYOK API Keys Section */}
+							<div className="space-y-4">
+								<div className="flex justify-between items-center">
+									<h4 className="font-medium">BYOK Provider Keys</h4>
+									<Button 
+										size="sm" 
+										variant="outline" 
+										onClick={() => setByokModalOpen(true)} 
+										className="gap-2"
+									>
+										<Key className="h-4 w-4" />
+										Manage BYOK Keys
+									</Button>
+								</div>
+
+								{/* BYOK Status Display */}
+								{(() => {
+									const byokSecrets = userSecrets.secrets.filter((secret) => secret.secretType.endsWith('_BYOK'));
+									
+									if (byokSecrets.length === 0) {
+										return (
+											<div className="text-center py-6 border-2 border-dashed border-muted rounded-lg">
+												<Key className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+												<p className="text-sm text-muted-foreground mb-1">No BYOK provider keys configured</p>
+												<p className="text-xs text-muted-foreground">
+													Add your OpenAI, Anthropic, Google AI, or Cerebras API keys to use your own billing
+												</p>
+											</div>
+										);
+									}
+
+									return (
+										<div className="rounded-lg bg-muted/50 p-4">
+											<div className="flex items-center justify-between mb-3">
+												<div className="flex items-center gap-2">
+													<div className="w-2 h-2 bg-green-500 rounded-full"></div>
+													<span className="text-sm font-medium">
+														{byokSecrets.length} provider{byokSecrets.length !== 1 ? 's' : ''} configured
+													</span>
+												</div>
+											</div>
+											<div className="space-y-3">
+												{byokSecrets.map((secret) => {
+													const providerName = secret.secretType
+														.replace('_API_KEY_BYOK', '')
+														.replace('_', ' ')
+														.toLowerCase()
+														.replace(/\b\w/g, l => l.toUpperCase());
+													
+													return (
+														<div
+															key={secret.id}
+															className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
+																secret.isActive 
+																	? 'bg-white/50 dark:bg-gray-800/50' 
+																	: 'bg-muted/20 border-dashed opacity-70'
+															}`}
+														>
+															<div className="flex items-center gap-3">
+																<div className={`flex items-center justify-center w-8 h-8 rounded-md border shadow-sm ${
+																	secret.isActive 
+																		? 'bg-white' 
+																		: 'bg-muted border-dashed opacity-60'
+																}`}>
+																	{getProviderLogo(secret.provider, `h-5 w-5 ${secret.isActive ? '' : 'opacity-60'}`)}
+																</div>
+																<div>
+																	<span className={`font-medium text-sm ${secret.isActive ? '' : 'opacity-60'}`}>{providerName}</span>
+																	<div className={`text-xs text-muted-foreground ${secret.isActive ? '' : 'opacity-60'}`}>
+																		{secret.keyPreview}
+																	</div>
+																</div>
+															</div>
+															<div className="flex items-center gap-2">
+																<Badge 
+																	variant={secret.isActive ? "default" : "outline"} 
+																	className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
+																>
+																	{secret.isActive ? "Active" : "Inactive"}
+																</Badge>
+																<AlertDialog>
+																	<AlertDialogTrigger asChild>
+																		<Button
+																			variant="outline"
+																			size="sm"
+																			className="text-destructive hover:text-destructive h-8 w-8 p-0"
+																		>
+																			<Trash2 className="h-4 w-4" />
+																		</Button>
+																	</AlertDialogTrigger>
+																	<AlertDialogContent>
+																		<AlertDialogHeader>
+																			<AlertDialogTitle>
+																				Remove {providerName} Key
+																			</AlertDialogTitle>
+																			<AlertDialogDescription>
+																				Are you sure you want to remove your {providerName} API key? 
+																				You'll need to add it again to use BYOK mode with this provider.
+																			</AlertDialogDescription>
+																		</AlertDialogHeader>
+																		<AlertDialogFooter>
+																			<AlertDialogCancel>
+																				Cancel
+																			</AlertDialogCancel>
+																			<AlertDialogAction
+																				onClick={() => handleDeleteSecret(secret.id)}
+																				className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+																			>
+																				Remove Key
+																			</AlertDialogAction>
+																		</AlertDialogFooter>
+																	</AlertDialogContent>
+																</AlertDialog>
+															</div>
+														</div>
+													);
+												})}
+											</div>
+											<p className="text-xs text-muted-foreground mt-3">
+												These keys are used automatically when you select BYOK mode in model configurations.
+												<Button
+													variant="link"
+													size="sm"
+													className="text-xs p-0 h-auto ml-1"
+													onClick={() => {
+														const modelConfigsSection = document.getElementById('model-configs');
+														if (modelConfigsSection) {
+															modelConfigsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+														}
+													}}
+												>
+													Configure models →
+												</Button>
+											</p>
+										</div>
+									);
+								})()}
 							</div>
 
 							{/* Add Secret Dialog */}
@@ -1802,92 +1756,6 @@ export default function SettingsPage() {
 								)}
 							</div>
 
-							<Separator />
-
-							{/* API Keys */}
-							<div className="space-y-4">
-								<div className="flex justify-between items-center">
-									<h4 className="font-medium">API Keys</h4>
-									<Button
-										onClick={handleCreateApiKey}
-										size="sm"
-										className="gap-2"
-									>
-										<Key className="h-4 w-4" />
-										Create API Key
-									</Button>
-								</div>
-
-								{apiKeys.loading ? (
-									<div className="flex items-center gap-3">
-										<Settings className="h-5 w-5 animate-spin text-muted-foreground" />
-										<span className="text-sm text-muted-foreground">
-											Loading API keys...
-										</span>
-									</div>
-								) : apiKeys.keys.length === 0 ? (
-									<div className="text-center py-8">
-										<Key className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-										<p className="text-sm text-muted-foreground">
-											No API keys created yet
-										</p>
-										<p className="text-xs text-muted-foreground mt-1">
-											Create an API key to access your
-											apps programmatically
-										</p>
-									</div>
-								) : (
-									<div className="space-y-3">
-										{apiKeys.keys.map((key) => (
-											<div
-												key={key.id}
-												className="flex items-center justify-between p-3 border rounded-lg"
-											>
-												<div className="flex items-center gap-3">
-													<Key className="h-4 w-4 text-muted-foreground" />
-													<div>
-														<p className="font-medium">
-															{key.name}
-														</p>
-														<p className="text-sm text-muted-foreground">
-															{key.keyPreview} •
-															Created{' '}
-															{new Date(
-																key.createdAt,
-															).toLocaleDateString()}
-														</p>
-													</div>
-												</div>
-												<div className="flex items-center gap-2">
-													<Badge
-														variant={
-															key.isActive
-																? 'default'
-																: 'secondary'
-														}
-													>
-														{key.isActive
-															? 'Active'
-															: 'Inactive'}
-													</Badge>
-													<Button
-														variant="outline"
-														size="sm"
-														onClick={() =>
-															handleRevokeApiKey(
-																key.id,
-															)
-														}
-														className="text-destructive hover:text-destructive"
-													>
-														Revoke
-													</Button>
-												</div>
-											</div>
-										))}
-									</div>
-								)}
-							</div>
 						</CardContent>
 					</Card>
 
@@ -2009,6 +1877,13 @@ export default function SettingsPage() {
 					</div>
 				</div>
 			</main>
+
+			{/* BYOK API Keys Modal */}
+			<ByokApiKeysModal
+				isOpen={byokModalOpen}
+				onClose={() => setByokModalOpen(false)}
+				onKeyAdded={handleByokKeyAdded}
+			/>
 		</div>
 	);
 }
