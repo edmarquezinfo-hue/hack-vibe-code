@@ -17,6 +17,7 @@ export function setupModelConfigRoutes(router: Router): Router {
     // Model Configuration Routes
     router.get('/api/model-configs', modelConfigController.getModelConfigs.bind(modelConfigController));
     router.get('/api/model-configs/defaults', modelConfigController.getDefaults.bind(modelConfigController));
+    router.get('/api/model-configs/byok-providers', modelConfigController.getByokProviders.bind(modelConfigController));
     router.get('/api/model-configs/:agentAction', modelConfigController.getModelConfig.bind(modelConfigController));
     router.put('/api/model-configs/:agentAction', modelConfigController.updateModelConfig.bind(modelConfigController));
     router.delete('/api/model-configs/:agentAction', modelConfigController.deleteModelConfig.bind(modelConfigController));

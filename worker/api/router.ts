@@ -72,6 +72,13 @@ export class Router {
     }
 
     /**
+     * Register a PATCH route
+     */
+    patch(path: string, handler: RequestHandler): Router {
+        return this.register(path, handler, ['PATCH']);
+    }
+
+    /**
      * Register a route with multiple methods
      */
     methods(path: string, handler: RequestHandler, methods: string[]): Router {

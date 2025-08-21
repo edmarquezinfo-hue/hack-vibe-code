@@ -786,6 +786,28 @@ export const userModelConfigs = sqliteTable('user_model_configs', {
 }));
 
 /**
+ * User Model Providers table - Custom OpenAI-compatible providers
+ */
+export const userModelProviders = sqliteTable('user_model_providers', {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    
+    // Provider Details
+    name: text('name').notNull(), // User-friendly name (e.g., "My Local Ollama")
+    baseUrl: text('base_url').notNull(), // OpenAI-compatible API base URL
+    secretId: text('secret_id').references(() => userSecrets.id), // API key stored in userSecrets
+    
+    // Status and Metadata
+    isActive: integer('is_active', { mode: 'boolean' }).default(true),
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+    userNameIdx: uniqueIndex('user_model_providers_user_name_idx').on(table.userId, table.name),
+    userIdx: index('user_model_providers_user_idx').on(table.userId),
+    isActiveIdx: index('user_model_providers_is_active_idx').on(table.isActive),
+}));
+
+/**
  * User Provider Keys table - DEPRECATED: Use userSecrets table instead
  * This table is kept for migration compatibility but should not be used in new code
  * TODO: Remove this table in a future migration after data is migrated to userSecrets
@@ -917,6 +939,8 @@ export type NewUserSecret = typeof userSecrets.$inferInsert;
 
 export type UserModelConfig = typeof userModelConfigs.$inferSelect;
 export type NewUserModelConfig = typeof userModelConfigs.$inferInsert;
+export type UserModelProvider = typeof userModelProviders.$inferSelect;
+export type NewUserModelProvider = typeof userModelProviders.$inferInsert;
 
 export type UserProviderKey = typeof userProviderKeys.$inferSelect;
 export type NewUserProviderKey = typeof userProviderKeys.$inferInsert;

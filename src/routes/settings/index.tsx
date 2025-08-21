@@ -56,6 +56,14 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
+import { ByokApiKeysModal } from '@/components/byok-api-keys-modal';
+
+// Import provider logos (reusing existing pattern from BYOK modal)
+import OpenAILogo from '@/assets/provider-logos/openai.svg?react';
+import AnthropicLogo from '@/assets/provider-logos/anthropic.svg?react';
+import GoogleLogo from '@/assets/provider-logos/google.svg?react';
+import CerebrasLogo from '@/assets/provider-logos/cerebras.svg?react';
+import CloudflareLogo from '@/assets/provider-logos/cloudflare.svg?react';
 
 export default function SettingsPage() {
 	const { user } = useAuth();
@@ -158,6 +166,15 @@ export default function SettingsPage() {
 	const [loadingConfigs, setLoadingConfigs] = useState(true);
 	const [savingConfigs, setSavingConfigs] = useState(false);
 	const [testingConfig, setTestingConfig] = useState<string | null>(null);
+
+	// BYOK modal state
+	const [byokModalOpen, setByokModalOpen] = useState(false);
+	
+	// Handle BYOK key added/removed - refresh both secrets and model configs
+	const handleByokKeyAdded = () => {
+		loadUserSecrets();
+		loadModelConfigs(); // Refresh model configs since BYOK provider availability changed
+	};
 
 	// const handleSaveProfile = async () => {
 	// 	if (isSaving) return;
@@ -263,10 +280,10 @@ export default function SettingsPage() {
 	};
 
 	// Test model configuration
-	const testModelConfig = async (agentAction: string) => {
+	const testModelConfig = async (agentAction: string, tempConfig?: ModelConfigUpdate) => {
 		try {
 			setTestingConfig(agentAction);
-			const response = await apiClient.testModelConfig(agentAction);
+			const response = await apiClient.testModelConfig(agentAction, tempConfig);
 			
 			if (response.success && response.data) {
 				const result = response.data.testResult;
@@ -651,6 +668,8 @@ export default function SettingsPage() {
 			if (response.ok) {
 				toast.success('Secret deleted successfully');
 				loadUserSecrets();
+				// Also refresh model configs since BYOK provider availability may have changed
+				loadModelConfigs();
 			} else {
 				toast.error('Failed to delete secret');
 			}
@@ -660,30 +679,34 @@ export default function SettingsPage() {
 		}
 	};
 
-	const getProviderIcon = (provider: string) => {
-		switch (provider) {
-			case 'cloudflare':
-				return '☁️';
-			case 'stripe':
-				return '💳';
-			case 'openai':
-				return '🤖';
-			case 'anthropic':
-				return '🧠';
-			case 'github':
-				return '🐙';
-			case 'google':
-				return '🔷';
-			case 'vercel':
-				return '▲';
-			case 'supabase':
-				return '🗄️';
-			case 'custom':
-				return '🔑';
-			default:
-				return '🔑';
-		}
+	// Provider logo mapping (following existing BYOK modal pattern)
+	const PROVIDER_LOGOS: Record<string, React.ComponentType<{ className?: string }>> = {
+		openai: OpenAILogo,
+		anthropic: AnthropicLogo,
+		'google-ai-studio': GoogleLogo,
+		google: GoogleLogo,
+		cerebras: CerebrasLogo,
+		cloudflare: CloudflareLogo,
 	};
+
+	const getProviderLogo = (provider: string, className: string = "h-5 w-5") => {
+		const LogoComponent = PROVIDER_LOGOS[provider];
+		if (LogoComponent) {
+			return <LogoComponent className={className} />;
+		}
+		
+		// Fallback to emoji for unknown providers
+		const emojiMap: Record<string, string> = {
+			stripe: '💳',
+			github: '🐙',
+			vercel: '▲',
+			supabase: '🗄️',
+			custom: '🔑',
+		};
+		
+		return <span className="text-lg">{emojiMap[provider] || '🔑'}</span>;
+	};
+
 
 	// Update form data when user changes
 	// React.useEffect(() => {
@@ -960,6 +983,7 @@ export default function SettingsPage() {
 						</CardContent>
 					</Card>
 
+
 					{/* User Secrets Section */}
 					<Card id="secrets">
 						<CardHeader>
@@ -971,66 +995,16 @@ export default function SettingsPage() {
 							</div>
 						</CardHeader>
 						<CardContent className="space-y-6">
-							{/* Quick Setup for Cloudflare */}
-							<div className="rounded-lg bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-950/20 dark:to-orange-900/20 border border-orange-200 dark:border-orange-800 p-4">
-								<div className="flex items-start gap-3">
-									<div className="text-2xl">☁️</div>
-									<div className="flex-1">
-										<h4 className="font-medium text-orange-900 dark:text-orange-100">
-											Cloudflare Setup Required
-										</h4>
-										<p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
-											To deploy your generated apps,
-											please add your Cloudflare API Key
-											and Account ID
-										</p>
-										<div className="flex gap-2 mt-3">
-											<Dialog
-												open={secretDialog}
-												onOpenChange={setSecretDialog}
-											>
-												<DialogTrigger asChild>
-													<Button
-														size="sm"
-														className="bg-orange-600 hover:bg-orange-700 text-white"
-														onClick={() => {
-															setSelectedTemplate(
-																'CLOUDFLARE_API_KEY',
-															);
-															setIsCustomSecret(
-																false,
-															);
-															setNewSecret({
-																templateId:
-																	'CLOUDFLARE_API_KEY',
-																name: '',
-																envVarName: '',
-																value: '',
-																environment:
-																	'production',
-																description: '',
-															});
-															setSecretDialog(
-																true,
-															);
-														}}
-													>
-														<Plus className="h-4 w-4" />
-														Add Cloudflare Keys
-													</Button>
-												</DialogTrigger>
-											</Dialog>
-										</div>
-									</div>
-								</div>
-							</div>
 
-							{/* User Secrets List */}
+							{/* App Environment Variables Section */}
 							<div className="space-y-4">
 								<div className="flex justify-between items-center">
-									<h4 className="font-medium">
-										Your API Keys
-									</h4>
+									<div>
+										<h4 className="font-medium">App Environment Variables</h4>
+										<p className="text-xs text-muted-foreground">
+											API keys and secrets that will be available to your generated apps
+										</p>
+									</div>
 									<Dialog
 										open={secretDialog}
 										onOpenChange={(open) => {
@@ -1052,7 +1026,7 @@ export default function SettingsPage() {
 										<DialogTrigger asChild>
 											<Button size="sm" className="gap-2">
 												<Plus className="h-4 w-4" />
-												Add Secret
+												Add Environment Variable
 											</Button>
 										</DialogTrigger>
 									</Dialog>
@@ -1068,22 +1042,25 @@ export default function SettingsPage() {
 								) : userSecrets.secrets.length === 0 ? (
 									<div className="text-center py-8 border-2 border-dashed border-muted rounded-lg">
 										<Key className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-										<p className="text-sm text-muted-foreground">
-											No API keys added yet
+										<p className="text-sm text-muted-foreground mb-1">
+											No environment variables configured
+										</p>
+										<p className="text-xs text-muted-foreground">
+											Add API keys and secrets that your generated apps can use
 										</p>
 									</div>
 								) : (
 									<div className="space-y-3">
-										{userSecrets.secrets.map((secret) => (
+										{userSecrets.secrets
+											.filter((secret) => !secret.secretType.endsWith('_BYOK'))
+											.map((secret) => (
 											<div
 												key={secret.id}
 												className="flex items-center justify-between p-4 border rounded-lg bg-card"
 											>
 												<div className="flex items-center gap-3">
-													<div className="text-xl">
-														{getProviderIcon(
-															secret.provider,
-														)}
+													<div className="flex items-center justify-center w-8 h-8 bg-white rounded-md border shadow-sm">
+														{getProviderLogo(secret.provider, "h-5 w-5")}
 													</div>
 													<div>
 														<p className="font-medium">
@@ -1182,6 +1159,136 @@ export default function SettingsPage() {
 										))}
 									</div>
 								)}
+							</div>
+
+							<Separator />
+
+							{/* BYOK API Keys Section */}
+							<div className="space-y-4">
+								<div className="flex justify-between items-center">
+									<h4 className="font-medium">BYOK Provider Keys</h4>
+									<Button 
+										size="sm" 
+										variant="outline" 
+										onClick={() => setByokModalOpen(true)} 
+										className="gap-2"
+									>
+										<Key className="h-4 w-4" />
+										Manage BYOK Keys
+									</Button>
+								</div>
+
+								{/* BYOK Status Display */}
+								{(() => {
+									const byokSecrets = userSecrets.secrets.filter((secret) => secret.secretType.endsWith('_BYOK'));
+									
+									if (byokSecrets.length === 0) {
+										return (
+											<div className="text-center py-6 border-2 border-dashed border-muted rounded-lg">
+												<Key className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+												<p className="text-sm text-muted-foreground mb-1">No BYOK provider keys configured</p>
+												<p className="text-xs text-muted-foreground">
+													Add your OpenAI, Anthropic, Google AI, or Cerebras API keys to use your own billing
+												</p>
+											</div>
+										);
+									}
+
+									return (
+										<div className="rounded-lg bg-muted/50 p-4">
+											<div className="flex items-center justify-between mb-3">
+												<div className="flex items-center gap-2">
+													<div className="w-2 h-2 bg-green-500 rounded-full"></div>
+													<span className="text-sm font-medium">
+														{byokSecrets.length} provider{byokSecrets.length !== 1 ? 's' : ''} configured
+													</span>
+												</div>
+											</div>
+											<div className="space-y-3">
+												{byokSecrets.map((secret) => {
+													const providerName = secret.secretType
+														.replace('_API_KEY_BYOK', '')
+														.replace('_', ' ')
+														.toLowerCase()
+														.replace(/\b\w/g, l => l.toUpperCase());
+													
+													return (
+														<div
+															key={secret.id}
+															className="flex items-center justify-between p-3 border rounded-lg bg-white/50 dark:bg-gray-800/50"
+														>
+															<div className="flex items-center gap-3">
+																<div className="flex items-center justify-center w-8 h-8 bg-white rounded-md border shadow-sm">
+																	{getProviderLogo(secret.provider, "h-5 w-5")}
+																</div>
+																<div>
+																	<span className="font-medium text-sm">{providerName}</span>
+																	<div className="text-xs text-muted-foreground">
+																		{secret.keyPreview}
+																	</div>
+																</div>
+															</div>
+															<div className="flex items-center gap-2">
+																<Badge variant="secondary" className="text-xs">
+																	Active
+																</Badge>
+																<AlertDialog>
+																	<AlertDialogTrigger asChild>
+																		<Button
+																			variant="outline"
+																			size="sm"
+																			className="text-destructive hover:text-destructive h-8 w-8 p-0"
+																		>
+																			<Trash2 className="h-4 w-4" />
+																		</Button>
+																	</AlertDialogTrigger>
+																	<AlertDialogContent>
+																		<AlertDialogHeader>
+																			<AlertDialogTitle>
+																				Remove {providerName} Key
+																			</AlertDialogTitle>
+																			<AlertDialogDescription>
+																				Are you sure you want to remove your {providerName} API key? 
+																				You'll need to add it again to use BYOK mode with this provider.
+																			</AlertDialogDescription>
+																		</AlertDialogHeader>
+																		<AlertDialogFooter>
+																			<AlertDialogCancel>
+																				Cancel
+																			</AlertDialogCancel>
+																			<AlertDialogAction
+																				onClick={() => handleDeleteSecret(secret.id)}
+																				className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+																			>
+																				Remove Key
+																			</AlertDialogAction>
+																		</AlertDialogFooter>
+																	</AlertDialogContent>
+																</AlertDialog>
+															</div>
+														</div>
+													);
+												})}
+											</div>
+											<p className="text-xs text-muted-foreground mt-3">
+												These keys are used automatically when you select BYOK mode in model configurations.
+												<Button
+													variant="link"
+													size="sm"
+													className="text-xs p-0 h-auto ml-1"
+													onClick={() => {
+														const modelConfigsSection = document.getElementById('model-configs');
+														if (modelConfigsSection) {
+															modelConfigsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+														}
+													}}
+												>
+													Configure models →
+												</Button>
+											</p>
+										</div>
+									);
+								})()}
 							</div>
 
 							{/* Add Secret Dialog */}
@@ -1802,92 +1909,6 @@ export default function SettingsPage() {
 								)}
 							</div>
 
-							<Separator />
-
-							{/* API Keys */}
-							<div className="space-y-4">
-								<div className="flex justify-between items-center">
-									<h4 className="font-medium">API Keys</h4>
-									<Button
-										onClick={handleCreateApiKey}
-										size="sm"
-										className="gap-2"
-									>
-										<Key className="h-4 w-4" />
-										Create API Key
-									</Button>
-								</div>
-
-								{apiKeys.loading ? (
-									<div className="flex items-center gap-3">
-										<Settings className="h-5 w-5 animate-spin text-muted-foreground" />
-										<span className="text-sm text-muted-foreground">
-											Loading API keys...
-										</span>
-									</div>
-								) : apiKeys.keys.length === 0 ? (
-									<div className="text-center py-8">
-										<Key className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-										<p className="text-sm text-muted-foreground">
-											No API keys created yet
-										</p>
-										<p className="text-xs text-muted-foreground mt-1">
-											Create an API key to access your
-											apps programmatically
-										</p>
-									</div>
-								) : (
-									<div className="space-y-3">
-										{apiKeys.keys.map((key) => (
-											<div
-												key={key.id}
-												className="flex items-center justify-between p-3 border rounded-lg"
-											>
-												<div className="flex items-center gap-3">
-													<Key className="h-4 w-4 text-muted-foreground" />
-													<div>
-														<p className="font-medium">
-															{key.name}
-														</p>
-														<p className="text-sm text-muted-foreground">
-															{key.keyPreview} •
-															Created{' '}
-															{new Date(
-																key.createdAt,
-															).toLocaleDateString()}
-														</p>
-													</div>
-												</div>
-												<div className="flex items-center gap-2">
-													<Badge
-														variant={
-															key.isActive
-																? 'default'
-																: 'secondary'
-														}
-													>
-														{key.isActive
-															? 'Active'
-															: 'Inactive'}
-													</Badge>
-													<Button
-														variant="outline"
-														size="sm"
-														onClick={() =>
-															handleRevokeApiKey(
-																key.id,
-															)
-														}
-														className="text-destructive hover:text-destructive"
-													>
-														Revoke
-													</Button>
-												</div>
-											</div>
-										))}
-									</div>
-								)}
-							</div>
 						</CardContent>
 					</Card>
 
@@ -2009,6 +2030,13 @@ export default function SettingsPage() {
 					</div>
 				</div>
 			</main>
+
+			{/* BYOK API Keys Modal */}
+			<ByokApiKeysModal
+				isOpen={byokModalOpen}
+				onClose={() => setByokModalOpen(false)}
+				onKeyAdded={handleByokKeyAdded}
+			/>
 		</div>
 	);
 }

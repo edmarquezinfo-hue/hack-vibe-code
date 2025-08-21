@@ -131,7 +131,7 @@ interface ModelConfigTabsProps {
   defaultConfigs: Record<string, ModelConfig>;
   loadingConfigs: boolean;
   onSaveConfig: (agentAction: string, config: ModelConfigUpdate) => Promise<void>;
-  onTestConfig: (agentAction: string) => Promise<void>;
+  onTestConfig: (agentAction: string, tempConfig?: ModelConfigUpdate) => Promise<void>;
   onResetConfig: (agentAction: string) => Promise<void>;
   onResetAllConfigs: () => Promise<void>;
   testingConfig: string | null;
@@ -349,7 +349,7 @@ export function ModelConfigTabs({
           userConfig={modelConfigs[selectedConfigKey]}
           defaultConfig={defaultConfigs[selectedConfigKey]}
           onSave={(config) => onSaveConfig(selectedConfigKey, config)}
-          onTest={() => onTestConfig(selectedConfigKey)}
+          onTest={(tempConfig) => onTestConfig(selectedConfigKey, tempConfig)}
           onReset={() => onResetConfig(selectedConfigKey)}
           isTesting={testingConfig === selectedConfigKey}
         />

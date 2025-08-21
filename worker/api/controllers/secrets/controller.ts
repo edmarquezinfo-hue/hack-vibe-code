@@ -30,6 +30,24 @@ export class SecretsController extends BaseController {
     }
 
     /**
+     * Get BYOK templates dynamically
+     */
+    public getBYOKTemplates(): SecretTemplate[] {
+        return this.getTemplatesData().filter(template => template.category === 'byok');
+    }
+
+    /**
+     * Extract provider name from BYOK template
+     * Example: "OPENAI_API_KEY_BYOK" -> "openai"
+     */
+    public extractProviderFromBYOKTemplate(template: SecretTemplate): string {
+        return template.envVarName
+            .replace('_API_KEY_BYOK', '')
+            .toLowerCase()
+            .replace(/_/g, '-');
+    }
+
+    /**
      * Get templates data (helper method)
      */
     private getTemplatesData(): SecretTemplate[] {
@@ -144,6 +162,60 @@ export class SecretsController extends BaseController {
                 category: 'ai'
             },
             
+            // BYOK (Bring Your Own Key) AI Providers - Lenient validation for compatibility
+            {
+                id: 'OPENAI_API_KEY_BYOK',
+                displayName: 'OpenAI (BYOK)',
+                envVarName: 'OPENAI_API_KEY_BYOK',
+                provider: 'openai',
+                icon: '🤖',
+                description: 'Use your OpenAI API key for GPT models via Cloudflare AI Gateway',
+                instructions: 'Go to OpenAI Platform → API Keys → Create new secret key',
+                placeholder: 'sk-proj-... or sk-...',
+                validation: '^sk-.{10,}$',
+                required: false,
+                category: 'byok'
+            },
+            {
+                id: 'ANTHROPIC_API_KEY_BYOK',
+                displayName: 'Anthropic (BYOK)',
+                envVarName: 'ANTHROPIC_API_KEY_BYOK',
+                provider: 'anthropic',
+                icon: '🧠',
+                description: 'Use your Anthropic API key for Claude models via Cloudflare AI Gateway',
+                instructions: 'Go to Anthropic Console → API Keys → Create Key',
+                placeholder: 'sk-ant-api03-...',
+                validation: '^sk-ant-.{10,}$',
+                required: false,
+                category: 'byok'
+            },
+            {
+                id: 'GOOGLE_AI_STUDIO_API_KEY_BYOK',
+                displayName: 'Google AI Studio (BYOK)',
+                envVarName: 'GOOGLE_AI_STUDIO_API_KEY_BYOK',
+                provider: 'google-ai-studio',
+                icon: '🔷',
+                description: 'Use your Google AI API key for Gemini models via Cloudflare AI Gateway',
+                instructions: 'Go to Google AI Studio → Get API Key',
+                placeholder: 'AIzaSy...',
+                validation: '^AIza.{20,}$',
+                required: false,
+                category: 'byok'
+            },
+            {
+                id: 'CEREBRAS_API_KEY_BYOK',
+                displayName: 'Cerebras (BYOK)',
+                envVarName: 'CEREBRAS_API_KEY_BYOK',
+                provider: 'cerebras',
+                icon: '🧮',
+                description: 'Use your Cerebras API key for high-performance inference via Cloudflare AI Gateway',
+                instructions: 'Go to Cerebras Platform → API Keys → Create new key',
+                placeholder: 'csk-... or any format',
+                validation: '^.{10,}$',
+                required: false,
+                category: 'byok'
+            },
+            
             // Development Tools
             {
                 id: 'GITHUB_TOKEN',
@@ -223,6 +295,28 @@ export class SecretsController extends BaseController {
         } catch (error) {
             this.logger.error('Error getting user secrets:', error);
             return this.createErrorResponse<SecretsData>('Failed to get user secrets', 500);
+        }
+    }
+
+    /**
+     * Get all user secrets including inactive ones (for management purposes)
+     * GET /api/secrets/all
+     */
+    async getAllSecrets(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<SecretsData>>> {
+        try {
+            const authResult = await this.requireAuth(request, env);
+            if (!authResult.success) {
+                return authResult.response! as ControllerResponse<ApiResponse<SecretsData>>;
+            }
+
+            const secretsService = this.createSecretsService(env);
+            const secrets = await secretsService.getAllUserSecrets(authResult.user!.id);
+
+            const responseData: SecretsData = { secrets };
+            return this.createSuccessResponse(responseData);
+        } catch (error) {
+            this.logger.error('Error getting all user secrets:', error);
+            return this.createErrorResponse<SecretsData>('Failed to get all user secrets', 500);
         }
     }
 
@@ -350,12 +444,53 @@ export class SecretsController extends BaseController {
     }
 
     /**
+     * Toggle secret active status
+     * PATCH /api/secrets/:secretId/toggle
+     */
+    async toggleSecret(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<SecretStoreData>>> {
+        try {
+            const authResult = await this.requireAuth(request, env);
+            if (!authResult.success) {
+                return authResult.response! as ControllerResponse<ApiResponse<SecretStoreData>>;
+            }
+
+            const pathParams = this.extractPathParams(request, ['secretId']);
+            const secretId = pathParams.secretId;
+
+            if (!secretId) {
+                return this.createErrorResponse<SecretStoreData>('Secret ID is required', 400);
+            }
+
+            const secretsService = this.createSecretsService(env);
+            const toggledSecret = await secretsService.toggleSecretActiveStatus(authResult.user!.id, secretId);
+
+            const responseData: SecretStoreData = {
+                secret: toggledSecret,
+                message: `Secret ${toggledSecret.isActive ? 'activated' : 'deactivated'} successfully`
+            };
+
+            return this.createSuccessResponse(responseData);
+        } catch (error) {
+            this.logger.error('Error toggling secret status:', error);
+            return this.createErrorResponse<SecretStoreData>('Failed to toggle secret status', 500);
+        }
+    }
+
+    /**
      * Get predefined secret templates for common providers
      * GET /api/secrets/templates
      */
-    async getTemplates(_request: Request, _env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<SecretTemplatesData>>> {
+    async getTemplates(request: Request, _env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<SecretTemplatesData>>> {
         try {
-            const templates = this.getTemplatesData();
+            const url = new URL(request.url);
+            const category = url.searchParams.get('category');
+            
+            let templates = this.getTemplatesData();
+            
+            if (category) {
+                templates = templates.filter(template => template.category === category);
+            }
+            
             const responseData: SecretTemplatesData = { templates };
             return this.createSuccessResponse(responseData);
         } catch (error) {

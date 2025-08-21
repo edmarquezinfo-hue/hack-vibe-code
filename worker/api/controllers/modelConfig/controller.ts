@@ -21,8 +21,14 @@ import {
     ModelConfigTestData,
     ModelConfigResetData,
     ModelConfigDefaultsData,
-    ModelConfigDeleteData
+    ModelConfigDeleteData,
+    ByokProvidersData
 } from './types';
+import { 
+    getUserProviderStatus, 
+    getByokModels, 
+    getPlatformModels 
+} from './byokHelper';
 import { z } from 'zod';
 
 // Validation schemas
@@ -39,7 +45,8 @@ const modelConfigUpdateSchema = z.object({
 const modelTestSchema = z.object({
     agentActionName: z.string(),
     testPrompt: z.string().optional(),
-    useUserKeys: z.boolean().default(true)
+    useUserKeys: z.boolean().default(true),
+    tempConfig: modelConfigUpdateSchema.optional()
 });
 
 export class ModelConfigController extends BaseController {
@@ -162,9 +169,6 @@ export class ModelConfigController extends BaseController {
             if (validatedData.reasoningEffort !== null && validatedData.reasoningEffort !== undefined) {
                 modelConfig.reasoning_effort = validatedData.reasoningEffort;
             }
-            if (validatedData.providerOverride !== null && validatedData.providerOverride !== undefined) {
-                modelConfig.providerOverride = validatedData.providerOverride;
-            }
             if (validatedData.fallbackModel !== null && validatedData.fallbackModel !== undefined) {
                 modelConfig.fallbackModel = validatedData.fallbackModel;
             }
@@ -252,8 +256,19 @@ export class ModelConfigController extends BaseController {
 
             const { modelConfigService, secretsService, modelTestService } = this.createServices(env);
 
-            // Get the user's configuration for this agent action
-            const userConfig = await modelConfigService.getUserModelConfig(authResult.user!.id, agentAction);
+            // Get base configuration and merge with temporary changes if provided
+            const baseConfig = await modelConfigService.getUserModelConfig(authResult.user!.id, agentAction);
+            
+            const configToTest: ModelConfig = validatedData.tempConfig ? {
+                ...baseConfig,
+                // Map frontend field names to backend config structure
+                ...(validatedData.tempConfig.modelName != null && { name: validatedData.tempConfig.modelName }),
+                ...(validatedData.tempConfig.maxTokens != null && { max_tokens: validatedData.tempConfig.maxTokens }),
+                ...(validatedData.tempConfig.temperature != null && { temperature: validatedData.tempConfig.temperature }),
+                ...(validatedData.tempConfig.reasoningEffort != null && { reasoning_effort: validatedData.tempConfig.reasoningEffort }),
+                ...(validatedData.tempConfig.fallbackModel != null && { fallbackModel: validatedData.tempConfig.fallbackModel }),
+                ...(validatedData.tempConfig.providerOverride != null && { providerOverride: validatedData.tempConfig.providerOverride })
+            } : baseConfig;
 
             // Get user API keys if requested
             let userApiKeys: Map<string, string> | undefined;
@@ -263,7 +278,7 @@ export class ModelConfigController extends BaseController {
 
             // Test the configuration
             const testResult = await modelTestService.testModelConfig({
-                modelConfig: userConfig,
+                modelConfig: configToTest,
                 userApiKeys,
                 testPrompt: validatedData.testPrompt
             });
@@ -329,6 +344,39 @@ export class ModelConfigController extends BaseController {
         } catch (error) {
             this.logger.error('Error getting default configurations:', error);
             return this.createErrorResponse<ModelConfigDefaultsData>('Failed to get default configurations', 500);
+        }
+    }
+
+    /**
+     * Get BYOK providers and available models
+     * GET /api/model-configs/byok-providers
+     */
+    async getByokProviders(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ByokProvidersData>>> {
+        try {
+            const authResult = await this.requireAuth(request, env);
+            if (!authResult.success) {
+                return authResult.response! as ControllerResponse<ApiResponse<ByokProvidersData>>;
+            }
+
+            // Get user's provider status
+            const providers = await getUserProviderStatus(authResult.user!.id, env);
+            
+            // Get models available for providers with valid keys
+            const modelsByProvider = getByokModels(providers);
+            
+            // Get all platform models
+            const platformModels = getPlatformModels();
+            
+            const responseData: ByokProvidersData = {
+                providers,
+                modelsByProvider,
+                platformModels
+            };
+
+            return this.createSuccessResponse(responseData);
+        } catch (error) {
+            this.logger.error('Error getting BYOK providers:', error);
+            return this.createErrorResponse<ByokProvidersData>('Failed to get BYOK providers', 500);
         }
     }
 }

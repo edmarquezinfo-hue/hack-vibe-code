@@ -167,6 +167,24 @@ export class SecretsService extends BaseService {
     }
 
     /**
+     * Get all secrets for a user (both active and inactive) - for management purposes
+     */
+    async getAllUserSecrets(userId: string): Promise<EncryptedSecret[]> {
+        try {
+            const secrets = await this.database
+                .select()
+                .from(schema.userSecrets)
+                .where(eq(schema.userSecrets.userId, userId))
+                .orderBy(schema.userSecrets.createdAt);
+
+            return secrets.map(secret => this.formatSecretResponse(secret));
+        } catch (error) {
+            this.logger.error('Failed to get all user secrets', error);
+            throw error;
+        }
+    }
+
+    /**
      * Get decrypted secret value (for code generation use)
      */
     async getSecretValue(userId: string, secretId: string): Promise<string> {
@@ -229,10 +247,56 @@ export class SecretsService extends BaseService {
     }
 
     /**
-     * Get all user API keys as a map (provider -> decrypted key)
-     * Used by inference system to override environment variables
+     * Get BYOK (Bring Your Own Key) API keys as a map (provider -> decrypted key)
+     * Uses dynamic template discovery for future-proof provider support
      */
-    async getUserProviderKeysMap(userId: string): Promise<Map<string, string>> {
+    async getUserBYOKKeysMap(userId: string): Promise<Map<string, string>> {
+        try {
+            // Get BYOK templates dynamically
+            const { SecretsController } = await import('../../api/controllers/secrets/controller');
+            const controller = new SecretsController();
+            const byokTemplates = controller.getBYOKTemplates();
+            
+            // Get all user secrets
+            const secrets = await this.database
+                .select()
+                .from(schema.userSecrets)
+                .where(
+                    and(
+                        eq(schema.userSecrets.userId, userId),
+                        eq(schema.userSecrets.isActive, true)
+                    )
+                );
+
+            const keyMap = new Map<string, string>();
+            
+            // Match secrets to BYOK templates
+            for (const template of byokTemplates) {
+                const secret = secrets.find(s => s.secretType === template.envVarName);
+                
+                if (secret) {
+                    try {
+                        const decryptedKey = await this.decryptSecret(secret.encryptedValue);
+                        keyMap.set(template.provider, decryptedKey);
+                    } catch (error) {
+                        this.logger.error(`Failed to decrypt BYOK key for provider ${template.provider}:`, error);
+                    }
+                }
+            }
+
+            this.logger.info(`Loaded ${keyMap.size} BYOK API keys from secrets system`, { userId });
+            return keyMap;
+        } catch (error) {
+            this.logger.error('Failed to get user BYOK keys map', error);
+            return new Map();
+        }
+    }
+
+    /**
+     * Get legacy API keys (secretType = 'API_KEY') as a map
+     * Maintains backward compatibility
+     */
+    async getLegacyAPIKeysMap(userId: string): Promise<Map<string, string>> {
         try {
             const secrets = await this.database
                 .select()
@@ -241,7 +305,7 @@ export class SecretsService extends BaseService {
                     and(
                         eq(schema.userSecrets.userId, userId),
                         eq(schema.userSecrets.isActive, true),
-                        eq(schema.userSecrets.secretType, 'API_KEY') // Only get API keys
+                        eq(schema.userSecrets.secretType, 'API_KEY') // Only legacy API keys
                     )
                 );
 
@@ -252,15 +316,94 @@ export class SecretsService extends BaseService {
                     const decryptedKey = await this.decryptSecret(secret.encryptedValue);
                     keyMap.set(secret.provider, decryptedKey);
                 } catch (error) {
-                    this.logger.error(`Failed to decrypt key for provider ${secret.provider}:`, error);
+                    this.logger.error(`Failed to decrypt legacy key for provider ${secret.provider}:`, error);
                 }
             }
 
-            this.logger.info(`Loaded ${keyMap.size} user API keys from secrets system`, { userId });
             return keyMap;
+        } catch (error) {
+            this.logger.error('Failed to get legacy user provider keys map', error);
+            return new Map();
+        }
+    }
+
+    /**
+     * Get all user API keys as a map (provider -> decrypted key)
+     * Used by inference system to override environment variables
+     * Combines legacy keys and BYOK keys (BYOK takes precedence)
+     */
+    async getUserProviderKeysMap(userId: string): Promise<Map<string, string>> {
+        try {
+            // Get both legacy and BYOK keys in parallel
+            const [legacyKeys, byokKeys] = await Promise.all([
+                this.getLegacyAPIKeysMap(userId),
+                this.getUserBYOKKeysMap(userId)
+            ]);
+
+            // Combine maps with BYOK keys taking precedence
+            const combinedMap = new Map([...legacyKeys, ...byokKeys]);
+
+            this.logger.info(`Loaded ${combinedMap.size} user API keys from secrets system (${legacyKeys.size} legacy, ${byokKeys.size} BYOK)`, { userId });
+            return combinedMap;
         } catch (error) {
             this.logger.error('Failed to get user provider keys map', error);
             return new Map();
+        }
+    }
+
+    /**
+     * Toggle secret active status
+     */
+    async toggleSecretActiveStatus(userId: string, secretId: string): Promise<EncryptedSecret> {
+        try {
+            // First get the current secret to check ownership and current status
+            const [currentSecret] = await this.database
+                .select()
+                .from(schema.userSecrets)
+                .where(
+                    and(
+                        eq(schema.userSecrets.id, secretId),
+                        eq(schema.userSecrets.userId, userId)
+                    )
+                )
+                .limit(1);
+
+            if (!currentSecret) {
+                throw new Error('Secret not found or access denied');
+            }
+
+            // Toggle the status
+            const newActiveStatus = !currentSecret.isActive;
+            
+            // Update the secret
+            const [updatedSecret] = await this.database
+                .update(schema.userSecrets)
+                .set({
+                    isActive: newActiveStatus,
+                    updatedAt: new Date()
+                })
+                .where(
+                    and(
+                        eq(schema.userSecrets.id, secretId),
+                        eq(schema.userSecrets.userId, userId)
+                    )
+                )
+                .returning();
+
+            if (!updatedSecret) {
+                throw new Error('Failed to update secret status');
+            }
+
+            this.logger.info(`Secret ${newActiveStatus ? 'activated' : 'deactivated'}`, { 
+                userId, 
+                secretId, 
+                provider: updatedSecret.provider 
+            });
+            
+            return this.formatSecretResponse(updatedSecret);
+        } catch (error) {
+            this.logger.error('Failed to toggle secret active status', error);
+            throw error;
         }
     }
 
