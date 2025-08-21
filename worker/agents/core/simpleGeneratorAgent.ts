@@ -1950,12 +1950,13 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 progress: 90
             });
 
-            // Update database with GitHub repository URL
+            // Update database with GitHub repository URL and visibility
             await DatabaseOperations.updateGitHubRepository(
                 this.env,
                 this.state.sessionId || '',
                 this.logger,
-                repositoryUrl || ''
+                repositoryUrl || '',
+                options.isPrivate ? 'private' : 'public'
             );
 
             // Broadcast success

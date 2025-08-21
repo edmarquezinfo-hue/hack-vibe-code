@@ -16,7 +16,8 @@ import {
   Cloud,
   CloudOff,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  Github
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -441,6 +442,26 @@ export const AppCard = React.memo<AppCardProps>(({
             </div>
           )}
           
+          {/* GitHub Repository Badge - positioned in top-right when repository exists */}
+          {app.githubRepositoryUrl && (
+            <button
+              className="absolute top-2 right-12 group/github h-6 w-6 hover:h-7 hover:w-7 rounded-full bg-gray-800/80 hover:bg-gray-900/90 backdrop-blur-sm transition-all duration-300 ease-out flex items-center justify-center shadow-sm hover:shadow-lg border border-gray-600/20 hover:border-gray-500/30"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (app.githubRepositoryUrl) {
+                  window.open(app.githubRepositoryUrl, '_blank', 'noopener,noreferrer');
+                }
+              }}
+              title={`View on GitHub (${app.githubRepositoryVisibility || 'public'})`}
+              aria-label="View repository on GitHub"
+            >
+              <Github className="w-3 h-3 text-white/90 group-hover/github:w-3.5 group-hover/github:h-3.5 transition-all duration-200" />
+              {/* Private repository indicator */}
+              {app.githubRepositoryVisibility === 'private' && (
+                <Lock className="w-1.5 h-1.5 text-white/70 absolute -bottom-0.5 -right-0.5 bg-gray-800 rounded-full p-0.5" />
+              )}
+            </button>
+          )}
 
           {/* Actions Dropdown - positioned in top-right on hover */}
           {showActions && (

@@ -80,6 +80,8 @@ export class AppService extends BaseService {
         cloudflareAccountId: schema.apps.cloudflareAccountId,
         deploymentStatus: schema.apps.deploymentStatus,
         deploymentMetadata: schema.apps.deploymentMetadata,
+        githubRepositoryUrl: schema.apps.githubRepositoryUrl,
+        githubRepositoryVisibility: schema.apps.githubRepositoryVisibility,
         isArchived: schema.apps.isArchived,
         isFeatured: schema.apps.isFeatured,
         version: schema.apps.version,

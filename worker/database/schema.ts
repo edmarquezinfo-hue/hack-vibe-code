@@ -370,6 +370,10 @@ export const apps = sqliteTable('apps', {
     deploymentStatus: text('deployment_status').default('none'), // 'none', 'deploying', 'deployed', 'failed'
     deploymentMetadata: text('deployment_metadata', { mode: 'json' }).default('{}'),
     
+    // GitHub Repository Integration
+    githubRepositoryUrl: text('github_repository_url'), // GitHub repository URL
+    githubRepositoryVisibility: text('github_repository_visibility', { enum: ['public', 'private'] }), // Repository visibility
+    
     // App Metadata
     isArchived: integer('is_archived', { mode: 'boolean' }).default(false),
     isFeatured: integer('is_featured', { mode: 'boolean' }).default(false), // Featured by admins

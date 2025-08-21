@@ -63,20 +63,18 @@ export class DatabaseOperations {
     }
 
     /**
-     * Update app with GitHub repository URL
+     * Update app with GitHub repository URL and visibility
      */
     static async updateGitHubRepository(
         env: { DB?: D1Database },
         sessionId: string,
         logger: StructuredLogger,
         repositoryUrl: string,
-        existingMetadata: Record<string, any> = {}
+        repositoryVisibility: 'public' | 'private'
     ): Promise<boolean> {
         return this.updateApp(env, sessionId, logger, {
-            deploymentMetadata: JSON.stringify({
-                ...existingMetadata,
-                githubRepository: repositoryUrl
-            })
+            githubRepositoryUrl: repositoryUrl,
+            githubRepositoryVisibility: repositoryVisibility
         });
     }
 

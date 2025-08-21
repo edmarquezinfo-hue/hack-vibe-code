@@ -21,6 +21,7 @@ import {
 	Shuffle,
 	Globe,
 	Trash2,
+	Github,
 } from 'lucide-react';
 import { MonacoEditor } from '../../components/monaco-editor/monaco-editor';
 import { getFileType } from '../../utils/string';
@@ -514,6 +515,27 @@ export default function AppView() {
 								/>
 								{isStarred ? 'Starred' : 'Star'}
 							</Button>
+
+							{/* GitHub Repository Button */}
+							{app.githubRepositoryUrl && (
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										if (app.githubRepositoryUrl) {
+											window.open(app.githubRepositoryUrl, '_blank', 'noopener,noreferrer');
+										}
+									}}
+									className="gap-2 border-gray-800 text-gray-800 hover:bg-gray-800 hover:text-white transition-colors"
+									title={`View on GitHub (${app.githubRepositoryVisibility || 'public'})`}
+								>
+									<Github className="h-4 w-4" />
+									View on GitHub
+									{app.githubRepositoryVisibility === 'private' && (
+										<Lock className="h-3 w-3 opacity-70" />
+									)}
+								</Button>
+							)}
 
 							<Button
 								size="sm"
