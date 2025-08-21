@@ -124,15 +124,17 @@ export default function AppView() {
 	// Convert agent state files to chat FileType format
 	const files = useMemo<FileType[]>(() => {
 		if (!agentState?.progress.generatedCode) return [];
-		return agentState.progress.generatedCode.map((file) => ({
-			filePath: file.filePath,
-			fileContents: file.fileContents,
-			explanation: file.filePurpose,
-			language: getFileType(file.filePath),
-			isGenerating: false,
-			needsFixing: false,
-			hasErrors: false,
-		}));
+		return agentState.progress.generatedCode
+			.filter((file) => file && file.filePath && typeof file.filePath === 'string')
+			.map((file) => ({
+				filePath: file.filePath,
+				fileContents: file.fileContents || '',
+				explanation: file.filePurpose,
+				language: getFileType(file.filePath),
+				isGenerating: false,
+				needsFixing: false,
+				hasErrors: false,
+			}));
 	}, [agentState?.progress.generatedCode]);
 
 	// Get active file
