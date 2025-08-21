@@ -415,15 +415,14 @@ export class SecretsController extends BaseController {
      * Delete a secret
      * DELETE /api/secrets/:secretId
      */
-    async deleteSecret(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<SecretDeleteData>>> {
+    async deleteSecret(request: Request, env: Env, _ctx: ExecutionContext, params: Record<string, string> = {}): Promise<ControllerResponse<ApiResponse<SecretDeleteData>>> {
         try {
             const authResult = await this.requireAuth(request, env);
             if (!authResult.success) {
                 return authResult.response! as ControllerResponse<ApiResponse<SecretDeleteData>>;
             }
 
-            const pathParams = this.extractPathParams(request, ['secretId']);
-            const secretId = pathParams.secretId;
+            const secretId = params.secretId;
 
             if (!secretId) {
                 return this.createErrorResponse<SecretDeleteData>('Secret ID is required', 400);
@@ -447,15 +446,14 @@ export class SecretsController extends BaseController {
      * Toggle secret active status
      * PATCH /api/secrets/:secretId/toggle
      */
-    async toggleSecret(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<SecretStoreData>>> {
+    async toggleSecret(request: Request, env: Env, _ctx: ExecutionContext, params: Record<string, string> = {}): Promise<ControllerResponse<ApiResponse<SecretStoreData>>> {
         try {
             const authResult = await this.requireAuth(request, env);
             if (!authResult.success) {
                 return authResult.response! as ControllerResponse<ApiResponse<SecretStoreData>>;
             }
 
-            const pathParams = this.extractPathParams(request, ['secretId']);
-            const secretId = pathParams.secretId;
+            const secretId = params.secretId;
 
             if (!secretId) {
                 return this.createErrorResponse<SecretStoreData>('Secret ID is required', 400);

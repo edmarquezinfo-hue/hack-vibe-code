@@ -156,10 +156,10 @@ export function ByokApiKeysModal({ isOpen, onClose, onKeyAdded }: ByokApiKeysMod
   const loadManagedSecrets = async () => {
     try {
       setLoadingSecrets(true);
-      const response = await apiClient.getAllSecrets(); // Use getAllSecrets instead of getSecrets
+      const response = await apiClient.getAllSecrets(); // Use getAllSecrets for toggle functionality
       
       if (response.success) {
-        // Filter BYOK secrets only
+        // Filter BYOK secrets only (show both active and inactive for management)
         const byokSecrets = response.data.secrets.filter(secret => 
           secret.secretType.endsWith('_BYOK')
         );
@@ -443,7 +443,7 @@ export function ByokApiKeysModal({ isOpen, onClose, onKeyAdded }: ByokApiKeysMod
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium">Your API Keys</Label>
                     <Badge variant="secondary">
-                      {managedSecrets.filter(s => s.isActive).length} active
+                      {managedSecrets.filter(s => s.isActive).length} active, {managedSecrets.length} total
                     </Badge>
                   </div>
                   
@@ -453,19 +453,31 @@ export function ByokApiKeysModal({ isOpen, onClose, onKeyAdded }: ByokApiKeysMod
                       const isTogglingThis = toggleLoadingId === secret.id;
                       
                       return (
-                        <div key={secret.id} className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors">
+                        <div key={secret.id} className={`flex items-center gap-4 p-4 rounded-lg border transition-colors ${
+                          secret.isActive 
+                            ? 'hover:bg-muted/50' 
+                            : 'bg-muted/20 border-dashed hover:bg-muted/30'
+                        }`}>
                           {/* Provider Logo */}
-                          <div className="flex items-center justify-center w-8 h-8 bg-white rounded-md border shadow-sm">
-                            <LogoComponent className="h-5 w-5" />
+                          <div className={`flex items-center justify-center w-8 h-8 rounded-md border shadow-sm ${
+                            secret.isActive 
+                              ? 'bg-white' 
+                              : 'bg-muted border-dashed opacity-60'
+                          }`}>
+                            <LogoComponent className={`h-5 w-5 ${secret.isActive ? '' : 'opacity-60'}`} />
                           </div>
                           
                           {/* Key Info */}
                           <div className="flex-1 space-y-1">
                             <div className="flex items-center gap-2">
-                              <span className="font-medium capitalize">{secret.name.replace(' (BYOK)', '')}</span>
+                              <span className={`font-medium capitalize ${
+                                secret.isActive ? '' : 'opacity-60'
+                              }`}>
+                                {secret.name.replace(' (BYOK)', '')}
+                              </span>
                               <Badge 
                                 variant={secret.isActive ? "default" : "outline"}
-                                className="text-xs"
+                                className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
                               >
                                 {secret.isActive ? "Active" : "Inactive"}
                               </Badge>

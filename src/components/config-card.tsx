@@ -56,7 +56,7 @@ const getAgentIcon = (agentKey: string) => {
 };
 
 // Helper function to format parameter values for display
-const formatParameterValue = (value: any, type: string) => {
+const formatParameterValue = (value: unknown, type: string) => {
   if (value === null || value === undefined) return null;
   
   switch (type) {

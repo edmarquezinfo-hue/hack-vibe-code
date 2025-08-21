@@ -16,7 +16,7 @@ import {
 	Lock,
 } from 'lucide-react';
 import { ModelConfigTabs } from '@/components/model-config-tabs';
-import type { ModelConfigsData, ModelConfigUpdate } from '@/api-types';
+import type { ModelConfigsData, ModelConfigUpdate, EncryptedSecret, ActiveSessionsData, ApiKeysData, SecretTemplate } from '@/api-types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -85,63 +85,19 @@ export default function SettingsPage() {
 	}>({ hasIntegration: false, loading: true });
 
 	// Active sessions state
-	const [activeSessions, setActiveSessions] = useState<{
-		sessions: Array<{
-			id: string;
-			userAgent: string;
-			ipAddress: string;
-			lastActivity: string;
-			createdAt: string;
-			isCurrent: boolean;
-		}>;
-		loading: boolean;
-	}>({ sessions: [], loading: true });
+	const [activeSessions, setActiveSessions] = useState<ActiveSessionsData & { loading: boolean }>({ sessions: [], loading: true });
 
 	// API Keys state
-	const [apiKeys, setApiKeys] = useState<{
-		keys: Array<{
-			id: string;
-			name: string;
-			keyPreview: string;
-			createdAt: string;
-			lastUsed?: string;
-			isActive: boolean;
-		}>;
-		loading: boolean;
-	}>({ keys: [], loading: true });
+	const [apiKeys, setApiKeys] = useState<ApiKeysData & { loading: boolean }>({ keys: [], loading: true });
 
 	// User Secrets state
 	const [userSecrets, setUserSecrets] = useState<{
-		secrets: Array<{
-			id: string;
-			name: string;
-			provider: string;
-			secretType: string;
-			keyPreview: string;
-			environment: string;
-			description?: string;
-			createdAt: string;
-			lastUsed?: string;
-		}>;
+		secrets: EncryptedSecret[];
 		loading: boolean;
 	}>({ secrets: [], loading: true });
 
 	// Templates state
-	const [secretTemplates, setSecretTemplates] = useState<
-		Array<{
-			id: string;
-			displayName: string;
-			envVarName: string;
-			provider: string;
-			icon: string;
-			description: string;
-			instructions: string;
-			placeholder: string;
-			validation: string;
-			required: boolean;
-			category: string;
-		}>
-	>([]);
+	const [secretTemplates, setSecretTemplates] = useState<SecretTemplate[]>([]);
 
 	const [secretDialog, setSecretDialog] = useState(false);
 	const [selectedTemplate, setSelectedTemplate] = useState<string | null>(
@@ -306,18 +262,9 @@ export default function SettingsPage() {
 	// Reset configuration to default
 	const resetConfigToDefault = async (agentAction: string) => {
 		try {
-			const response = await fetch(`/api/model-configs/${agentAction}`, {
-				method: 'DELETE',
-				credentials: 'include'
-			});
-			
-			if (response.ok) {
-				toast.success('Configuration reset to default');
-				await loadModelConfigs();
-			} else {
-				const data = await response.json();
-				toast.error(data.error?.message || 'Failed to reset configuration');
-			}
+			await apiClient.resetModelConfig(agentAction);
+			toast.success('Configuration reset to default');
+			await loadModelConfigs();
 		} catch (error) {
 			console.error('Error resetting configuration:', error);
 			toast.error('Failed to reset configuration');
@@ -328,19 +275,9 @@ export default function SettingsPage() {
 	const resetAllConfigs = async () => {
 		try {
 			setSavingConfigs(true);
-			const response = await fetch('/api/model-configs/reset-all', {
-				method: 'POST',
-				credentials: 'include'
-			});
-			
-			if (response.ok) {
-				const data = await response.json();
-				toast.success(`${data.data.resetCount} configurations reset to defaults`);
-				await loadModelConfigs();
-			} else {
-				const data = await response.json();
-				toast.error(data.error?.message || 'Failed to reset configurations');
-			}
+			const response = await apiClient.resetAllModelConfigs();
+			toast.success(`${response.data?.resetCount} configurations reset to defaults`);
+			await loadModelConfigs();
 		} catch (error) {
 			console.error('Error resetting all configurations:', error);
 			toast.error('Failed to reset all configurations');
@@ -356,18 +293,12 @@ export default function SettingsPage() {
 	// Load GitHub integration status
 	const loadGithubIntegration = async () => {
 		try {
-			const response = await fetch('/api/integrations/github/status', {
-				credentials: 'include',
+			const response = await apiClient.getGitHubIntegrationStatus();
+			setGithubIntegration({
+				hasIntegration: response.data?.hasIntegration || false,
+				githubUsername: response.data?.githubUsername,
+				loading: false,
 			});
-
-			if (response.ok) {
-				const data = await response.json();
-				setGithubIntegration({
-					hasIntegration: data.data?.hasIntegration || false,
-					githubUsername: data.data?.githubUsername,
-					loading: false,
-				});
-			}
 		} catch (error) {
 			console.error('Error loading GitHub integration:', error);
 			setGithubIntegration((prev) => ({ ...prev, loading: false }));
@@ -380,21 +311,13 @@ export default function SettingsPage() {
 
 	const handleDisconnectGithub = async () => {
 		try {
-			const response = await fetch('/api/integrations/github', {
-				method: 'DELETE',
-				credentials: 'include',
+			await apiClient.removeGitHubIntegration();
+			setGithubIntegration({
+				hasIntegration: false,
+				githubUsername: undefined,
+				loading: false,
 			});
-
-			if (response.ok) {
-				setGithubIntegration({
-					hasIntegration: false,
-					githubUsername: undefined,
-					loading: false,
-				});
-				toast.success('GitHub account disconnected');
-			} else {
-				toast.error('Failed to disconnect GitHub account');
-			}
+			toast.success('GitHub account disconnected');
 		} catch (error) {
 			console.error('Error disconnecting GitHub:', error);
 			toast.error('Failed to disconnect GitHub account');
@@ -404,40 +327,20 @@ export default function SettingsPage() {
 	// Load active sessions
 	const loadActiveSessions = async () => {
 		try {
-			const response = await fetch('/api/auth/sessions', {
-				credentials: 'include',
+			const response = await apiClient.getActiveSessions();
+			setActiveSessions({
+				sessions: response.data?.sessions || [
+					{
+						id: 'current',
+						userAgent: navigator.userAgent,
+						ipAddress: 'Current location',
+						lastActivity: new Date().toISOString(),
+						createdAt: new Date().toISOString(),
+						isCurrent: true,
+					},
+				],
+				loading: false,
 			});
-
-			if (response.ok) {
-				const data = await response.json();
-				setActiveSessions({
-					sessions: data.sessions || [
-						{
-							id: 'current',
-							userAgent: navigator.userAgent,
-							ipAddress: 'Current location',
-							lastActivity: new Date().toISOString(),
-							createdAt: new Date().toISOString(),
-							isCurrent: true,
-						},
-					],
-					loading: false,
-				});
-			} else {
-				setActiveSessions({
-					sessions: [
-						{
-							id: 'current',
-							userAgent: navigator.userAgent,
-							ipAddress: 'Current location',
-							lastActivity: new Date().toISOString(),
-							createdAt: new Date().toISOString(),
-							isCurrent: true,
-						},
-					],
-					loading: false,
-				});
-			}
 		} catch (error) {
 			console.error('Error loading active sessions:', error);
 			setActiveSessions({
@@ -458,17 +361,9 @@ export default function SettingsPage() {
 
 	const handleRevokeSession = async (sessionId: string) => {
 		try {
-			const response = await fetch(`/api/auth/sessions/${sessionId}`, {
-				method: 'DELETE',
-				credentials: 'include',
-			});
-
-			if (response.ok) {
-				toast.success('Session revoked successfully');
-				loadActiveSessions();
-			} else {
-				toast.error('Failed to revoke session');
-			}
+			await apiClient.revokeSession(sessionId);
+			toast.success('Session revoked successfully');
+			loadActiveSessions();
 		} catch (error) {
 			console.error('Error revoking session:', error);
 			toast.error('Failed to revoke session');
@@ -478,22 +373,11 @@ export default function SettingsPage() {
 	// Load API keys
 	const loadApiKeys = async () => {
 		try {
-			const response = await fetch('/api/auth/api-keys', {
-				credentials: 'include',
+			const response = await apiClient.getApiKeys();
+			setApiKeys({
+				keys: response.data?.keys || [],
+				loading: false,
 			});
-
-			if (response.ok) {
-				const data = await response.json();
-				setApiKeys({
-					keys: data.keys || [],
-					loading: false,
-				});
-			} else {
-				setApiKeys({
-					keys: [],
-					loading: false,
-				});
-			}
 		} catch (error) {
 			console.error('Error loading API keys:', error);
 			setApiKeys({
@@ -508,26 +392,12 @@ export default function SettingsPage() {
 			const keyName = prompt('Enter a name for your API key:');
 			if (!keyName) return;
 
-			const response = await fetch('/api/auth/api-keys', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				credentials: 'include',
-				body: JSON.stringify({ name: keyName }),
-			});
-
-			const data = await response.json();
-
-			if (response.ok && data.success) {
-				toast.success('API key created successfully');
-				alert(
-					`Your API key: ${data.data.key}\n\nPlease save this key - you won't be able to see it again!`,
-				);
-				loadApiKeys();
-			} else {
-				toast.error(data.error?.message || 'Failed to create API key');
-			}
+			const response = await apiClient.createApiKey({ name: keyName });
+			toast.success('API key created successfully');
+			alert(
+				`Your API key: ${response.data?.key}\n\nPlease save this key - you won't be able to see it again!`,
+			);
+			loadApiKeys();
 		} catch (error) {
 			console.error('Error creating API key:', error);
 			toast.error('Failed to create API key');
@@ -536,17 +406,9 @@ export default function SettingsPage() {
 
 	const handleRevokeApiKey = async (keyId: string) => {
 		try {
-			const response = await fetch(`/api/auth/api-keys/${keyId}`, {
-				method: 'DELETE',
-				credentials: 'include',
-			});
-
-			if (response.ok) {
-				toast.success('API key revoked successfully');
-				loadApiKeys();
-			} else {
-				toast.error('Failed to revoke API key');
-			}
+			await apiClient.revokeApiKey(keyId);
+			toast.success('API key revoked successfully');
+			loadApiKeys();
 		} catch (error) {
 			console.error('Error revoking API key:', error);
 			toast.error('Failed to revoke API key');
@@ -556,22 +418,11 @@ export default function SettingsPage() {
 	// Load user secrets
 	const loadUserSecrets = async () => {
 		try {
-			const response = await fetch('/api/secrets', {
-				credentials: 'include',
+			const response = await apiClient.getAllSecrets();
+			setUserSecrets({
+				secrets: response.data?.secrets || [],
+				loading: false,
 			});
-
-			if (response.ok) {
-				const data = await response.json();
-				setUserSecrets({
-					secrets: data.data?.secrets || [],
-					loading: false,
-				});
-			} else {
-				setUserSecrets({
-					secrets: [],
-					loading: false,
-				});
-			}
 		} catch (error) {
 			console.error('Error loading user secrets:', error);
 			setUserSecrets({
@@ -584,14 +435,8 @@ export default function SettingsPage() {
 	// Load secret templates
 	const loadSecretTemplates = async () => {
 		try {
-			const response = await fetch('/api/secrets/templates', {
-				credentials: 'include',
-			});
-
-			if (response.ok) {
-				const data = await response.json();
-				setSecretTemplates(data.data?.templates || []);
-			}
+			const response = await apiClient.getSecretTemplates();
+			setSecretTemplates(response.data?.templates || []);
 		} catch (error) {
 			console.error('Error loading secret templates:', error);
 		}
@@ -617,24 +462,10 @@ export default function SettingsPage() {
 						environment: newSecret.environment,
 					};
 
-			const response = await fetch('/api/secrets', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				credentials: 'include',
-				body: JSON.stringify(payload),
-			});
-
-			const data = await response.json();
-
-			if (response.ok && data.success) {
-				toast.success('Secret saved successfully');
-				resetSecretDialog();
-				loadUserSecrets();
-			} else {
-				toast.error(data.error?.message || 'Failed to save secret');
-			}
+			await apiClient.storeSecret(payload);
+			toast.success('Secret saved successfully');
+			resetSecretDialog();
+			loadUserSecrets();
 		} catch (error) {
 			console.error('Error saving secret:', error);
 			toast.error('Failed to save secret');
@@ -660,19 +491,11 @@ export default function SettingsPage() {
 
 	const handleDeleteSecret = async (secretId: string) => {
 		try {
-			const response = await fetch(`/api/secrets/${secretId}`, {
-				method: 'DELETE',
-				credentials: 'include',
-			});
-
-			if (response.ok) {
-				toast.success('Secret deleted successfully');
-				loadUserSecrets();
-				// Also refresh model configs since BYOK provider availability may have changed
-				loadModelConfigs();
-			} else {
-				toast.error('Failed to delete secret');
-			}
+			await apiClient.deleteSecret(secretId);
+			toast.success('Secret deleted successfully');
+			loadUserSecrets();
+			// Also refresh model configs since BYOK provider availability may have changed
+			loadModelConfigs();
 		} catch (error) {
 			console.error('Error deleting secret:', error);
 			toast.error('Failed to delete secret');
@@ -724,11 +547,10 @@ export default function SettingsPage() {
 
 	// Load agent configurations dynamically from API
 	React.useEffect(() => {
-		fetch('/api/model-configs/defaults')
-			.then(res => res.json())
-			.then(data => {
-				if (data.success && data.data.defaults) {
-					const configs = Object.keys(data.data.defaults).map(key => ({
+		apiClient.getModelDefaults()
+			.then(response => {
+				if (response.success && response.data?.defaults) {
+					const configs = Object.keys(response.data.defaults).map(key => ({
 						key,
 						name: formatAgentConfigName(key),
 						description: getAgentConfigDescription(key)
@@ -1026,7 +848,7 @@ export default function SettingsPage() {
 										<DialogTrigger asChild>
 											<Button size="sm" className="gap-2">
 												<Plus className="h-4 w-4" />
-												Add Environment Variable
+												Add Env Vars
 											</Button>
 										</DialogTrigger>
 									</Dialog>
@@ -1056,20 +878,34 @@ export default function SettingsPage() {
 											.map((secret) => (
 											<div
 												key={secret.id}
-												className="flex items-center justify-between p-4 border rounded-lg bg-card"
+												className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${
+													secret.isActive 
+														? 'bg-card' 
+														: 'bg-muted/20 border-dashed opacity-70'
+												}`}
 											>
 												<div className="flex items-center gap-3">
-													<div className="flex items-center justify-center w-8 h-8 bg-white rounded-md border shadow-sm">
-														{getProviderLogo(secret.provider, "h-5 w-5")}
+													<div className={`flex items-center justify-center w-8 h-8 rounded-md border shadow-sm ${
+														secret.isActive 
+															? 'bg-white' 
+															: 'bg-muted border-dashed opacity-60'
+													}`}>
+														{getProviderLogo(secret.provider, `h-5 w-5 ${secret.isActive ? '' : 'opacity-60'}`)}
 													</div>
 													<div>
-														<p className="font-medium">
+														<p className={`font-medium ${secret.isActive ? '' : 'opacity-60'}`}>
 															{secret.name}
 														</p>
 														<div className="flex items-center gap-2 mt-1">
 															<Badge
+																variant={secret.isActive ? "default" : "outline"}
+																className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
+															>
+																{secret.isActive ? "Active" : "Inactive"}
+															</Badge>
+															<Badge
 																variant="outline"
-																className="text-xs"
+																className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
 															>
 																{
 																	secret.provider
@@ -1077,7 +913,7 @@ export default function SettingsPage() {
 															</Badge>
 															<Badge
 																variant="secondary"
-																className="text-xs"
+																className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
 															>
 																{secret.secretType.replace(
 																	'_',
@@ -1215,22 +1051,33 @@ export default function SettingsPage() {
 													return (
 														<div
 															key={secret.id}
-															className="flex items-center justify-between p-3 border rounded-lg bg-white/50 dark:bg-gray-800/50"
+															className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
+																secret.isActive 
+																	? 'bg-white/50 dark:bg-gray-800/50' 
+																	: 'bg-muted/20 border-dashed opacity-70'
+															}`}
 														>
 															<div className="flex items-center gap-3">
-																<div className="flex items-center justify-center w-8 h-8 bg-white rounded-md border shadow-sm">
-																	{getProviderLogo(secret.provider, "h-5 w-5")}
+																<div className={`flex items-center justify-center w-8 h-8 rounded-md border shadow-sm ${
+																	secret.isActive 
+																		? 'bg-white' 
+																		: 'bg-muted border-dashed opacity-60'
+																}`}>
+																	{getProviderLogo(secret.provider, `h-5 w-5 ${secret.isActive ? '' : 'opacity-60'}`)}
 																</div>
 																<div>
-																	<span className="font-medium text-sm">{providerName}</span>
-																	<div className="text-xs text-muted-foreground">
+																	<span className={`font-medium text-sm ${secret.isActive ? '' : 'opacity-60'}`}>{providerName}</span>
+																	<div className={`text-xs text-muted-foreground ${secret.isActive ? '' : 'opacity-60'}`}>
 																		{secret.keyPreview}
 																	</div>
 																</div>
 															</div>
 															<div className="flex items-center gap-2">
-																<Badge variant="secondary" className="text-xs">
-																	Active
+																<Badge 
+																	variant={secret.isActive ? "default" : "outline"} 
+																	className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
+																>
+																	{secret.isActive ? "Active" : "Inactive"}
 																</Badge>
 																<AlertDialog>
 																	<AlertDialogTrigger asChild>

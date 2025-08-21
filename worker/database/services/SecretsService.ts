@@ -222,16 +222,12 @@ export class SecretsService extends BaseService {
     }
 
     /**
-     * Delete a secret
+     * Delete a secret permanently
      */
     async deleteSecret(userId: string, secretId: string): Promise<void> {
         try {
             await this.database
-                .update(schema.userSecrets)
-                .set({
-                    isActive: false,
-                    updatedAt: new Date()
-                })
+                .delete(schema.userSecrets)
                 .where(
                     and(
                         eq(schema.userSecrets.id, secretId),

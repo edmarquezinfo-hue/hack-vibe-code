@@ -3,6 +3,8 @@
  * This file serves as the single source of truth for frontend-worker API communication
  */
 
+import { ApiKeyInfo, AuthSession } from 'worker/types/auth-types';
+
 // Base API Response Types
 export type { ControllerResponse, ApiResponse } from 'worker/api/controllers/BaseController.types';
 
@@ -195,3 +197,31 @@ export interface StreamingError {
 }
 
 export type AgentStreamingResponse = StreamingResponse | StreamingError;
+
+// Auth types imported from worker
+export type { AuthSession, ApiKeyInfo } from 'worker/types/auth-types';
+export type { UserResponse } from 'worker/utils/authUtils';
+
+// Active Sessions Response - matches getUserSessions + isCurrent from controller
+export interface ActiveSessionsData {
+  sessions: Array<{
+    id: string;
+    userAgent: string | null;
+    ipAddress: string | null;
+    lastActivity: Date;
+    createdAt: Date;
+    isCurrent: boolean;
+  }>;
+}
+
+// API Keys Response - matches controller response format
+export interface ApiKeysData {
+  keys: Array<{
+    id: string;
+    name: string;
+    keyPreview: string;
+    createdAt: Date | null;
+    lastUsed: Date | null;
+    isActive: boolean;
+  }>;
+}

@@ -47,7 +47,9 @@ import type {
   AgentConnectionData,
   CodeGenerationResponse,
   AgentStreamingResponse,
-  App
+  App,
+  ActiveSessionsData,
+  ApiKeysData
 } from '@/api-types';
 
 /**
@@ -704,6 +706,56 @@ class ApiClient {
    */
   async connectToAgent(agentId: string): Promise<ApiResponse<AgentConnectionData>> {
     return this.request<AgentConnectionData>(`/api/agent/${agentId}/connect`);
+  }
+
+  // ===============================
+  // Session Management API Methods
+  // ===============================
+
+  /**
+   * Get active user sessions
+   */
+  async getActiveSessions(): Promise<ApiResponse<ActiveSessionsData>> {
+    return this.request<ActiveSessionsData>('/api/auth/sessions');
+  }
+
+  /**
+   * Revoke a specific session
+   */
+  async revokeSession(sessionId: string): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>(`/api/auth/sessions/${sessionId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ===============================
+  // API Keys Management Methods  
+  // ===============================
+
+  /**
+   * Get user API keys
+   */
+  async getApiKeys(): Promise<ApiResponse<ApiKeysData>> {
+    return this.request<ApiKeysData>('/api/auth/api-keys');
+  }
+
+  /**
+   * Create a new API key
+   */
+  async createApiKey(data: { name: string }): Promise<ApiResponse<{ key: string; keyPreview: string; name: string; message: string }>> {
+    return this.request<{ key: string; keyPreview: string; name: string; message: string }>('/api/auth/api-keys', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
+  /**
+   * Revoke an API key
+   */
+  async revokeApiKey(keyId: string): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>(`/api/auth/api-keys/${keyId}`, {
+      method: 'DELETE',
+    });
   }
 }
 

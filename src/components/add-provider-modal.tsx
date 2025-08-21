@@ -18,13 +18,13 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import type { CreateProviderRequest } from '@/api-types';
+import type { CreateProviderRequest, ModelProviderData } from '@/api-types';
 import { useModelProviders } from '@/hooks/use-model-providers';
 import { toast } from 'sonner';
 
 interface AddProviderModalProps {
   trigger?: React.ReactNode;
-  onProviderAdded?: (provider: any) => void;
+  onProviderAdded?: (provider: ModelProviderData) => void;
 }
 
 export function AddProviderModal({ trigger, onProviderAdded }: AddProviderModalProps) {

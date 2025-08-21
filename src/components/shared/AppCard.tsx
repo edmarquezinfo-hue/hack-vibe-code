@@ -65,21 +65,21 @@ interface LayoutConfig {
 const DEPLOYMENT_STATUS_CONFIG: Record<DeploymentStatus, DeploymentStatusInfo> = {
   deployed: {
     icon: Cloud,
-    color: 'text-green-600',
+    color: 'text-green-500',
     bgColor: 'bg-green-50 dark:bg-green-950',
-    text: ''
+    text: 'Deployed'
   },
   deploying: {
     icon: Loader2,
-    color: 'text-orange-600',
-    bgColor: 'bg-orange-50 dark:bg-orange-950',
+    color: 'text-green-400',
+    bgColor: 'bg-green-50 dark:bg-green-950',
     text: 'Deploying',
     animate: true
   },
   failed: {
     icon: CloudOff,
-    color: 'text-red-600',
-    bgColor: 'bg-red-50 dark:bg-red-950',
+    color: 'text-gray-500',
+    bgColor: 'bg-gray-50 dark:bg-gray-950',
     text: 'Deploy Failed'
   },
   none: {
@@ -271,16 +271,16 @@ const AdaptiveMetadata = ({ app, layoutConfig, hasOverlayStatus }: {
             <div className="flex items-center gap-1.5">
               <div className={cn(
                 "w-2 h-2 rounded-full transition-all duration-200",
-                deploymentStatus.color === 'text-green-600' && "bg-green-500 shadow-sm shadow-green-500/20",
-                deploymentStatus.color === 'text-orange-600' && "bg-orange-500 animate-pulse shadow-sm shadow-orange-500/20",
-                deploymentStatus.color === 'text-red-600' && "bg-red-500 shadow-sm shadow-red-500/20",
+                deploymentStatus.color === 'text-green-500' && "bg-green-500 shadow-sm shadow-green-500/20",
+                deploymentStatus.color === 'text-green-400' && "bg-green-400 animate-pulse shadow-sm shadow-green-400/20",
+                deploymentStatus.color === 'text-gray-500' && "bg-gray-400 shadow-sm shadow-gray-400/20",
                 deploymentStatus.color === 'text-gray-500' && "bg-gray-400"
               )} />
               <span className={cn(
                 "text-xs font-medium transition-colors",
-                deploymentStatus.color === 'text-green-600' && "text-green-600",
-                deploymentStatus.color === 'text-orange-600' && "text-orange-600", 
-                deploymentStatus.color === 'text-red-600' && "text-red-600",
+                deploymentStatus.color === 'text-green-500' && "text-green-600",
+                deploymentStatus.color === 'text-green-400' && "text-green-600", 
+                deploymentStatus.color === 'text-gray-500' && "text-gray-600",
                 deploymentStatus.color === 'text-gray-500' && "text-muted-foreground"
               )}>
                 {deploymentStatus.text}
@@ -364,9 +364,9 @@ export const AppCard = React.memo<AppCardProps>(({
           "hover:shadow-xl hover:shadow-black/8 hover:-translate-y-1",
           "border border-border/40 hover:border-border/60",
           // Status-aware enhancements with subtle gradients
-          deploymentStatus?.color === 'text-green-600' && "hover:shadow-green-500/20 hover:border-green-200/30 hover:bg-gradient-to-br hover:from-green-50/30 hover:to-transparent dark:hover:from-green-950/20",
-          deploymentStatus?.color === 'text-orange-600' && "hover:shadow-orange-500/20 hover:border-orange-200/30 hover:bg-gradient-to-br hover:from-orange-50/30 hover:to-transparent dark:hover:from-orange-950/20",
-          deploymentStatus?.color === 'text-red-600' && "hover:shadow-red-500/20 hover:border-red-200/30 hover:bg-gradient-to-br hover:from-red-50/30 hover:to-transparent dark:hover:from-red-950/20",
+          deploymentStatus?.color === 'text-green-500' && "hover:shadow-green-500/15 hover:border-green-200/25 hover:bg-gradient-to-br hover:from-green-50/20 hover:to-transparent dark:hover:from-green-950/15",
+          deploymentStatus?.color === 'text-green-400' && "hover:shadow-green-400/15 hover:border-green-200/25 hover:bg-gradient-to-br hover:from-green-50/20 hover:to-transparent dark:hover:from-green-950/15",
+          deploymentStatus?.color === 'text-gray-500' && "hover:shadow-gray-400/15 hover:border-gray-200/25 hover:bg-gradient-to-br hover:from-gray-50/20 hover:to-transparent dark:hover:from-gray-950/15",
           // Default enhanced styling
           !deploymentStatus && "hover:bg-gradient-to-br hover:from-orange-50/20 hover:to-transparent dark:hover:from-orange-950/10"
         )}
@@ -399,69 +399,50 @@ export const AppCard = React.memo<AppCardProps>(({
             <Code2 className="h-16 w-16 text-orange-300" />
           </div>
           
-          {/* Enhanced status indicator for deployed apps - transforms from dot to share button on hover */}
-          {deploymentStatus?.color === 'text-green-600' && (
+          {/* Enhanced status indicator for deployed apps - only show for deployed apps */}
+          {deploymentStatus?.color === 'text-green-500' && hasDeploymentFields(app) && app.deploymentUrl && (
             <button
-              className="absolute top-2 left-2 group/status h-5 w-5 hover:h-6 hover:w-6 rounded-full bg-green-600/70 backdrop-blur-sm hover:bg-green-700/80 transition-all duration-300 ease-out flex items-center justify-center shadow-sm hover:shadow-lg border border-green-500/15 hover:border-green-400/25"
+              className="absolute top-2 left-2 group/status h-4 w-4 hover:h-8 hover:w-8 rounded-full bg-green-400/70 backdrop-blur-sm hover:bg-green-500/90 transition-all duration-300 ease-out flex items-center justify-center shadow-sm hover:shadow-lg border border-green-300/20 hover:border-green-400/40"
               onClick={(e) => {
                 e.stopPropagation();
                 if (hasDeploymentFields(app) && app.deploymentUrl) {
                   window.open(app.deploymentUrl, '_blank', 'noopener,noreferrer');
                 }
               }}
-              title="Open deployed app"
+              title="Open deployed app in new tab"
               aria-label="Open deployed app in new tab"
             >
               {/* Subtle dot indicator - visible by default */}
-              <div className="w-1.5 h-1.5 bg-white/80 rounded-full animate-pulse group-hover/status:opacity-0 transition-opacity duration-200" />
+              <div className="w-1 h-1 bg-white/90 rounded-full animate-pulse group-hover/status:opacity-0 transition-opacity duration-200" />
               
-              {/* Share icon - visible on hover */}
-              <ExternalLink className="w-3 h-3 text-white/90 opacity-0 group-hover/status:opacity-100 transition-all duration-200 absolute" />
+              {/* External link icon - visible on hover, larger for clarity */}
+              <ExternalLink className="w-4 h-4 text-white opacity-0 group-hover/status:opacity-100 transition-all duration-200 absolute" />
             </button>
           )}
           
-          {/* Deploying status indicator - simple loader dot without text */}
-          {deploymentStatus?.color === 'text-orange-600' && (
+          {/* Deploying status indicator - only show when actually deploying */}
+          {deploymentStatus?.color === 'text-green-400' && getAppDeploymentStatus(app) === 'deploying' && (
             <div 
-              className="absolute top-2 left-2 h-5 w-5 hover:h-6 hover:w-6 rounded-full bg-orange-600/70 backdrop-blur-sm transition-all duration-300 ease-out flex items-center justify-center shadow-sm hover:shadow-lg hover:bg-orange-700/80 border border-orange-500/15 hover:border-orange-400/25"
+              className="absolute top-2 left-2 h-4 w-4 rounded-full bg-green-300/70 backdrop-blur-sm flex items-center justify-center shadow-sm border border-green-200/20"
               title="App is deploying"
               aria-label="App deployment in progress"
             >
-              <Loader2 className="w-2.5 h-2.5 text-white/80 animate-spin" />
+              <Loader2 className="w-2 h-2 text-white/90 animate-spin" />
             </div>
           )}
           
-          {/* Failed deployment status indicator */}
-          {deploymentStatus?.color === 'text-red-600' && (
+          {/* Failed deployment status indicator - only show when deployment actually failed */}
+          {deploymentStatus?.color === 'text-gray-500' && getAppDeploymentStatus(app) === 'failed' && (
             <div 
-              className="absolute top-2 left-2 h-5 w-5 hover:h-6 hover:w-6 rounded-full bg-red-600/70 backdrop-blur-sm transition-all duration-300 ease-out flex items-center justify-center shadow-sm hover:shadow-lg hover:bg-red-700/80 border border-red-500/15 hover:border-red-400/25"
+              className="absolute top-2 left-2 h-4 w-4 rounded-full bg-gray-400/70 backdrop-blur-sm flex items-center justify-center shadow-sm border border-gray-300/20"
               title="Deployment failed"
               aria-label="App deployment failed"
             >
-              <CloudOff className="w-2.5 h-2.5 text-white/80" />
+              <CloudOff className="w-2 h-2 text-white/90" />
             </div>
           )}
           
-          {/* GitHub Repository Badge - positioned in top-right when repository exists */}
-          {app.githubRepositoryUrl && (
-            <button
-              className="absolute top-2 right-12 group/github h-6 w-6 hover:h-7 hover:w-7 rounded-full bg-gray-800/80 hover:bg-gray-900/90 backdrop-blur-sm transition-all duration-300 ease-out flex items-center justify-center shadow-sm hover:shadow-lg border border-gray-600/20 hover:border-gray-500/30"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (app.githubRepositoryUrl) {
-                  window.open(app.githubRepositoryUrl, '_blank', 'noopener,noreferrer');
-                }
-              }}
-              title={`View on GitHub (${app.githubRepositoryVisibility || 'public'})`}
-              aria-label="View repository on GitHub"
-            >
-              <Github className="w-3 h-3 text-white/90 group-hover/github:w-3.5 group-hover/github:h-3.5 transition-all duration-200" />
-              {/* Private repository indicator */}
-              {app.githubRepositoryVisibility === 'private' && (
-                <Lock className="w-1.5 h-1.5 text-white/70 absolute -bottom-0.5 -right-0.5 bg-gray-800 rounded-full p-0.5" />
-              )}
-            </button>
-          )}
+          {/* GitHub Repository Badge - moved to app info section, removed from screenshot overlay */}
 
           {/* Actions Dropdown - positioned in top-right on hover */}
           {showActions && (
@@ -498,13 +479,39 @@ export const AppCard = React.memo<AppCardProps>(({
                 {app.title}
               </h3>
               
-              {/* Enhanced Adaptive Metadata - replaces old separate sections */}
+              {/* Enhanced Adaptive Metadata with GitHub integration */}
               <div className="transition-all duration-200 ease-out group-hover:translate-x-0.5">
-                <AdaptiveMetadata 
-                  app={app} 
-                  layoutConfig={layoutConfig} 
-                  hasOverlayStatus={!!deploymentStatus && deploymentStatus.color !== 'text-gray-500'}
-                />
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <AdaptiveMetadata 
+                      app={app} 
+                      layoutConfig={layoutConfig} 
+                      hasOverlayStatus={!!deploymentStatus && deploymentStatus.color !== 'text-gray-500'}
+                    />
+                  </div>
+                  {/* GitHub Repository Button - integrated into app info */}
+                  {app.githubRepositoryUrl && (
+                    <button
+                      className="group/github flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (app.githubRepositoryUrl) {
+                          window.open(app.githubRepositoryUrl, '_blank', 'noopener,noreferrer');
+                        }
+                      }}
+                      title={`View on GitHub (${app.githubRepositoryVisibility || 'public'})`}
+                      aria-label="View repository on GitHub"
+                    >
+                      <Github className="w-3 h-3 text-gray-600 dark:text-gray-400 group-hover/github:text-gray-800 dark:group-hover/github:text-gray-200 transition-colors" />
+                      {app.githubRepositoryVisibility === 'private' && (
+                        <Lock className="w-2.5 h-2.5 text-gray-500 dark:text-gray-500" />
+                      )}
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400 group-hover/github:text-gray-800 dark:group-hover/github:text-gray-200 transition-colors">
+                        {app.githubRepositoryVisibility === 'private' ? 'Private' : 'Repo'}
+                      </span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
             
