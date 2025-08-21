@@ -5,7 +5,7 @@
  */
 
 import { BaseService } from './BaseService';
-import { AIModels } from '../../agents/inferutils/config';
+import { AIModels } from '../../agents/inferutils/config.types';
 import { infer, InferError } from '../../agents/inferutils/core';
 import { createUserMessage } from '../../agents/inferutils/common';
 

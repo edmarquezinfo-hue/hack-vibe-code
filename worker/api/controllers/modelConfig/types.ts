@@ -3,7 +3,7 @@
  */
 
 import type { UserModelConfigWithMetadata, ModelTestResult } from '../../../database/types';
-import type { AgentActionKey, ModelConfig } from '../../../agents/inferutils/config';
+import type { AgentActionKey, ModelConfig } from '../../../agents/inferutils/config.types';
 import { UserModelConfig } from '../../../database/schema';
 
 /**

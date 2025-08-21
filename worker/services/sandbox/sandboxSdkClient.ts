@@ -1556,7 +1556,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             
             // Step 1: Check if git repository is already initialized
             const gitStatusCheck = await this.executeCommand(instanceId, `git status`);
-            let isGitRepo = gitStatusCheck.exitCode === 0;
+            const isGitRepo = gitStatusCheck.exitCode === 0;
             
             // Step 2: Initialize git repository if needed
             if (!isGitRepo) {

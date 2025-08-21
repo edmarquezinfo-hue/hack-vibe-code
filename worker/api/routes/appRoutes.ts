@@ -28,6 +28,9 @@ export function setupAppRoutes(router: Router): Router {
     // Update app visibility (only for app owners)
     router.put('/api/apps/:id/visibility', appController.updateAppVisibility.bind(appController));
 
+    // Delete app (only for app owners)
+    router.delete('/api/apps/:id', appController.deleteApp.bind(appController));
+
     // App view endpoints (public access with optional auth)
     router.get('/api/apps/:id', appViewController.getAppDetails.bind(appViewController));
     router.post('/api/apps/:id/star', appViewController.toggleAppStar.bind(appViewController));

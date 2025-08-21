@@ -959,7 +959,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 			default:
 				console.warn('Unhandled message:', message);
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+		 
 	};
 
 	// Enhanced WebSocket connection with retry logic
@@ -1229,7 +1229,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 					const response = await apiClient.connectToAgent(urlChatId);
 
 					if (!response.success) {
-						console.error(`Failed to fetch existing chat ${urlChatId}:`, response.error);
+						console.error('Failed to fetch existing chat:', { chatId: urlChatId, error: response.error });
 						if (response.statusCode === 404) {
 							sendMessage({
 								id: 'chat-not-found',

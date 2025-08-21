@@ -16,7 +16,7 @@ import {
 import { Message, MessageContent, MessageRole } from './common';
 import { ToolCall } from '../tools/types';
 import { executeTool } from '../tools/customTools';
-import { AIModels } from './config';
+import { AIModels } from './config.types';
 
 function optimizeInputs(messages: Message[]): Message[] {
 	return messages.map((message) => ({

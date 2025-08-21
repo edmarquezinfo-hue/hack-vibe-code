@@ -29,7 +29,7 @@ export class Logger {
 		return this.enabled && Logger.levels[level] >= Logger.levels[this.level];
 	}
 
-	private formatMessage(_level: LogLevel, args: any[]): any[] {
+	private formatMessage(_level: LogLevel, args: unknown[]): unknown[] {
 		// const time = new Date().toISOString();
 		const prefix = this.prefix ? `[${this.prefix}]` : '';
 		// return [`[${time}] ${prefix} [${level.toUpperCase()}]`, ...args];
@@ -37,25 +37,25 @@ export class Logger {
 		// return args;
 	}
 
-	debug(...args: any[]) {
+	debug(...args: unknown[]) {
 		if (this.shouldLog('debug')) {
 			console.debug(...this.formatMessage('debug', args));
 		}
 	}
 
-	info(...args: any[]) {
+	info(...args: unknown[]) {
 		if (this.shouldLog('info')) {
 			console.info(...this.formatMessage('info', args));
 		}
 	}
 
-	warn(...args: any[]) {
+	warn(...args: unknown[]) {
 		if (this.shouldLog('warn')) {
 			console.warn(...this.formatMessage('warn', args));
 		}
 	}
 
-	error(...args: any[]) {
+	error(...args: unknown[]) {
 		if (this.shouldLog('error')) {
 			console.error(...this.formatMessage('error', args));
 		}

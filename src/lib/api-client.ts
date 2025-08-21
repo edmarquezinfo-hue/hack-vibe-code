@@ -10,6 +10,7 @@ import type {
   FavoriteToggleData,
   CreateAppData,
   UpdateAppVisibilityData,
+  AppDeleteData,
   AppDetailsData,
   AppStarToggleData,
   ForkAppData,
@@ -26,6 +27,7 @@ import type {
   ModelConfigResetData,
   ModelConfigDefaultsData,
   ModelConfigDeleteData,
+  ModelConfigUpdate,
   SecretsData,
   SecretStoreData,
   SecretDeleteData,
@@ -92,6 +94,16 @@ interface UserAppsParams extends PaginationParams {
   visibility?: 'private' | 'public' | 'team' | 'board';
   status?: 'generating' | 'completed';
   teamId?: string;
+}
+
+/**
+ * Public apps parameters with filtering and sorting
+ */
+interface PublicAppsParams extends PaginationParams {
+  period?: 'today' | 'week' | 'month' | 'all';
+  framework?: string;
+  search?: string;
+  boardId?: string;
 }
 
 /**
@@ -211,12 +223,16 @@ class ApiClient {
   /**
    * Get public apps feed with pagination
    */
-  async getPublicApps(params?: PaginationParams): Promise<ApiResponse<PublicAppsData>> {
+  async getPublicApps(params?: PublicAppsParams): Promise<ApiResponse<PublicAppsData>> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.set('page', params.page.toString());
     if (params?.limit) queryParams.set('limit', params.limit.toString());
     if (params?.sort) queryParams.set('sort', params.sort);
     if (params?.order) queryParams.set('order', params.order);
+    if (params?.period) queryParams.set('period', params.period);
+    if (params?.framework) queryParams.set('framework', params.framework);
+    if (params?.search) queryParams.set('search', params.search);
+    if (params?.boardId) queryParams.set('boardId', params.boardId);
     
     const endpoint = `/api/apps/public${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     return this.request<PublicAppsData>(endpoint);
@@ -251,6 +267,15 @@ class ApiClient {
     return this.request<UpdateAppVisibilityData>(`/api/apps/${appId}/visibility`, {
       method: 'PUT',
       body: { visibility },
+    });
+  }
+
+  /**
+   * Delete an app
+   */
+  async deleteApp(appId: string): Promise<ApiResponse<AppDeleteData>> {
+    return this.request<AppDeleteData>(`/api/apps/${appId}`, {
+      method: 'DELETE',
     });
   }
 
@@ -429,8 +454,8 @@ class ApiClient {
   /**
    * Reset model configuration to default
    */
-  async resetModelConfig(agentAction: string): Promise<ApiResponse<any>> {
-    return this.request<any>(`/api/model-configs/${agentAction}`, {
+  async resetModelConfig(agentAction: string): Promise<ApiResponse<ModelConfigResetData>> {
+    return this.request<ModelConfigResetData>(`/api/model-configs/${agentAction}`, {
       method: 'DELETE',
     });
   }
@@ -438,8 +463,8 @@ class ApiClient {
   /**
    * Reset all model configurations to defaults
    */
-  async resetAllModelConfigs(): Promise<ApiResponse<any>> {
-    return this.request<any>('/api/model-configs/reset-all', {
+  async resetAllModelConfigs(): Promise<ApiResponse<ModelConfigResetData>> {
+    return this.request<ModelConfigResetData>('/api/model-configs/reset-all', {
       method: 'POST',
     });
   }
@@ -454,7 +479,7 @@ class ApiClient {
   /**
    * Update model configuration
    */
-  async updateModelConfig(actionKey: string, config: unknown): Promise<ApiResponse<ModelConfigUpdateData>> {
+  async updateModelConfig(actionKey: string, config: ModelConfigUpdate): Promise<ApiResponse<ModelConfigUpdateData>> {
     return this.request<ModelConfigUpdateData>(`/api/model-configs/${actionKey}`, {
       method: 'PUT',
       body: config,

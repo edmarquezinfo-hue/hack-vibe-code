@@ -16,15 +16,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import type { ModelConfig, AgentConfig } from './model-config-tabs';
+import type { ModelConfig, UserModelConfigWithMetadata, ModelConfigUpdate } from '@/api-types';
+import type { AgentDisplayConfig } from './model-config-tabs';
 
 interface ConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
-  agentConfig: AgentConfig;
-  userConfig?: ModelConfig;
+  agentConfig: AgentDisplayConfig;
+  userConfig?: UserModelConfigWithMetadata;
   defaultConfig?: ModelConfig;
-  onSave: (config: any) => Promise<void>;
+  onSave: (config: ModelConfigUpdate) => Promise<void>;
   onTest: () => Promise<void>;
   onReset: () => Promise<void>;
   isTesting: boolean;
@@ -182,11 +183,12 @@ export function ConfigModal({
 
   const handleSave = async () => {
     const config = {
-      modelName: formData.modelName === 'default' ? null : formData.modelName,
-      maxTokens: formData.maxTokens ? parseInt(formData.maxTokens) : null,
-      temperature: formData.temperature ? parseFloat(formData.temperature) : null,
-      reasoningEffort: formData.reasoningEffort === 'default' ? null : formData.reasoningEffort,
-      fallbackModel: formData.fallbackModel === 'default' ? null : formData.fallbackModel
+      ...(formData.modelName !== 'default' && { modelName: formData.modelName }),
+      ...(formData.maxTokens && { maxTokens: parseInt(formData.maxTokens) }),
+      ...(formData.temperature && { temperature: parseFloat(formData.temperature) }),
+      ...(formData.reasoningEffort !== 'default' && { reasoningEffort: formData.reasoningEffort }),
+      ...(formData.fallbackModel !== 'default' && { fallbackModel: formData.fallbackModel }),
+      isUserOverride: true
     };
     
     await onSave(config);

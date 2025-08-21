@@ -3,11 +3,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import type { ModelConfig, AgentConfig } from './model-config-tabs';
+import type { ModelConfig, UserModelConfigWithMetadata } from '@/api-types';
+import type { AgentDisplayConfig } from './model-config-tabs';
 
 interface ConfigCardProps {
-  agent: AgentConfig;
-  userConfig?: ModelConfig;
+  agent: AgentDisplayConfig;
+  userConfig?: UserModelConfigWithMetadata;
   defaultConfig?: ModelConfig;
   onConfigure: () => void;
   onTest: () => void;

@@ -7,6 +7,10 @@ import tailwindcss from '@tailwindcss/vite';
 
 // https://vite.dev/config/
 export default defineConfig({
+    optimizeDeps: {
+        exclude: ['format', 'editor.all'],
+        include: ['monaco-editor/esm/vs/editor/editor.api']
+    },
     // build: {
     //     rollupOptions: {
     //       output: {

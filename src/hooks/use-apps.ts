@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
 import type { AppWithFavoriteStatus, EnhancedAppData } from '@/api-types';
+import { appEvents } from '@/lib/app-events';
 
 export function useApps() {
   const [apps, setApps] = useState<AppWithFavoriteStatus[]>([]);
@@ -32,6 +33,13 @@ export function useApps() {
 
   useEffect(() => {
     fetchApps();
+
+    // Listen for app deletion events to automatically refetch
+    const unsubscribe = appEvents.on('app-deleted', () => {
+      fetchApps();
+    });
+
+    return unsubscribe;
   }, []);
 
   return { apps, loading, error, refetch: fetchApps };
@@ -41,7 +49,7 @@ export function useApps() {
 export const useUserApps = useApps;
 
 export function useRecentApps() {
-  const { apps, loading, error } = useApps();
+  const { apps, loading, error, refetch: refetchAll } = useApps();
   const TOPK = 10;
   
   // Memoized sorted recent apps (last 10)
@@ -59,7 +67,7 @@ export function useRecentApps() {
     moreAvailable: apps.length > TOPK,
     loading, 
     error, 
-    refetch: () => {} // Recent apps will update when main apps refetch
+    refetch: refetchAll // This will now properly refetch all apps
   };
 }
 
@@ -93,6 +101,13 @@ export function useFavoriteApps() {
 
   useEffect(() => {
     fetchFavorites();
+
+    // Listen for app deletion events to automatically refetch
+    const unsubscribe = appEvents.on('app-deleted', () => {
+      fetchFavorites();
+    });
+
+    return unsubscribe;
   }, []);
 
   return { 
@@ -134,6 +149,13 @@ export function useEnhancedApps() {
 
   useEffect(() => {
     fetchApps();
+
+    // Listen for app deletion events to automatically refetch
+    const unsubscribe = appEvents.on('app-deleted', () => {
+      fetchApps();
+    });
+
+    return unsubscribe;
   }, []);
 
   return { apps, loading, error, refetch: fetchApps };
@@ -141,7 +163,7 @@ export function useEnhancedApps() {
 
 // Enhanced Recent Apps Hook
 export function useEnhancedRecentApps() {
-  const { apps, loading, error } = useEnhancedApps();
+  const { apps, loading, error, refetch: refetchAll } = useEnhancedApps();
   const TOPK = 10;
   
   // Memoized sorted recent apps (last 10)
@@ -159,7 +181,7 @@ export function useEnhancedRecentApps() {
     moreAvailable: apps.length > TOPK,
     loading, 
     error, 
-    refetch: () => {} // Recent apps will update when main apps refetch
+    refetch: refetchAll // This will now properly refetch all apps
   };
 }
 
@@ -195,6 +217,13 @@ export function useEnhancedFavoriteApps() {
 
   useEffect(() => {
     fetchFavorites();
+
+    // Listen for app deletion events to automatically refetch
+    const unsubscribe = appEvents.on('app-deleted', () => {
+      fetchFavorites();
+    });
+
+    return unsubscribe;
   }, []);
 
   return { 

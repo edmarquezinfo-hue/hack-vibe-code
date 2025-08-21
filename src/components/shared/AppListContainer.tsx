@@ -1,10 +1,11 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, RefreshCw, X, Code2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AppCard } from './AppCard';
 import type { AppListData } from '@/hooks/use-paginated-apps';
 import type { AppSortOption } from '@/api-types';
+import { useInfiniteScroll } from '@/hooks/use-infinite-scroll';
 
 interface AppListContainerProps {
   apps: AppListData[];
@@ -20,6 +21,8 @@ interface AppListContainerProps {
   onRetry: () => void;
   showUser?: boolean;
   showStats?: boolean;
+  showActions?: boolean;
+  infiniteScroll?: boolean;
   emptyState?: {
     title?: string;
     description?: string;
@@ -87,10 +90,18 @@ export const AppListContainer: React.FC<AppListContainerProps> = ({
   onRetry,
   showUser = false,
   showStats = true,
+  showActions = false,
+  infiniteScroll = true,
   emptyState,
   className = ""
 }) => {
   const defaultEmptyState = getEmptyStateDefaults(sortBy, totalCount);
+  
+  const { triggerRef } = useInfiniteScroll({
+    threshold: 200,
+    enabled: infiniteScroll && hasMore && !loadingMore,
+    onLoadMore: onLoadMore
+  });
 
   if (loading) {
     return (
@@ -144,20 +155,35 @@ export const AppListContainer: React.FC<AppListContainerProps> = ({
         animate="visible"
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
       >
-        {apps.map(app => (
-          <AppCard 
-            key={app.id} 
-            app={app}
-            onClick={onAppClick}
-            onToggleFavorite={onToggleFavorite}
-            showStats={showStats}
-            showUser={showUser}
-          />
-        ))}
+        <AnimatePresence mode="popLayout">
+          {apps.map(app => (
+            <AppCard 
+              key={app.id} 
+              app={app}
+              onClick={onAppClick}
+              onToggleFavorite={onToggleFavorite}
+              showStats={showStats}
+              showUser={showUser}
+              showActions={showActions}
+            />
+          ))}
+        </AnimatePresence>
       </motion.div>
 
-      {/* Load More Button */}
-      {hasMore && (
+      {infiniteScroll && hasMore && (
+        <div ref={triggerRef} className="h-1" />
+      )}
+
+      {loadingMore && (
+        <div className="flex justify-center mt-8">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Loading more apps...</span>
+          </div>
+        </div>
+      )}
+
+      {!infiniteScroll && hasMore && (
         <div className="flex justify-center mt-8">
           <Button
             onClick={onLoadMore}

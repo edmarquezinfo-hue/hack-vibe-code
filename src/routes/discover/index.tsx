@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
 import { Clock, TrendingUp, Star, Search } from 'lucide-react';
@@ -9,55 +8,41 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { usePaginatedApps } from '@/hooks/use-paginated-apps';
 import { AppListContainer } from '@/components/shared/AppListContainer';
 import { TimePeriodSelector } from '@/components/shared/TimePeriodSelector';
-import type { AppSortOption, TimePeriod } from '@/api-types';
 
 export default function DiscoverPage() {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterFramework, setFilterFramework] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<AppSortOption>('recent');
-  const [period, setPeriod] = useState<TimePeriod>('all');
-
-  // Use unified paginated apps hook for public apps with server-side sorting
+  
   const {
+    // Filter state
+    searchQuery,
+    setSearchQuery,
+    filterFramework,
+    sortBy,
+    period,
+    
+    // Data state
     apps,
     loading,
     loadingMore,
     error,
     totalCount,
     hasMore,
+    
+    // Form handlers
+    handleSearchSubmit,
+    handleSortChange,
+    handlePeriodChange,
+    handleFrameworkChange,
+    
+    // Pagination handlers
     refetch,
     loadMore,
-    updateFilters
   } = usePaginatedApps({
     type: 'public',
-    sort: sortBy,
-    period: period,
-    framework: filterFramework === 'all' ? undefined : filterFramework,
-    search: searchQuery || undefined,
+    defaultSort: 'popular',
+    defaultPeriod: 'week',
     limit: 20
   });
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateFilters({ search: searchQuery || undefined });
-  };
-
-  const handleSortChange = (newSort: string) => {
-    const sort = newSort as AppSortOption;
-    setSortBy(sort);
-    updateFilters({ sort });
-  };
-
-  const handlePeriodChange = (newPeriod: TimePeriod) => {
-    setPeriod(newPeriod);
-    updateFilters({ period: newPeriod });
-  };
-
-  const handleFrameworkChange = (framework: string) => {
-    setFilterFramework(framework);
-    updateFilters({ framework: framework === 'all' ? undefined : framework });
-  };
 
   return (
     <div className="min-h-screen bg-bg-light">
@@ -73,13 +58,13 @@ export default function DiscoverPage() {
               Discover Amazing Apps
             </h1>
             <p className="text-muted-foreground text-lg">
-              Explore apps built by the community with AI
+              Explore apps built by the community
             </p>
           </div>
 
           {/* Search and Filters */}
           <div className="max-w-4xl mx-auto mb-8">
-            <form onSubmit={handleSearch} className="flex gap-2 mb-4">
+            <form onSubmit={handleSearchSubmit} className="flex gap-2 mb-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -149,6 +134,7 @@ export default function DiscoverPage() {
             onRetry={refetch}
             showUser={true}
             showStats={true}
+            infiniteScroll={true}
           />
         </motion.div>
       </div>

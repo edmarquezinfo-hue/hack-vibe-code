@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-	Star,
 	Users,
 	Settings,
 	Plus,
@@ -18,7 +17,6 @@ import './sidebar-overrides.css';
 import {
 	useRecentApps,
 	useFavoriteApps,
-	toggleFavorite,
 } from '@/hooks/use-apps';
 import { CloudflareLogo } from '../icons/logos';
 import {
@@ -36,7 +34,6 @@ import {
 	SidebarFooter,
 	useSidebar,
 } from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -50,6 +47,7 @@ import {
 	TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { formatDistanceToNow, isValid } from 'date-fns';
+import { AppActionsDropdown } from '@/components/shared/AppActionsDropdown';
 
 interface App {
 	id: string;
@@ -70,7 +68,7 @@ interface Board {
 }
 
 export function AppSidebar() {
-	const { user, token } = useAuth();
+	const { user } = useAuth();
 	const navigate = useNavigate();
 	const [searchQuery, setSearchQuery] = React.useState('');
 	const [expandedGroups, setExpandedGroups] = React.useState<string[]>([
@@ -83,10 +81,10 @@ export function AppSidebar() {
 	// Fetch real data from API
 	const {
 		apps: recentApps,
-		refetch: refetchRecent,
 		moreAvailable,
 	} = useRecentApps();
-	const { apps: favoriteApps, refetch: refetchFavorites } = useFavoriteApps();
+	const { apps: favoriteApps } = useFavoriteApps();
+
 
 	const boards: Board[] = []; // Remove mock boards
 
@@ -124,6 +122,7 @@ export function AppSidebar() {
 				: [...prev, group],
 		);
 	};
+
 
 	if (!user) return;
 
@@ -222,7 +221,7 @@ export function AppSidebar() {
 										</div>
 										<SidebarMenu>
 											{recentApps.map((app) => (
-												<SidebarMenuItem key={app.id}>
+												<SidebarMenuItem key={app.id} className="group">
 													<SidebarMenuButton
 														onClick={() =>
 															navigate(
@@ -230,22 +229,8 @@ export function AppSidebar() {
 															)
 														}
 														tooltip={app.title}
-														className="group app-item-button pl-2 hover:cursor-pointer hover:opacity-60"
+														className="app-item-button pl-2 hover:cursor-pointer hover:opacity-60"
 													>
-														{/* <div
-															className={cn(
-																'rounded-lg flex-shrink-0 flex items-center justify-center transition-colors',
-																'h-8 w-8',
-																isCollapsed
-																	? 'bg-sidebar-accent'
-																	: 'bg-sidebar-accent/50',
-															)}
-														>
-															{getFrameworkIcon(
-																app.framework,
-															)}
-														</div> */}
-
 														<div className="flex-1 min-w-0">
 															<div className="flex items-center gap-2">
 																<span className="truncate font-medium text-primary/80">
@@ -267,42 +252,18 @@ export function AppSidebar() {
 															</p>
 														</div>
 													</SidebarMenuButton>
-
-													<SidebarMenuAction>
-														<Button
-															variant="ghost"
-															size="icon"
-															className="h-6 w-6"
-															onClick={async (
-																e,
-															) => {
-																e.stopPropagation();
-																if (token) {
-																	try {
-																		await toggleFavorite(
-																			app.id,
-																		);
-																		refetchRecent();
-																		refetchFavorites();
-																	} catch (error) {
-																		console.error(
-																			'Failed to toggle favorite:',
-																			error,
-																		);
-																	}
-																}
-															}}
-														>
-															<Star
-																className={cn(
-																	'h-3 w-3 transition-colors',
-																	app.isFavorite
-																		? 'fill-yellow-500 text-yellow-500'
-																		: 'text-muted-foreground hover:text-yellow-500',
-																)}
+													
+													{!isCollapsed && (
+														<SidebarMenuAction asChild className="opacity-100">
+															<AppActionsDropdown
+																appId={app.id}
+																appTitle={app.title}
+																size="sm"
+																className="h-6 w-6"
+																showOnHover={false}
 															/>
-														</Button>
-													</SidebarMenuAction>
+														</SidebarMenuAction>
+													)}
 												</SidebarMenuItem>
 											))}
 											{moreAvailable && (
@@ -367,6 +328,18 @@ export function AppSidebar() {
 																</span>
 															)}
 														</SidebarMenuButton>
+														
+														{!isCollapsed && (
+															<SidebarMenuAction asChild className="opacity-100">
+																<AppActionsDropdown
+																	appId={app.id}
+																	appTitle={app.title}
+																	size="sm"
+																	className="h-6 w-6"
+																	showOnHover={false}
+																/>
+															</SidebarMenuAction>
+														)}
 													</SidebarMenuItem>
 												))}
 											</SidebarMenu>

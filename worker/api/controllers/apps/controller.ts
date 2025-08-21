@@ -1,6 +1,6 @@
 import { AnalyticsService } from '../../../database/services/AnalyticsService';
 import { AppService } from '../../../database/services/AppService';
-import type { BatchAppStats } from '../../../database/types';
+import type { BatchAppStats, AppSortOption, SortOrder, TimePeriod } from '../../../database/types';
 import { formatRelativeTime } from '../../../utils/timeFormatter';
 import { BaseController } from '../BaseController';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
@@ -10,7 +10,8 @@ import {
     SingleAppData,
     FavoriteToggleData,
     CreateAppData,
-    UpdateAppVisibilityData
+    UpdateAppVisibilityData,
+    AppDeleteData
 } from './types';
 
 export class AppController extends BaseController {
@@ -179,9 +180,9 @@ export class AppController extends BaseController {
             const offset = url.searchParams.get('offset') ? 
                 parseInt(url.searchParams.get('offset') || '0') : 
                 (page - 1) * limit;
-            const sort = (url.searchParams.get('sort') || 'recent') as 'recent' | 'popular' | 'trending';
-            const order = (url.searchParams.get('order') || 'desc') as 'asc' | 'desc';
-            const period = (url.searchParams.get('period') || 'all') as 'today' | 'week' | 'month' | 'all';
+            const sort = (url.searchParams.get('sort') || 'recent') as AppSortOption;
+            const order = (url.searchParams.get('order') || 'desc') as SortOrder;
+            const period = (url.searchParams.get('period') || 'all') as TimePeriod;
             const boardId = url.searchParams.get('boardId') || undefined;
             const framework = url.searchParams.get('framework') || undefined;
             const search = url.searchParams.get('search') || undefined;
@@ -373,6 +374,42 @@ export class AppController extends BaseController {
         } catch (error) {
             this.logger.error('Error updating app visibility:', error);
             return this.createErrorResponse<UpdateAppVisibilityData>('Failed to update app visibility', 500);
+        }
+    }
+
+    // Delete app
+    async deleteApp(request: Request, env: Env, _ctx: ExecutionContext, params?: Record<string, string>): Promise<ControllerResponse<ApiResponse<AppDeleteData>>> {
+        try {
+            const authResult = await this.requireAuth(request, env);
+            if (!authResult.success) {
+                return authResult.response! as ControllerResponse<ApiResponse<AppDeleteData>>;
+            }
+
+            const appId = params?.id;
+            if (!appId) {
+                return this.createErrorResponse<AppDeleteData>('App ID is required', 400);
+            }
+
+            const dbService = this.createDbService(env);
+            const appService = new AppService(dbService);
+            
+            // Delete app using AppService
+            const result = await appService.deleteApp(appId, authResult.user!.id);
+
+            if (!result.success) {
+                const statusCode = result.error === 'App not found' ? 404 : 
+                                 result.error?.includes('only delete your own apps') ? 403 : 500;
+                return this.createErrorResponse<AppDeleteData>(result.error || 'Failed to delete app', statusCode);
+            }
+
+            const responseData: AppDeleteData = {
+                success: true,
+                message: 'App deleted successfully'
+            };
+            return this.createSuccessResponse(responseData);
+        } catch (error) {
+            this.logger.error('Error deleting app:', error);
+            return this.createErrorResponse<AppDeleteData>('Failed to delete app', 500);
         }
     }
 }

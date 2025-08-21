@@ -41,10 +41,10 @@ import { BaseSandboxService } from '../../services/sandbox/BaseSandboxService';
 import { getSandboxService } from '../../services/sandbox/factory';
 import { WebSocketMessageData, WebSocketMessageType } from '../../api/websocketTypes';
 import { ConversationMessage } from '../inferutils/common';
-import { InferenceContext, AGENT_CONFIG, AgentActionKey } from '../inferutils/config';
+import { InferenceContext, AgentActionKey, ModelConfig } from '../inferutils/config.types';
+import { AGENT_CONFIG } from '../inferutils/config';
 import { ModelConfigService } from '../../database/services/ModelConfigService';
 import { SecretsService } from '../../database/services/SecretsService';
-import { ModelConfig } from '../inferutils/config';
 import { FileFetcher, fixProjectIssues } from '../../services/code-fixer';
 import { FileProcessing } from '../domain/pure/FileProcessing';
 import { FastCodeFixerOperation } from '../operations/FastCodeFixer';
@@ -175,7 +175,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         const packageJson = packageJsonFile ? packageJsonFile.fileContents : '';
         
         // Initialize inference context with user configurations
-        let inferenceContext: InferenceContext = {
+        const inferenceContext: InferenceContext = {
             agentId: sessionId,
             userId: userId,
         };
@@ -546,7 +546,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                     }
 
                     const fileResults = await Promise.allSettled(promises);
-                    let files: FileOutputType[] = fileResults.map(result => result.status === "fulfilled" ? result.value : null).filter((result) => result !== null);
+                    const files: FileOutputType[] = fileResults.map(result => result.status === "fulfilled" ? result.value : null).filter((result) => result !== null);
 
                     await this.deployToSandbox(files);
 
