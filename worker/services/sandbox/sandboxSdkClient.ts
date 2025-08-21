@@ -243,7 +243,6 @@ export class SandboxSdkClient extends BaseSandboxService {
 
     async downloadTemplate(templateName: string, downloadDir?: string) : Promise<ArrayBuffer> {
         // Fetch the zip file from R2
-        let zipData: ArrayBuffer;
         const downloadUrl = downloadDir ? `${downloadDir}/${templateName}.zip` : `${templateName}.zip`;
         this.logger.info(`Fetching object: ${downloadUrl} from R2 bucket`);
         const r2Object = await env.TEMPLATES_BUCKET.get(downloadUrl);
@@ -252,7 +251,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             throw new Error(`Object '${downloadUrl}' not found in bucket`);
         }
     
-        zipData = await r2Object.arrayBuffer();
+        const zipData = await r2Object.arrayBuffer();
     
         this.logger.info(`Downloaded zip file (${zipData.byteLength} bytes)`);
         return zipData;
@@ -515,6 +514,70 @@ export class SandboxSdkClient extends BaseSandboxService {
         }
     }
 
+    /**
+     * Waits for the development server to be ready by monitoring logs for readiness indicators
+     */
+    private async waitForServerReady(instanceId: string, processId: string, maxWaitTimeMs: number = 10000): Promise<boolean> {
+        const startTime = Date.now();
+        const pollIntervalMs = 500;
+        const maxAttempts = Math.ceil(maxWaitTimeMs / pollIntervalMs);
+        
+        // Patterns that indicate the server is ready
+        const readinessPatterns = [
+            /http:\/\/[^\s]+/,           // Any HTTP URL (most reliable)
+            /ready in \d+/i,             // Vite "ready in X ms"
+            /Local:\s+http/i,            // Vite local server line
+            /Network:\s+http/i,          // Vite network server line
+            /server running/i,           // Generic server running message
+            /listening on/i              // Generic listening message
+        ];
+
+        this.logger.info(`Waiting for dev server to be ready for ${instanceId} (process: ${processId}), max wait: ${maxWaitTimeMs}ms`);
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                // Get recent logs only to avoid processing old content
+                const logsResult = await this.getLogs(instanceId, true);
+                
+                if (logsResult.success && logsResult.logs.stdout) {
+                    const logs = logsResult.logs.stdout;
+                    
+                    // Check for any readiness pattern
+                    for (const pattern of readinessPatterns) {
+                        if (pattern.test(logs)) {
+                            const elapsedTime = Date.now() - startTime;
+                            this.logger.info(`Dev server ready for ${instanceId} after ${elapsedTime}ms (attempt ${attempt}/${maxAttempts})`);
+                            
+                            // Log what pattern matched for debugging
+                            const matchedLines = logs.split('\n').filter(line => pattern.test(line));
+                            if (matchedLines.length > 0) {
+                                this.logger.info(`Readiness detected from log line: ${matchedLines[matchedLines.length - 1].trim()}`);
+                            }
+                            
+                            return true;
+                        }
+                    }
+                }
+                
+                // Wait before next attempt (except on last attempt)
+                if (attempt < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+                }
+                
+            } catch (error) {
+                this.logger.warn(`Error checking server readiness for ${instanceId} (attempt ${attempt}):`, error);
+                // Continue trying even if there's an error getting logs
+                if (attempt < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+                }
+            }
+        }
+        
+        const elapsedTime = Date.now() - startTime;
+        this.logger.warn(`Dev server readiness timeout for ${instanceId} after ${elapsedTime}ms (${maxAttempts} attempts)`);
+        return false;
+    }
+
     private async startDevServer(instanceId: string, port: number): Promise<string> {
         try {
             // Use CLI tools for enhanced monitoring instead of direct process start
@@ -522,7 +585,21 @@ export class SandboxSdkClient extends BaseSandboxService {
                 `monitor-cli process start --instance-id ${instanceId} --port ${port} -- bun run dev`, 
                 { cwd: instanceId }
             );
-            this.logger.info(`Started dev server with enhanced monitoring for ${instanceId}`);
+            this.logger.info(`Started dev server process for ${instanceId} (process: ${process.id})`);
+            
+            // Wait for the server to be ready (non-blocking - always returns the process ID)
+            try {
+                const isReady = await this.waitForServerReady(instanceId, process.id, 10000);
+                if (isReady) {
+                    this.logger.info(`Dev server is ready and accepting connections for ${instanceId}`);
+                } else {
+                    this.logger.warn(`Dev server may not be fully ready yet for ${instanceId}, but process is running`);
+                }
+            } catch (readinessError) {
+                this.logger.warn(`Error during readiness check for ${instanceId}:`, readinessError);
+                this.logger.info(`Continuing with dev server startup for ${instanceId} despite readiness check error`);
+            }
+            
             return process.id;
         } catch (error) {
             this.logger.warn('Failed to start dev server', error);
@@ -1665,7 +1742,7 @@ export class SandboxSdkClient extends BaseSandboxService {
                 instanceId,
                 base64encodedArchive: base64Data,
                 logger: this.logger,
-                projectName: this.metadataCache.get(instanceId)?.projectName || '',
+                projectName: (await this.getInstanceMetadata(instanceId))?.projectName || '',
                 hostname: this.hostname
             });
             

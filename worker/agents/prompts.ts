@@ -40,6 +40,8 @@ Apart from these files, All SHADCN Components are present in ./src/components/ui
 Template Usage Instructions: 
 ${template.description.usage}
 
+**Websockets and dynamic imports are not supported, so please avoid using them.**
+
 </TEMPLATE DETAILS>`;
         } else {
             return `
@@ -376,6 +378,8 @@ Here's how and why it happens most often and what to do about it.
     - All Tailwind classes exist in config
     - External dependencies are available
 
+    **Also there is no support for websockets and dynamic imports may not work, so please avoid using them.**
+
     # Few more heuristics:
         **IF** you receive a TypeScript error "cannot be used as a JSX component" for a component \`<MyComponent />\`, **AND** the error says its type is \`'typeof import(...)'\`, **THEN** the import statement for \`MyComponent\` is wrong.
         **The fix is to change the import from a default to a named import.**
@@ -413,6 +417,7 @@ Here's how and why it happens most often and what to do about it.
         - Please upgrade react to 19 to use these packages.
         - With react 18, it will throw runtime error: Cannot read properties of undefined (reading 'S')
 
+    • **No support for websockets and dynamic imports may not work, so please avoid using them.**
 </COMMON DEPENDENCY DOCUMENTATION>
 `,
     COMMANDS: `<SETUP COMMANDS>

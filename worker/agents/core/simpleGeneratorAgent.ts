@@ -12,7 +12,7 @@ import {
 } from '../schemas';
 import { GitHubExportRequest, StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
 import { GitHubExportOptions, GitHubExportResult } from '../../types/github';
-import { CodeGenState, CurrentDevState, MAX_PHASES } from './state';
+import { CodeGenState, CurrentDevState, MAX_PHASES, FileState } from './state';
 import { AllIssues, ScreenshotData } from './types';
 import { WebSocketMessageResponses } from '../constants';
 import { broadcastToConnections, handleWebSocketClose, handleWebSocketMessage } from './websocket';
@@ -980,6 +980,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     }
 
     getProgress(): Promise<CodeOutputType> {
+        // Ensure state is migrated before accessing files
+        this.migrateStateIfNeeded();
+        
         const progress = PhaseManagement.getProgress(
             this.state.generatedFilesMap,
             this.getTotalFiles()
@@ -988,7 +991,48 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     }
 
     async getState(): Promise<CodeGenState> {
+        // Ensure state is migrated before returning state
+        this.migrateStateIfNeeded();
         return this.state;
+    }
+    
+    /**
+     * Migrate old snake_case file properties to camelCase format
+     * This is needed for apps created before the schema migration
+     */
+    private migrateStateIfNeeded(): void {
+        let needsMigration = false;
+        const migratedFilesMap: Record<string, FileState> = {};
+        
+        for (const [key, file] of Object.entries(this.state.generatedFilesMap)) {
+            // Check if this file has old snake_case format
+            const hasOldFormat = 'file_path' in (file as any) || 'file_contents' in (file as any) || 'file_purpose' in (file as any);
+            
+            if (hasOldFormat) {
+                // Migrate from snake_case to camelCase
+                const oldFile = file as any;
+                migratedFilesMap[key] = {
+                    filePath: oldFile.filePath || oldFile.file_path,
+                    fileContents: oldFile.fileContents || oldFile.file_contents,
+                    filePurpose: oldFile.filePurpose || oldFile.file_purpose,
+                    // Preserve FileState-specific properties
+                    last_hash: oldFile.last_hash || '',
+                    last_modified: oldFile.last_modified || Date.now(),
+                    unmerged: oldFile.unmerged || []
+                };
+                needsMigration = true;
+                this.logger.info(`Migrated file from snake_case to camelCase: ${migratedFilesMap[key].filePath}`);
+            } else {
+                // Already in new format
+                migratedFilesMap[key] = file;
+            }
+        }
+        
+        if (needsMigration) {
+            this.logger.info(`Migrated ${Object.keys(migratedFilesMap).length} files from snake_case to camelCase format`);
+            this.state.generatedFilesMap = migratedFilesMap;
+            // The durable object will persist this change automatically
+        }
     }
 
     getFileGenerated(filePath: string) {
