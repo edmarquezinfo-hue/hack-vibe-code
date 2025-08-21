@@ -27,6 +27,7 @@ import type {
   ModelConfigResetData,
   ModelConfigDefaultsData,
   ModelConfigDeleteData,
+  ModelConfigUpdate,
   SecretsData,
   SecretStoreData,
   SecretDeleteData,
@@ -478,7 +479,7 @@ class ApiClient {
   /**
    * Update model configuration
    */
-  async updateModelConfig(actionKey: string, config: unknown): Promise<ApiResponse<ModelConfigUpdateData>> {
+  async updateModelConfig(actionKey: string, config: ModelConfigUpdate): Promise<ApiResponse<ModelConfigUpdateData>> {
     return this.request<ModelConfigUpdateData>(`/api/model-configs/${actionKey}`, {
       method: 'PUT',
       body: config,

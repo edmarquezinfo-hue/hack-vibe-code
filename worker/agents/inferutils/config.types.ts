@@ -36,12 +36,12 @@ export enum AIModels {
 }
 
 export interface ModelConfig {
-    name: AIModels;
+    name: AIModels | string;
     reasoning_effort?: ReasoningEffort;
     max_tokens?: number;
     temperature?: number;
     providerOverride?: 'cloudflare' | 'direct'
-    fallbackModel?: AIModels;
+    fallbackModel?: AIModels | string;
 }
 
 export interface AgentConfig {
@@ -60,14 +60,11 @@ export interface AgentConfig {
     userSuggestionProcessor: ModelConfig;
 }
 
-// Type aliases for ReasoningEffort and ProviderOverride
-export type ReasoningEffortType = ReasoningEffort;
+// Provider and reasoning effort types for validation
 export type ProviderOverrideType = 'cloudflare' | 'direct';
+export type ReasoningEffortType = 'low' | 'medium' | 'high';
 
-// Action key type for agent configuration
 export type AgentActionKey = keyof AgentConfig;
-
-// Inference context for agent operations
 export interface InferenceContext {
     agentId: string;
     userId?: string;

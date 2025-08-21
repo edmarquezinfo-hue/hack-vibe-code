@@ -8,8 +8,7 @@ import Assistant from "./assistant";
 import { applySearchReplaceDiff } from "../diff-formats";
 import { infer } from "../inferutils/core";
 import { MatchingStrategy, FailedBlock } from "../diff-formats/search-replace";
-import { AIModels, ModelConfig } from "../inferutils/config";
-import { InferenceContext } from "../inferutils/config";
+import { AIModels, ModelConfig, InferenceContext } from "../inferutils/config.types";
 // import { analyzeTypeScriptFile } from "../../services/code-fixer/analyzer";
 
 export interface RealtimeCodeFixerContext {

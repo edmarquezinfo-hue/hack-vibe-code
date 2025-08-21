@@ -16,7 +16,7 @@ import {
 	Lock,
 } from 'lucide-react';
 import { ModelConfigTabs } from '@/components/model-config-tabs';
-import type { ModelConfigsData } from '@/api-types';
+import type { ModelConfigsData, ModelConfigUpdate } from '@/api-types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -246,7 +246,7 @@ export default function SettingsPage() {
 	};
 
 	// Save model configuration
-	const saveModelConfig = async (agentAction: string, config: unknown) => {
+	const saveModelConfig = async (agentAction: string, config: ModelConfigUpdate) => {
 		try {
 			const response = await apiClient.updateModelConfig(agentAction, config);
 			

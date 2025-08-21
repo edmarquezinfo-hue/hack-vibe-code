@@ -22,7 +22,6 @@ import type {
     SimpleAppCreation,
     TimePeriod,
     AppSortOption,
-    SortOrder
 } from '../types';
 import { AnalyticsService } from './AnalyticsService';
 
@@ -748,8 +747,7 @@ export class AppService extends BaseService {
             teamId, 
             boardId, 
             sort = 'recent', 
-            order = 'desc', 
-            period = 'all' 
+            order = 'desc'
         } = options;
 
         // For performance-critical sorts (popular/trending), use optimized aggregation method

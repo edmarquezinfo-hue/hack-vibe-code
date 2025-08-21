@@ -7,7 +7,8 @@
 import { BaseService } from './BaseService';
 import { UserModelConfig, NewUserModelConfig, userModelConfigs } from '../schema';
 import { eq, and } from 'drizzle-orm';
-import { AgentActionKey, AGENT_CONFIG, ModelConfig, AIModels } from '../../agents/inferutils/config';
+import { AgentActionKey, ModelConfig, AIModels } from '../../agents/inferutils/config.types';
+import { AGENT_CONFIG } from '../../agents/inferutils/config';
 import type { ReasoningEffort } from 'openai/resources.mjs';
 import { generateId } from '../../utils/idGenerator';
 import type { UserModelConfigWithMetadata } from '../types';

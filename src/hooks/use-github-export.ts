@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
+import { WebSocket } from 'partysocket';
 import { useAuth } from '@/contexts/auth-context';
-import type { WebSocketMessage } from '@/routes/chat/api-types';
+import type { WebSocketMessage } from '@/api-types';
 
 export interface GitHubExportOptions {
     repositoryName: string;

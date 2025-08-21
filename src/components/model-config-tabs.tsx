@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { ConfigCard } from './config-card';
 import { ConfigModal } from './config-modal';
+import type { ModelConfig, UserModelConfigWithMetadata, ModelConfigUpdate } from '@/api-types';
 
 // Define workflow-based tab structure with dynamic agent categorization
 export const WORKFLOW_TABS = {
@@ -117,28 +118,19 @@ const categorizeAgent = (agentKey: string): string => {
   return 'advanced';
 };
 
-export interface ModelConfig {
-  name?: string;
-  max_tokens?: number;
-  temperature?: number;
-  reasoning_effort?: string;
-  fallbackModel?: string;
-  isUserOverride?: boolean;
-  userConfigId?: string;
-}
-
-export interface AgentConfig {
+// Frontend-specific agent display interface 
+export interface AgentDisplayConfig {
   key: string;
   name: string;
   description: string;
 }
 
 interface ModelConfigTabsProps {
-  agentConfigs: AgentConfig[];
-  modelConfigs: Record<string, ModelConfig>;
+  agentConfigs: AgentDisplayConfig[];
+  modelConfigs: Record<string, UserModelConfigWithMetadata>;
   defaultConfigs: Record<string, ModelConfig>;
   loadingConfigs: boolean;
-  onSaveConfig: (agentAction: string, config: any) => Promise<void>;
+  onSaveConfig: (agentAction: string, config: ModelConfigUpdate) => Promise<void>;
   onTestConfig: (agentAction: string) => Promise<void>;
   onResetConfig: (agentAction: string) => Promise<void>;
   onResetAllConfigs: () => Promise<void>;
