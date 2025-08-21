@@ -290,7 +290,7 @@ export class CodingAgentController extends BaseController {
 
             try {
                 // Get the agent instance to handle the WebSocket connection
-                const agentInstance = await getAgentStub(env, chatId);
+                const agentInstance = await getAgentStub(env, chatId, true);
                 
                 this.codeGenLogger.info(`Successfully got agent instance for chat: ${chatId}`);
 
@@ -341,7 +341,7 @@ export class CodingAgentController extends BaseController {
 
             try {
                 // Verify the agent instance exists
-                const agentInstance = await getAgentStub(env, agentId);
+                const agentInstance = await getAgentStub(env, agentId, true);
                 if (!agentInstance || !(await agentInstance.isInitialized())) {
                     return this.createErrorResponse<AgentConnectionData>('Agent instance not found or not initialized', 404);
                 }
@@ -386,7 +386,7 @@ export class CodingAgentController extends BaseController {
 
             try {
                 // Get the agent instance
-                const agentInstance = await getAgentStub(env, agentId);
+                const agentInstance = await getAgentStub(env, agentId, true);
                 
                 // Get current progress (includes generated code)
                 const agentProgress = await agentInstance.getProgress();

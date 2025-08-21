@@ -38,8 +38,8 @@ export interface CodeGenState {
     lastPackageJson?: string; // Last package.json file contents
     templateDetails: TemplateDetails;
     sandboxInstanceId?: string;
-    previewURL?: string;
-    tunnelURL?: string;
+    // previewURL?: string;
+    // tunnelURL?: string;
     clientReportedErrors: ClientReportedErrorType[];
     latestScreenshot?: ScreenshotData; // Store captured screenshot
     shouldBeGenerating?: boolean; // Persistent flag indicating generation should be active

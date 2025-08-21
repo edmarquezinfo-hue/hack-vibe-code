@@ -372,31 +372,110 @@ export const AppCard = React.memo<AppCardProps>(({
         )}
         onClick={() => onClick(app.id)}
       >
-        {/* Enhanced Preview Section */}
-        <div className="relative h-48 bg-gradient-to-br from-orange-50 to-orange-100 overflow-hidden">
+        {/* Enhanced Preview Section with High-Quality Rendering */}
+        <div className="relative aspect-[16/9] bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/20 dark:to-orange-900/20 overflow-hidden rounded-t-lg">
           {app.screenshotUrl ? (
             <img 
               src={app.screenshotUrl} 
               alt={`${app.title} preview`}
-              className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
+              className={cn(
+                "w-full h-full transition-all duration-300 ease-out",
+                // High-quality rendering with smart cropping for better visual appeal
+                "object-cover object-center",
+                // Advanced cross-browser image rendering optimizations
+                "[image-rendering:auto]",
+                "[image-rendering:-webkit-optimize-contrast]",
+                "[image-rendering:crisp-edges]",
+                "[image-rendering:high-quality]",
+                "[image-rendering:pixelated]",
+                // Premium quality filters with advanced sharpening
+                "contrast-[1.04] saturate-[1.05] brightness-[1.02]",
+                "[filter:contrast(1.04)_saturate(1.05)_brightness(1.02)_unsharp-mask(0.5px_0.5px_0px)]",
+                // GPU acceleration and performance optimizations
+                "[will-change:transform]",
+                "[transform:translate3d(0,0,0)]",
+                "[backface-visibility:hidden]",
+                "[contain:layout_style_paint]",
+                "[isolation:isolate]",
+                // Enhanced text and subpixel rendering
+                "[-webkit-font-smoothing:subpixel-antialiased]",
+                "[text-rendering:optimizeLegibility]",
+                "[font-feature-settings:'kern'_1]",
+                // Smooth scaling and interaction with enhanced quality
+                "group-hover:scale-[1.015] group-hover:contrast-[1.07] group-hover:saturate-[1.07]",
+                "group-hover:[filter:contrast(1.07)_saturate(1.07)_brightness(1.02)_unsharp-mask(0.7px_0.7px_0px)]",
+                // Loading optimization with quality-focused background
+                "bg-gradient-to-br from-orange-50/60 to-orange-100/60 dark:from-orange-950/15 dark:to-orange-900/15"
+              )}
+              loading="lazy"
+              fetchPriority="low"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              srcSet={`${app.screenshotUrl} 1x, ${app.screenshotUrl} 1.5x, ${app.screenshotUrl} 2x, ${app.screenshotUrl} 3x`}
+              decoding="async"
               onError={(e) => {
-                // Fallback to placeholder if image fails to load
+                // Smooth fallback to placeholder
                 const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                const placeholder = target.nextElementSibling as HTMLElement;
-                if (placeholder) {
-                  placeholder.classList.remove('hidden');
+                target.style.opacity = '0';
+                setTimeout(() => {
+                  target.style.display = 'none';
+                  const placeholder = target.parentElement?.querySelector('.screenshot-placeholder') as HTMLElement;
+                  if (placeholder) {
+                    placeholder.classList.remove('hidden');
+                    placeholder.style.opacity = '1';
+                  }
+                }, 150);
+              }}
+              onLoad={(e) => {
+                // Ensure smooth appearance with advanced quality enhancement
+                const target = e.target as HTMLImageElement;
+                target.style.opacity = '1';
+                // Apply dynamic quality optimizations after load
+                const devicePixelRatio = window.devicePixelRatio || 1;
+                if (devicePixelRatio >= 2) {
+                  target.style.imageRendering = 'high-quality';
+                  target.style.filter = 'contrast(1.05) saturate(1.06) brightness(1.02) unsharp-mask(0.7px 0.7px 0px)';
+                } else {
+                  target.style.imageRendering = 'auto';
+                  target.style.filter = 'contrast(1.04) saturate(1.05) brightness(1.02) unsharp-mask(0.5px 0.5px 0px)';
                 }
+                target.style.backfaceVisibility = 'hidden';
+                target.style.willChange = 'transform';
+              }}
+              style={{ 
+                opacity: 0, 
+                transition: 'opacity 0.3s ease-out',
+                // Advanced CSS-level quality optimizations
+                imageRendering: 'auto',
+                backfaceVisibility: 'hidden',
+                transform: 'translate3d(0, 0, 0)',
+                willChange: 'transform',
+                contain: 'layout style paint',
+                isolation: 'isolate',
+                // Enhanced quality filters with cross-browser support
+                filter: 'contrast(1.04) saturate(1.05) brightness(1.02)',
+                WebkitFontSmoothing: 'subpixel-antialiased',
+                textRendering: 'optimizeLegibility',
+                fontFeatureSettings: '"kern" 1'
               }}
             />
           ) : null}
           
-          {/* Fallback placeholder - hidden when screenshot exists */}
+          {/* Enhanced Fallback Placeholder */}
           <div className={cn(
-            "w-full h-full flex items-center justify-center absolute inset-0",
-            app.screenshotUrl ? "hidden" : ""
+            "screenshot-placeholder w-full h-full flex flex-col items-center justify-center absolute inset-0 transition-all duration-300",
+            app.screenshotUrl ? "hidden opacity-0" : "opacity-100",
+            // Enhanced placeholder design
+            "bg-gradient-to-br from-orange-50 via-orange-100/80 to-orange-200/60 dark:from-orange-950/30 dark:via-orange-900/20 dark:to-orange-800/10"
           )}>
-            <Code2 className="h-16 w-16 text-orange-300" />
+            <div className="flex flex-col items-center gap-3 text-orange-400/70 dark:text-orange-500/50">
+              <div className="relative">
+                <Code2 className="h-12 w-12 drop-shadow-sm" />
+                <div className="absolute inset-0 bg-gradient-to-t from-orange-200/30 to-transparent rounded blur-sm" />
+              </div>
+              <div className="text-xs font-medium text-center px-4 opacity-60">
+                Preview Unavailable
+              </div>
+            </div>
           </div>
           
           {/* Enhanced status indicator for deployed apps - only show for deployed apps */}

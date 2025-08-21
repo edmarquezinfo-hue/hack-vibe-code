@@ -250,7 +250,13 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
 
     async isInitialized() {
         return this.state.sessionId ? true : false
-    }
+    }  
+    
+    onStateUpdate(_state: CodeGenState, _source: "server" | Connection) {
+        // You can leave this empty to disable logging
+        // Or, you can log a more specific message, for example:
+        this.logger.info("State was updated.");
+      }
 
     getProjectSetupAssistant(): ProjectSetupAssistant {
         if (this.projectSetupAssistant === undefined) {
@@ -436,6 +442,10 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             };
         } catch (error) {
             this.logger.error("Error generating phase", error);
+            this.broadcast(WebSocketMessageResponses.ERROR, {
+                message: "Error generating phase",
+                error: error
+            });
             return {
                 currentDevState: CurrentDevState.IDLE,
             };
@@ -1030,7 +1040,10 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         
         if (needsMigration) {
             this.logger.info(`Migrated ${Object.keys(migratedFilesMap).length} files from snake_case to camelCase format`);
-            this.state.generatedFilesMap = migratedFilesMap;
+            this.setState({
+                ...this.state,
+                generatedFilesMap: migratedFilesMap
+            });
             // The durable object will persist this change automatically
         }
     }
@@ -1370,7 +1383,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
 
     private async executeDeployment(files: FileOutputType[] = [], redeploy: boolean = false): Promise<string | null> {
         const { templateDetails, generatedFilesMap } = this.state;
-        let { sandboxInstanceId, previewURL, tunnelURL } = this.state;
+        let { sandboxInstanceId } = this.state;
+        let previewURL: string | undefined;
+        let tunnelURL: string | undefined;
 
         if (!templateDetails) {
             this.logger.error("Template details not available for deployment.");
@@ -1393,6 +1408,10 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             if (!status || !status.success) {
                 this.logger.error(`DEPLOYMENT CHECK FAILED: Failed to get status for instance ${sandboxInstanceId}, redeploying...`);
                 sandboxInstanceId = undefined;
+            } else {
+                this.logger.info(`DEPLOYMENT CHECK PASSED: Instance ${sandboxInstanceId} is running, previewURL: ${status.previewURL}, tunnelURL: ${status.tunnelURL}`);
+                previewURL = status.previewURL;
+                tunnelURL = status.tunnelURL;
             }
         }
 
@@ -1412,8 +1431,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 this.setState({
                     ...this.state,
                     sandboxInstanceId,
-                    previewURL,
-                    tunnelURL,
                 });
 
                 // Run all commands in background
@@ -1464,8 +1481,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             this.setState({
                 ...this.state,
                 sandboxInstanceId: undefined,
-                previewURL: undefined,
-                tunnelURL: undefined,
             });
             return this.deployToSandbox();
         }

@@ -56,7 +56,7 @@ export class AppViewController extends BaseController {
             let generatedCode: GeneratedCodeFile[] = [];
             
             try {
-                const agentStub = await getAgentStub(env, appResult.id);
+                const agentStub = await getAgentStub(env, appResult.id, true);
                 const agentProgress = await agentStub.getProgress();
                 
                 if (agentProgress && agentProgress.generatedCode && agentProgress.generatedCode.length > 0) {

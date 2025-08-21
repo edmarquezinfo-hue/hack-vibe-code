@@ -347,18 +347,8 @@ export function useChat({
                     }
 				}
 
-				// Always handle preview URL updates (this is safe to do repeatedly)
-				const finalPreviewURL = getPreviewUrl(state.previewURL, state.tunnelURL);
-				if (finalPreviewURL && finalPreviewURL !== previewUrl) {
-					setPreviewUrl(finalPreviewURL);
-					// Only send deployment message if this is a new URL
-					if (!previewUrl) {
-						sendMessage({
-							id: 'deployment-status',
-							message: 'Your project has been deployed to ' + finalPreviewURL,
-						});
-					}
-				}
+				// Preview URLs are now only set from deployment_completed websocket messages
+				// No longer using potentially stale URLs from agent state
 
 				// Always handle shouldBeGenerating flag for auto-resume (this is important for reconnects)
 				if (state.shouldBeGenerating) {
@@ -379,7 +369,7 @@ export function useChat({
 							updateStage('validate', { status: 'completed' });
 
 							// Auto-deploy preview if we have generated files but no preview URL
-							if (!finalPreviewURL && websocket && websocket.readyState === WebSocket.OPEN) {
+							if (!previewUrl && websocket && websocket.readyState === WebSocket.OPEN) {
 								console.log('🚀 Generated files exist but no preview URL - auto-deploying preview');
 								websocket.send(JSON.stringify({ type: 'preview' }));
 							}

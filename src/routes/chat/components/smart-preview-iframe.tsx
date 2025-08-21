@@ -247,18 +247,31 @@ export const SmartPreviewIframe = forwardRef<HTMLIFrameElement, SmartPreviewIfra
 						try {
 							// Try to access iframe document to verify it's not empty/error page
 							const iframeDoc = testFrame.contentDocument || testFrame.contentWindow?.document;
-							const hasContent = !!(iframeDoc && 
-							iframeDoc.body && 
-							iframeDoc.body.children.length > 0 &&
-							iframeDoc.title !== 'Error' &&
-							!iframeDoc.body.textContent?.includes('Cannot GET') &&
-							!iframeDoc.body.textContent?.includes('404'));
+							const bodyText = iframeDoc?.body?.textContent?.toLowerCase() || '';
+							const titleText = iframeDoc?.title?.toLowerCase() || '';
+							
+							// Check for container proxy errors (any IP address pattern)
+							const hasContainerError = 
+								bodyText.includes('error proxying request to container') ||
+								bodyText.includes('the container is not listening') ||
+								bodyText.includes('tcp address') ||
+								titleText.includes('error') ||
+								bodyText.includes('cannot get') ||
+								bodyText.includes('404') ||
+								bodyText.includes('internal server error') ||
+								bodyText.includes('502 bad gateway') ||
+								bodyText.includes('503 service unavailable');
+
+							const hasValidContent = !!(iframeDoc && 
+								iframeDoc.body && 
+								iframeDoc.body.children.length > 0 &&
+								!hasContainerError);
 						
-						if (!hasResolved) {
-							hasResolved = true;
-							clearTimeout(timeout);
-							document.body.removeChild(testFrame);
-							resolve(hasContent);
+							if (!hasResolved) {
+								hasResolved = true;
+								clearTimeout(timeout);
+								document.body.removeChild(testFrame);
+								resolve(hasValidContent);
 							}
 						} catch {
 							// Cross-origin restrictions - assume content is ready if iframe loaded
