@@ -41,5 +41,5 @@ temp/
 templates
 debugging.ipynb
 
-bun.lock
-*.lock
+#bun.lock
+#*.lock
