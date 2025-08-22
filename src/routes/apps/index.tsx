@@ -1,14 +1,12 @@
 import { useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
-import { Plus, Search, Clock, TrendingUp, Star } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toggleFavorite } from '@/hooks/use-apps';
 import { usePaginatedApps } from '@/hooks/use-paginated-apps';
 import { AppListContainer } from '@/components/shared/AppListContainer';
-import { TimePeriodSelector } from '@/components/shared/TimePeriodSelector';
+import { AppFiltersForm } from '@/components/shared/AppFiltersForm';
+import { AppSortTabs } from '@/components/shared/AppSortTabs';
 
 export default function AppsPage() {
   const navigate = useNavigate();
@@ -75,70 +73,28 @@ export default function AppsPage() {
           </div>
 
           {/* Search and Filters */}
-          <div className="max-w-4xl mx-auto mb-8">
-            <form onSubmit={handleSearchSubmit} className="flex gap-2 mb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search your apps..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Select value={filterFramework} onValueChange={handleFrameworkChange}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Framework" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Frameworks</SelectItem>
-                  <SelectItem value="react">React</SelectItem>
-                  <SelectItem value="vue">Vue</SelectItem>
-                  <SelectItem value="svelte">Svelte</SelectItem>
-                  <SelectItem value="angular">Angular</SelectItem>
-                  <SelectItem value="vanilla">Vanilla JS</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={filterVisibility} onValueChange={handleVisibilityChange}>
-                <SelectTrigger className="w-[130px]">
-                  <SelectValue placeholder="Visibility" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="private">Private</SelectItem>
-                  <SelectItem value="team">Team</SelectItem>
-                  <SelectItem value="board">Board</SelectItem>
-                  <SelectItem value="public">Public</SelectItem>
-                </SelectContent>
-              </Select>
-              {(sortBy === 'popular' || sortBy === 'trending') && (
-                <TimePeriodSelector
-                  value={period}
-                  onValueChange={handlePeriodChange}
-                  className="w-[120px]"
-                  showForSort={sortBy}
-                />
-              )}
-            </form>
+          <AppFiltersForm
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onSearchSubmit={handleSearchSubmit}
+            searchPlaceholder="Search your apps..."
+            filterFramework={filterFramework}
+            onFrameworkChange={handleFrameworkChange}
+            filterVisibility={filterVisibility}
+            onVisibilityChange={handleVisibilityChange}
+            showVisibility={true}
+            period={period}
+            onPeriodChange={handlePeriodChange}
+            sortBy={sortBy}
+          />
 
-            {/* Sort Tabs */}
-            <Tabs value={sortBy} onValueChange={handleSortChange} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="recent" className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Recent
-                </TabsTrigger>
-                <TabsTrigger value="popular" className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  Popular
-                </TabsTrigger>
-                <TabsTrigger value="starred" className="flex items-center gap-2">
-                  <Star className="h-4 w-4" />
-                  Bookmarked
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+          {/* Sort Tabs */}
+          <div className="max-w-4xl mx-auto mb-8">
+            <AppSortTabs
+              value={sortBy}
+              onValueChange={handleSortChange}
+              availableSorts={['recent', 'popular', 'starred']}
+            />
           </div>
 
           {/* Unified App List */}

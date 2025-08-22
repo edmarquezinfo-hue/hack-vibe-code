@@ -67,6 +67,8 @@ export class UserController extends BaseController {
             const status = url.searchParams.get('status') as 'generating' | 'completed' | undefined;
             const visibility = url.searchParams.get('visibility') as 'private' | 'public' | 'team' | 'board' | undefined;
             const teamId = url.searchParams.get('teamId') || undefined;
+            const framework = url.searchParams.get('framework') || undefined;
+            const search = url.searchParams.get('search') || undefined;
             const sort = (url.searchParams.get('sort') || 'recent') as AppSortOption;
             const order = (url.searchParams.get('order') || 'desc') as SortOrder;
             const period = (url.searchParams.get('period') || 'all') as TimePeriod;
@@ -81,6 +83,8 @@ export class UserController extends BaseController {
                 status,
                 visibility,
                 teamId,
+                framework,
+                search,
                 sort,
                 order,
                 period

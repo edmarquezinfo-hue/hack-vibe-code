@@ -289,6 +289,30 @@ export class AppService extends BaseService {
     }
 
     /**
+     * Helper to build common app filters (framework and search)
+     * Used by both user apps and public apps to avoid duplication
+     */
+    private buildCommonAppFilters(framework?: string, search?: string): WhereCondition[] {
+        const conditions: WhereCondition[] = [];
+        
+        if (framework) {
+            conditions.push(eq(schema.apps.framework, framework));
+        }
+        
+        if (search) {
+            const searchTerm = `%${search.toLowerCase()}%`;
+            conditions.push(
+                or(
+                    sql`LOWER(${schema.apps.title}) LIKE ${searchTerm}`,
+                    sql`LOWER(${schema.apps.description}) LIKE ${searchTerm}`
+                )
+            );
+        }
+        
+        return conditions.filter(Boolean);
+    }
+
+    /**
      * Helper to build public app query conditions
      */
     private buildPublicAppConditions(
@@ -307,20 +331,11 @@ export class AppService extends BaseService {
                 eq(schema.apps.status, 'generating')
             ),
             boardId ? eq(schema.apps.boardId, boardId) : undefined,
-            framework ? eq(schema.apps.framework, framework) : undefined,
+            // Use shared helper for common filters
+            ...this.buildCommonAppFilters(framework, search),
         ];
 
-        if (search) {
-            const searchTerm = `%${search.toLowerCase()}%`;
-            whereConditions.push(
-                or(
-                    sql`LOWER(${schema.apps.title}) LIKE ${searchTerm}`,
-                    sql`LOWER(${schema.apps.description}) LIKE ${searchTerm}`
-                )
-            );
-        }
-
-        return whereConditions;
+        return whereConditions.filter(Boolean);
     }
 
     async updateAppStatus(
@@ -747,7 +762,9 @@ export class AppService extends BaseService {
             status, 
             visibility, 
             teamId, 
-            boardId, 
+            boardId,
+            framework,
+            search,
             sort = 'recent', 
             order = 'desc'
         } = options;
@@ -764,6 +781,8 @@ export class AppService extends BaseService {
             status ? eq(schema.apps.status, status) : undefined,
             visibility ? eq(schema.apps.visibility, visibility) : undefined,
             boardId ? eq(schema.apps.boardId, boardId) : undefined,
+            // Add common filtering (search, framework) using shared helper
+            ...this.buildCommonAppFilters(framework, search),
         ];
 
         const whereClause = this.buildWhereConditions(whereConditions);
@@ -813,7 +832,7 @@ export class AppService extends BaseService {
      * Get total count of user apps with filters (for pagination)
      */
     async getUserAppsCount(userId: string, options: Partial<AppQueryOptions> = {}): Promise<number> {
-        const { status, visibility, teamId, boardId, sort = 'recent' } = options;
+        const { status, visibility, teamId, boardId, framework, search, sort = 'recent' } = options;
 
         const whereConditions: WhereCondition[] = [
             eq(schema.apps.userId, userId),
@@ -821,6 +840,8 @@ export class AppService extends BaseService {
             status ? eq(schema.apps.status, status) : undefined,
             visibility ? eq(schema.apps.visibility, visibility) : undefined,
             boardId ? eq(schema.apps.boardId, boardId) : undefined,
+            // Use shared helper for common filters
+            ...this.buildCommonAppFilters(framework, search),
         ];
 
         const whereClause = this.buildWhereConditions(whereConditions);
@@ -1074,7 +1095,9 @@ export class AppService extends BaseService {
             status, 
             visibility, 
             teamId, 
-            boardId, 
+            boardId,
+            framework,
+            search, 
             sort = 'recent', 
             order = 'desc', 
             period = 'all' 
@@ -1087,6 +1110,8 @@ export class AppService extends BaseService {
             status ? eq(schema.apps.status, status) : undefined,
             visibility ? eq(schema.apps.visibility, visibility) : undefined,
             boardId ? eq(schema.apps.boardId, boardId) : undefined,
+            // Use shared helper for common filters
+            ...this.buildCommonAppFilters(framework, search),
         ];
 
         const whereClause = this.buildWhereConditions(whereConditions);

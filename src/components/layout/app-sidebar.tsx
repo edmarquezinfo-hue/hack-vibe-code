@@ -16,6 +16,7 @@ import './sidebar-overrides.css';
 import {
 	useRecentApps,
 	useFavoriteApps,
+	useApps,
 } from '@/hooks/use-apps';
 import { CloudflareLogo } from '../icons/logos';
 import {
@@ -153,10 +154,21 @@ export function AppSidebar() {
 		moreAvailable,
 	} = useRecentApps();
 	const { apps: favoriteApps } = useFavoriteApps();
+	const { apps: allApps, loading: allAppsLoading } = useApps();
 
 
 	const boards: Board[] = []; // Remove mock boards
 
+	// Search functionality - filter all apps based on search query
+	const searchResults = React.useMemo(() => {
+		if (!searchQuery.trim()) return [];
+		
+		return allApps.filter(app => 
+			app.title.toLowerCase().includes(searchQuery.toLowerCase().trim())
+		);
+	}, [allApps, searchQuery]);
+
+	const isSearching = searchQuery.trim().length > 0;
 
 	const getVisibilityIcon = (visibility: App['visibility']) => {
 		switch (visibility) {
@@ -276,34 +288,75 @@ export function AppSidebar() {
 											/>
 										</div>
 										<SidebarMenu>
-											{recentApps.map((app) => (
-												<AppMenuItem
-													key={app.id}
-													app={app}
-													onClick={(id) => navigate(`/app/${id}`)}
-													variant="recent"
-													showActions={true}
-													isCollapsed={isCollapsed}
-													getVisibilityIcon={getVisibilityIcon}
-												/>
-											))}
-											{moreAvailable && (
-												<SidebarMenuItem>
-													<SidebarMenuButton
-														onClick={() =>
-															navigate('/apps')
-														}
-														tooltip="View all apps"
-														className="text-muted-foreground hover:text-foreground view-all-button"
-													>
-														<ChevronRight className="h-4 w-4" />
-														{!isCollapsed && (
-															<span className="font-medium text-primary/80">
-																View all apps →
-															</span>
-														)}
-													</SidebarMenuButton>
-												</SidebarMenuItem>
+											{isSearching ? (
+												// Search Results
+												<>
+													{allAppsLoading ? (
+														<SidebarMenuItem>
+															<div className="flex items-center justify-center py-4">
+																<div className="text-sm text-muted-foreground">Searching...</div>
+															</div>
+														</SidebarMenuItem>
+													) : searchResults.length > 0 ? (
+														<>
+															<SidebarMenuItem>
+																<div className="px-2 py-1 text-xs text-muted-foreground">
+																	Found {searchResults.length} app{searchResults.length !== 1 ? 's' : ''}
+																</div>
+															</SidebarMenuItem>
+															{searchResults.map((app) => (
+																<AppMenuItem
+																	key={app.id}
+																	app={app}
+																	onClick={(id) => navigate(`/app/${id}`)}
+																	variant="recent"
+																	showActions={true}
+																	isCollapsed={isCollapsed}
+																	getVisibilityIcon={getVisibilityIcon}
+																/>
+															))}
+														</>
+													) : (
+														<SidebarMenuItem>
+															<div className="flex items-center justify-center py-4">
+																<div className="text-sm text-muted-foreground">No apps found for "{searchQuery}"</div>
+															</div>
+														</SidebarMenuItem>
+													)}
+												</>
+											) : (
+												// Normal Recent Apps View
+												<>
+													{recentApps.map((app) => (
+														<AppMenuItem
+															key={app.id}
+															app={app}
+															onClick={(id) => navigate(`/app/${id}`)}
+															variant="recent"
+															showActions={true}
+															isCollapsed={isCollapsed}
+															getVisibilityIcon={getVisibilityIcon}
+														/>
+													))}
+													{moreAvailable && (
+														<SidebarMenuItem>
+															<SidebarMenuButton
+																onClick={() =>
+																	navigate('/apps')
+																}
+																tooltip="View all apps"
+																className="text-muted-foreground hover:text-foreground view-all-button"
+															>
+																<ChevronRight className="h-4 w-4" />
+																{!isCollapsed && (
+																	<span className="font-medium text-primary/80">
+																		View all apps →
+																	</span>
+																)}
+															</SidebarMenuButton>
+														</SidebarMenuItem>
+													)}
+												</>
 											)}
 										</SidebarMenu>
 									</SidebarGroupContent>

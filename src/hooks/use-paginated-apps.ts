@@ -59,6 +59,9 @@ export function usePaginatedApps(options: UsePaginatedAppsOptions): UsePaginated
     period: options.defaultPeriod || 'all'
   });
 
+  // Debounced search query to prevent API calls on every keystroke
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
   // API state
   const [apps, setApps] = useState<AppListData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +73,15 @@ export function usePaginatedApps(options: UsePaginatedAppsOptions): UsePaginated
     total: 0,
     hasMore: false
   });
+
+  // Debounce search query with 500ms delay
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearchQuery(filterState.searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [filterState.searchQuery]);
 
   // Stable fetch function that doesn't change unless API params change
   const fetchApps = useCallback(async (append = false) => {
@@ -90,7 +102,7 @@ export function usePaginatedApps(options: UsePaginatedAppsOptions): UsePaginated
         sort: filterState.sortBy,
         period: filterState.period,
         framework: filterState.filterFramework === 'all' ? undefined : filterState.filterFramework,
-        search: filterState.searchQuery || undefined,
+        search: debouncedSearchQuery || undefined,
         visibility: (options.includeVisibility && filterState.filterVisibility !== 'all') ? filterState.filterVisibility : undefined,
       };
 
@@ -145,7 +157,7 @@ export function usePaginatedApps(options: UsePaginatedAppsOptions): UsePaginated
     filterState.period,
     filterState.filterFramework,
     filterState.filterVisibility,
-    filterState.searchQuery
+    debouncedSearchQuery
   ]);
 
   // Load more function
@@ -215,14 +227,8 @@ export function usePaginatedApps(options: UsePaginatedAppsOptions): UsePaginated
       fetchApps(false);
     }
   }, [
-    options.type,
-    options.includeVisibility,
-    filterState.sortBy,
-    filterState.period,
-    filterState.filterFramework,
-    filterState.filterVisibility,
+    fetchApps,
     options.autoFetch
-    // Note: we don't include fetchApps here to avoid circular deps
   ]);
 
   // Listen for app deletion events

@@ -93,28 +93,30 @@ export type AppSortOption = 'recent' | 'popular' | 'trending' | 'starred';
 export type SortOrder = 'asc' | 'desc';
 
 /**
- * App query options with filters and pagination
+ * Base app query options with common filters and pagination
  */
-export interface AppQueryOptions extends PaginationOptions {
-    status?: 'generating' | 'completed';
-    visibility?: 'private' | 'public' | 'team' | 'board';
-    teamId?: string;
-    boardId?: string;
-    sort?: AppSortOption;
-    order?: SortOrder;
-    period?: TimePeriod;
-}
-
-/**
- * Public app query options with additional filters
- */
-export interface PublicAppQueryOptions extends PaginationOptions {
+export interface BaseAppQueryOptions extends PaginationOptions {
     boardId?: string;
     framework?: string;
     search?: string;
     sort?: AppSortOption;
     order?: SortOrder;
     period?: TimePeriod;
+}
+
+/**
+ * User app query options with user-specific filters
+ */
+export interface AppQueryOptions extends BaseAppQueryOptions {
+    status?: 'generating' | 'completed';
+    visibility?: 'private' | 'public' | 'team' | 'board';
+    teamId?: string;
+}
+
+/**
+ * Public app query options with user context for favorites/interactions
+ */
+export interface PublicAppQueryOptions extends BaseAppQueryOptions {
     userId?: string; // For user-specific data like favorites
 }
 
