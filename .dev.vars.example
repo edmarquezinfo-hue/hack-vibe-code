@@ -1,8 +1,8 @@
 # Essential Secrets:
-CLOUDFLARE_AI_GATEWAY_TOKEN="" # If this has read and edit permissions, the AI Gateway will be created automatically. run is required at the least
+#CLOUDFLARE_AI_GATEWAY_TOKEN="" # If this has read and edit permissions, the AI Gateway will be created automatically. run is required at the least
 
 # Provider specific secrets:
-ANTHROPIC_API_KEY=""
+#ANTHROPIC_API_KEY=""
 OPENAI_API_KEY=""
 GEMINI_API_KEY=""
 #OPENROUTER_API_KEY="default" 

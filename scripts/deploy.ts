@@ -233,8 +233,11 @@ class CloudflareDeploymentManager {
 	 * Gets and validates environment variables, with defaults from wrangler.jsonc
 	 */
 	private getEnvironmentVariables(): EnvironmentConfig {
+		const apiToken = process.env.CLOUDFLARE_API_TOKEN!;
+		const aiGatewayToken = process.env.CLOUDFLARE_AI_GATEWAY_TOKEN || apiToken;
+		
 		return {
-			CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN!,
+			CLOUDFLARE_API_TOKEN: apiToken,
 			CLOUDFLARE_ACCOUNT_ID:
 				process.env.CLOUDFLARE_ACCOUNT_ID ||
 				this.config.vars?.CLOUDFLARE_ACCOUNT_ID!,
@@ -244,8 +247,7 @@ class CloudflareDeploymentManager {
 			CLOUDFLARE_AI_GATEWAY:
 				process.env.CLOUDFLARE_AI_GATEWAY ||
 				this.config.vars?.CLOUDFLARE_AI_GATEWAY,
-			CLOUDFLARE_AI_GATEWAY_TOKEN:
-				process.env.CLOUDFLARE_AI_GATEWAY_TOKEN,
+			CLOUDFLARE_AI_GATEWAY_TOKEN: aiGatewayToken,
 		};
 	}
 
@@ -1460,7 +1462,13 @@ class CloudflareDeploymentManager {
 
 		// Add environment variables that are set
 		secretVars.forEach((varName) => {
-			const value = process.env[varName];
+			let value = process.env[varName];
+			
+			// Apply fallback logic for CLOUDFLARE_AI_GATEWAY_TOKEN
+			if (varName === 'CLOUDFLARE_AI_GATEWAY_TOKEN' && (!value || value === '')) {
+				value = this.env.CLOUDFLARE_AI_GATEWAY_TOKEN;
+			}
+			
 			if (value && value !== '') {
 				// Skip placeholder values
 				if (
