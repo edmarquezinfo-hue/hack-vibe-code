@@ -45,7 +45,6 @@ import { AGENT_CONFIG } from '../inferutils/config';
 import { ModelConfigService } from '../../database/services/ModelConfigService';
 import { SecretsService } from '../../database/services/SecretsService';
 import { FileFetcher, fixProjectIssues } from '../../services/code-fixer';
-import { FileProcessing } from '../domain/pure/FileProcessing';
 import { FastCodeFixerOperation } from '../operations/FastCodeFixer';
 import { getProtocolForHost } from '../../utils/urls';
 import { looksLikeCommand } from '../utils/common';
@@ -302,6 +301,28 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     getPhasesCounter(): number {
         return this.state.phasesCounter;
     }
+    
+    async generateReadme() {
+        this.logger.info('Generating README.md');
+        // Only generate if it doesn't exist
+        if (this.fileManager.fileExists('README.md')) {
+            this.logger.info('README.md already exists');
+            return;
+        }
+        this.broadcast(WebSocketMessageResponses.FILE_GENERATING, {
+            message: 'Generating README.md',
+            filePath: 'README.md',
+            filePurpose: 'Project documentation and setup instructions'
+        });
+        const readme = await this.getProjectSetupAssistant().generateReadme();
+        this.logger.info('README.md generated successfully');
+        // Save it
+        this.fileManager.saveGeneratedFile(readme);
+        this.broadcast(WebSocketMessageResponses.FILE_GENERATED, {
+            message: 'README.md generated successfully',
+            file: readme
+        });
+    }
 
     /**
      * State machine controller for code generation with user interaction support
@@ -540,7 +561,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                     for (const fileToFix of reviewResult.filesToFix) {
                         if (!fileToFix.require_code_changes) continue;
                         
-                        const fileToRegenerate = this.state.generatedFilesMap[fileToFix.filePath];
+                        const fileToRegenerate = this.fileManager.getGeneratedFile(fileToFix.filePath);
                         if (!fileToRegenerate) {
                             this.logger.warn(`File to fix not found in generated files: ${fileToFix.filePath}`);
                             continue;
@@ -618,7 +639,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         // Run final review and cleanup phase
         await this.implementPhase(phaseConcept, currentIssues, null);
 
-        const numFilesGenerated = Object.keys(this.state.generatedFilesMap).length;
+        const numFilesGenerated = this.fileManager.getGeneratedFilePaths().length;
         this.logger.info(`Finalization complete. Generated ${numFilesGenerated}/${this.getTotalFiles()} files.`);
 
         // Transition to IDLE - generation complete
@@ -983,7 +1004,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
 
     getTotalFiles(): number {
         return PhaseManagement.getTotalFiles(
-            Object.keys(this.state.generatedFilesMap).length,
+            this.fileManager.getGeneratedFilePaths().length,
             this.state.currentPhase || this.state.blueprint.initialPhase
         );
     }
@@ -1157,7 +1178,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
 
         this.logger.info(`Linting code in sandbox instance ${sandboxInstanceId}`);
 
-        const files = Object.keys(this.state.generatedFilesMap);
+        const files = this.fileManager.getGeneratedFilePaths();
 
         try {
             const analysisResponse = await this.getSandboxServiceClient()?.runStaticAnalysisCode(sandboxInstanceId, files);
@@ -1210,7 +1231,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     //             return;
     //         }
     //         const issues = staticAnalysis.typecheck.issues.concat(staticAnalysis.lint.issues);
-    //         const allFiles = FileProcessing.getAllFiles(this.state.templateDetails, this.state.generatedFilesMap);
+    //         const allFiles = this.fileManager.getAllFiles();
     //         const context = GenerationContext.from(this.state, this.logger);
 
     //         const fastCodeFixer = await this.operations.fastCodeFixer.execute({
@@ -1256,7 +1277,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             });
 
             this.logger.info(`Attempting to fix ${typeCheckIssues.length} TypeScript issues using deterministic code fixer`);
-            const allFiles = FileProcessing.getAllFiles(this.state.templateDetails, this.state.generatedFilesMap);
+            const allFiles = this.fileManager.getAllFiles();
 
             // Create file fetcher callback
             const fileFetcher: FileFetcher = async (filePath: string) => {
@@ -2183,14 +2204,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                     this.logger.error('Error starting generation from user input:', error);
                 });
             }
-            // For PHASE_GENERATING and PHASE_IMPLEMENTING states, just queue the input - it will be processed naturally
-
-            // Send response back to user via WebSocket
-            // this.broadcast(WebSocketMessageResponses.CONVERSATION_RESPONSE, {
-            //     message: conversationResponse.userResponse,
-            //     enhancedRequest: conversationResponse.enhancedUserRequest,
-            //     pendingInputsCount: updatedPendingInputs.length
-            // });
 
             this.logger.info('User input processed successfully', {
                 responseLength: conversationResponse.userResponse.length,

@@ -1,6 +1,4 @@
 import { z } from 'zod';
-// XML Parser: fast-xml-parser
-import { XMLParser, XMLValidator } from 'fast-xml-parser';
 // Markdown Parser: unified/remark
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
@@ -13,7 +11,7 @@ import type {
 import { createLogger, StructuredLogger } from '../../logger';
 
 // --- Existing Types and Logger Setup ---
-export type SchemaFormat = 'xml' | 'markdown';
+export type SchemaFormat = 'markdown';
 export type FormatterOptions = {
     rootTagName?: string;
     headingLevel?: number;
@@ -1289,283 +1287,6 @@ function mapSectionToSchema(
     return convertedValue;
 }
 
-// --- XML PARSING (Using fast-xml-parser) ---
-
-// --- Formatting Functions (XML kept for context) ---
-export function formatSchemaAsXml(schema: z.ZodObject<any>, options: FormatterOptions = {}): string {
-    const rootTagName = options.rootTagName || 'output';
-    return `<${rootTagName}>\n${formatZodSchemaAsXmlFields(schema)}\n</${rootTagName}>`;
-}
-function formatZodSchemaAsXmlFields(schema: z.ZodObject<any>, indent = '  '): string {
-    const shape = schema._def.shape();
-    let result = '';
-    for (const [key, value] of Object.entries(shape)) {
-        if (!value) continue;
-        const field = value as z.ZodTypeAny;
-        result += formatZodTypeAsXml(key, field, indent);
-    }
-    return result;
-}
-
-function formatZodTypeAsXml(key: string, field: z.ZodTypeAny, indent = '  '): string {
-    const description = field.description ? ` ` : ''; // XML Comment for description
-
-    let baseField = field;
-    while (baseField instanceof z.ZodOptional || baseField instanceof z.ZodNullable || baseField instanceof z.ZodDefault) {
-        baseField = baseField._def.innerType;
-    }
-
-    const isOptional = field instanceof z.ZodOptional || field instanceof z.ZodDefault; // Default implies optionality in XML structure
-    const optionalAttr = isOptional ? ' optional="true"' : '';
-
-
-    if (baseField instanceof z.ZodString) {
-        const placeholder = baseField._def.checks?.find(c => c.kind === 'uuid') ? '[UUID string]' :
-            baseField._def.checks?.find(c => c.kind === 'email') ? '[email string]' :
-                baseField._def.checks?.find(c => c.kind === 'url') ? 'https://example.com/string' :
-                    '[String content]';
-        return `${indent}<${key}${optionalAttr}>${placeholder}</${key}>${description}\n`;
-    }
-    else if (baseField instanceof z.ZodNumber) {
-        const placeholder = baseField._def.checks?.some(c => c.kind === 'int') ? '[Integer value]' : '[Numeric value]';
-        return `${indent}<${key}${optionalAttr}>${placeholder}</${key}>${description}\n`;
-    }
-    else if (baseField instanceof z.ZodBoolean) {
-        return `${indent}<${key}${optionalAttr}>[true or false]</${key}>${description}\n`;
-    }
-    else if (baseField instanceof z.ZodEnum || baseField instanceof z.ZodNativeEnum) {
-        const values = baseField._def.values;
-        const placeholder = `[One of: ${values.join(', ')}]`;
-        return `${indent}<${key}${optionalAttr}>${placeholder}</${key}>${description}\n`;
-    }
-    else if (baseField instanceof z.ZodArray) {
-        const innerType = baseField._def.type;
-        let itemExample = '';
-        const singularKey = singularize(key); // Use singularize here too
-        const itemTag = singularKey !== key ? singularKey.toLowerCase() : 'item'; // Use lower case for tag name
-
-        if (innerType instanceof z.ZodObject) {
-            itemExample = `\n${indent}  <${itemTag}>\n${formatZodSchemaAsXmlFields(innerType, indent + '    ')}${indent}  </${itemTag}>`;
-            itemExample += `\n${indent}  <${itemTag}>\n${formatZodSchemaAsXmlFields(innerType, indent + '    ')}${indent}  </${itemTag}>\n${indent}`;
-        } else {
-            const simpleDesc = getSimpleTypeDescription(innerType);
-            itemExample = `\n${indent}  <${itemTag}>[${simpleDesc} 1]</${itemTag}>`;
-            itemExample += `\n${indent}  <${itemTag}>[${simpleDesc} 2]</${itemTag}>\n${indent}`;
-        }
-        return `${indent}<${key}${optionalAttr}>${description}${itemExample}</${key}>\n`;
-    }
-    else if (baseField instanceof z.ZodObject) {
-        return `${indent}<${key}${optionalAttr}>${description}\n${formatZodSchemaAsXmlFields(baseField, indent + '  ')}${indent}</${key}>\n`;
-    }
-    else if (baseField instanceof z.ZodUnion) {
-        // Representing unions accurately in XML template is hard; keep it simple
-        return `${indent}<${key}${optionalAttr}>[Content based on one of the allowed types]</${key}>${description}\n`;
-    }
-    else {
-        return `${indent}<${key}${optionalAttr}>[Content for ${key}]</${key}>${description}\n`;
-    }
-}
-
-function findZodType(schema: z.ZodTypeAny, path: string[]): z.ZodTypeAny | undefined {
-    let currentSchema: z.ZodTypeAny = schema;
-    try {
-        for (const key of path) {
-            let unwrappedSchema = currentSchema;
-            while (unwrappedSchema instanceof z.ZodOptional || unwrappedSchema instanceof z.ZodNullable || unwrappedSchema instanceof z.ZodDefault) {
-                unwrappedSchema = unwrappedSchema._def.innerType;
-            }
-
-            if (unwrappedSchema instanceof z.ZodObject) {
-                currentSchema = unwrappedSchema.shape[key];
-            } else if (unwrappedSchema instanceof z.ZodArray) {
-                currentSchema = unwrappedSchema._def.type; // Assume path segment refers to array item type
-            } else {
-                return undefined;
-            }
-
-            if (!currentSchema) return undefined;
-        }
-        // Final unwrap
-        while (currentSchema instanceof z.ZodOptional || currentSchema instanceof z.ZodNullable || currentSchema instanceof z.ZodDefault) {
-            currentSchema = currentSchema._def.innerType;
-        }
-        return currentSchema;
-    } catch (e) {
-        logger.error(`Error finding Zod type for path ${path.join('.')}: ${e}`);
-        return undefined;
-    }
-}
-
-export function parseXmlContent(content: string, schema: z.ZodObject<any>, options: FormatterOptions = {}): any {
-    const debug = options.debug || false;
-    const rootTagName = options.rootTagName || 'output'; // Expected root tag name
-    if (debug) {
-        logger.debug(`--- Starting XML Parse --- Schema Keys: ${Object.keys(schema._def.shape()).join(', ')}`);
-        logger.debug(`Full XML Content (first 500 chars):\n${content.slice(0, 500)}`);
-    }
-
-    const validationResult = XMLValidator.validate(content);
-    if (validationResult !== true) {
-        logger.warn(`Invalid XML structure: ${validationResult.err.msg}. Parsing may be unreliable.`);
-    }
-
-    const parserOptions = {
-        ignoreAttributes: true, // Simpler: ignore attributes for now
-        // attributeNamePrefix: "_",
-        textNodeName: "_text",
-        parseTagValue: false, // Let our converter handle type coercion based on schema
-        parseAttributeValue: false,
-        trimValues: true,
-        removeNSPrefix: true,
-        commentPropName: "_comment", // Capture comments if needed later
-        // ** Dynamic Array Handling **
-        isArray: (name: string, jpath: string): boolean => {
-            const pathSegments = jpath.split('.').filter(Boolean);
-            // Check if the schema at this path defines an array
-            const currentSchema = findZodType(schema, pathSegments);
-            if (currentSchema instanceof z.ZodArray) return true;
-
-            // Heuristic: If parent schema is array, check common item names
-            const parentPath = pathSegments.slice(0, -1);
-            const parentSchema = findZodType(schema, parentPath);
-            if (parentSchema instanceof z.ZodArray) {
-                const arrayFieldName = parentPath[parentPath.length - 1];
-                const singularName = arrayFieldName?.replace(/es$/, '').replace(/s$/, ''); // Basic singularization
-                // Ensure the second part of the OR evaluates to boolean
-                return name === 'item' || (!!singularName && name === singularName);
-            }
-            return false; // Default: not an array
-        }
-    };
-
-    let parsedJsObj: any;
-    try {
-        const parser = new XMLParser(parserOptions);
-        parsedJsObj = parser.parse(content);
-
-        // Unwrap the root tag if present
-        const rootKeys = Object.keys(parsedJsObj);
-        if (rootKeys.length === 1 && (rootKeys[0] === rootTagName || rootKeys[0] === 'output')) {
-            parsedJsObj = parsedJsObj[rootKeys[0]];
-            if (debug) logger.debug(`Unwrapped root tag '${rootKeys[0]}'`);
-        } else if (rootKeys.length === 1 && !schema.shape[rootKeys[0]]) {
-            // If single root key doesn't match schema or expected root, assume it's the wrapper
-            logger.warn(`Found single root key '${rootKeys[0]}' not in schema or expected root tag. Assuming it's a wrapper.`);
-            parsedJsObj = parsedJsObj[rootKeys[0]];
-        } else if (rootKeys.length === 0) {
-            logger.warn(`XML parsing resulted in empty object.`);
-            parsedJsObj = {};
-        }
-
-
-    } catch (error) {
-        logger.error(`XML parsing failed: ${error instanceof Error ? error.message : String(error)}`);
-        return getDefaultValue(schema);
-    }
-
-    if (debug) {
-        logger.debug(`Parsed JS Object from XML (before mapping):\n${JSON.stringify(parsedJsObj, null, 2)}`);
-    }
-
-    const result = mapParsedJsToSchema(parsedJsObj, schema, schema, { path: [], logger, debug });
-
-    if (debug) {
-        logger.debug(`--- Finished XML Parse --- Result: ${JSON.stringify(result, null, 2)}`);
-    }
-    // Final validation against the schema
-    const finalParsed = schema.safeParse(result);
-    if (!finalParsed.success) {
-        logger.warn(`Final Zod validation failed after XML parsing:`, finalParsed.error.errors);
-        // Return the partially parsed data anyway, or throw? Let's return it.
-        return result;
-    }
-
-    return finalParsed.data;
-}
-
-function mapParsedJsToSchema(jsValue: any, currentSchema: z.ZodTypeAny, rootSchema: z.ZodObject<any>, debugInfo: { path: string[], logger: any, debug: boolean }): any {
-    const { path, logger: currentLogger, debug } = debugInfo;
-    const currentPathStr = path.join('.') || '/';
-    if (debug) currentLogger.debug(`[XML Map Path: ${currentPathStr}]: Mapping value ${JSON.stringify(jsValue)?.slice(0, 100)}... to schema ${currentSchema?.constructor.name}`);
-
-    if (jsValue === undefined || jsValue === null) {
-        // Let getDefaultValue handle optional/nullable/default logic
-        if (debug) currentLogger.debug(`[XML Map Path: ${currentPathStr}]: Input value is null/undefined. Getting default.`);
-        return getDefaultValue(currentSchema);
-    }
-
-    let baseSchema = currentSchema;
-    while (baseSchema instanceof z.ZodOptional || baseSchema instanceof z.ZodNullable || baseSchema instanceof z.ZodDefault) {
-        baseSchema = baseSchema._def.innerType;
-    }
-
-    if (baseSchema instanceof z.ZodObject) {
-        if (typeof jsValue !== 'object' || Array.isArray(jsValue)) {
-            if (debug) currentLogger.warn(`[XML Map Path: ${currentPathStr}]: Expected object for ZodObject, got ${typeof jsValue}. Returning default.`);
-            return getDefaultValue(currentSchema);
-        }
-        const resultObj: Record<string, any> = {};
-        const shape = baseSchema._def.shape();
-        const usedJsKeys = new Set<string>();
-
-        // Iterate schema keys first
-        for (const key in shape) {
-            const fieldSchema = shape[key];
-            const valueFromJs = jsValue[key];
-            usedJsKeys.add(key);
-            resultObj[key] = mapParsedJsToSchema(valueFromJs, fieldSchema, rootSchema, { ...debugInfo, path: [...path, key] });
-        }
-
-        // Warn about extra keys found in XML?
-        // for (const jsKey in jsValue) {
-        //     if (!usedJsKeys.has(jsKey) && jsKey !== '_text' && !jsKey.startsWith('_')) { // Ignore text node and potential attributes
-        //         if (debug) currentLogger.warn(`[XML Map Path: ${currentPathStr}]: Found key '${jsKey}' in XML object not present in Zod schema.`);
-        //     }
-        // }
-        return resultObj;
-
-    } else if (baseSchema instanceof z.ZodArray) {
-        const itemSchema = baseSchema._def.type;
-        // Ensure jsValue is an array
-        let jsArray = jsValue;
-        if (!Array.isArray(jsValue)) {
-            // Handle case where XML has single element not parsed as array
-            if (jsValue !== undefined && jsValue !== null && String(jsValue).trim() !== '') {
-                if (debug) currentLogger.warn(`[XML Map Path: ${currentPathStr}]: Expected array for ZodArray, got ${typeof jsValue}. Wrapping in array.`);
-                jsArray = [jsValue];
-            } else {
-                if (debug) currentLogger.debug(`[XML Map Path: ${currentPathStr}]: Expected array for ZodArray, got empty/nullish value. Returning default.`);
-                return getDefaultValue(currentSchema);
-            }
-        }
-
-        return jsArray.map((item: any, index: number) =>
-            mapParsedJsToSchema(item, itemSchema, rootSchema, { ...debugInfo, path: [...path, String(index)] })
-        );
-
-    } else {
-        // Primitives
-        let primitiveValue = jsValue;
-        // Extract text content if wrapped in `_text` node
-        if (typeof jsValue === 'object' && jsValue !== null && jsValue._text !== undefined) {
-            // Check if there are other keys besides _text (and potential _comment)
-            const otherKeys = Object.keys(jsValue).filter(k => k !== '_text' && k !== '_comment'); // Ignore comments too
-            if (otherKeys.length === 0) {
-                primitiveValue = jsValue._text;
-                if (debug) currentLogger.debug(`[XML Map Path: ${currentPathStr}]: Extracted primitive value from _text node.`);
-            } else {
-                if (debug) currentLogger.warn(`[XML Map Path: ${currentPathStr}]: Object contains _text and other keys (${otherKeys.join(', ')}). Using _text value anyway.`);
-                primitiveValue = jsValue._text; // Use _text even if other keys exist? Risky but might be intended.
-            }
-        }
-
-        if (debug) currentLogger.debug(`[XML Map Path: ${currentPathStr}]: Converting primitive value ${JSON.stringify(primitiveValue)?.slice(0, 100)}... using schema ${baseSchema?.constructor.name}`);
-        // Use the original schema (including optional/nullable/default) for conversion
-        return convertToPrimitive(primitiveValue, currentSchema, debugInfo);
-    }
-}
-
-
 // --- Template Registry (Update parsers) ---
 interface TemplateRegistryEntry {
     template: (schema: z.AnyZodObject, options?: FormatterOptions) => string;
@@ -1574,12 +1295,6 @@ interface TemplateRegistryEntry {
     parser: <OutputSchema extends z.AnyZodObject>(content: string, schema: OutputSchema, options?: FormatterOptions) => z.infer<OutputSchema>;
 }
 
-const xmlPrompt = (template: string) => `
-<OUTPUT FORMAT>
-Please output your response strictly in XML format following this exact structure (replace placeholder values with actual content):
-${template}
-</OUTPUT FORMAT>
-`;
 const markdownPrompt = (template: string) => `
 <OUTPUT FORMAT>
 Output format: Structured Markdown based schema
@@ -1601,12 +1316,6 @@ ${template}
 </OUTPUT FORMAT>
 `;
 export const TemplateRegistry: Record<SchemaFormat, TemplateRegistryEntry> = {
-    xml: {
-        template: formatSchemaAsXml,
-        serialize: formatDataAsMarkdown,
-        prompt: xmlPrompt,
-        parser: parseXmlContent,
-    },
     markdown: {
         template: formatSchemaAsMarkdown,
         serialize: formatDataAsMarkdown,

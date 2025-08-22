@@ -2,6 +2,7 @@ import { IFileManager } from '../interfaces/IFileManager';
 import { IStateManager } from '../interfaces/IStateManager';
 import { FileOutputType } from '../../schemas';
 import { TemplateDetails } from '../../../services/sandbox/sandboxTypes';
+import { FileProcessing } from '../../domain/pure/FileProcessing';
 
 /**
  * Manages file operations for code generation
@@ -24,21 +25,7 @@ export class FileManager implements IFileManager {
 
     getAllFiles(): FileOutputType[] {
         const state = this.stateManager.getState();
-        const templateFiles = state.templateDetails?.files.map(file => ({
-            filePath: file.filePath,
-            fileContents: file.fileContents,
-            filePurpose: 'Boilerplate template file'
-        })) || [];
-        
-        // Filter out template files that have been overridden
-        const nonOverriddenTemplateFiles = templateFiles.filter(
-            file => !state.generatedFilesMap[file.filePath]
-        );
-        
-        return [
-            ...nonOverriddenTemplateFiles,
-            ...Object.values(state.generatedFilesMap)
-        ];
+        return FileProcessing.getAllFiles(state.templateDetails, state.generatedFilesMap);
     }
 
     saveGeneratedFile(file: FileOutputType): void {

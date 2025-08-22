@@ -4,7 +4,7 @@ import z from 'zod';
 import { Blueprint, BlueprintSchema, ClientReportedErrorSchema, ClientReportedErrorType, FileOutputType, PhaseConceptSchema, PhaseConceptType } from "./schemas";
 import { TemplateSelection } from "./planning/templateSelector";
 import { IssueReport } from "./domain/values/IssueReport";
-import { SCOFFormat } from "./code-formats/scof";
+import { SCOFFormat } from "./streaming-formats/scof";
 import { MAX_PHASES } from "./core/state";
 
 export const PROMPT_UTILS = {
