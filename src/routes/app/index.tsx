@@ -216,17 +216,6 @@ export default function AppView() {
 		}
 	};
 
-	const handleWorkFurther = () => {
-		if (!app) return;
-
-		if (app.userId === user?.id) {
-			// Owner can directly edit
-			navigate(`/chat/${app.id}`);
-		} else {
-			// Non-owners need to fork first
-			handleFork();
-		}
-	};
 
 	const handleCopyUrl = () => {
 		if (!app?.cloudflareUrl) return;
@@ -539,28 +528,43 @@ export default function AppView() {
 								</Button>
 							)}
 
-							<Button
-								size="sm"
-								onClick={handleWorkFurther}
-								className="gap-2"
-							>
-								{isOwner ? (
-									<Code2 className="h-4 w-4" />
-								) : (
-									<Shuffle className="h-4 w-4" />
-								)}
-								{isOwner ? 'Continue Editing' : 'Remix'}
-							</Button>
-
-							{isOwner && (
+							{isOwner ? (
+								<>
+									<Button
+										size="sm"
+										onClick={() => navigate(`/chat/${app.id}`)}
+										className="gap-2"
+									>
+										<Code2 className="h-4 w-4" />
+										Continue Editing
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={handleFork}
+										className="gap-2"
+									>
+										<Shuffle className="h-4 w-4" />
+										Remix
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => setIsDeleteDialogOpen(true)}
+										className="gap-2 text-destructive border-destructive hover:bg-destructive/10 hover:border-destructive/70 transition-colors"
+									>
+										<Trash2 className="h-4 w-4" />
+										Delete App
+									</Button>
+								</>
+							) : (
 								<Button
-									variant="outline"
 									size="sm"
-									onClick={() => setIsDeleteDialogOpen(true)}
-									className="gap-2 text-destructive border-destructive hover:bg-destructive/10 hover:border-destructive/70 transition-colors"
+									onClick={handleFork}
+									className="gap-2"
 								>
-									<Trash2 className="h-4 w-4" />
-									Delete App
+									<Shuffle className="h-4 w-4" />
+									Remix
 								</Button>
 							)}
 						</div>

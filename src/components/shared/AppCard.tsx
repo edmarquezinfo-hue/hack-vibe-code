@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { 
   Star, 
   Eye, 
-  GitBranch, 
+  Shuffle, 
   Code2, 
   User, 
   Lock, 
@@ -94,7 +94,7 @@ const DEPLOYMENT_STATUS_CONFIG: Record<DeploymentStatus, DeploymentStatusInfo> =
 const STATS_ICONS = {
   viewCount: Eye,
   starCount: Star,
-  forkCount: GitBranch
+  forkCount: Shuffle
 } as const;
 
 // Type-safe utility functions

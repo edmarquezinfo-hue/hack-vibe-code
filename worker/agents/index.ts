@@ -42,7 +42,7 @@ export async function cloneAgent(env: Env, agentId: string) : Promise<{newAgentI
     const newAgentId = generateId();
 
     const newAgent = await getAgentStub(env, newAgentId);
-    const originalState = agentInstance.getState() as CodeGenState;
+    const originalState = await agentInstance.getState() as CodeGenState;
     const newState = {
         ...originalState,
         sessionId: newAgentId,
