@@ -5,7 +5,6 @@ import {
 	Plus,
 	ChevronRight,
 	Search,
-	Code2,
 	Globe,
 	Lock,
 	Users2,
@@ -52,8 +51,9 @@ import { AppActionsDropdown } from '@/components/shared/AppActionsDropdown';
 interface App {
 	id: string;
 	title: string;
-	framework?: string;
-	updatedAt: string;
+	framework?: string | null;
+	updatedAt: Date | null;
+	updatedAtFormatted?: string;
 	visibility: 'private' | 'team' | 'board' | 'public';
 	isFavorite?: boolean;
 }
@@ -65,6 +65,75 @@ interface Board {
 	memberCount: number;
 	appCount: number;
 	iconUrl?: string | null;
+}
+
+// Reusable AppMenuItem component for consistent app display
+interface AppMenuItemProps {
+	app: App;
+	onClick: (id: string) => void;
+	variant?: 'recent' | 'bookmarked';
+	showActions?: boolean;
+	isCollapsed: boolean;
+	getVisibilityIcon: (visibility: App['visibility']) => React.ReactNode;
+}
+
+function AppMenuItem({ 
+	app, 
+	onClick, 
+	variant = 'recent',
+	showActions = true,
+	isCollapsed,
+	getVisibilityIcon 
+}: AppMenuItemProps) {
+	const formatTimestamp = () => {
+		if (app.updatedAtFormatted) return app.updatedAtFormatted;
+		if (app.updatedAt && isValid(app.updatedAt)) {
+			return formatDistanceToNow(app.updatedAt, { addSuffix: true });
+		}
+		return 'Recently';
+	};
+
+	return (
+		<SidebarMenuItem className="group/app-item">
+			<SidebarMenuButton
+				onClick={() => onClick(app.id)}
+				tooltip={app.title}
+				className="cursor-pointer transition-opacity hover:opacity-75"
+			>
+				<div className="flex-1 min-w-0 pr-2">
+					<div className="flex items-center gap-2 min-w-0">
+						{variant === 'bookmarked' && (
+							<Bookmark className="h-3 w-3 fill-yellow-500 text-yellow-500 flex-shrink-0" />
+						)}
+						<div className="flex-shrink-0">
+							{getVisibilityIcon(app.visibility)}
+						</div>
+						<div className="relative flex-1 min-w-0 overflow-hidden">
+							<span className="font-medium text-primary/80 whitespace-nowrap">
+								{app.title}
+							</span>
+							<div className="absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-bg-2 to-transparent pointer-events-none" />
+						</div>
+					</div>
+					<p className="text-xs text-muted-foreground truncate">
+						{formatTimestamp()}
+					</p>
+				</div>
+			</SidebarMenuButton>
+			
+			{!isCollapsed && showActions && (
+				<SidebarMenuAction asChild className="opacity-0 group-hover/app-item:opacity-100 transition-opacity">
+					<AppActionsDropdown
+						appId={app.id}
+						appTitle={app.title}
+						size="sm"
+						className="h-6 w-6"
+						showOnHover={false}
+					/>
+				</SidebarMenuAction>
+			)}
+		</SidebarMenuItem>
+	);
 }
 
 export function AppSidebar() {
@@ -88,19 +157,6 @@ export function AppSidebar() {
 
 	const boards: Board[] = []; // Remove mock boards
 
-	const getFrameworkIcon = (framework?: string) => {
-		return null;
-		switch (framework) {
-			case 'react':
-				return <Code2 className="h-4 w-4 text-blue-500" />;
-			case 'vue':
-				return <Code2 className="h-4 w-4 text-green-500" />;
-			case 'svelte':
-				return <Code2 className="h-4 w-4 text-orange-500" />;
-			default:
-				return <Code2 className="h-4 w-4 text-muted-foreground" />;
-		}
-	};
 
 	const getVisibilityIcon = (visibility: App['visibility']) => {
 		switch (visibility) {
@@ -197,8 +253,8 @@ export function AppSidebar() {
 						</SidebarGroupContent>
 					</SidebarGroup>
 
-					{!isCollapsed && (
-						<ScrollArea className="flex-1 px-1 relative">
+                    {!isCollapsed && (
+					    <ScrollArea className="flex-1 px-1 relative">
 							{/* Gradient fade overlay for app names at sidebar edge */}
 							<div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-bg-2 to-transparent pointer-events-none z-10"></div>
 							{/* Navigation */}
@@ -221,50 +277,15 @@ export function AppSidebar() {
 										</div>
 										<SidebarMenu>
 											{recentApps.map((app) => (
-												<SidebarMenuItem key={app.id} className="group">
-													<SidebarMenuButton
-														onClick={() =>
-															navigate(
-																`/app/${app.id}`,
-															)
-														}
-														tooltip={app.title}
-														className="app-item-button pl-2 hover:cursor-pointer hover:opacity-60"
-													>
-														<div className="flex-1 min-w-0">
-															<div className="flex items-center gap-2">
-																<span className="truncate font-medium text-primary/80">
-																	{app.title}
-																</span>
-																<div className="opacity-0 group-hover:opacity-100 transition-opacity">
-																	{getVisibilityIcon(
-																		app.visibility,
-																	)}
-																</div>
-															</div>
-															<p className="text-xs text-muted-foreground">
-																{app.updatedAt ? (
-																	(() => {
-																		const date = new Date(app.updatedAt);
-																		return isValid(date) ? formatDistanceToNow(date, { addSuffix: true }) : 'Recently';
-																	})()
-																) : 'Recently'}
-															</p>
-														</div>
-													</SidebarMenuButton>
-													
-													{!isCollapsed && (
-														<SidebarMenuAction asChild className="opacity-100">
-															<AppActionsDropdown
-																appId={app.id}
-																appTitle={app.title}
-																size="sm"
-																className="h-6 w-6"
-																showOnHover={false}
-															/>
-														</SidebarMenuAction>
-													)}
-												</SidebarMenuItem>
+												<AppMenuItem
+													key={app.id}
+													app={app}
+													onClick={(id) => navigate(`/app/${id}`)}
+													variant="recent"
+													showActions={true}
+													isCollapsed={isCollapsed}
+													getVisibilityIcon={getVisibilityIcon}
+												/>
 											))}
 											{moreAvailable && (
 												<SidebarMenuItem>
@@ -307,40 +328,15 @@ export function AppSidebar() {
 										<SidebarGroupContent>
 											<SidebarMenu>
 												{favoriteApps.map((app) => (
-													<SidebarMenuItem
+													<AppMenuItem
 														key={app.id}
-													>
-														<SidebarMenuButton
-															onClick={() =>
-																navigate(
-																	`/app/${app.id}`,
-																)
-															}
-															tooltip={app.title}
-															className="favorite-item-button"
-														>
-															{getFrameworkIcon(
-																app.framework || undefined,
-															)}
-															{!isCollapsed && (
-																<span className="truncate">
-																	{app.title}
-																</span>
-															)}
-														</SidebarMenuButton>
-														
-														{!isCollapsed && (
-															<SidebarMenuAction asChild className="opacity-100">
-																<AppActionsDropdown
-																	appId={app.id}
-																	appTitle={app.title}
-																	size="sm"
-																	className="h-6 w-6"
-																	showOnHover={false}
-																/>
-															</SidebarMenuAction>
-														)}
-													</SidebarMenuItem>
+														app={app}
+														onClick={(id) => navigate(`/app/${id}`)}
+														variant="bookmarked"
+														showActions={true}
+														isCollapsed={isCollapsed}
+														getVisibilityIcon={getVisibilityIcon}
+													/>
 												))}
 											</SidebarMenu>
 										</SidebarGroupContent>
@@ -483,11 +479,11 @@ export function AppSidebar() {
 								<SidebarMenuButton
 									onClick={() => navigate('/discover')}
 									tooltip="Discover"
-									className="nav-button"
+									className="group hover:opacity-80 hover:cursor-pointer hover:bg-bg-1/50 transition-all duration-200"
 								>
-									<Compass className="h-4 w-4 text-primary/60" />
+									<Compass className="h-4 w-4 text-primary/60 group-hover:text-primary/80 transition-colors" />
 									{!isCollapsed && (
-										<span className="text-primary/80 font-medium">
+										<span className="text-primary/80 font-medium group-hover:text-primary transition-colors">
 											Discover
 										</span>
 									)}
@@ -497,11 +493,11 @@ export function AppSidebar() {
 								<SidebarMenuButton
 									onClick={() => navigate('/settings')}
 									tooltip="Settings"
-									className="settings-button"
+									className="group hover:opacity-80 hover:cursor-pointer hover:bg-bg-1/50 transition-all duration-200"
 								>
-									<Settings className="h-4 w-4 text-primary/60" />
+									<Settings className="h-4 w-4 text-primary/60 group-hover:text-primary/80 transition-colors" />
 									{!isCollapsed && (
-										<span className="font-medium text-primary/80">
+										<span className="font-medium text-primary/80 group-hover:text-primary transition-colors">
 											Settings
 										</span>
 									)}

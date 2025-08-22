@@ -14,6 +14,7 @@ import { logger } from '../../../utils/logger';
 import { getPreviewUrl } from '@/lib/utils';
 import { generateId } from '../../../utils/id-generator';
 import { apiClient } from '@/lib/api-client';
+import { appEvents } from '@/lib/app-events';
 
 export interface FileType {
 	filePath: string;
@@ -1239,6 +1240,12 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 					logger.debug('connecting to ws with created id');
 					connect(result.websocketUrl);
 					setChatId(result.agentId); // This comes from the server response
+					
+					// Emit app-created event for sidebar updates
+					appEvents.emitAppCreated(result.agentId, {
+						title: userQuery || 'New App',
+						description: userQuery,
+					});
 				} else if (connectionStatus.current === 'idle') {
 					setIsBootstrapping(false);
 					// Get existing progress

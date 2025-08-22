@@ -2,6 +2,54 @@ import { useState, useEffect, useMemo } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
 import type { AppWithFavoriteStatus, EnhancedAppData } from '@/api-types';
 import { appEvents } from '@/lib/app-events';
+import type { AppEvent, AppDeletedEvent, AppUpdatedEvent } from '@/lib/app-events';
+
+// Reusable event handlers to maximize code reuse and minimize duplication
+const createAppEventHandlers = <T extends { id: string; updatedAt?: Date | string | null }>(
+  setApps: React.Dispatch<React.SetStateAction<T[]>>,
+  refetchApps?: () => void,
+  options?: {
+    shouldRefetchOnCreate?: boolean;
+    shouldSkipCreate?: boolean;
+  }
+) => {
+  const { shouldRefetchOnCreate = true, shouldSkipCreate = false } = options || {};
+  
+  return {
+    onDeleted: (event: AppEvent) => {
+      if (event.type === 'app-deleted') {
+        const deletedEvent = event as AppDeletedEvent;
+        setApps(prevApps => prevApps.filter(app => app.id !== deletedEvent.appId));
+      }
+    },
+    
+    onCreated: () => {
+      if (!shouldSkipCreate && shouldRefetchOnCreate && refetchApps) {
+        refetchApps();
+      }
+    },
+    
+    onUpdated: (event: AppEvent) => {
+      if (event.type === 'app-updated') {
+        const updatedEvent = event as AppUpdatedEvent;
+        if (updatedEvent.data) {
+          setApps(prevApps => {
+            const updatedApps = [...prevApps];
+            const appIndex = updatedApps.findIndex(app => app.id === updatedEvent.appId);
+            if (appIndex !== -1) {
+              updatedApps[appIndex] = { 
+                ...updatedApps[appIndex], 
+                ...updatedEvent.data, 
+                updatedAt: new Date() 
+              } as T;
+            }
+            return updatedApps;
+          });
+        }
+      }
+    }
+  };
+};
 
 export function useApps() {
   const [apps, setApps] = useState<AppWithFavoriteStatus[]>([]);
@@ -34,12 +82,17 @@ export function useApps() {
   useEffect(() => {
     fetchApps();
 
-    // Listen for app deletion events to automatically refetch
-    const unsubscribe = appEvents.on('app-deleted', () => {
-      fetchApps();
-    });
+    // Use reusable event handlers to eliminate code duplication
+    const eventHandlers = createAppEventHandlers(setApps, fetchApps);
+    const unsubscribeDeleted = appEvents.on('app-deleted', eventHandlers.onDeleted);
+    const unsubscribeCreated = appEvents.on('app-created', eventHandlers.onCreated);
+    const unsubscribeUpdated = appEvents.on('app-updated', eventHandlers.onUpdated);
 
-    return unsubscribe;
+    return () => {
+      unsubscribeDeleted();
+      unsubscribeCreated();
+      unsubscribeUpdated();
+    };
   }, []);
 
   return { apps, loading, error, refetch: fetchApps };
@@ -102,12 +155,19 @@ export function useFavoriteApps() {
   useEffect(() => {
     fetchFavorites();
 
-    // Listen for app deletion events to automatically refetch
-    const unsubscribe = appEvents.on('app-deleted', () => {
-      fetchFavorites();
+    // Use reusable event handlers with configuration for favorite apps behavior
+    const eventHandlers = createAppEventHandlers(setFavoriteApps, fetchFavorites, {
+      shouldSkipCreate: true, // New creations don't automatically become favorites
     });
+    const unsubscribeDeleted = appEvents.on('app-deleted', eventHandlers.onDeleted);
+    const unsubscribeCreated = appEvents.on('app-created', eventHandlers.onCreated);
+    const unsubscribeUpdated = appEvents.on('app-updated', eventHandlers.onUpdated);
 
-    return unsubscribe;
+    return () => {
+      unsubscribeDeleted();
+      unsubscribeCreated();
+      unsubscribeUpdated();
+    };
   }, []);
 
   return { 
@@ -150,12 +210,17 @@ export function useEnhancedApps() {
   useEffect(() => {
     fetchApps();
 
-    // Listen for app deletion events to automatically refetch
-    const unsubscribe = appEvents.on('app-deleted', () => {
-      fetchApps();
-    });
+    // Use reusable event handlers to eliminate code duplication
+    const eventHandlers = createAppEventHandlers(setApps, fetchApps);
+    const unsubscribeDeleted = appEvents.on('app-deleted', eventHandlers.onDeleted);
+    const unsubscribeCreated = appEvents.on('app-created', eventHandlers.onCreated);
+    const unsubscribeUpdated = appEvents.on('app-updated', eventHandlers.onUpdated);
 
-    return unsubscribe;
+    return () => {
+      unsubscribeDeleted();
+      unsubscribeCreated();
+      unsubscribeUpdated();
+    };
   }, []);
 
   return { apps, loading, error, refetch: fetchApps };
@@ -218,12 +283,19 @@ export function useEnhancedFavoriteApps() {
   useEffect(() => {
     fetchFavorites();
 
-    // Listen for app deletion events to automatically refetch
-    const unsubscribe = appEvents.on('app-deleted', () => {
-      fetchFavorites();
+    // Use reusable event handlers with configuration for enhanced favorite apps behavior
+    const eventHandlers = createAppEventHandlers(setFavoriteApps, fetchFavorites, {
+      shouldSkipCreate: true, // New creations don't automatically become favorites
     });
+    const unsubscribeDeleted = appEvents.on('app-deleted', eventHandlers.onDeleted);
+    const unsubscribeCreated = appEvents.on('app-created', eventHandlers.onCreated);
+    const unsubscribeUpdated = appEvents.on('app-updated', eventHandlers.onUpdated);
 
-    return unsubscribe;
+    return () => {
+      unsubscribeDeleted();
+      unsubscribeCreated();
+      unsubscribeUpdated();
+    };
   }, []);
 
   return { 

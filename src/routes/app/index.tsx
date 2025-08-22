@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import type { AgentStateData, AppDetailsData, FileType } from '@/api-types';
 import { apiClient, ApiError } from '@/lib/api-client';
+import { appEvents } from '@/lib/app-events';
 import {
 	Star,
 	Eye,
@@ -43,7 +44,6 @@ import { formatDistanceToNow, isValid } from 'date-fns';
 import { toast } from 'sonner';
 import { capitalizeFirstLetter, cn, getPreviewUrl } from '@/lib/utils';
 import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
-import { appEvents } from '@/lib/app-events';
 
 // Use proper types from API types
 type AppDetails = AppDetailsData;
@@ -206,6 +206,14 @@ export default function AppView() {
 			
 			if (response.success && response.data) {
 				toast.success(response.data.message || 'App forked successfully!');
+				
+				// Emit app-created event for sidebar updates
+				appEvents.emitAppCreated(response.data.forkedAppId, {
+					title: `${app.title} (Remix)`,
+					description: app.description || undefined,
+					isForked: true
+				});
+				
 				navigate(`/chat/${response.data.forkedAppId}`);
 			} else {
 				throw new Error(response.error || 'Failed to fork app');

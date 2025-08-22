@@ -4,26 +4,37 @@
  */
 
 // Define specific event data types
-interface AppDeletedEvent {
+export interface AppDeletedEvent {
   type: 'app-deleted';
   appId: string;
 }
 
-interface AppUpdatedEvent {
-  type: 'app-updated';
+export interface AppCreatedEvent {
+  type: 'app-created';
   appId: string;
   data?: {
     title?: string;
     description?: string;
     visibility?: string;
+    isForked?: boolean;
+  };
+}
+
+export interface AppUpdatedEvent {
+  type: 'app-updated';
+  appId: string;
+  data?: {
+    title?: string;
+    description?: string;
+    visibility?: 'private' | 'public' | 'team' | 'board';
     deploymentUrl?: string;
     screenshotUrl?: string;
   };
 }
 
-type AppEvent = AppDeletedEvent | AppUpdatedEvent;
-type AppEventType = AppEvent['type'];
-type AppEventListener = (event: AppEvent) => void;
+export type AppEvent = AppDeletedEvent | AppCreatedEvent | AppUpdatedEvent;
+export type AppEventType = AppEvent['type'];
+export type AppEventListener = (event: AppEvent) => void;
 
 class AppEventEmitter {
   private listeners: Map<AppEventType, Set<AppEventListener>> = new Map();
@@ -56,6 +67,10 @@ class AppEventEmitter {
   // Convenience methods
   emitAppDeleted(appId: string) {
     this.emit({ type: 'app-deleted', appId });
+  }
+
+  emitAppCreated(appId: string, data?: AppCreatedEvent['data']) {
+    this.emit({ type: 'app-created', appId, data });
   }
 
   emitAppUpdated(appId: string, data?: AppUpdatedEvent['data']) {

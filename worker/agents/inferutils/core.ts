@@ -368,7 +368,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
         //     console.log("===============================================================================================================================================")
         // });
 
-		console.log(`Running inference with ${modelName} using structured output with ${format} format, reasoning effort: ${reasoning_effort}, max tokens: ${maxTokens}, temperature: ${temperature}, baseURL: ${baseURL}, apiKey: ${apiKey}, defaultHeaders: ${defaultHeaders}`);
+		console.log(`Running inference with ${modelName} using structured output with ${format} format, reasoning effort: ${reasoning_effort}, max tokens: ${maxTokens}, temperature: ${temperature}, baseURL: ${baseURL}, defaultHeaders: ${defaultHeaders}`);
 		// Optimize messages to reduce token count
 		const optimizedMessages = optimizeInputs(messages);
 		console.log(`Token optimization: Original messages size ~${JSON.stringify(messages).length} chars, optimized size ~${JSON.stringify(optimizedMessages).length} chars`);

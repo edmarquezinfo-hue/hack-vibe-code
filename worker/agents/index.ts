@@ -9,15 +9,19 @@ export async function getAgentStub(env: Env, agentId: string, searchInOtherJuris
         // Try multiple jurisdictions until we find the agent
         const jurisdictions = [undefined, 'eu' as DurableObjectJurisdiction];
         for (const jurisdiction of jurisdictions) {
-            console.log(`Agent ${agentId} retreiving from jurisdiction ${jurisdiction}`);
-            const stub = await getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, agentId, {
-                locationHint: 'enam',
-                jurisdiction: jurisdiction,
-            });
-            const isInitialized = await stub.isInitialized()
-            if (isInitialized) {
-                console.log(`Agent ${agentId} found in jurisdiction ${jurisdiction}`);
-                return stub
+            try {
+                console.log(`Agent ${agentId} retreiving from jurisdiction ${jurisdiction}`);
+                const stub = await getAgentByName<Env, SmartCodeGeneratorAgent>(env.CodeGenObject, agentId, {
+                    locationHint: 'enam',
+                    jurisdiction: jurisdiction,
+                });
+                const isInitialized = await stub.isInitialized()
+                if (isInitialized) {
+                    console.log(`Agent ${agentId} found in jurisdiction ${jurisdiction}`);
+                    return stub
+                }
+            } catch (error) {
+                console.log(`Agent ${agentId} not found in jurisdiction ${jurisdiction}`);
             }
         }
         // If all jurisdictions fail, throw an error
