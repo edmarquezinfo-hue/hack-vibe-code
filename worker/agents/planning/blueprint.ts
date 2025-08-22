@@ -5,6 +5,7 @@ import { Blueprint, BlueprintSchema } from '../schemas';
 import { TemplateSelection } from './templateSelector';
 import { createLogger } from '../../logger';
 import { createSystemMessage, createUserMessage } from '../inferutils/common';
+import { InferenceMetadata } from '../inferutils/config.types';
 
 const logger = createLogger('Blueprint');
 
@@ -187,7 +188,7 @@ Preinstalled dependencies:
 
 export interface BlueprintGenerationArgs {
     env: Env;
-    agentId: string;
+    metadata: InferenceMetadata;
     query: string;
     language: string;
     frameworks: string[];
@@ -204,7 +205,7 @@ export interface BlueprintGenerationArgs {
  * Generate a blueprint for the application based on user prompt
  */
 // Update function signature and system prompt
-export async function generateBlueprint({ env, agentId, query, language, frameworks, templateDetails, templateMetaInfo, stream }: BlueprintGenerationArgs): Promise<Blueprint> {
+export async function generateBlueprint({ env, metadata, query, language, frameworks, templateDetails, templateMetaInfo, stream }: BlueprintGenerationArgs): Promise<Blueprint> {
     try {
         logger.info("Generating application blueprint", { query, queryLength: query.length });
         logger.info(templateDetails ? `Using template: ${templateDetails.name}` : "Not using a template.");
@@ -244,7 +245,7 @@ export async function generateBlueprint({ env, agentId, query, language, framewo
             messages,
             agentActionName: "blueprint",
             schema: BlueprintSchema,
-            context: { agentId },
+            context: metadata,
             stream: stream,
         });
 

@@ -227,10 +227,11 @@ const userPropmtFormatter = (phaseConcept: PhaseConceptType, issues: IssueReport
         PhaseConceptSchema
     );
     
-    const prompt = USER_PROMPT
-        .replaceAll('{{phaseText}}', phaseText)
-        .replaceAll('{{technicalInstructions}}', formatTechnicalInstructions(technicalInstructions))
-        .replaceAll('{{issues}}', issuesPromptFormatter(issues));
+    const prompt = PROMPT_UTILS.replaceTemplateVariables(USER_PROMPT, {
+        phaseText,
+        technicalInstructions: formatTechnicalInstructions(technicalInstructions),
+        issues: issuesPromptFormatter(issues)
+    });
     return PROMPT_UTILS.verifyPrompt(prompt);
 }
 

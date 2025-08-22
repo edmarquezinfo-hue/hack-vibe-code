@@ -101,7 +101,10 @@ export class CodingAgentController extends BaseController {
             const [analyzeQueryResponse, sandboxClient] = await Promise.all([
                 selectTemplate({
                     env,
-                    agentId: chatId,
+                    metadata: {
+                        agentId: chatId,
+                        userId: '',
+                    },
                     query,
                     availableTemplates: templatesResponse.templates,
                 }), 
@@ -169,7 +172,10 @@ export class CodingAgentController extends BaseController {
             
             generateBlueprint({
                 env,
-                agentId: chatId,
+                metadata: {
+                    agentId: chatId,
+                    userId: '',
+                },
                 query,
                 language: language!,
                 frameworks: frameworks!,

@@ -53,10 +53,11 @@ To fix a file, simply rewrite it's entire contents in the output format provided
 `
 
 const userPromptFormatter = (query: string, issues: CodeIssue[], allFiles: FileOutputType[], _allPhases?: PhaseConceptType[]) => {
-    const prompt = USER_PROMPT
-        .replaceAll('{{query}}', query)
-        .replaceAll('{{issues}}', JSON.stringify(issues, null, 2))
-        .replaceAll('{{codebase}}', PROMPT_UTILS.serializeFiles(allFiles));
+    const prompt = PROMPT_UTILS.replaceTemplateVariables(USER_PROMPT, {
+        query,
+        issues: JSON.stringify(issues, null, 2),
+        codebase: PROMPT_UTILS.serializeFiles(allFiles)
+    });
     return PROMPT_UTILS.verifyPrompt(prompt);
 }
 

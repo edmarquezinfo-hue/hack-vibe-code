@@ -10,6 +10,10 @@ import { ConversationMessage } from "../inferutils/common";
 import { StructuredLogger } from "../../logger";
 import { getToolDefinitions } from "../tools/customTools";
 import { XmlStreamFormat, XmlParsingState, XmlStreamingCallbacks } from "../streaming-formats/xml-stream";
+import { IdGenerator } from "../utils/idGenerator";
+
+// Constants
+const CHUNK_SIZE = 64;
 
 export interface UserConversationInputs {
     userMessage: string;
@@ -96,13 +100,13 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
 
         try {
             const systemPrompts = getSystemPromptWithProjectContext(SYSTEM_PROMPT, context, false);
-            const messages = [...pastMessages, {...createUserMessage(userMessage), conversationId: `conv-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`}];
+            const messages = [...pastMessages, {...createUserMessage(userMessage), conversationId: IdGenerator.generateConversationId()}];
 
             let extractedUserResponse = "";
             let extractedEnhancedRequest = "";
             
             // Generate unique conversation ID for this turn
-            const aiConversationId = `conv-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            const aiConversationId = IdGenerator.generateConversationId();
             
             // Initialize robust XML streaming parser
             const xmlParser = new XmlStreamFormat();
@@ -161,7 +165,7 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
                         // Process chunk through XML parser
                         xmlState = xmlParser.parseXmlStream(chunk, xmlState, xmlCallbacks);
                     },
-                    chunk_size: 64
+                    chunk_size: CHUNK_SIZE
                 }
             });
 
@@ -205,7 +209,7 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
             };
 
             // Save the assistant's response to conversation history
-            messages.push({...createAssistantMessage(result.string), conversationId: `conv-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`});
+            messages.push({...createAssistantMessage(result.string), conversationId: IdGenerator.generateConversationId()});
 
             return {
                 conversationResponse,
@@ -221,8 +225,8 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
                     userResponse: "I received your message and I'm passing it along to our development team. They'll incorporate your feedback in the next phase of development."
                 },
                 newMessages: [
-                    {...createUserMessage(userMessage), conversationId: `conv-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`},
-                    {...createAssistantMessage("I received your message and I'm passing it along to our development team. They'll incorporate your feedback in the next phase of development."), conversationId: `conv-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`}
+                    {...createUserMessage(userMessage), conversationId: IdGenerator.generateConversationId()},
+                    {...createAssistantMessage("I received your message and I'm passing it along to our development team. They'll incorporate your feedback in the next phase of development."), conversationId: IdGenerator.generateConversationId()}
                 ]
             };
         }
@@ -240,7 +244,7 @@ Project Updates: ${updateType}
             return [{
                 role: 'assistant',
                 content: preparedMessage,
-                conversationId: `conv-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+                conversationId: IdGenerator.generateConversationId()
             }];
         } catch (error) {
             logger.error("Error processing project update:", error);

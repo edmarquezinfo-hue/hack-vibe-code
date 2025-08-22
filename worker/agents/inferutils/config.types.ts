@@ -64,9 +64,13 @@ export type ProviderOverrideType = 'cloudflare' | 'direct';
 export type ReasoningEffortType = 'low' | 'medium' | 'high';
 
 export type AgentActionKey = keyof AgentConfig;
-export interface InferenceContext {
+
+export type InferenceMetadata = {
     agentId: string;
-    userId?: string;
+    userId: string;
+}
+
+export interface InferenceContext extends InferenceMetadata {
     userModelConfigs?: Record<AgentActionKey, ModelConfig>;
     userApiKeys?: Record<string, string>;
 }

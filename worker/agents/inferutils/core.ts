@@ -16,7 +16,7 @@ import {
 import { Message, MessageContent, MessageRole } from './common';
 import { ToolCall } from '../tools/types';
 import { executeTool } from '../tools/customTools';
-import { AIModels } from './config.types';
+import { AIModels, InferenceMetadata } from './config.types';
 
 function optimizeInputs(messages: Message[]): Message[] {
 	return messages.map((message) => ({
@@ -184,7 +184,7 @@ export async function getConfigurationForModel(
 
 type InferArgsBase = {
 	env: Env;
-    id: string;
+    metadata: InferenceMetadata;
 	messages: Message[];
 	maxTokens?: number;
 	modelName: AIModels | string;
@@ -280,7 +280,7 @@ export function infer<OutputSchema extends z.AnyZodObject>(
  */
 export async function infer<OutputSchema extends z.AnyZodObject>({
 	env,
-	id,
+    metadata,
 	messages,
 	schema,
 	schemaName,
@@ -388,7 +388,8 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 		}, {
             headers: {
                 "cf-aig-metadata": JSON.stringify({
-                    chatId: id,
+                    chatId: metadata.agentId,
+                    userId: metadata.userId,
                     schemaName,
                 })
             }
@@ -477,7 +478,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
             if (schema && schemaName) {
                 return await infer<OutputSchema>({
                     env,
-                    id,
+                    metadata,
                     messages: newMessages,
                     schema,
                     schemaName,
@@ -493,7 +494,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
             } else {
                 return infer({
                     env,
-                    id,
+                    metadata,
                     messages: newMessages,
                     modelName,
                     maxTokens,

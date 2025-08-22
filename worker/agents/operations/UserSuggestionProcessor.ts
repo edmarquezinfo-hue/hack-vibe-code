@@ -4,6 +4,7 @@ import { executeInference } from '../inferutils/infer';
 import { PROMPT_UTILS } from '../prompts';
 import { AgentOperation, getSystemPromptWithProjectContext, OperationOptions } from '../operations/common';
 import { IssueReport } from '../domain/values/IssueReport';
+import { OperationError } from '../utils/operationError';
 
 export interface UserSuggestionProcessorInputs {
     suggestions: string[];
@@ -126,11 +127,12 @@ const formatUserPrompt = (inputs: UserSuggestionProcessorInputs): string => {
     const userSuggestions = inputs.suggestions.join('\n\n---\n\n');
     const issues = inputs.issues;
     
-    return USER_PROMPT
-        .replaceAll('{{userSuggestions}}', userSuggestions || 'No pending user suggestions')
-        .replaceAll('{{runtimeErrors}}', PROMPT_UTILS.serializeErrors(issues.runtimeErrors || []))
-        .replaceAll('{{staticAnalysis}}', PROMPT_UTILS.serializeStaticAnalysis(issues.staticAnalysis))
-        .replaceAll('{{clientErrors}}', PROMPT_UTILS.serializeClientReportedErrors(issues.clientErrors || []));
+    return PROMPT_UTILS.replaceTemplateVariables(USER_PROMPT, {
+        userSuggestions: userSuggestions || 'No pending user suggestions',
+        runtimeErrors: PROMPT_UTILS.serializeErrors(issues.runtimeErrors || []),
+        staticAnalysis: PROMPT_UTILS.serializeStaticAnalysis(issues.staticAnalysis),
+        clientErrors: PROMPT_UTILS.serializeClientReportedErrors(issues.clientErrors || [])
+    });
 };
 
 export class UserSuggestionProcessor extends AgentOperation<UserSuggestionProcessorInputs, TechnicalInstructionType> {
@@ -197,9 +199,7 @@ export class UserSuggestionProcessor extends AgentOperation<UserSuggestionProces
 
             return result;
         } catch (error) {
-            logger.error("Error processing user suggestions:", error);
-            // Return empty instructions on error
-            throw error;
+            OperationError.logAndThrow(logger, "user suggestion processing", error);
         }
     }
 }

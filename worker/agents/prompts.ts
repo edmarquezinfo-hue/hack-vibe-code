@@ -8,6 +8,22 @@ import { SCOFFormat } from "./streaming-formats/scof";
 import { MAX_PHASES } from "./core/state";
 
 export const PROMPT_UTILS = {
+    /**
+     * Replace template variables in a prompt string
+     * @param template The template string with {{variable}} placeholders
+     * @param variables Object with variable name -> value mappings
+     */
+    replaceTemplateVariables(template: string, variables: Record<string, string>): string {
+        let result = template;
+        
+        for (const [key, value] of Object.entries(variables)) {
+            const placeholder = `{{${key}}}`;
+            result = result.replaceAll(placeholder, value ?? '');
+        }
+        
+        return result;
+    },
+
     serializeTemplate(template?: TemplateDetails, forCodegen: boolean = true): string {
         if (template) {
             // const filesText = JSON.stringify(tpl.files, null, 2);
@@ -666,25 +682,31 @@ export function generalSystemPromptBuilder(
     prompt: string,
     params: GeneralSystemPromptBuilderParams
 ): string {
-    let formattedPrompt = prompt
-        .replaceAll('{{query}}', params.query)
-        .replaceAll('{{template}}', PROMPT_UTILS.serializeTemplate(params.templateDetails, params.forCodegen))
-        .replaceAll('{{dependencies}}', JSON.stringify(params.dependencies || []))
-    
+    // Base variables always present
+    const variables: Record<string, string> = {
+        query: params.query,
+        template: PROMPT_UTILS.serializeTemplate(params.templateDetails, params.forCodegen),
+        dependencies: JSON.stringify(params.dependencies || [])
+    };
+
+    // Optional blueprint variables
     if (params.blueprint) {
-        formattedPrompt = formattedPrompt.replaceAll('{{blueprint}}', TemplateRegistry.markdown.serialize(params.blueprint, BlueprintSchema))
-            .replaceAll('{{blueprintDependencies}}', params.blueprint.frameworks.join(', '));
+        variables.blueprint = TemplateRegistry.markdown.serialize(params.blueprint, BlueprintSchema);
+        variables.blueprintDependencies = params.blueprint.frameworks.join(', ');
     }
 
+    // Optional language and frameworks
     if (params.language) {
-        formattedPrompt = formattedPrompt.replaceAll('{{language}}', params.language);
+        variables.language = params.language;
     }
     if (params.frameworks) {
-        formattedPrompt = formattedPrompt.replaceAll('{{frameworks}}', params.frameworks.join(', '));
+        variables.frameworks = params.frameworks.join(', ');
     }
     if (params.templateMetaInfo) {
-        formattedPrompt = formattedPrompt.replaceAll('{{usecaseSpecificInstructions}}', params.templateMetaInfo ? getUsecaseSpecificInstructions(params.templateMetaInfo) : '');
+        variables.usecaseSpecificInstructions = getUsecaseSpecificInstructions(params.templateMetaInfo);
     }
+
+    const formattedPrompt = PROMPT_UTILS.replaceTemplateVariables(prompt, variables);
     return PROMPT_UTILS.verifyPrompt(formattedPrompt);
 }
 
@@ -706,19 +728,19 @@ ${PROMPT_UTILS.serializeStaticAnalysis(issues.staticAnalysis)}
 
 export const USER_PROMPT_FORMATTER = {
     PROJECT_CONTEXT: (phases: PhaseConceptType[], files: FileOutputType[], commandsHistory: string[]) => {
-        let prompt = PROMPT_UTILS.PROJECT_CONTEXT
-            .replaceAll('{{phases}}', TemplateRegistry.markdown.serialize({ phases: phases }, z.object({ phases: z.array(PhaseConceptSchema) })))
-            .replaceAll('{{files}}', PROMPT_UTILS.serializeFiles(files))
-
-        if (commandsHistory.length > 0) {
-            prompt = prompt.replaceAll('{{commandsHistory}}', `<COMMANDS HISTORY>
+        const variables: Record<string, string> = {
+            phases: TemplateRegistry.markdown.serialize({ phases: phases }, z.object({ phases: z.array(PhaseConceptSchema) })),
+            files: PROMPT_UTILS.serializeFiles(files),
+            commandsHistory: commandsHistory.length > 0 ? `<COMMANDS HISTORY>
 
 The following commands have been executed successfully in the project environment so far (These may not include the ones that are currently pending):
 
 ${commandsHistory.join('\n')}
 
-</COMMANDS HISTORY>`);
-        }
+</COMMANDS HISTORY>` : ''
+        };
+
+        const prompt = PROMPT_UTILS.replaceTemplateVariables(PROMPT_UTILS.PROJECT_CONTEXT, variables);
         
         return PROMPT_UTILS.verifyPrompt(prompt);
     },

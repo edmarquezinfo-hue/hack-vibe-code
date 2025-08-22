@@ -88,18 +88,16 @@ Generate the complete README.md content in markdown format. Do not provide any a
 export class ProjectSetupAssistant extends Assistant<Env> {
     private query: string;
     private logger: StructuredLogger;
-    private inferenceContext: InferenceContext;
     
     constructor({
         env,
-        agentId,
+        inferenceContext,
         query,
         blueprint,
         template,
-        inferenceContext
     }: GenerateSetupCommandsArgs) {
         const systemPrompt = createSystemMessage(SYSTEM_PROMPT);
-        super(env, agentId, systemPrompt);
+        super(env, inferenceContext, systemPrompt);
         this.save([createUserMessage(generalSystemPromptBuilder(SETUP_USER_PROMPT, {
             query,
             blueprint,
@@ -108,8 +106,7 @@ export class ProjectSetupAssistant extends Assistant<Env> {
             forCodegen: false
         }))]);
         this.query = query;
-        this.logger = createObjectLogger(this, 'ProjectSetupAssistant');
-        this.inferenceContext = inferenceContext;
+        this.logger = createObjectLogger(this, 'ProjectSetupAssistant')
     }
 
     async generateSetupCommands(error?: string): Promise<SetupCommandsType> {

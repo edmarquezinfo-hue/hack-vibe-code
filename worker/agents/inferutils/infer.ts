@@ -112,7 +112,7 @@ export async function executeInference<T extends z.AnyZodObject>(   {
 
             const result = schema ? await infer<T>({
                 env,
-                id: context.agentId,
+                metadata: context,
                 messages,
                 schema,
                 schemaName: agentActionName,
@@ -129,7 +129,7 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 userApiKeys: useCheaperModel ? undefined : userApiKeys
             }) : await infer({
                 env,
-                id: context.agentId,
+                metadata: context,
                 messages,
                 maxTokens,
                 modelName: useCheaperModel ? AIModels.GEMINI_2_5_FLASH: modelName,

@@ -8,15 +8,19 @@ import Assistant from "./assistant";
 import { applySearchReplaceDiff } from "../diff-formats";
 import { infer } from "../inferutils/core";
 import { MatchingStrategy, FailedBlock } from "../diff-formats/search-replace";
-import { AIModels, ModelConfig, InferenceContext } from "../inferutils/config.types";
+import { AIModels, ModelConfig, InferenceMetadata } from "../inferutils/config.types";
 // import { analyzeTypeScriptFile } from "../../services/code-fixer/analyzer";
+
+// Constants for magic numbers
+const DEFAULT_PASSES = 5;
+const MAX_RETRIES = 3;
+const FUZZY_THRESHOLD = 0.87;
 
 export interface RealtimeCodeFixerContext {
     previousFiles?: FileOutputType[];
     query: string;
     blueprint: Blueprint;
     template: TemplateDetails;
-    inferenceContext: InferenceContext;
 }
 
 const SYSTEM_PROMPT = `You are a seasoned, highly experienced code inspection officier and senior full-stack engineer specializing in React and TypeScript. Your task is to review and verify if the provided typescript code file wouldn't cause any runtime infinite rendering loops or critical failures, and provide fixes if any. 
@@ -158,36 +162,36 @@ Just reply with the corrected SEARCH/REPLACE blocks in this format:
 >>>>>>> REPLACE`
 
 const userPromptFormatter = (user_prompt: string, query: string, file: FileOutputType, previousFiles?: FileOutputType[], currentPhase?: PhaseConceptType, issues?: string[]) => {
-    let prompt = user_prompt
-        .replaceAll('{{query}}', query)
-        .replaceAll('{{previousFiles}}', previousFiles ? PROMPT_UTILS.serializeFiles(previousFiles) : '')
-        .replaceAll('{{filePath}}', file.filePath)
-        .replaceAll('{{filePurpose}}', file.filePurpose)
-        .replaceAll('{{fileContents}}', file.fileContents)
-        .replaceAll('{{phaseConcept}}', currentPhase ? `
+    const variables: Record<string, string> = {
+        query,
+        previousFiles: previousFiles ? PROMPT_UTILS.serializeFiles(previousFiles) : '',
+        filePath: file.filePath,
+        filePurpose: file.filePurpose,
+        fileContents: file.fileContents,
+        phaseConcept: currentPhase ? `
 Current project phase overview:
 <current_phase>
 ${JSON.stringify(currentPhase, null, 2)}
-</current_phase>` : '')
-        .replaceAll('{{issues}}', issues ? `
+</current_phase>` : '',
+        issues: issues ? `
 <issues>
 Here are some issues that were found via static analysis. These may or may not be false positives:
 ${issues.join('\n')}
-</issues>` : '');
-        if(file.filePath.endsWith('.tsx') || file.filePath.endsWith('.jsx')) {
-            prompt = prompt.replaceAll('{{appendix}}', EXTRA_JSX_SPECIFIC);
-        } else {
-            prompt = prompt.replaceAll('{{appendix}}', '');
-        }
+</issues>` : '',
+        appendix: (file.filePath.endsWith('.tsx') || file.filePath.endsWith('.jsx')) ? EXTRA_JSX_SPECIFIC : ''
+    };
+    
+    const prompt = PROMPT_UTILS.replaceTemplateVariables(user_prompt, variables);
     return PROMPT_UTILS.verifyPrompt(prompt);
 }
 
 const diffPromptFormatter = (currentContent: string, failedBlocks: string, failedBlocksCount: number, successfulBlocksCount: number) => {
-    const prompt = DIFF_FIXER_PROMPT
-        .replaceAll('{{currentContent}}', currentContent)
-        .replaceAll('{{failedBlocks}}', failedBlocks)
-        .replaceAll('{{failedBlocksCount}}', failedBlocksCount.toString())
-        .replaceAll('{{successfulBlocksCount}}', successfulBlocksCount.toString());
+    const prompt = PROMPT_UTILS.replaceTemplateVariables(DIFF_FIXER_PROMPT, {
+        currentContent,
+        failedBlocks,
+        failedBlocksCount: failedBlocksCount.toString(),
+        successfulBlocksCount: successfulBlocksCount.toString()
+    });
     return PROMPT_UTILS.verifyPrompt(prompt);
 }
 
@@ -201,14 +205,14 @@ export class RealtimeCodeFixer extends Assistant<Env> {
 
     constructor(
         env: Env,
-        agentId: string,
+        metadata: InferenceMetadata,
         lightMode: boolean = false,
         altPassModelOverride?: string,// = AIModels.GEMINI_2_5_FLASH,
         modelConfigOverride?: ModelConfig,
         systemPrompt: string = SYSTEM_PROMPT,
         userPrompt: string = USER_PROMPT
     ) {
-        super(env, agentId);
+        super(env, metadata);
         this.lightMode = lightMode;
         this.altPassModelOverride = altPassModelOverride;
         this.userPrompt = userPrompt;
@@ -221,7 +225,7 @@ export class RealtimeCodeFixer extends Assistant<Env> {
         context: RealtimeCodeFixerContext,
         currentPhase?: PhaseConceptType,
         issues: string[] = [],
-        passes: number = 5
+        passes: number = DEFAULT_PASSES
     ): Promise<FileOutputType> {
         try {
             // Ignore css or json files or *.config.js
@@ -270,7 +274,7 @@ Don't be nitpicky, If there are no actual issues, just say "No issues found".
                 const fixResult = await executeInference({
                     env: this.env,
                     agentActionName: "realtimeCodeFixer",
-                    context: context.inferenceContext,
+                    context: this.inferenceContext,
                     messages,
                     modelName: (i !== 0 && this.altPassModelOverride) || this.lightMode ? this.altPassModelOverride : undefined,
                     temperature: (i !== 0 && this.altPassModelOverride) || this.lightMode ? 0.0 : undefined,
@@ -336,7 +340,7 @@ ${content}
     async applyDiffSafely(
         originalContent: string, 
         originalDiff: string, 
-        maxRetries: number = 3
+        maxRetries: number = MAX_RETRIES
     ): Promise<string> {
         if (!originalContent || !originalDiff?.trim()) {
             this.logger.warn('Empty content or diff provided to applyDiffSafely');
@@ -376,7 +380,7 @@ ${content}
                 const result = applySearchReplaceDiff(currentContent, currentDiff, {
                     strict: false,
                     matchingStrategies: [MatchingStrategy.EXACT, MatchingStrategy.WHITESPACE_INSENSITIVE, MatchingStrategy.INDENTATION_PRESERVING, MatchingStrategy.FUZZY],
-                    fuzzyThreshold: 0.87
+                    fuzzyThreshold: FUZZY_THRESHOLD
                 });
 
                 const { blocksApplied, blocksTotal, blocksFailed, failedBlocks } = result.results;
@@ -476,7 +480,7 @@ ${block.error}
             
             const llmResponse = await infer({
                 env: this.env,
-                id: this.agentId,
+                metadata: this.inferenceContext,
                 modelName: AIModels.GEMINI_2_5_FLASH,
                 reasoning_effort: 'low',
                 temperature: 0.0,
