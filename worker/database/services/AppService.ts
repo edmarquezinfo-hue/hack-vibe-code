@@ -1320,10 +1320,15 @@ export class AppService extends BaseService {
                 .delete(schema.appViews)
                 .where(eq(schema.appViews.appId, appId));
             
-            // Delete forked apps (where this app is the parent)
+            // Handle fork relationships properly
+            // If this app is a parent, make forks independent (don't delete them!)
             await this.database
-                .delete(schema.apps)
+                .update(schema.apps)
+                .set({ parentAppId: null })
                 .where(eq(schema.apps.parentAppId, appId));
+            
+            // If this app is a fork, we don't need to do anything special
+            // (the parent fork count will be handled by analytics recalculation)
             
             // Finally delete the app itself
             const deleteResult = await this.database
