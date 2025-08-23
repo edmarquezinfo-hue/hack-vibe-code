@@ -1,6 +1,7 @@
 /**
  * Unified API Client - Premium quality abstraction for all worker API calls
  * Provides type-safe methods for all endpoints with proper error handling
+ * Features 401 response interception to trigger authentication modals
  */
 
 import type {
@@ -51,6 +52,15 @@ import type {
   ActiveSessionsData,
   ApiKeysData
 } from '@/api-types';
+
+/**
+ * Global auth modal trigger for 401 interception
+ */
+let globalAuthModalTrigger: ((context?: string) => void) | null = null;
+
+export function setGlobalAuthModalTrigger(trigger: (context?: string) => void) {
+  globalAuthModalTrigger = trigger;
+}
 
 /**
  * API Client Error class with proper error context
@@ -158,6 +168,20 @@ class ApiClient {
   }
 
   /**
+   * Get authentication context message based on endpoint
+   */
+  private getAuthContextForEndpoint(endpoint: string): string {
+    if (endpoint.includes('/api/agent')) return 'to create applications';
+    if (endpoint.includes('/favorite')) return 'to favorite this app';
+    if (endpoint.includes('/star')) return 'to star this app';
+    if (endpoint.includes('/fork')) return 'to fork this app';
+    // if (endpoint.includes('/apps')) return 'to access your apps';
+    if (endpoint.includes('/profile')) return 'to access your profile';
+    if (endpoint.includes('/settings')) return 'to access settings';
+    return 'to continue';
+  }
+
+  /**
    * Make HTTP request with proper error handling and type safety
    */
   private async request<T>(
@@ -189,6 +213,13 @@ class ApiClient {
       const data = await response.json();
 
       if (!response.ok) {
+        // Intercept 401 responses and trigger auth modal
+        if (response.status === 401 && globalAuthModalTrigger) {
+          // Determine context based on endpoint
+          const authContext = this.getAuthContextForEndpoint(endpoint);
+          globalAuthModalTrigger(authContext);
+        }
+
         throw new ApiError(
           response.status,
           response.statusText,

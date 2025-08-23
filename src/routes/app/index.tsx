@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router';
+import { useParams, useNavigate, useSearchParams } from 'react-router';
 import type { AgentStateData, AppDetailsData, FileType } from '@/api-types';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { appEvents } from '@/lib/app-events';
@@ -44,13 +44,39 @@ import { formatDistanceToNow, isValid } from 'date-fns';
 import { toast } from 'sonner';
 import { capitalizeFirstLetter, cn, getPreviewUrl } from '@/lib/utils';
 import { ConfirmDeleteDialog } from '@/components/shared/ConfirmDeleteDialog';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
 
 // Use proper types from API types
 type AppDetails = AppDetailsData;
+
+// Define supported actions for OAuth redirect
+type PendingAction = 'favorite' | 'bookmark' | 'star' | 'fork' | 'remix';
+
+// Supported actions constant for validation
+const SUPPORTED_ACTIONS: PendingAction[] = ['favorite', 'bookmark', 'star', 'fork', 'remix'];
+
+// Action configuration type for reusability
+interface ActionConfig {
+	action: PendingAction;
+	context: string;
+	handler: () => Promise<void>;
+	errorMessage: string;
+}
+
+// Action mapping for aliases (bookmark -> favorite, remix -> fork)
+const ACTION_MAP: Record<PendingAction, string> = {
+	favorite: 'favorite',
+	bookmark: 'favorite', 
+	star: 'star',
+	fork: 'fork',
+	remix: 'fork'
+};
 export default function AppView() {
 	const { id } = useParams();
 	const navigate = useNavigate();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const { user } = useAuth();
+	const { requireAuth } = useAuthGuard();
 	const [app, setApp] = useState<AppDetails | null>(null);
 	const [agentState, setAgentState] = useState<AgentStateData | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -121,6 +147,7 @@ export default function AppView() {
 		fetchAppDetails();
 	}, [id, fetchAppDetails]);
 
+
 	// Convert agent state files to chat FileType format
 	const files = useMemo<FileType[]>(() => {
 		if (!agentState?.progress.generatedCode) return [];
@@ -154,76 +181,145 @@ export default function AppView() {
 		setActiveFilePath(file.filePath);
 	}, []);
 
-	const handleFavorite = async () => {
-		if (!user || !app) {
-			toast.error('Please sign in to bookmark apps');
-			return;
-		}
-
-		try {
-			const newState = await toggleFavorite(app.id);
-			setIsFavorited(newState);
-			toast.success(
-				newState ? 'Added to bookmarks' : 'Removed from bookmarks',
-			);
-		} catch (error) {
-			toast.error('Failed to update bookmarks');
-		}
-	};
-
-	const handleStar = async () => {
-		if (!user || !app) {
-			toast.error('Please sign in to star apps');
-			return;
-		}
-
-		try {
-			const response = await apiClient.toggleAppStar(app.id);
-			
-			if (response.success && response.data) {
-				setIsStarred(response.data.isStarred);
-				setApp((prev) =>
-					prev ? { ...prev, starCount: response.data.starCount } : null,
-				);
-				toast.success(response.data.isStarred ? 'Starred!' : 'Unstarred');
-			} else {
-				throw new Error(response.error || 'Failed to star app');
-			}
-		} catch (error) {
-			console.error('Star error:', error);
-			toast.error(error instanceof ApiError ? error.message : 'Failed to update star');
-		}
-	};
-
-	const handleFork = async () => {
-		if (!user || !app) {
-			toast.error('Please sign in to fork apps');
-			return;
-		}
-
-		try {
-			const response = await apiClient.forkApp(app.id);
-			
-			if (response.success && response.data) {
-				toast.success(response.data.message || 'App forked successfully!');
+	// Action configuration for reusability
+	const actionConfigs: Record<string, ActionConfig> = useMemo(() => ({
+		favorite: {
+			action: 'favorite',
+			context: 'to bookmark apps',
+			handler: async () => {
+				if (!app) return;
+				const newState = await toggleFavorite(app.id);
+				setIsFavorited(newState);
+				toast.success(newState ? 'Added to bookmarks' : 'Removed from bookmarks');
+			},
+			errorMessage: 'Failed to update bookmarks'
+		},
+		star: {
+			action: 'star',
+			context: 'to star apps', 
+			handler: async () => {
+				if (!app) return;
+				const response = await apiClient.toggleAppStar(app.id);
 				
-				// Emit app-created event for sidebar updates
-				appEvents.emitAppCreated(response.data.forkedAppId, {
-					title: `${app.title} (Remix)`,
-					description: app.description || undefined,
-					isForked: true
-				});
+				if (response.success && response.data) {
+					setIsStarred(response.data.isStarred);
+					setApp((prev) =>
+						prev ? { ...prev, starCount: response.data.starCount } : null,
+					);
+					toast.success(response.data.isStarred ? 'Starred!' : 'Unstarred');
+				} else {
+					throw new Error(response.error || 'Failed to star app');
+				}
+			},
+			errorMessage: 'Failed to update star'
+		},
+		fork: {
+			action: 'fork',
+			context: 'to remix this app',
+			handler: async () => {
+				if (!app) return;
+				const response = await apiClient.forkApp(app.id);
 				
-				navigate(`/chat/${response.data.forkedAppId}`);
-			} else {
-				throw new Error(response.error || 'Failed to fork app');
-			}
-		} catch (error) {
-			console.error('Fork error:', error);
-			toast.error(error instanceof ApiError ? error.message : 'Failed to fork app');
+				if (response.success && response.data) {
+					toast.success(response.data.message || 'App remixed successfully!');
+					
+					// Emit app-created event for sidebar updates
+					appEvents.emitAppCreated(response.data.forkedAppId, {
+						title: `${app.title} (Remix)`,
+						description: app.description || undefined,
+						isForked: true
+					});
+					
+					navigate(`/chat/${response.data.forkedAppId}`);
+				} else {
+					throw new Error(response.error || 'Failed to remix app');
+				}
+			},
+			errorMessage: 'Failed to remix app'
 		}
-	};
+	}), [app, navigate]);
 
+	// Reusable authenticated action handler
+	const createAuthenticatedHandler = useCallback((configKey: string) => {
+		return async () => {
+			if (!app) return;
+			
+			const config = actionConfigs[configKey];
+			if (!config) return;
+			
+			const currentUrl = `/app/${app.id}?action=${config.action}`;
+			
+			// Use auth guard with action parameter in intended URL
+			if (!requireAuth({ 
+				requireFullAuth: true, 
+				actionContext: config.context,
+				intendedUrl: currentUrl
+			})) {
+				return;
+			}
+
+			// User is authenticated, execute immediately
+			try {
+				await config.handler();
+			} catch (error) {
+				console.error(`${config.action} error:`, error);
+				toast.error(error instanceof ApiError ? error.message : config.errorMessage);
+			}
+		};
+	}, [actionConfigs, app, requireAuth]);
+
+	// Create action handlers using the reusable pattern
+	const handleFavorite = useMemo(() => createAuthenticatedHandler('favorite'), [createAuthenticatedHandler]);
+	const handleStar = useMemo(() => createAuthenticatedHandler('star'), [createAuthenticatedHandler]);
+	const handleFork = useMemo(() => createAuthenticatedHandler('fork'), [createAuthenticatedHandler]);
+
+	// Handle pending actions after OAuth redirect
+	const executePendingAction = useCallback(async (action: PendingAction) => {
+		if (!app) return;
+		
+		const configKey = ACTION_MAP[action];
+		if (!configKey) {
+			console.warn('Unknown pending action:', action);
+			return;
+		}
+		
+		const config = actionConfigs[configKey];
+		if (!config) {
+			console.warn('No config found for action:', action);
+			return;
+		}
+		
+		try {
+			await config.handler();
+		} catch (error) {
+			console.error('Failed to execute pending action:', action, error);
+			toast.error(error instanceof ApiError ? error.message : config.errorMessage);
+		}
+	}, [actionConfigs, app]);
+
+	// Effect to handle pending actions after OAuth redirect
+	useEffect(() => {
+		if (!user || !app || loading) return;
+
+		const actionParam = searchParams.get('action');
+		if (!actionParam) return;
+
+		// Validate action parameter against our supported types
+		const action = SUPPORTED_ACTIONS.find(a => a === actionParam);
+		
+		if (!action) {
+			console.warn('Unsupported action parameter:', actionParam);
+			return;
+		}
+
+		// Clear the action parameter from URL first
+		const newSearchParams = new URLSearchParams(searchParams);
+		newSearchParams.delete('action');
+		setSearchParams(newSearchParams, { replace: true });
+
+		// Execute the pending action
+		executePendingAction(action);
+	}, [user, app, loading, searchParams, setSearchParams, executePendingAction]);
 
 	const handleCopyUrl = () => {
 		if (!app?.cloudflareUrl) return;

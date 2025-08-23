@@ -24,6 +24,7 @@ import { formatDistanceToNow } from 'date-fns';
 import type { AppWithFavoriteStatus, AppWithUserAndStats, EnhancedAppData } from '@/api-types';
 import { AppActionsDropdown } from './AppActionsDropdown';
 import type { LucideIcon } from 'lucide-react';
+import { useAuthGuard } from '../../hooks/useAuthGuard';
 
 // Union type for both app types - make updatedAtFormatted optional
 type AppCardData = AppWithFavoriteStatus | (EnhancedAppData & { updatedAtFormatted?: string }) | AppWithUserAndStats;
@@ -319,13 +320,21 @@ export const AppCard = React.memo<AppCardProps>(({
   showActions = false,
   className 
 }) => {
+  const { requireAuth } = useAuthGuard();
   const layoutConfig = getLayoutConfig(showUser, showActions);
   const deploymentStatus = getDeploymentStatusInfo(app);
   
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onToggleFavorite) {
-      onToggleFavorite(app.id);
+      // Check authentication before allowing favorite/star action
+      const actionContext = isUserApp(app) ? 'to bookmark this app' : 'to star this app';
+      if (requireAuth({ 
+        requireFullAuth: true, 
+        actionContext 
+      })) {
+        onToggleFavorite(app.id);
+      }
     }
   };
 

@@ -1,66 +1,50 @@
 import { useState, useEffect, useMemo } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
-import type { AppWithFavoriteStatus, EnhancedAppData } from '@/api-types';
+import type { AppWithFavoriteStatus, EnhancedAppData, ApiResponse } from '@/api-types';
 import { appEvents } from '@/lib/app-events';
 import type { AppEvent, AppDeletedEvent, AppUpdatedEvent } from '@/lib/app-events';
+import { useAuthGuard } from './useAuthGuard';
+import { useAuth } from '@/contexts/auth-context';
 
-// Reusable event handlers to maximize code reuse and minimize duplication
-const createAppEventHandlers = <T extends { id: string; updatedAt?: Date | string | null }>(
-  setApps: React.Dispatch<React.SetStateAction<T[]>>,
-  refetchApps?: () => void,
-  options?: {
-    shouldRefetchOnCreate?: boolean;
-    shouldSkipCreate?: boolean;
-  }
-) => {
-  const { shouldRefetchOnCreate = true, shouldSkipCreate = false } = options || {};
-  
-  return {
-    onDeleted: (event: AppEvent) => {
-      if (event.type === 'app-deleted') {
-        const deletedEvent = event as AppDeletedEvent;
-        setApps(prevApps => prevApps.filter(app => app.id !== deletedEvent.appId));
-      }
-    },
-    
-    onCreated: () => {
-      if (!shouldSkipCreate && shouldRefetchOnCreate && refetchApps) {
-        refetchApps();
-      }
-    },
-    
-    onUpdated: (event: AppEvent) => {
-      if (event.type === 'app-updated') {
-        const updatedEvent = event as AppUpdatedEvent;
-        if (updatedEvent.data) {
-          setApps(prevApps => {
-            const updatedApps = [...prevApps];
-            const appIndex = updatedApps.findIndex(app => app.id === updatedEvent.appId);
-            if (appIndex !== -1) {
-              updatedApps[appIndex] = { 
-                ...updatedApps[appIndex], 
-                ...updatedEvent.data, 
-                updatedAt: new Date() 
-              } as T;
-            }
-            return updatedApps;
-          });
-        }
-      }
-    }
-  };
-};
+interface AppHookState<T> {
+  apps: T[];
+  loading: boolean;
+  error: string | null;
+  refetch: () => void;
+}
 
-export function useApps() {
-  const [apps, setApps] = useState<AppWithFavoriteStatus[]>([]);
+interface AppHookOptions {
+  shouldRefetchOnCreate?: boolean;
+  shouldSkipCreate?: boolean;
+}
+
+type ApiAppsResponse<T> = Promise<ApiResponse<{ apps: T[] }>>;
+type ApiFetcher<T> = () => ApiAppsResponse<T>;
+
+/**
+ * Generic hook factory for app data fetching with authentication guards and event handling
+ */
+function useAppsBase<T extends { id: string; updatedAt?: Date | string | null }>(
+  apiFetcher: ApiFetcher<T>,
+  options: AppHookOptions = {}
+): AppHookState<T> {
+  const { user } = useAuth();
+  const [apps, setApps] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchApps = async () => {
+    if (!user) {
+      setApps([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
-      const response = await apiClient.getUserApps();
+      const response = await apiFetcher();
       
       if (response.success) {
         setApps(response.data?.apps || []);
@@ -82,30 +66,65 @@ export function useApps() {
   useEffect(() => {
     fetchApps();
 
-    // Use reusable event handlers to eliminate code duplication
-    const eventHandlers = createAppEventHandlers(setApps, fetchApps);
-    const unsubscribeDeleted = appEvents.on('app-deleted', eventHandlers.onDeleted);
-    const unsubscribeCreated = appEvents.on('app-created', eventHandlers.onCreated);
-    const unsubscribeUpdated = appEvents.on('app-updated', eventHandlers.onUpdated);
+    const { shouldRefetchOnCreate = true, shouldSkipCreate = false } = options;
+    
+    const onDeleted = (event: AppEvent) => {
+      if (event.type === 'app-deleted') {
+        const deletedEvent = event as AppDeletedEvent;
+        setApps(prevApps => prevApps.filter(app => app.id !== deletedEvent.appId));
+      }
+    };
+    
+    const onCreated = () => {
+      if (!shouldSkipCreate && shouldRefetchOnCreate) {
+        fetchApps();
+      }
+    };
+    
+    const onUpdated = (event: AppEvent) => {
+      if (event.type === 'app-updated') {
+        const updatedEvent = event as AppUpdatedEvent;
+        if (updatedEvent.data) {
+          setApps(prevApps => {
+            const updatedApps = [...prevApps];
+            const appIndex = updatedApps.findIndex(app => app.id === updatedEvent.appId);
+            if (appIndex !== -1) {
+              updatedApps[appIndex] = { 
+                ...updatedApps[appIndex], 
+                ...updatedEvent.data, 
+                updatedAt: new Date() 
+              } as T;
+            }
+            return updatedApps;
+          });
+        }
+      }
+    };
+
+    const unsubscribeDeleted = appEvents.on('app-deleted', onDeleted);
+    const unsubscribeCreated = appEvents.on('app-created', onCreated);
+    const unsubscribeUpdated = appEvents.on('app-updated', onUpdated);
 
     return () => {
       unsubscribeDeleted();
       unsubscribeCreated();
       unsubscribeUpdated();
     };
-  }, []);
+  }, [user]);
 
   return { apps, loading, error, refetch: fetchApps };
 }
 
-// Alias for useApps - used in dashboard
+export function useApps(): AppHookState<AppWithFavoriteStatus> {
+  return useAppsBase(() => apiClient.getUserApps());
+}
+
 export const useUserApps = useApps;
 
 export function useRecentApps() {
   const { apps, loading, error, refetch: refetchAll } = useApps();
   const TOPK = 10;
   
-  // Memoized sorted recent apps (last 10)
   const recentApps = useMemo(() => 
     [...apps].sort((a, b) => {
       const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
@@ -120,191 +139,16 @@ export function useRecentApps() {
     moreAvailable: apps.length > TOPK,
     loading, 
     error, 
-    refetch: refetchAll // This will now properly refetch all apps
+    refetch: refetchAll
   };
 }
 
-export function useFavoriteApps() {
-  const [favoriteApps, setFavoriteApps] = useState<AppWithFavoriteStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchFavorites = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await apiClient.getFavoriteApps();
-      
-      if (response.success) {
-        setFavoriteApps(response.data?.apps || []);
-      } else {
-        setError(response.error || 'Failed to fetch favorite apps');
-      }
-    } catch (err) {
-      console.error('Error fetching favorite apps:', err);
-      if (err instanceof ApiError) {
-        setError(`${err.message} (${err.status})`);
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to fetch favorite apps');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchFavorites();
-
-    // Use reusable event handlers with configuration for favorite apps behavior
-    const eventHandlers = createAppEventHandlers(setFavoriteApps, fetchFavorites, {
-      shouldSkipCreate: true, // New creations don't automatically become favorites
-    });
-    const unsubscribeDeleted = appEvents.on('app-deleted', eventHandlers.onDeleted);
-    const unsubscribeCreated = appEvents.on('app-created', eventHandlers.onCreated);
-    const unsubscribeUpdated = appEvents.on('app-updated', eventHandlers.onUpdated);
-
-    return () => {
-      unsubscribeDeleted();
-      unsubscribeCreated();
-      unsubscribeUpdated();
-    };
-  }, []);
-
-  return { 
-    apps: favoriteApps, 
-    loading, 
-    error, 
-    refetch: fetchFavorites
-  };
+export function useFavoriteApps(): AppHookState<AppWithFavoriteStatus> {
+  return useAppsBase(() => apiClient.getFavoriteApps(), {
+    shouldSkipCreate: true,
+  });
 }
 
-// Enhanced Apps Hook - for redesigned apps page with stats
-export function useEnhancedApps() {
-  const [apps, setApps] = useState<EnhancedAppData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchApps = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await apiClient.getUserAppsWithPagination();
-      
-      if (response.success) {
-        setApps(response.data?.apps || []);
-      } else {
-        setError(response.error || 'Failed to fetch apps');
-      }
-    } catch (err) {
-      console.error('Error fetching enhanced apps:', err);
-      if (err instanceof ApiError) {
-        setError(`${err.message} (${err.status})`);
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to fetch apps');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchApps();
-
-    // Use reusable event handlers to eliminate code duplication
-    const eventHandlers = createAppEventHandlers(setApps, fetchApps);
-    const unsubscribeDeleted = appEvents.on('app-deleted', eventHandlers.onDeleted);
-    const unsubscribeCreated = appEvents.on('app-created', eventHandlers.onCreated);
-    const unsubscribeUpdated = appEvents.on('app-updated', eventHandlers.onUpdated);
-
-    return () => {
-      unsubscribeDeleted();
-      unsubscribeCreated();
-      unsubscribeUpdated();
-    };
-  }, []);
-
-  return { apps, loading, error, refetch: fetchApps };
-}
-
-// Enhanced Recent Apps Hook
-export function useEnhancedRecentApps() {
-  const { apps, loading, error, refetch: refetchAll } = useEnhancedApps();
-  const TOPK = 10;
-  
-  // Memoized sorted recent apps (last 10)
-  const recentApps = useMemo(() => 
-    [...apps].sort((a, b) => {
-      const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-      const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-      return bTime - aTime;
-    }).slice(0, TOPK),
-    [apps]
-  );
-
-  return { 
-    apps: recentApps, 
-    moreAvailable: apps.length > TOPK,
-    loading, 
-    error, 
-    refetch: refetchAll // This will now properly refetch all apps
-  };
-}
-
-// Enhanced Favorite Apps Hook - using existing favorite endpoint for now
-// TODO: Create enhanced favorite endpoint if needed
-export function useEnhancedFavoriteApps() {
-  const [favoriteApps, setFavoriteApps] = useState<AppWithFavoriteStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchFavorites = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await apiClient.getFavoriteApps();
-      
-      if (response.success) {
-        setFavoriteApps(response.data?.apps || []);
-      } else {
-        setError(response.error || 'Failed to fetch favorite apps');
-      }
-    } catch (err) {
-      console.error('Error fetching favorite apps:', err);
-      if (err instanceof ApiError) {
-        setError(`${err.message} (${err.status})`);
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to fetch favorite apps');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchFavorites();
-
-    // Use reusable event handlers with configuration for enhanced favorite apps behavior
-    const eventHandlers = createAppEventHandlers(setFavoriteApps, fetchFavorites, {
-      shouldSkipCreate: true, // New creations don't automatically become favorites
-    });
-    const unsubscribeDeleted = appEvents.on('app-deleted', eventHandlers.onDeleted);
-    const unsubscribeCreated = appEvents.on('app-created', eventHandlers.onCreated);
-    const unsubscribeUpdated = appEvents.on('app-updated', eventHandlers.onUpdated);
-
-    return () => {
-      unsubscribeDeleted();
-      unsubscribeCreated();
-      unsubscribeUpdated();
-    };
-  }, []);
-
-  return { 
-    apps: favoriteApps, 
-    loading, 
-    error, 
-    refetch: fetchFavorites
-  };
-}
 
 export async function toggleFavorite(appId: string): Promise<boolean> {
   try {
@@ -319,4 +163,55 @@ export async function toggleFavorite(appId: string): Promise<boolean> {
     }
     throw err;
   }
+}
+
+/**
+ * Hook for protected toggle favorite functionality
+ */
+export function useToggleFavorite() {
+  const { requireAuth } = useAuthGuard();
+
+  const protectedToggleFavorite = async (appId: string, actionContext = 'to favorite this app'): Promise<boolean | null> => {
+    if (!requireAuth({ 
+      requireFullAuth: true, 
+      actionContext 
+    })) {
+      return null;
+    }
+
+    return await toggleFavorite(appId);
+  };
+
+  return { toggleFavorite: protectedToggleFavorite };
+}
+
+/**
+ * Hook for protected fork app functionality
+ */
+export function useForkApp() {
+  const { requireAuth } = useAuthGuard();
+
+  const forkApp = async (appId: string): Promise<any | null> => {
+    if (!requireAuth({ 
+      requireFullAuth: true, 
+      actionContext: 'to fork this app' 
+    })) {
+      return null;
+    }
+
+    try {
+      const response = await apiClient.forkApp(appId);
+      if (response.success) {
+        return response.data;
+      }
+      throw new Error(response.error || 'Failed to fork app');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        throw new Error(`Failed to fork app: ${err.message}`);
+      }
+      throw err;
+    }
+  };
+
+  return { forkApp };
 }
