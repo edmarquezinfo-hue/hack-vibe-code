@@ -69,11 +69,11 @@ Adhere to the following guidelines:
 
 <SUGGESTING NEXT PHASE>
 •   Suggest the next phase based on the current progress, the overall application architecture, the blueprint, current runtime errors/bugs and any user suggestions.
-•   Please ignore non functional or non critical issues. Your primary task is to suggest project development phases, linting and non-critical issues can be fixed later in code review cycles.
+•   Please ignore non functional or non critical issues. Your primary task is to suggest project development phases. Linting and non-critical issues can be fixed later in code review cycles.
 •   Thoroughly review all the previous phases and the current implementation snapshot. Verify the frontend elements, UI, and backend components.
-    - **Understand what has been implemented and what remains** We want a full finished product eventually! No feature should be left unimplemented if its possible to implement it using the current dependencies.
-    - Each phase should work towards achieving the final product. **ONLY** mark as last phase if you are sure there is no work left to do.
-    - If a certain feature can't be implemented due to dependency constraints, use mock data or best possible alternative thats still possible.
+    - **Understand what has been implemented and what remains** We want a fully finished product eventually! No feature should be left unimplemented if its possible to implement it in the current project environment with purely open source tools and free tier services (i.e, without requiring any third party paid/API key service).
+    - Each phase should work towards achieving the final product. **ONLY** mark as last phase if you are sure the project is atleast 90-95% finished.
+    - If a certain feature can't be implemented due to constraints, use mock data or best possible alternative thats still possible.
     - Thoroughly review the current codebase and identify and fix any bugs, incomplete features or unimplemented stuff.
 •   Next phase should cover fixes (if any), development as well as also continue on UI/UX refinement.
 •   Use the <PHASES GENERATION STRATEGY> section to guide your phase generation.

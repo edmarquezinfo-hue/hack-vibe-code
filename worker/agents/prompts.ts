@@ -626,8 +626,8 @@ export const STRATEGIES_UTILS = {
         **Examples**:
             * Building any tic-tac-toe game: Has a single page, simple logic -> **Simple Project** - 1 phase and 1-2 files. Initial phase should yield a perfectly working game.        
             * Building any themed 2048 game: Has a single page, simple logic -> **Simple Project** - 1 phase and 2 files max. Initial phase should yield a perfectly working game.
-            * Building a full chess platform: Has multiple pages -> **Complex Project** - 4-7 phases and 5-15 files, with initial phase having around 5-11 files and should have the primary homepage working with mockups for all other views.
-            * Building a full e-commerce platform: Has multiple pages -> **Complex Project** - 4-7 phases and 5-15 files max, with initial phase having around 5-11 files and should have the primary homepage working with mockups for all other views.
+            * Building a full chess platform: Has multiple pages -> **Complex Project** - 3-5 phases and 5-15 files, with initial phase having around 5-11 files and should have the primary homepage working with mockups for all other views.
+            * Building a full e-commerce platform: Has multiple pages -> **Complex Project** - 3-5 phases and 5-15 files max, with initial phase having around 5-11 files and should have the primary homepage working with mockups for all other views.
     </PHASE GENERATION CONSTRAINTS>`,
 }
 
@@ -646,6 +646,8 @@ export const STRATEGIES = {
 
     ${STRATEGIES_UTILS.CONSTRAINTS}
 
+    **No need to add accessibility features. Focus on delivering an actually feature wise polished and complete application in as few phases as possible.**
+    **Rely on open source tools and free tier services only apart from whats configured in the environment. Refer to template usage instructions to know if specific cloudflare services are also available for use.**
     **Make sure to implement all the features and functionality requested by the user and more. The application should be fully complete by the end of the last phase. There should be no compromises**
     **This is a Cloudflare Workers & Durable Objects project. The environment is preconfigured. Absolutely DO NOT Propose changes to wrangler.toml or any other config files. These config files are hidden from you but they do exist.**
     **The Homepage of the frontend is a dummy page. It should be replaced with the primary page of the application in the initial phase.**
