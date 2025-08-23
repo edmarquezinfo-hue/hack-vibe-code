@@ -1,6 +1,7 @@
 
 import { BaseController } from '../BaseController';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
+import { RouteContext } from '../../types/route-context';
 import { cloneAgent, getAgentStub } from '../../../agents';
 import { AppService } from '../../../database/services/AppService';
 import { 
@@ -16,9 +17,9 @@ export class AppViewController extends BaseController {
     }
 
     // Get single app details (public endpoint, auth optional for ownership check)
-    async getAppDetails(request: Request, env: Env, _ctx: ExecutionContext, params?: Record<string, string>): Promise<ControllerResponse<ApiResponse<AppDetailsData>>> {
+    async getAppDetails(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppDetailsData>>> {
         try {
-            const appId = params?.id;
+            const appId = context.pathParams.id;
             if (!appId) {
                 return this.createErrorResponse<AppDetailsData>('App ID is required', 400);
             }
@@ -26,8 +27,8 @@ export class AppViewController extends BaseController {
             const dbService = this.createDbService(env);
             
             // Try to get user if authenticated (optional for public endpoint)
-            const authResult = await this.requireAuth(request, env);
-            const userId = authResult.success ? authResult.user!.id : undefined;
+            const user = await this.getOptionalUser(request, env);
+            const userId = user?.id;
 
             // Get app details with stats using app service
             const appService = new AppService(dbService);
@@ -92,14 +93,14 @@ export class AppViewController extends BaseController {
     }
 
     // Star/unstar an app
-    async toggleAppStar(request: Request, env: Env, _ctx: ExecutionContext, params?: Record<string, string>): Promise<ControllerResponse<ApiResponse<AppStarToggleData>>> {
+    async toggleAppStar(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppStarToggleData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<AppStarToggleData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<AppStarToggleData>('Authentication required', 401);
             }
 
-            const appId = params?.id;
+            const appId = context.pathParams.id;
             if (!appId) {
                 return this.createErrorResponse<AppStarToggleData>('App ID is required', 400);
             }
@@ -108,13 +109,13 @@ export class AppViewController extends BaseController {
 
             // Check if app exists and toggle star using app service
             const appService = new AppService(dbService);
-            const app = await appService.getSingleAppWithFavoriteStatus(appId, authResult.user!.id);
+            const app = await appService.getSingleAppWithFavoriteStatus(appId, user.id);
             if (!app) {
                 return this.createErrorResponse<AppStarToggleData>('App not found', 404);
             }
 
             // Toggle star using app service
-            const result = await appService.toggleAppStar(authResult.user!.id, appId);
+            const result = await appService.toggleAppStar(user.id, appId);
             
             const responseData: AppStarToggleData = result;
             return this.createSuccessResponse(responseData);
@@ -125,14 +126,14 @@ export class AppViewController extends BaseController {
     }
 
     // Fork an app
-    async forkApp(request: Request, env: Env, _ctx: ExecutionContext, params?: Record<string, string>): Promise<ControllerResponse<ApiResponse<ForkAppData>>> {
+    async forkApp(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ForkAppData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ForkAppData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ForkAppData>('Authentication required', 401);
             }
 
-            const appId = params?.id;
+            const appId = context.pathParams.id;
             if (!appId) {
                 return this.createErrorResponse<ForkAppData>('App ID is required', 400);
             }
@@ -141,7 +142,7 @@ export class AppViewController extends BaseController {
 
             // Get original app with permission checks using app service
             const appService = new AppService(dbService);
-            const { app: originalApp, canFork } = await appService.getAppForFork(appId, authResult.user!.id);
+            const { app: originalApp, canFork } = await appService.getAppForFork(appId, user.id);
 
             if (!originalApp) {
                 return this.createErrorResponse<ForkAppData>('App not found', 404);
@@ -157,7 +158,7 @@ export class AppViewController extends BaseController {
                 this.logger.info(`Successfully duplicated agent state from ${appId} to ${newAgentId}`);
 
                 // Create forked app using app service
-                const forkedApp = await appService.createForkedApp(originalApp, newAgentId, authResult.user!.id);
+                const forkedApp = await appService.createForkedApp(originalApp, newAgentId, user.id);
                 
                 const responseData: ForkAppData = {
                     forkedAppId: forkedApp.id,

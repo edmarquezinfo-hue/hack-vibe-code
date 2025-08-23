@@ -4,6 +4,7 @@
  */
 
 import { BaseController } from '../BaseController';
+import { RouteContext } from '../../types/route-context';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
 import { SecretsService } from '../../../database/services/SecretsService';
 import { DatabaseService } from '../../../database/database';
@@ -54,11 +55,11 @@ export class ModelProvidersController extends BaseController {
     /**
      * Get all custom providers for the authenticated user
      */
-    async getProviders(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ModelProvidersListData>>> {
+    async getProviders(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProvidersListData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ModelProvidersListData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ModelProvidersListData>('Authentication required', 401);
             }
 
             const dbService = new DatabaseService({ DB: env.DB });
@@ -68,7 +69,7 @@ export class ModelProvidersController extends BaseController {
                 .from(userModelProviders)
                 .where(
                     and(
-                        eq(userModelProviders.userId, authResult.user!.id),
+                        eq(userModelProviders.userId, user.id),
                         eq(userModelProviders.isActive, true)
                     )
                 )
@@ -88,11 +89,11 @@ export class ModelProvidersController extends BaseController {
     /**
      * Get a specific provider by ID
      */
-    async getProvider(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ModelProviderData>>> {
+    async getProvider(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ModelProviderData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ModelProviderData>('Authentication required', 401);
             }
 
             const url = new URL(request.url);
@@ -110,7 +111,7 @@ export class ModelProvidersController extends BaseController {
                 .where(
                     and(
                         eq(userModelProviders.id, providerId),
-                        eq(userModelProviders.userId, authResult.user!.id)
+                        eq(userModelProviders.userId, user.id)
                     )
                 )
                 .get();
@@ -133,11 +134,11 @@ export class ModelProvidersController extends BaseController {
     /**
      * Create a new custom provider
      */
-    async createProvider(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ModelProviderCreateData>>> {
+    async createProvider(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderCreateData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ModelProviderCreateData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ModelProviderCreateData>('Authentication required', 401);
             }
 
             const body = await this.parseJsonBody<CreateProviderRequest>(request);
@@ -163,7 +164,7 @@ export class ModelProvidersController extends BaseController {
                 .from(userModelProviders)
                 .where(
                     and(
-                        eq(userModelProviders.userId, authResult.user!.id),
+                        eq(userModelProviders.userId, user.id),
                         eq(userModelProviders.name, name)
                     )
                 )
@@ -174,7 +175,7 @@ export class ModelProvidersController extends BaseController {
             }
 
             // Store API key in userSecrets
-            const secretResult = await secretsService.storeSecret(authResult.user!.id, {
+            const secretResult = await secretsService.storeSecret(user.id, {
                 name: `${name} API Key`,
                 provider: 'custom',
                 secretType: 'api_key',
@@ -187,7 +188,7 @@ export class ModelProvidersController extends BaseController {
             const providerId = generateId();
             const provider = {
                 id: providerId,
-                userId: authResult.user!.id,
+                userId: user.id,
                 name,
                 baseUrl,
                 secretId,
@@ -214,11 +215,11 @@ export class ModelProvidersController extends BaseController {
     /**
      * Update an existing provider
      */
-    async updateProvider(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ModelProviderUpdateData>>> {
+    async updateProvider(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderUpdateData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ModelProviderUpdateData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ModelProviderUpdateData>('Authentication required', 401);
             }
 
             const url = new URL(request.url);
@@ -251,7 +252,7 @@ export class ModelProvidersController extends BaseController {
                 .where(
                     and(
                         eq(userModelProviders.id, providerId),
-                        eq(userModelProviders.userId, authResult.user!.id)
+                        eq(userModelProviders.userId, user.id)
                     )
                 )
                 .get();
@@ -274,7 +275,7 @@ export class ModelProvidersController extends BaseController {
                 if (existingProvider.secretId) {
                     // For now, we'll create a new secret since updateSecret doesn't exist
                     // In production, you'd want to implement updateSecret in SecretsService
-                    const secretResult = await secretsService.storeSecret(authResult.user!.id, {
+                    const secretResult = await secretsService.storeSecret(user.id, {
                         name: `${updates.name || existingProvider.name} API Key`,
                         provider: 'custom',
                         secretType: 'api_key',
@@ -284,7 +285,7 @@ export class ModelProvidersController extends BaseController {
                     updateData.secretId = secretResult.id;
                 } else {
                     // Create new secret
-                    const secretResult = await secretsService.storeSecret(authResult.user!.id, {
+                    const secretResult = await secretsService.storeSecret(user.id, {
                         name: `${updates.name || existingProvider.name} API Key`,
                         provider: 'custom',
                         secretType: 'api_key',
@@ -322,11 +323,11 @@ export class ModelProvidersController extends BaseController {
     /**
      * Delete a provider
      */
-    async deleteProvider(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ModelProviderDeleteData>>> {
+    async deleteProvider(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderDeleteData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ModelProviderDeleteData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ModelProviderDeleteData>('Authentication required', 401);
             }
 
             const url = new URL(request.url);
@@ -345,7 +346,7 @@ export class ModelProvidersController extends BaseController {
                 .where(
                     and(
                         eq(userModelProviders.id, providerId),
-                        eq(userModelProviders.userId, authResult.user!.id)
+                        eq(userModelProviders.userId, user.id)
                     )
                 )
                 .get();
@@ -381,11 +382,11 @@ export class ModelProvidersController extends BaseController {
     /**
      * Test provider connection
      */
-    async testProvider(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ModelProviderTestData>>> {
+    async testProvider(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderTestData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ModelProviderTestData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ModelProviderTestData>('Authentication required', 401);
             }
 
             const body = await this.parseJsonBody<TestProviderRequest>(request);
@@ -413,7 +414,7 @@ export class ModelProvidersController extends BaseController {
                     .where(
                         and(
                             eq(userModelProviders.id, validation.data.providerId),
-                            eq(userModelProviders.userId, authResult.user!.id)
+                            eq(userModelProviders.userId, user.id)
                         )
                     )
                     .get();
@@ -427,7 +428,7 @@ export class ModelProvidersController extends BaseController {
                 }
 
                 const secretsService = new SecretsService(dbService, env);
-                const secretValue = await secretsService.getSecretValue(authResult.user!.id, provider.secretId);
+                const secretValue = await secretsService.getSecretValue(user.id, provider.secretId);
                 
                 if (!secretValue) {
                     return this.createErrorResponse<ModelProviderTestData>('API key not found', 404);

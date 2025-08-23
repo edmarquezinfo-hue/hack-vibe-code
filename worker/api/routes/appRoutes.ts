@@ -1,4 +1,4 @@
-import { Router } from '../router';
+import { Router, AuthConfig } from '../router';
 import { AppController } from '../controllers/apps/controller';
 import { appViewController } from '../controllers/appView/controller';
 
@@ -7,34 +7,61 @@ import { appViewController } from '../controllers/appView/controller';
  */
 export function setupAppRoutes(router: Router): Router {
     const appController = new AppController();
-    // Get all apps for the current user
-    router.get('/api/apps', appController.getUserApps.bind(appController));
+    
+    // ========================================
+    // PUBLIC ROUTES (Unauthenticated users can access)
+    // ========================================
+    
+    // FIXED: Main apps listing - PUBLIC for /apps frontend route
+    // This powers the main /apps page that shows all public apps
+    router.get('/api/apps/public', appController.getPublicApps.bind(appController), AuthConfig.public);
 
-    // Get recent apps
-    router.get('/api/apps/recent', appController.getRecentApps.bind(appController));
+    // ========================================
+    // AUTHENTICATED USER ROUTES (Personal dashboard routes)
+    // ========================================
+    
+    // Get user's personal apps - requires authentication (for dashboard/profile)
+    router.get('/api/apps', appController.getUserApps.bind(appController), AuthConfig.authenticated);
 
-    // Get favorite apps
-    router.get('/api/apps/favorites', appController.getFavoriteApps.bind(appController));
+    // Get recent apps - requires authentication (for dashboard)
+    router.get('/api/apps/recent', appController.getRecentApps.bind(appController), AuthConfig.authenticated);
 
-    // Get public apps feed (no auth required)
-    router.get('/api/apps/public', appController.getPublicApps.bind(appController));
+    // Get favorite apps - requires authentication (for dashboard)
+    router.get('/api/apps/favorites', appController.getFavoriteApps.bind(appController), AuthConfig.authenticated);
 
-    // Create new app
-    router.post('/api/apps', appController.createApp.bind(appController));
+    // ========================================
+    // AUTHENTICATED INTERACTION ROUTES
+    // ========================================
+    
+    // Create new app - requires authentication
+    router.post('/api/apps', appController.createApp.bind(appController), AuthConfig.authenticated);
 
-    // Toggle favorite status
-    router.post('/api/apps/:id/favorite', appController.toggleFavorite.bind(appController));
+    // Star/bookmark ANY app - requires authentication (can star others' public apps)
+    router.post('/api/apps/:id/star', appViewController.toggleAppStar.bind(appViewController), AuthConfig.authenticated);
+    
+    // Fork ANY public app - requires authentication (can fork others' public apps)
+    router.post('/api/apps/:id/fork', appViewController.forkApp.bind(appViewController), AuthConfig.authenticated);
 
-    // Update app visibility (only for app owners)
-    router.put('/api/apps/:id/visibility', appController.updateAppVisibility.bind(appController));
+    // Toggle favorite status - requires authentication  
+    router.post('/api/apps/:id/favorite', appController.toggleFavorite.bind(appController), AuthConfig.authenticated);
 
-    // Delete app (only for app owners)
-    router.delete('/api/apps/:id', appController.deleteApp.bind(appController));
+    // ========================================
+    // PUBLIC APP DETAILS (placed after specific routes to avoid conflicts)
+    // ========================================
 
-    // App view endpoints (public access with optional auth)
-    router.get('/api/apps/:id', appViewController.getAppDetails.bind(appViewController));
-    router.post('/api/apps/:id/star', appViewController.toggleAppStar.bind(appViewController));
-    router.post('/api/apps/:id/fork', appViewController.forkApp.bind(appViewController));
+    // App details view - PUBLIC for /app/:id frontend route  
+    // Allows unauthenticated users to view and preview apps
+    router.get('/api/apps/:id', appViewController.getAppDetails.bind(appViewController), AuthConfig.public);
+
+    // ========================================
+    // OWNER-ONLY ROUTES (App modification)
+    // ========================================
+    
+    // Update app visibility - OWNER ONLY
+    router.put('/api/apps/:id/visibility', appController.updateAppVisibility.bind(appController), AuthConfig.ownerOnly);
+
+    // Delete app - OWNER ONLY
+    router.delete('/api/apps/:id', appController.deleteApp.bind(appController), AuthConfig.ownerOnly);
 
     return router;
 }

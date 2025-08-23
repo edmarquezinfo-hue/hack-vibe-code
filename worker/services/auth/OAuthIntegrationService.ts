@@ -231,13 +231,17 @@ export class OAuthIntegrationService {
 
     /**
      * Validate and parse OAuth state
+     * Handles both JSON states (integration flows) and simple string states (regular login flows)
      */
     parseOAuthState(state: string): { type?: string; userId?: string; timestamp?: number } | null {
         try {
+            // Try to decode as base64 JSON first (for integration flows)
             return decodeOAuthState<{ type?: string; userId?: string; timestamp?: number }>(state);
         } catch (error) {
-            this.logger.warn('Failed to parse OAuth state', { 
-                error: error instanceof Error ? error.message : 'Unknown error' 
+            // If decoding fails, this might be a simple string state for regular login flows
+            // Return null to indicate this is not an integration flow
+            this.logger.debug('OAuth state is not base64 JSON, treating as regular login flow', { 
+                stateLength: state.length 
             });
             return null;
         }

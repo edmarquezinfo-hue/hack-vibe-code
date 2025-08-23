@@ -1,4 +1,4 @@
-import { Router } from '../router';
+import { Router, AuthConfig } from '../router';
 import { CodingAgentController } from '../controllers/agent/controller';
 import { setupAuthRoutes } from './authRoutes';
 import { setupAppRoutes } from './appRoutes';
@@ -20,14 +20,28 @@ export function setupRouter(): Router {
     const router = new Router();
     const codingAgentController = new CodingAgentController();
 
-    // Code generation endpoints - modern incremental API
-    router.post('/api/agent', codingAgentController.startCodeGeneration.bind(codingAgentController));
-    // WebSocket endpoint for real-time code generation updates
-    router.register('/api/agent/:agentId/ws', codingAgentController.handleWebSocketConnection.bind(codingAgentController), ['GET']);
-    // Connect to existing agent
-    router.get('/api/agent/:agentId/connect', codingAgentController.connectToExistingAgent.bind(codingAgentController));    
-    // Get comprehensive agent state (for app viewing)
-    router.get('/api/agent/:agentId', codingAgentController.getAgentState.bind(codingAgentController));
+    // ========================================
+    // CODE GENERATION ROUTES
+    // ========================================
+    
+    // CRITICAL: Create new app - requires full authentication
+    router.post('/api/agent', codingAgentController.startCodeGeneration.bind(codingAgentController), AuthConfig.authenticated);
+    
+    // Get agent state - PUBLIC for app viewing (/app/:id frontend route)
+    // Allows unauthenticated users to view app details and generated code
+    router.get('/api/agent/:agentId', codingAgentController.getAgentState.bind(codingAgentController), AuthConfig.public);
+    
+    // ========================================
+    // APP EDITING ROUTES (/chat/:id frontend)
+    // ========================================
+    
+    // WebSocket for app editing - OWNER ONLY (for /chat/:id route)
+    // Only the app owner should be able to connect and modify via WebSocket
+    router.register('/api/agent/:agentId/ws', codingAgentController.handleWebSocketConnection.bind(codingAgentController), ['GET'], AuthConfig.ownerOnly);
+    
+    // Connect to existing agent for editing - OWNER ONLY
+    // Only the app owner should be able to connect for editing purposes
+    router.get('/api/agent/:agentId/connect', codingAgentController.connectToExistingAgent.bind(codingAgentController), AuthConfig.ownerOnly);
 
     // Authentication and user management routes
     setupAuthRoutes(router);

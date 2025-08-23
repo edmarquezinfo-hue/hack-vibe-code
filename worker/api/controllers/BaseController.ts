@@ -5,15 +5,14 @@
 
 import { DatabaseService } from '../../database/database';
 import { authMiddleware } from '../../middleware/security/auth';
-import { errorResponse, successResponse } from '../responses';
-import { extractToken } from '../../utils/authUtils';
-import { SessionService } from '../../services/auth/sessionService';
-import { TokenService } from '../../services/auth/tokenService';
+import { successResponse, errorResponse } from '../responses';
 import { DatabaseQueryHelpers } from '../../utils/DatabaseQueryHelpers';
 import { ControllerErrorHandler, ErrorHandler } from '../../utils/ErrorHandling';
 import { createLogger } from '../../logger';
+import { AuthUser } from '../../types/auth-types';
 // Import types from separate types file to maintain consistency
-import type { ControllerResponse, ApiResponse, AuthResult } from './BaseController.types';
+import type { ControllerResponse, ApiResponse } from './BaseController.types';
+import { RouteContext } from '../types/route-context';
 
 /**
  * Base controller class that provides common functionality
@@ -48,6 +47,27 @@ export abstract class BaseController {
     }
 
     /**
+     * Extract authenticated user from route context
+     * Type-safe approach using structured RouteContext
+     */
+    protected extractAuthUser(context: RouteContext): AuthUser | null {
+        return context.user;
+    }
+
+    /**
+     * Get optional user for public endpoints that can benefit from user context
+     * Uses authMiddleware directly for optional authentication
+     */
+    protected async getOptionalUser(request: Request, env: Env): Promise<AuthUser | null> {
+        try {
+            return await authMiddleware(request, env);
+        } catch (error) {
+            this.logger.debug('Optional auth failed, continuing without user', { error });
+            return null;
+        }
+    }
+
+    /**
      * Update a user-owned resource with ownership verification
      */
     protected async updateUserOwnedResource(
@@ -66,66 +86,6 @@ export abstract class BaseController {
             updateData,
             resourceIdField
         );
-    }
-
-    /**
-     * Require authentication for the request
-     * Returns user if authenticated, or error response if not
-     */
-    protected async requireAuth(request: Request, env: Env): Promise<AuthResult> {
-        try {
-            const user = await authMiddleware(request, env);
-            if (!user) {
-                return {
-                    success: false,
-                    response: errorResponse('Unauthorized', 401)
-                };
-            }
-            
-            return {
-                success: true,
-                user
-            };
-        } catch (error) {
-            this.logger.error('Authentication failed', error);
-            return {
-                success: false,
-                response: errorResponse('Authentication failed', 401)
-            };
-        }
-    }
-
-    /**
-     * Get session from request using token validation
-     */
-    protected async getSessionFromRequest(request: Request, env: Env) {
-        const token = extractToken(request);
-        if (!token) return null;
-        
-        const db = new DatabaseService({ DB: env.DB });
-        const sessionService = new SessionService(
-            db,
-            new TokenService(env)
-        );
-        return sessionService.validateSession(token);
-    }
-
-    /**
-     * Extract path parameters from URL
-     */
-    protected extractPathParams(request: Request, paramNames: string[]): Record<string, string> {
-        const url = new URL(request.url);
-        const pathParts = url.pathname.split('/').filter(Boolean);
-        const params: Record<string, string> = {};
-        
-        paramNames.forEach((paramName, index) => {
-            const paramIndex = pathParts.length - paramNames.length + index;
-            if (paramIndex >= 0 && paramIndex < pathParts.length) {
-                params[paramName] = pathParts[paramIndex];
-            }
-        });
-        
-        return params;
     }
 
     /**

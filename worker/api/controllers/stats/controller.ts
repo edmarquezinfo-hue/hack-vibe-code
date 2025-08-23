@@ -1,5 +1,6 @@
 
 import { BaseController } from '../BaseController';
+import { RouteContext } from '../../types/route-context';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
 import { UserStatsData, UserActivityData } from './types';
 import { AnalyticsService } from '../../../database/services/AnalyticsService';
@@ -9,18 +10,18 @@ export class StatsController extends BaseController {
         super();
     }
     // Get user statistics
-    async getUserStats(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<UserStatsData>>> {
+    async getUserStats(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<UserStatsData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<UserStatsData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<UserStatsData>('Authentication required', 401);
             }
 
             const dbService = this.createDbService(env);
             const analyticsService = new AnalyticsService(dbService);
 
             // Get comprehensive user statistics using analytics service
-            const enhancedStats = await analyticsService.getEnhancedUserStats(authResult.user!.id);
+            const enhancedStats = await analyticsService.getEnhancedUserStats(user.id);
 
             // Use EnhancedUserStats directly as response data
             const responseData = enhancedStats;
@@ -34,18 +35,18 @@ export class StatsController extends BaseController {
 
 
     // Get user activity timeline
-    async getUserActivity(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<UserActivityData>>> {
+    async getUserActivity(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<UserActivityData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<UserActivityData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<UserActivityData>('Authentication required', 401);
             }
 
             const dbService = this.createDbService(env);
             const analyticsService = new AnalyticsService(dbService);
 
             // Get user activity timeline using analytics service
-            const activities = await analyticsService.getUserActivityTimeline(authResult.user!.id, 20);
+            const activities = await analyticsService.getUserActivityTimeline(user.id, 20);
 
             const responseData: UserActivityData = { activities };
 

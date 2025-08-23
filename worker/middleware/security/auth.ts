@@ -4,7 +4,6 @@
  */
 
 import { AuthUser } from '../../types/auth-types';
-import { SecurityError, SecurityErrorType } from '../../types/security';
 import { createLogger } from '../../logger';
 import { DatabaseService } from '../../database/database';
 import * as schema from '../../database/schema';
@@ -137,25 +136,6 @@ export async function authMiddleware(
     }
 }
 
-/**
- * Require authentication middleware
- */
-export async function requireAuth(
-    request: Request,
-    env: Env
-): Promise<AuthUser> {
-    const user = await authMiddleware(request, env);
-    
-    if (!user) {
-        throw new SecurityError(
-            SecurityErrorType.UNAUTHORIZED,
-            'Authentication required',
-            401
-        );
-    }
-    
-    return user;
-}
 
 /**
  * Check if user has required permissions

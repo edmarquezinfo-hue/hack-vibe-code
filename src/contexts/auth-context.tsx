@@ -35,8 +35,8 @@ interface AuthContextType {
   isLoading: boolean;
   error: string | null;
   
-  // OAuth login method
-  login: (provider: 'google' | 'github') => void;
+  // OAuth login method with redirect support
+  login: (provider: 'google' | 'github', redirectUrl?: string) => void;
   
   // Email/password login method
   loginWithEmail: (credentials: { email: string; password: string }) => Promise<void>;
@@ -44,6 +44,11 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   clearError: () => void;
+  
+  // Redirect URL management
+  setIntendedUrl: (url: string) => void;
+  getIntendedUrl: () => string | null;
+  clearIntendedUrl: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -61,6 +66,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   // Ref to store the refresh timer
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Redirect URL management
+  const INTENDED_URL_KEY = 'auth_intended_url';
+
+  const setIntendedUrl = useCallback((url: string) => {
+    try {
+      sessionStorage.setItem(INTENDED_URL_KEY, url);
+    } catch (error) {
+      console.warn('Failed to store intended URL:', error);
+    }
+  }, []);
+
+  const getIntendedUrl = useCallback((): string | null => {
+    try {
+      return sessionStorage.getItem(INTENDED_URL_KEY);
+    } catch (error) {
+      console.warn('Failed to retrieve intended URL:', error);
+      return null;
+    }
+  }, []);
+
+  const clearIntendedUrl = useCallback(() => {
+    try {
+      sessionStorage.removeItem(INTENDED_URL_KEY);
+    } catch (error) {
+      console.warn('Failed to clear intended URL:', error);
+    }
+  }, []);
 
   // API helper for authenticated requests (cookie-based)
   const apiRequest = useCallback(async (
@@ -156,11 +189,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, [checkAuth]);
 
-  // OAuth login method
-  const login = useCallback((provider: 'google' | 'github') => {
+  // OAuth login method with redirect support
+  const login = useCallback((provider: 'google' | 'github', redirectUrl?: string) => {
+    // Store intended redirect URL if provided, otherwise use current location
+    const intendedUrl = redirectUrl || window.location.pathname + window.location.search;
+    setIntendedUrl(intendedUrl);
+    
+    // Build OAuth URL with redirect parameter
+    const oauthUrl = new URL(`/api/auth/oauth/${provider}`, window.location.origin);
+    oauthUrl.searchParams.set('redirect_url', intendedUrl);
+    
     // Redirect to OAuth provider
-    window.location.href = `/api/auth/oauth/${provider}`;
-  }, []);
+    window.location.href = oauthUrl.toString();
+  }, [setIntendedUrl]);
 
   // Email/password login
   const loginWithEmail = useCallback(async (credentials: { email: string; password: string }) => {
@@ -187,7 +228,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           expiresAt: new Date(Date.now() + (data.data.expiresIn || 24 * 60 * 60) * 1000),
         });
         setupTokenRefresh();
-        navigate('/');
+        
+        // Navigate to intended URL or default to home
+        const intendedUrl = getIntendedUrl();
+        clearIntendedUrl();
+        navigate(intendedUrl || '/');
       } else {
         setError(data.error?.message || 'Login failed');
       }
@@ -224,7 +269,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           expiresAt: new Date(Date.now() + (responseData.data.expiresIn || 24 * 60 * 60) * 1000),
         });
         setupTokenRefresh();
-        navigate('/');
+        
+        // Navigate to intended URL or default to home
+        const intendedUrl = getIntendedUrl();
+        clearIntendedUrl();
+        navigate(intendedUrl || '/');
       } else {
         setError(responseData.error?.message || 'Registration failed');
       }
@@ -273,12 +322,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated: !!user,
     isLoading,
     error,
-    login, // OAuth method
+    login, // OAuth method with redirect support
     loginWithEmail, // Email/password method
     register,
     logout,
     refreshUser,
     clearError,
+    setIntendedUrl,
+    getIntendedUrl,
+    clearIntendedUrl,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

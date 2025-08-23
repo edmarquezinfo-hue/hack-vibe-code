@@ -77,23 +77,23 @@ export interface XmlParsingConfig {
 export class XmlStreamFormat extends CodeGenerationFormat {
     
     parseStreamingChunks(
-        chunk: string,
+        _chunk: string,
         state: CodeGenerationStreamingState,
-        onFileOpen: (filePath: string) => void,
-        onFileChunk: (filePath: string, chunk: string, format: 'full_content' | 'unified_diff') => void,
-        onFileClose: (filePath: string) => void
+        _onFileOpen: (filePath: string) => void,
+        _onFileChunk: (filePath: string, chunk: string, format: 'full_content' | 'unified_diff') => void,
+        _onFileClose: (filePath: string) => void
     ): CodeGenerationStreamingState {
         // This method is required by the abstract class but not used for XML parsing
         // The actual XML parsing is done via parseXmlStream method
         return state;
     }
     
-    serialize(files: FileGenerationOutputType[]): string {
+    serialize(_files: FileGenerationOutputType[]): string {
         // Not directly applicable for XML format
         return '';
     }
     
-    deserialize(serialized: string): FileGenerationOutputType[] {
+    deserialize(_serialized: string): FileGenerationOutputType[] {
         // Not directly applicable for XML format
         return [];
     }
@@ -301,7 +301,6 @@ IMPORTANT:
         callbacks: XmlStreamingCallbacks
     ): boolean {
         const { type, tagName, attributes, fullMatch, index } = tagMatch;
-        const normalizedTagName = tagName.toLowerCase();
         
         // Extract content before this tag
         const contentBefore = state.contentBuffer.substring(0, index);
@@ -329,7 +328,6 @@ IMPORTANT:
         state: XmlParsingState,
         callbacks: XmlStreamingCallbacks
     ): boolean {
-        const normalizedTagName = tagName.toLowerCase();
         
         // Create new element
         const element: XmlElement = {
@@ -529,7 +527,7 @@ IMPORTANT:
 /**
  * Utility function to create XML stream parser
  */
-export function createXmlStreamParser(config?: XmlParsingConfig): XmlStreamFormat {
+export function createXmlStreamParser(_config?: XmlParsingConfig): XmlStreamFormat {
     return new XmlStreamFormat();
 }
 

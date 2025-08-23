@@ -344,15 +344,14 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
                             // const previousFiles = [...existingFilesNotBeingGenerated, ...generatedFilesInPhase];
 
                             // Call realtime code fixer immediately - this is the "realtime" aspect
-                            const realtimeCodeFixer = new RealtimeCodeFixer(env, options.agentId);
+                            const realtimeCodeFixer = new RealtimeCodeFixer(env, options.inferenceContext);
                             const fixPromise = realtimeCodeFixer.run(
                                 generatedFile, 
                                 {
                                     // previousFiles: previousFiles,
                                     query: context.query,
                                     blueprint: context.blueprint,
-                                    template: context.templateDetails,
-                                    inferenceContext: options.inferenceContext
+                                    template: context.templateDetails
                                 },
                                 phase
                             );

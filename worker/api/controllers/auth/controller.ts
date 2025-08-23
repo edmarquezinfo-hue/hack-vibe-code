@@ -27,6 +27,8 @@ import { UserService } from '../../../database/services/UserService';
 import * as schema from '../../../database/schema';
 import { eq, and, desc, ne } from 'drizzle-orm';
 import { GitHubIntegrationController } from '../githubIntegration/controller';
+import { RouteContext } from '../../types/route-context';
+import { authMiddleware } from '../../../middleware/security/auth';
 
 /**
  * Authentication Controller
@@ -41,11 +43,12 @@ export class AuthController extends BaseController {
         this.authService = new AuthService(db, env, baseUrl);
     }
     
+    
     /**
      * Register a new user
      * POST /api/auth/register
      */
-    async register(request: Request): Promise<Response> {
+    async register(request: Request, _env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
         try {
             const bodyResult = await this.parseJsonBody(request);
             if (!bodyResult.success) {
@@ -80,7 +83,7 @@ export class AuthController extends BaseController {
      * Login with email and password
      * POST /api/auth/login
      */
-    async login(request: Request): Promise<Response> {
+    async login(request: Request, _env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
         try {
             const bodyResult = await this.parseJsonBody(request);
             if (!bodyResult.success) {
@@ -115,12 +118,31 @@ export class AuthController extends BaseController {
      * Logout current user
      * POST /api/auth/logout
      */
-    async logout(request: Request): Promise<Response> {
+    async logout(request: Request, _env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
         try {
-            const session = await this.getSessionFromRequest(request, this.env);
+            // Try to get refresh token to properly logout session
+            const refreshToken = extractRefreshToken(request);
             
-            if (session) {
-                await this.authService.logout(session.sessionId);
+            if (refreshToken) {
+                try {
+                    const tokenService = new TokenService(this.env);
+                    const tokenPayload = await tokenService.verifyToken(refreshToken);
+                    if (tokenPayload && tokenPayload.type === 'refresh') {
+                        // Find and delete the session
+                        const refreshTokenHash = await tokenService.hashToken(refreshToken);
+                        const db = this.createDbService(this.env);
+                        await db.db
+                            .update(schema.sessions)
+                            .set({
+                                isRevoked: true,
+                                revokedAt: new Date(),
+                                revokedReason: 'user_logout'
+                            })
+                            .where(eq(schema.sessions.refreshTokenHash, refreshTokenHash));
+                    }
+                } catch (error) {
+                    this.logger.debug('Failed to properly logout session', error);
+                }
             }
             
             const response = this.createSuccessResponse({ 
@@ -149,17 +171,17 @@ export class AuthController extends BaseController {
      * Get current user profile
      * GET /api/auth/profile
      */
-    async getProfile(request: Request): Promise<Response> {
+    async getProfile(_request: Request, _env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
         try {
-            const session = await this.getSessionFromRequest(request, this.env);
-            
-            if (!session) {
+            // User is provided by middleware - no need for manual authentication
+            const user = routeContext.user;
+            if (!user) {
                 return this.createErrorResponse('Unauthorized', 401);
             }
             
             const db = this.createDbService(this.env);
             const userService = new UserService(db);
-            const fullUser = await userService.findUserById(session.userId);
+            const fullUser = await userService.findUserById(user.id);
             
             if (!fullUser) {
                 return this.createErrorResponse('User not found', 404);
@@ -167,7 +189,7 @@ export class AuthController extends BaseController {
             
             return this.createSuccessResponse({
                 user: mapUserResponse(fullUser),
-                sessionId: session.sessionId
+                sessionId: user.id // Use user ID as session identifier
             });
         } catch (error) {
             return this.handleError(error, 'get profile');
@@ -178,11 +200,10 @@ export class AuthController extends BaseController {
      * Update user profile
      * PUT /api/auth/profile
      */
-    async updateProfile(request: Request): Promise<Response> {
+    async updateProfile(request: Request, _env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
         try {
-            const session = await this.getSessionFromRequest(request, this.env);
-            
-            if (!session) {
+            const user = routeContext.user;
+            if (!user) {
                 return this.createErrorResponse('Unauthorized', 401);
             }
             
@@ -209,7 +230,7 @@ export class AuthController extends BaseController {
                     .where(
                         and(
                             eq(schema.users.username, updateData.username),
-                            ne(schema.users.id, session.userId)
+                            ne(schema.users.id, user.id)
                         )
                     )
                     .get();
@@ -231,11 +252,11 @@ export class AuthController extends BaseController {
                     timezone: updateData.timezone,
                     updatedAt: new Date()
                 })
-                .where(eq(schema.users.id, session.userId));
+                .where(eq(schema.users.id, user.id));
             
             // Return updated user data
             const userService = new UserService(db);
-            const updatedUser = await userService.findUserById(session.userId);
+            const updatedUser = await userService.findUserById(user.id);
             
             if (!updatedUser) {
                 return this.createErrorResponse('User not found', 404);
@@ -254,14 +275,17 @@ export class AuthController extends BaseController {
      * Initiate OAuth flow
      * GET /api/auth/oauth/:provider
      */
-    async initiateOAuth(request: Request): Promise<Response> {
+    async initiateOAuth(request: Request, _env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
         try {
-            const pathParams = this.extractPathParams(request, ['provider']);
-            const validatedProvider = oauthProviderSchema.parse(pathParams.provider);
+            const validatedProvider = oauthProviderSchema.parse(routeContext.pathParams.provider);
+            
+            // Get intended redirect URL from query parameter
+            const intendedRedirectUrl = routeContext.queryParams.get('redirect_url') || undefined;
             
             const authUrl = await this.authService.getOAuthAuthorizationUrl(
                 validatedProvider,
-                request
+                request,
+                intendedRedirectUrl
             );
             
             return Response.redirect(authUrl, 302);
@@ -280,15 +304,13 @@ export class AuthController extends BaseController {
      * Handle OAuth callback
      * GET /api/auth/callback/:provider
      */
-    async handleOAuthCallback(request: Request): Promise<Response> {
+    async handleOAuthCallback(request: Request, _env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
         try {
-            const pathParams = this.extractPathParams(request, ['provider']);
-            const validatedProvider = oauthProviderSchema.parse(pathParams.provider);
+            const validatedProvider = oauthProviderSchema.parse(routeContext.pathParams.provider);
             
-            const queryParams = this.parseQueryParams(request);
-            const code = queryParams.get('code');
-            const state = queryParams.get('state');
-            const error = queryParams.get('error');
+            const code = routeContext.queryParams.get('code');
+            const state = routeContext.queryParams.get('state');
+            const error = routeContext.queryParams.get('error');
             
             if (error) {
                 this.logger.error('OAuth provider returned error', { provider: validatedProvider, error });
@@ -320,17 +342,35 @@ export class AuthController extends BaseController {
             
             const baseUrl = new URL(request.url).origin;
             
+            // Use stored redirect URL or default to home page
+            const redirectLocation = result.redirectUrl || `${baseUrl}/`;
+            
             // Create redirect response with secure auth cookies
             const response = new Response(null, {
                 status: 302,
                 headers: {
-                    'Location': `${baseUrl}/`
+                    'Location': redirectLocation
                 }
+            });
+            
+            this.logger.info('DEBUG: Setting auth cookies', {
+                hasAccessToken: !!result.accessToken,
+                hasRefreshToken: !!result.refreshToken,
+                accessTokenLength: result.accessToken ? result.accessToken.length : 0,
+                refreshTokenLength: result.refreshToken ? result.refreshToken.length : 0,
+                redirectLocation
             });
             
             setSecureAuthCookies(response, {
                 accessToken: result.accessToken,
                 refreshToken: result.refreshToken
+            });
+            
+            // Log the actual Set-Cookie headers
+            const setCookieHeaders = response.headers.getSetCookie();
+            this.logger.info('DEBUG: Set-Cookie headers created', {
+                cookieCount: setCookieHeaders.length,
+                cookies: setCookieHeaders.map(cookie => cookie.substring(0, 50) + '...')
             });
             
             return response;
@@ -374,7 +414,7 @@ export class AuthController extends BaseController {
      * Refresh access token
      * POST /api/auth/refresh
      */
-    async refreshToken(request: Request): Promise<Response> {
+    async refreshToken(request: Request, _env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
         try {
             let refreshToken: string | undefined;
             
@@ -420,29 +460,26 @@ export class AuthController extends BaseController {
      * Check authentication status
      * GET /api/auth/check
      */
-    async checkAuth(request: Request): Promise<Response> {
+    async checkAuth(request: Request, _env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
         try {
-            const session = await this.getSessionFromRequest(request, this.env);
+            // Use the same middleware authentication logic but don't require auth
+            const user = await authMiddleware(request, this.env);
             
-            if (!session) {
+            if (!user) {
                 return this.createSuccessResponse({
                     authenticated: false,
                     user: null
                 });
             }
             
-            const db = this.createDbService(this.env);
-            const userService = new UserService(db);
-            const user = await userService.findUserById(session.userId);
-            
             return this.createSuccessResponse({
                 authenticated: true,
-                user: user ? {
+                user: {
                     id: user.id,
                     email: user.email,
                     displayName: user.displayName
-                } : null,
-                sessionId: session.sessionId
+                },
+                sessionId: user.id
             });
         } catch (error) {
             return this.createSuccessResponse({
@@ -456,26 +493,19 @@ export class AuthController extends BaseController {
      * Get active sessions for current user
      * GET /api/auth/sessions
      */
-    async getActiveSessions(request: Request): Promise<Response> {
+    async getActiveSessions(_request: Request, _env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
         try {
-            const session = await this.getSessionFromRequest(request, this.env);
-            
-            if (!session) {
+            const user = routeContext.user;
+            if (!user) {
                 return this.createErrorResponse('Unauthorized', 401);
             }
 
             const db = this.createDbService(this.env);
             const sessionService = new SessionService(db, new TokenService(this.env));
-            const sessions = await sessionService.getUserSessions(session.userId);
-
-            // Mark current session
-            const sessionsWithCurrent = sessions.map((s: { id: string; [key: string]: unknown }) => ({
-                ...s,
-                isCurrent: s.id === session.sessionId
-            }));
+            const sessions = await sessionService.getUserSessions(user.id);
 
             return this.createSuccessResponse({
-                sessions: sessionsWithCurrent
+                sessions: sessions
             });
         } catch (error) {
             return this.handleError(error, 'get active sessions');
@@ -486,17 +516,15 @@ export class AuthController extends BaseController {
      * Revoke a specific session
      * DELETE /api/auth/sessions/:sessionId
      */
-    async revokeSession(request: Request): Promise<Response> {
+    async revokeSession(_request: Request, _env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
         try {
-            const session = await this.getSessionFromRequest(request, this.env);
-            
-            if (!session) {
+            const user = routeContext.user;
+            if (!user) {
                 return this.createErrorResponse('Unauthorized', 401);
             }
 
             // Extract session ID from URL
-            const pathParams = this.extractPathParams(request, ['sessionId']);
-            const sessionIdToRevoke = pathParams.sessionId;
+            const sessionIdToRevoke = routeContext.pathParams.sessionId;
 
             const db = this.createDbService(this.env);
             const sessionService = new SessionService(db, new TokenService(this.env));
@@ -515,11 +543,10 @@ export class AuthController extends BaseController {
      * Get API keys for current user
      * GET /api/auth/api-keys
      */
-    async getApiKeys(request: Request): Promise<Response> {
+    async getApiKeys(_request: Request, _env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
         try {
-            const session = await this.getSessionFromRequest(request, this.env);
-            
-            if (!session) {
+            const user = routeContext.user;
+            if (!user) {
                 return this.createErrorResponse('Unauthorized', 401);
             }
 
@@ -534,7 +561,7 @@ export class AuthController extends BaseController {
                     isActive: schema.apiKeys.isActive
                 })
                 .from(schema.apiKeys)
-                .where(eq(schema.apiKeys.userId, session.userId))
+                .where(eq(schema.apiKeys.userId, user.id))
                 .orderBy(desc(schema.apiKeys.createdAt))
                 .all();
 
@@ -557,11 +584,10 @@ export class AuthController extends BaseController {
      * Create a new API key
      * POST /api/auth/api-keys
      */
-    async createApiKey(request: Request): Promise<Response> {
+    async createApiKey(request: Request, _env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
         try {
-            const session = await this.getSessionFromRequest(request, this.env);
-            
-            if (!session) {
+            const user = routeContext.user;
+            if (!user) {
                 return this.createErrorResponse('Unauthorized', 401);
             }
 
@@ -589,7 +615,7 @@ export class AuthController extends BaseController {
                 .insert(schema.apiKeys)
                 .values({
                     id: generateId(),
-                    userId: session.userId,
+                    userId: user.id,
                     name: sanitizedName,
                     keyHash,
                     keyPreview,
@@ -600,7 +626,7 @@ export class AuthController extends BaseController {
                     updatedAt: new Date()
                 });
 
-            this.logger.info('API key created', { userId: session.userId, name: sanitizedName });
+            this.logger.info('API key created', { userId: user.id, name: sanitizedName });
 
             return this.createSuccessResponse({
                 key, // Return the actual key only once
@@ -617,17 +643,15 @@ export class AuthController extends BaseController {
      * Revoke an API key
      * DELETE /api/auth/api-keys/:keyId
      */
-    async revokeApiKey(request: Request): Promise<Response> {
+    async revokeApiKey(_request: Request, _env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
         try {
-            const session = await this.getSessionFromRequest(request, this.env);
-            
-            if (!session) {
+            const user = routeContext.user;
+            if (!user) {
                 return this.createErrorResponse('Unauthorized', 401);
             }
 
             // Extract key ID from URL
-            const pathParams = this.extractPathParams(request, ['keyId']);
-            const keyId = pathParams.keyId;
+            const keyId = routeContext.pathParams.keyId;
 
             const db = this.createDbService(this.env);
             
@@ -641,11 +665,11 @@ export class AuthController extends BaseController {
                 .where(
                     and(
                         eq(schema.apiKeys.id, keyId),
-                        eq(schema.apiKeys.userId, session.userId)
+                        eq(schema.apiKeys.userId, user.id)
                     )
                 );
 
-            this.logger.info('API key revoked', { userId: session.userId, keyId });
+            this.logger.info('API key revoked', { userId: user.id, keyId });
 
             return this.createSuccessResponse({
                 message: 'API key revoked successfully'

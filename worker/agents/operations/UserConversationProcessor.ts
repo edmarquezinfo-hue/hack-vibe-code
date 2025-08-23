@@ -1,8 +1,7 @@
-import { ConversationalResponseSchema, ConversationalResponseType } from "../schemas";
+import { ConversationalResponseType } from "../schemas";
 import { createAssistantMessage, createUserMessage } from "../inferutils/common";
 import { executeInference } from "../inferutils/infer";
 import { getSystemPromptWithProjectContext } from "./common";
-import { TemplateRegistry } from "../inferutils/schemaFormatters";
 import { WebSocketMessageResponses } from "../constants";
 import { WebSocketMessageData } from "../../api/websocketTypes";
 import { AgentOperation, OperationOptions } from "../operations/common";

@@ -54,6 +54,7 @@ export interface AuthResult {
     accessToken: string;
     refreshToken: string;
     expiresIn: number;
+    redirectUrl?: string;
 }
 
 /**
@@ -294,7 +295,8 @@ export class AuthService {
      */
     async getOAuthAuthorizationUrl(
         provider: OAuthProvider,
-        _request: Request
+        request: Request,
+        intendedRedirectUrl?: string
     ): Promise<string> {
         const oauthProvider = this.oauthProviders.get(provider);
         if (!oauthProvider) {
@@ -308,19 +310,25 @@ export class AuthService {
         // Clean up expired OAuth states first
         await this.cleanupExpiredOAuthStates();
         
+        // Validate and sanitize intended redirect URL
+        let validatedRedirectUrl: string | null = null;
+        if (intendedRedirectUrl) {
+            validatedRedirectUrl = this.validateRedirectUrl(intendedRedirectUrl, request);
+        }
+        
         // Generate state for CSRF protection
         const state = await this.tokenService.generateSecureToken();
         
         // Generate PKCE code verifier
         const codeVerifier = BaseOAuthProvider.generateCodeVerifier();
         
-        // Store OAuth state
+        // Store OAuth state with intended redirect URL
         await this.db.db.insert(schema.oauthStates).values({
             id: generateId(),
             state,
             provider,
             codeVerifier,
-            redirectUri: oauthProvider['redirectUri'],
+            redirectUri: validatedRedirectUrl || oauthProvider['redirectUri'],
             createdAt: new Date(),
             expiresAt: new Date(Date.now() + 600000), // 10 minutes
             isUsed: false,
@@ -457,7 +465,8 @@ export class AuthService {
                 },
                 accessToken: sessionAccessToken,
                 refreshToken: sessionRefreshToken,
-                expiresIn: 24 * 3600 // 24 hours
+                expiresIn: 24 * 3600, // 24 hours
+                redirectUrl: oauthState.redirectUri || undefined
             };
         } catch (error) {
             await this.logAuthAttempt('', `oauth_${provider}`, false, request);
@@ -576,6 +585,47 @@ export class AuthService {
             });
         } catch (error) {
             logger.error('Failed to log auth attempt', error);
+        }
+    }
+    
+    /**
+     * Validate and sanitize redirect URL to prevent open redirect attacks
+     */
+    private validateRedirectUrl(redirectUrl: string, request: Request): string | null {
+        try {
+            const requestUrl = new URL(request.url);
+            
+            // Handle relative URLs by constructing absolute URL with same origin
+            const redirectUrlObj = redirectUrl.startsWith('/') 
+                ? new URL(redirectUrl, requestUrl.origin)
+                : new URL(redirectUrl);
+            
+            // Only allow same-origin redirects for security
+            if (redirectUrlObj.origin !== requestUrl.origin) {
+                logger.warn('OAuth redirect URL rejected: different origin', {
+                    redirectUrl: redirectUrl,
+                    requestOrigin: requestUrl.origin,
+                    redirectOrigin: redirectUrlObj.origin
+                });
+                return null;
+            }
+            
+            // Prevent redirecting to authentication endpoints to avoid loops
+            const authPaths = ['/api/auth/', '/logout'];
+            if (authPaths.some(path => redirectUrlObj.pathname.startsWith(path))) {
+                logger.warn('OAuth redirect URL rejected: auth endpoint', {
+                    redirectUrl: redirectUrl,
+                    pathname: redirectUrlObj.pathname
+                });
+                return null;
+            }
+            
+            // Return the validated URL
+            logger.info('OAuth redirect URL validated', { redirectUrl });
+            return redirectUrl;
+        } catch (error) {
+            logger.warn('Invalid OAuth redirect URL format', { redirectUrl, error });
+            return null;
         }
     }
 }

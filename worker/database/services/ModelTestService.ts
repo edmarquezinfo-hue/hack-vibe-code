@@ -41,7 +41,7 @@ export class ModelTestService extends BaseService {
             // Use core inference system to test the model configuration
             const response = await infer({
                 env: this.env,
-                id: `test-${Date.now()}`, // Generate unique test ID
+                metadata: { agentId: `test-${Date.now()}`, userId: 'system' }, // Generate unique test ID
                 messages: [testMessage],
                 modelName: modelName,
                 maxTokens: Math.min(modelConfig.max_tokens || 100, 100), // Limit to 100 tokens for test
@@ -126,7 +126,7 @@ export class ModelTestService extends BaseService {
             // Use core inference system to test the provider key
             const response = await infer({
                 env: this.env,
-                id: `provider-test-${Date.now()}`, // Generate unique test ID
+                metadata: { agentId: `provider-test-${Date.now()}`, userId: 'system' }, // Generate unique test ID
                 messages: [testMessage],
                 modelName: testModel,
                 maxTokens: 10,

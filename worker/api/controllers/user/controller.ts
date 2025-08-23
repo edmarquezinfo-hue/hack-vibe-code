@@ -1,6 +1,7 @@
 
 import { BaseController } from '../BaseController';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
+import { RouteContext } from '../../types/route-context';
 import { UserService } from '../../../database/services/UserService';
 import type { AppSortOption, SortOrder, TimePeriod } from '../../../database/types';
 import { 
@@ -23,18 +24,18 @@ export class UserController extends BaseController {
     /**
      * Get user dashboard data
      */
-    async getDashboard(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<DashboardData>>> {
+    async getDashboard(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<DashboardData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<DashboardData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<DashboardData>('Authentication required', 401);
             }
 
             const dbService = this.createDbService(env);
             const userService = new UserService(dbService);
             
             // Get comprehensive dashboard data using user service
-            const dashboardData = await userService.getUserDashboardData(authResult.user!.id);
+            const dashboardData = await userService.getUserDashboardData(user.id);
 
             const responseData: DashboardData = {
                 user: dashboardData.user!,
@@ -54,11 +55,11 @@ export class UserController extends BaseController {
     /**
      * Get user's apps with pagination and filtering
      */
-    async getApps(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<UserAppsData>>> {
+    async getApps(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<UserAppsData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<UserAppsData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<UserAppsData>('Authentication required', 401);
             }
 
             const url = new URL(request.url);
@@ -92,8 +93,8 @@ export class UserController extends BaseController {
             
             // Get user apps with analytics and proper total count
             const [apps, totalCount] = await Promise.all([
-                userService.getUserAppsWithAnalytics(authResult.user!.id, queryOptions),
-                userService.getUserAppsCount(authResult.user!.id, queryOptions)
+                userService.getUserAppsWithAnalytics(user.id, queryOptions),
+                userService.getUserAppsCount(user.id, queryOptions)
             ]);
 
             const responseData: UserAppsData = {
@@ -116,11 +117,11 @@ export class UserController extends BaseController {
     /**
      * Create or associate a CodeGeneratorAgent session with the user
      */
-    async createAgentSession(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<AgentSessionData>>> {
+    async createAgentSession(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AgentSessionData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<AgentSessionData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<AgentSessionData>('Authentication required', 401);
             }
 
             const bodyResult = await this.parseJsonBody<{
@@ -145,7 +146,7 @@ export class UserController extends BaseController {
             const userService = new UserService(dbService);
             
             // Create app session using user service
-            const sessionResult = await userService.createAppSession(authResult.user!.id, {
+            const sessionResult = await userService.createAppSession(user.id, {
                 agentId,
                 prompt,
                 title,
@@ -168,11 +169,11 @@ export class UserController extends BaseController {
     /**
      * Update user profile
      */
-    async updateProfile(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ProfileUpdateData>>> {
+    async updateProfile(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ProfileUpdateData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ProfileUpdateData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ProfileUpdateData>('Authentication required', 401);
             }
 
             const bodyResult = await this.parseJsonBody<{
@@ -190,7 +191,7 @@ export class UserController extends BaseController {
             const userService = new UserService(dbService);
             
             // Update profile with validation using user service
-            const result = await userService.updateUserProfileWithValidation(authResult.user!.id, bodyResult.data!);
+            const result = await userService.updateUserProfileWithValidation(user.id, bodyResult.data!);
 
             if (!result.success) {
                 return this.createErrorResponse<ProfileUpdateData>(result.message, 400);
@@ -207,16 +208,16 @@ export class UserController extends BaseController {
     /**
      * Get user's teams
      */
-    async getTeams(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<UserTeamsData>>> {
+    async getTeams(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<UserTeamsData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<UserTeamsData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<UserTeamsData>('Authentication required', 401);
             }
 
             const dbService = this.createDbService(env);
             const userService = new UserService(dbService);
-            const teams = await userService.getUserTeams(authResult.user!.id);
+            const teams = await userService.getUserTeams(user.id);
 
             const responseData: UserTeamsData = { teams };
             return this.createSuccessResponse(responseData);

@@ -5,6 +5,7 @@
  */
 
 import { BaseController } from '../BaseController';
+import { RouteContext } from '../../types/route-context';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
 import { ModelConfigService } from '../../../database/services/ModelConfigService';
 import { SecretsService } from '../../../database/services/SecretsService';
@@ -70,15 +71,15 @@ export class ModelConfigController extends BaseController {
      * Get all model configurations for the current user
      * GET /api/model-configs
      */
-    async getModelConfigs(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ModelConfigsData>>> {
+    async getModelConfigs(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelConfigsData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ModelConfigsData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ModelConfigsData>('Authentication required', 401);
             }
 
             const { modelConfigService } = this.createServices(env);
-            const configs = await modelConfigService.getUserModelConfigs(authResult.user!.id);
+            const configs = await modelConfigService.getUserModelConfigs(user.id);
             const defaults = modelConfigService.getDefaultConfigs();
 
             const responseData: ModelConfigsData = {
@@ -98,11 +99,11 @@ export class ModelConfigController extends BaseController {
      * Get a specific model configuration
      * GET /api/model-configs/:agentAction
      */
-    async getModelConfig(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ModelConfigData>>> {
+    async getModelConfig(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelConfigData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ModelConfigData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ModelConfigData>('Authentication required', 401);
             }
 
             const url = new URL(request.url);
@@ -113,7 +114,7 @@ export class ModelConfigController extends BaseController {
             }
 
             const { modelConfigService } = this.createServices(env);
-            const config = await modelConfigService.getUserModelConfig(authResult.user!.id, agentAction);
+            const config = await modelConfigService.getUserModelConfig(user.id, agentAction);
             const defaultConfig = modelConfigService.getDefaultConfigs()[agentAction];
 
             const responseData: ModelConfigData = {
@@ -133,11 +134,11 @@ export class ModelConfigController extends BaseController {
      * Update a specific model configuration
      * PUT /api/model-configs/:agentAction
      */
-    async updateModelConfig(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ModelConfigUpdateData>>> {
+    async updateModelConfig(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelConfigUpdateData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ModelConfigUpdateData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ModelConfigUpdateData>('Authentication required', 401);
             }
 
             const url = new URL(request.url);
@@ -175,7 +176,7 @@ export class ModelConfigController extends BaseController {
 
             const { modelConfigService } = this.createServices(env);
             const updatedConfig = await modelConfigService.upsertUserModelConfig(
-                authResult.user!.id,
+                user.id,
                 agentAction,
                 modelConfig
             );
@@ -199,11 +200,11 @@ export class ModelConfigController extends BaseController {
      * Delete/reset a model configuration to default
      * DELETE /api/model-configs/:agentAction
      */
-    async deleteModelConfig(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ModelConfigDeleteData>>> {
+    async deleteModelConfig(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelConfigDeleteData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ModelConfigDeleteData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ModelConfigDeleteData>('Authentication required', 401);
             }
 
             const url = new URL(request.url);
@@ -214,7 +215,7 @@ export class ModelConfigController extends BaseController {
             }
 
             const { modelConfigService } = this.createServices(env);
-            const deleted = await modelConfigService.deleteUserModelConfig(authResult.user!.id, agentAction);
+            const deleted = await modelConfigService.deleteUserModelConfig(user.id, agentAction);
 
             if (!deleted) {
                 return this.createErrorResponse<ModelConfigDeleteData>('Configuration not found or already using defaults', 404);
@@ -235,11 +236,11 @@ export class ModelConfigController extends BaseController {
      * Test a model configuration
      * POST /api/model-configs/test
      */
-    async testModelConfig(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ModelConfigTestData>>> {
+    async testModelConfig(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelConfigTestData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ModelConfigTestData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ModelConfigTestData>('Authentication required', 401);
             }
 
             const bodyResult = await this.parseJsonBody(request);
@@ -257,7 +258,7 @@ export class ModelConfigController extends BaseController {
             const { modelConfigService, secretsService, modelTestService } = this.createServices(env);
 
             // Get base configuration and merge with temporary changes if provided
-            const baseConfig = await modelConfigService.getUserModelConfig(authResult.user!.id, agentAction);
+            const baseConfig = await modelConfigService.getUserModelConfig(user.id, agentAction);
             
             const configToTest: ModelConfig = validatedData.tempConfig ? {
                 ...baseConfig,
@@ -273,7 +274,7 @@ export class ModelConfigController extends BaseController {
             // Get user API keys if requested
             let userApiKeys: Record<string, string> | undefined;
             if (validatedData.useUserKeys) {
-                const userApiKeysMap = await secretsService.getUserProviderKeysMap(authResult.user!.id);
+                const userApiKeysMap = await secretsService.getUserProviderKeysMap(user.id);
                 userApiKeys = Object.fromEntries(userApiKeysMap);
             }
 
@@ -305,15 +306,15 @@ export class ModelConfigController extends BaseController {
      * Reset all model configurations to defaults
      * POST /api/model-configs/reset-all
      */
-    async resetAllConfigs(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ModelConfigResetData>>> {
+    async resetAllConfigs(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelConfigResetData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ModelConfigResetData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ModelConfigResetData>('Authentication required', 401);
             }
 
             const { modelConfigService } = this.createServices(env);
-            const resetCount = await modelConfigService.resetAllUserConfigs(authResult.user!.id);
+            const resetCount = await modelConfigService.resetAllUserConfigs(user.id);
 
             const responseData: ModelConfigResetData = {
                 resetCount,
@@ -352,15 +353,15 @@ export class ModelConfigController extends BaseController {
      * Get BYOK providers and available models
      * GET /api/model-configs/byok-providers
      */
-    async getByokProviders(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ByokProvidersData>>> {
+    async getByokProviders(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ByokProvidersData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<ByokProvidersData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<ByokProvidersData>('Authentication required', 401);
             }
 
             // Get user's provider status
-            const providers = await getUserProviderStatus(authResult.user!.id, env);
+            const providers = await getUserProviderStatus(user.id, env);
             
             // Get models available for providers with valid keys
             const modelsByProvider = getByokModels(providers);

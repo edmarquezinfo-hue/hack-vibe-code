@@ -3,7 +3,6 @@ import { generateBlueprint } from '../../../agents/planning/blueprint';
 import { selectTemplate } from '../../../agents/planning/templateSelector';
 import { SandboxSdkClient } from '../../../services/sandbox/sandboxSdkClient';
 import { WebSocketMessageResponses } from '../../../agents/constants';
-import { authMiddleware } from '../../../middleware/security/auth';
 import * as schema from '../../../database/schema';
 import { BaseController } from '../BaseController';
 import { getSandboxService } from '../../../services/sandbox/factory';
@@ -12,6 +11,7 @@ import { CodeGenState } from '../../../agents/core/state';
 import { getAgentStub } from '../../../agents';
 import { AgentStateData, AgentConnectionData } from './types';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
+import { RouteContext } from '../../types/route-context';
 
 interface CodeGenArgs {
     query: string;
@@ -44,7 +44,7 @@ export class CodingAgentController extends BaseController {
     /**
      * Start the incremental code generation process
      */
-    async startCodeGeneration(request: Request, env: Env, _: ExecutionContext): Promise<Response> {
+    async startCodeGeneration(request: Request, env: Env, _: ExecutionContext, context: RouteContext): Promise<Response> {
         // Initialize new request context for distributed tracing
         const chatId = generateId();
         const requestId = chatId;
@@ -164,11 +164,14 @@ export class CodingAgentController extends BaseController {
                 }
             });
 
-            // Check if user is authenticated
-            const user = await authMiddleware(request, env);
-            
-            // Get session token from header for anonymous users
-            const sessionToken = !user ? request.headers.get('X-Session-Token') || generateId() : null;
+            // Check if user is authenticated (required for app creation)
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return new Response(JSON.stringify({ error: 'Authentication required to create apps' }), {
+                    status: 401,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
             
             generateBlueprint({
                 env,
@@ -190,58 +193,51 @@ export class CodingAgentController extends BaseController {
             }).then(async (blueprint) => {
                 this.codeGenLogger.info('Blueprint generated successfully');
                 
-                // Save the app to database for both authenticated and anonymous users
-                if (user || sessionToken) {
-                    try {
-                        const dbService = this.createDbService(env);
-                        
-                        this.codeGenLogger.info('Attempting to save app to database', {
-                            chatId,
-                            userId: user?.id,
-                            sessionToken: sessionToken,
+                // Save the app to database (authenticated users only)
+                try {
+                    const dbService = this.createDbService(env);
+                    
+                    this.codeGenLogger.info('Attempting to save app to database', {
+                        chatId,
+                        userId: user.id,
+                        title: blueprint.title || query.substring(0, 100),
+                        hasDB: !!env.DB
+                    });
+                    
+                    await dbService.db
+                        .insert(schema.apps)
+                        .values({
+                            id: chatId, // Use chatId as the app ID
+                            userId: user.id,
+                            sessionToken: null, // No session tokens for authenticated users
                             title: blueprint.title || query.substring(0, 100),
-                            hasDB: !!env.DB
+                            description: blueprint.description || null,
+                            originalPrompt: query,
+                            finalPrompt: query,
+                            blueprint: blueprint,
+                            framework: frameworks?.[0] || 'react',
+                            visibility: 'private', // Authenticated users default to private
+                            status: 'generating',
+                            createdAt: new Date(),
+                            updatedAt: new Date()
                         });
-                        
-                        await dbService.db
-                            .insert(schema.apps)
-                            .values({
-                                id: chatId, // Use chatId as the app ID
-                                userId: user?.id || null,
-                                sessionToken: sessionToken,
-                                title: blueprint.title || query.substring(0, 100),
-                                description: blueprint.description || null,
-                                originalPrompt: query,
-                                finalPrompt: query,
-                                blueprint: blueprint,
-                                framework: frameworks?.[0] || 'react',
-                                visibility: user ? 'private' : 'public', // Anonymous apps default to public
-                                status: 'generating',
-                                createdAt: new Date(),
-                                updatedAt: new Date()
-                            });
-                        
-                        this.codeGenLogger.info('App saved successfully to database', { 
-                            chatId, 
-                            userId: user?.id, 
-                            sessionToken: sessionToken,
-                            visibility: user ? 'private' : 'public' 
-                        });
-                    } catch (error) {
-                        this.codeGenLogger.error('Failed to save app to database', {
-                            error: error instanceof Error ? error.message : String(error),
-                            stack: error instanceof Error ? error.stack : undefined,
-                            chatId,
-                            userId: user?.id,
-                            sessionToken: sessionToken
-                        });
-                    }
-                } else {
-                    this.codeGenLogger.info('No user or session token, skipping app save');
+                    
+                    this.codeGenLogger.info('App saved successfully to database', { 
+                        chatId, 
+                        userId: user.id,
+                        visibility: 'private'
+                    });
+                } catch (error) {
+                    this.codeGenLogger.error('Failed to save app to database', {
+                        error: error instanceof Error ? error.message : String(error),
+                        stack: error instanceof Error ? error.stack : undefined,
+                        chatId,
+                        userId: user.id
+                    });
                 }
                 
                 // Initialize the agent with the blueprint and query
-                await agentInstance.initialize(query, blueprint, templateDetails, chatId, hostname, user?.id || '', agentMode);
+                await agentInstance.initialize(query, blueprint, templateDetails, chatId, hostname, user.id, agentMode);
                 
                 this.codeGenLogger.info('Agent initialized successfully');
                 writer.write("terminate");
@@ -268,10 +264,10 @@ export class CodingAgentController extends BaseController {
         request: Request,
         env: Env,
         _: ExecutionContext,
-        params?: Record<string, string>
+        context: RouteContext
     ): Promise<Response> {
         try {
-            const chatId = params?.agentId; // URL param is still agentId for backward compatibility
+            const chatId = context.pathParams.agentId; // URL param is still agentId for backward compatibility
             if (!chatId) {
                 return this.createErrorResponse('Missing agent ID parameter', 400);
             }
@@ -335,10 +331,10 @@ export class CodingAgentController extends BaseController {
         request: Request,
         env: Env,
         _: ExecutionContext,
-        params?: Record<string, string>
+        context: RouteContext
     ): Promise<ControllerResponse<ApiResponse<AgentConnectionData>>> {
         try {
-            const agentId = params?.agentId;
+            const agentId = context.pathParams.agentId;
             if (!agentId) {
                 return this.createErrorResponse<AgentConnectionData>('Missing agent ID parameter', 400);
             }
@@ -380,10 +376,10 @@ export class CodingAgentController extends BaseController {
         request: Request, 
         env: Env, 
         _ctx: ExecutionContext, 
-        params?: Record<string, string>
+        context: RouteContext
     ): Promise<ControllerResponse<ApiResponse<AgentStateData>>> {
         try {
-            const agentId = params?.agentId;
+            const agentId = context.pathParams.agentId;
             if (!agentId) {
                 return this.createErrorResponse<AgentStateData>('Missing agent ID parameter', 400);
             }

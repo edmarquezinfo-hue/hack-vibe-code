@@ -260,10 +260,15 @@ export class SessionService {
             // Clean up old sessions for this user
             await this.cleanupUserSessions(userId);
             
-            // Generate tokens
-            const { accessToken, refreshToken } = await this.tokenService.createTokenPair(
+            // Generate session ID first
+            const sessionId = generateId();
+            const userEmail = await this.getUserEmail(userId);
+            
+            // Generate tokens WITH session ID
+            const { accessToken, refreshToken } = await this.tokenService.createTokenPairWithSession(
                 userId,
-                await this.getUserEmail(userId)
+                userEmail,
+                sessionId
             );
             
             // Hash tokens for storage
@@ -287,7 +292,6 @@ export class SessionService {
             }) : requestMetadata.userAgent;
             
             // Create session
-            const sessionId = generateId();
             const now = new Date();
             const expiresAt = new Date(Date.now() + this.config.sessionTTL * 1000);
             
@@ -493,7 +497,12 @@ export class SessionService {
     async revokeSession(sessionId: string): Promise<void> {
         try {
             await this.db.db
-                .delete(schema.sessions)
+                .update(schema.sessions)
+                .set({
+                    isRevoked: true,
+                    revokedAt: new Date(),
+                    revokedReason: 'user_logout'
+                })
                 .where(eq(schema.sessions.id, sessionId));
             
             logger.info('Session revoked', { sessionId });
@@ -513,7 +522,12 @@ export class SessionService {
     async revokeAllUserSessions(userId: string): Promise<void> {
         try {
             await this.db.db
-                .delete(schema.sessions)
+                .update(schema.sessions)
+                .set({
+                    isRevoked: true,
+                    revokedAt: new Date(),
+                    revokedReason: 'user_force_logout'
+                })
                 .where(eq(schema.sessions.userId, userId));
             
             logger.info('All user sessions revoked', { userId });
@@ -606,8 +620,8 @@ export class SessionService {
                 .all();
             
             // Keep only the most recent sessions
-            if (sessions.length >= this.config.maxSessions) {
-                const sessionsToDelete = sessions.slice(this.config.maxSessions - 1);
+            if (sessions.length > this.config.maxSessions) {
+                const sessionsToDelete = sessions.slice(this.config.maxSessions);
                 
                 for (const session of sessionsToDelete) {
                     await this.db.db

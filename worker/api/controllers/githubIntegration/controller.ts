@@ -5,6 +5,7 @@
 
 import { BaseController } from '../BaseController';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
+import { RouteContext } from '../../types/route-context';
 import { OAuthIntegrationService } from '../../../services/auth/OAuthIntegrationService';
 import { DatabaseService } from '../../../database/database';
 import { createLogger } from '../../../logger';
@@ -22,18 +23,16 @@ export class GitHubIntegrationController extends BaseController {
     /**
      * Get GitHub integration status for the current user
      */
-    async getIntegrationStatus(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<GitHubIntegrationStatusData>>> {
+    async getIntegrationStatus(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<GitHubIntegrationStatusData>>> {
         try {
-            // Get user from session
-            const session = await this.getSessionFromRequest(request, env);
-            
-            if (!session) {
+            const user = this.extractAuthUser(context);
+            if (!user) {
                 return this.createErrorResponse<GitHubIntegrationStatusData>('Authentication required', 401);
             }
 
             // Get GitHub integration using database service
             const dbService = this.createDbService(env);
-            const integration = await dbService.getGitHubIntegration(session.userId);
+            const integration = await dbService.getGitHubIntegration(user.id);
 
             const hasIntegration = integration && integration.isActive;
 
@@ -74,18 +73,18 @@ export class GitHubIntegrationController extends BaseController {
     /**
      * Initiate GitHub integration for authenticated user
      */
-    async initiateIntegration(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+    async initiateIntegration(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<Response> {
         try {
             // Check if user is authenticated
-            const session = await this.getSessionFromRequest(request, env);
+            const user = this.extractAuthUser(context);
             
-            if (!session) {
+            if (!user) {
                 return this.createErrorResponse<never>('Authentication required', 401);
             }
 
             // Use OAuth integration service to generate auth URL
             const oauthService = new OAuthIntegrationService(env);
-            const state = oauthService.createIntegrationState(session.userId);
+            const state = oauthService.createIntegrationState(user.id);
             const authUrl = oauthService.generateAuthUrl(request, 'github', state);
 
             return Response.redirect(authUrl, 302);
@@ -99,20 +98,20 @@ export class GitHubIntegrationController extends BaseController {
     /**
      * Remove GitHub integration for a user
      */
-    async removeIntegration(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<GitHubIntegrationRemovalData>>> {
+    async removeIntegration(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<GitHubIntegrationRemovalData>>> {
         try {
             // Get user from session
-            const session = await this.getSessionFromRequest(request, env);
+            const user = this.extractAuthUser(context);
             
-            if (!session) {
+            if (!user) {
                 return this.createErrorResponse<GitHubIntegrationRemovalData>('Authentication required', 401);
             }
 
             // Remove GitHub integration using database service
             const dbService = this.createDbService(env);
-            await dbService.deactivateGitHubIntegration(session.userId);
+            await dbService.deactivateGitHubIntegration(user.id);
 
-            this.logger.info('GitHub integration removed', { userId: session.userId });
+            this.logger.info('GitHub integration removed', { userId: user.id });
 
             const responseData: GitHubIntegrationRemovalData = {
                 message: 'GitHub integration removed successfully'

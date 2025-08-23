@@ -3,7 +3,7 @@
  * Tests streaming parsing, error handling, fallback logic, and edge cases
  */
 
-import { XmlStreamFormat, XmlParsingState, XmlElement, XmlStreamingCallbacks, XmlParsingConfig } from './xml-stream';
+import { XmlStreamFormat, XmlStreamingCallbacks } from './xml-stream';
 
 describe('XmlStreamFormat', () => {
     let parser: XmlStreamFormat;

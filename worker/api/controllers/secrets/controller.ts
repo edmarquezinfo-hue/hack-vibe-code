@@ -6,6 +6,7 @@
 
 import { BaseController } from '../BaseController';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
+import { RouteContext } from '../../types/route-context';
 import { SecretsService } from '../../../database/services/SecretsService';
 import {
     SecretsData,
@@ -280,15 +281,15 @@ export class SecretsController extends BaseController {
      * Get all user secrets (without decrypted values)
      * GET /api/secrets
      */
-    async getSecrets(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<SecretsData>>> {
+    async getSecrets(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretsData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<SecretsData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<SecretsData>('Authentication required', 401);
             }
 
             const secretsService = this.createSecretsService(env);
-            const secrets = await secretsService.getUserSecrets(authResult.user!.id);
+            const secrets = await secretsService.getUserSecrets(user.id);
 
             const responseData: SecretsData = { secrets };
             return this.createSuccessResponse(responseData);
@@ -302,15 +303,15 @@ export class SecretsController extends BaseController {
      * Get all user secrets including inactive ones (for management purposes)
      * GET /api/secrets/all
      */
-    async getAllSecrets(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<SecretsData>>> {
+    async getAllSecrets(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretsData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<SecretsData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<SecretsData>('Authentication required', 401);
             }
 
             const secretsService = this.createSecretsService(env);
-            const secrets = await secretsService.getAllUserSecrets(authResult.user!.id);
+            const secrets = await secretsService.getAllUserSecrets(user.id);
 
             const responseData: SecretsData = { secrets };
             return this.createSuccessResponse(responseData);
@@ -324,11 +325,11 @@ export class SecretsController extends BaseController {
      * Store a new secret
      * POST /api/secrets
      */
-    async storeSecret(request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<SecretStoreData>>> {
+    async storeSecret(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretStoreData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<SecretStoreData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<SecretStoreData>('Authentication required', 401);
             }
 
             const bodyResult = await this.parseJsonBody<{
@@ -397,7 +398,7 @@ export class SecretsController extends BaseController {
             }
 
             const secretsService = this.createSecretsService(env);
-            const storedSecret = await secretsService.storeSecret(authResult.user!.id, secretData);
+            const storedSecret = await secretsService.storeSecret(user.id, secretData);
 
             const responseData: SecretStoreData = {
                 secret: storedSecret,
@@ -415,21 +416,21 @@ export class SecretsController extends BaseController {
      * Delete a secret
      * DELETE /api/secrets/:secretId
      */
-    async deleteSecret(request: Request, env: Env, _ctx: ExecutionContext, params: Record<string, string> = {}): Promise<ControllerResponse<ApiResponse<SecretDeleteData>>> {
+    async deleteSecret(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretDeleteData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<SecretDeleteData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<SecretDeleteData>('Authentication required', 401);
             }
 
-            const secretId = params.secretId;
+            const secretId = context.pathParams.secretId;
 
             if (!secretId) {
                 return this.createErrorResponse<SecretDeleteData>('Secret ID is required', 400);
             }
 
             const secretsService = this.createSecretsService(env);
-            await secretsService.deleteSecret(authResult.user!.id, secretId);
+            await secretsService.deleteSecret(user.id, secretId);
 
             const responseData: SecretDeleteData = {
                 message: 'Secret deleted successfully'
@@ -446,21 +447,21 @@ export class SecretsController extends BaseController {
      * Toggle secret active status
      * PATCH /api/secrets/:secretId/toggle
      */
-    async toggleSecret(request: Request, env: Env, _ctx: ExecutionContext, params: Record<string, string> = {}): Promise<ControllerResponse<ApiResponse<SecretStoreData>>> {
+    async toggleSecret(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretStoreData>>> {
         try {
-            const authResult = await this.requireAuth(request, env);
-            if (!authResult.success) {
-                return authResult.response! as ControllerResponse<ApiResponse<SecretStoreData>>;
+            const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse<SecretStoreData>('Authentication required', 401);
             }
 
-            const secretId = params.secretId;
+            const secretId = context.pathParams.secretId;
 
             if (!secretId) {
                 return this.createErrorResponse<SecretStoreData>('Secret ID is required', 400);
             }
 
             const secretsService = this.createSecretsService(env);
-            const toggledSecret = await secretsService.toggleSecretActiveStatus(authResult.user!.id, secretId);
+            const toggledSecret = await secretsService.toggleSecretActiveStatus(user.id, secretId);
 
             const responseData: SecretStoreData = {
                 secret: toggledSecret,

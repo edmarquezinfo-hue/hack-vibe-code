@@ -82,14 +82,13 @@ export class FileRegenerationOperation extends AgentOperation<FileRegenerationIn
         try {
             
             // Use realtime code fixer to fix the file
-            const realtimeCodeFixer = new RealtimeCodeFixer(options.env, options.agentId, false, undefined, AGENT_CONFIG.fileRegeneration, SYSTEM_PROMPT, USER_PROMPT);
+            const realtimeCodeFixer = new RealtimeCodeFixer(options.env, options.inferenceContext, false, undefined, AGENT_CONFIG.fileRegeneration, SYSTEM_PROMPT, USER_PROMPT);
             const fixedFile = await realtimeCodeFixer.run(
                 inputs.file, {
                     previousFiles: options.context.allFiles,
                     query: options.context.query,
                     blueprint: options.context.blueprint,
-                    template: options.context.templateDetails,
-                    inferenceContext: options.inferenceContext
+                    template: options.context.templateDetails
                 },
                 undefined,
                 inputs.issues,
