@@ -22,7 +22,7 @@ export interface UserConversationInputs {
 
 export interface UserConversationOutputs {
     conversationResponse: ConversationalResponseType;
-    newMessages: ConversationMessage[];
+    messages: ConversationMessage[];
 }
 
 const RelevantProjectUpdateWebsoketMessages = [
@@ -212,7 +212,7 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
 
             return {
                 conversationResponse,
-                newMessages: messages
+                messages: messages
             };
         } catch (error) {
             logger.error("Error processing user message:", error);
@@ -223,7 +223,8 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
                     enhancedUserRequest: `User request: ${userMessage}`,
                     userResponse: "I received your message and I'm passing it along to our development team. They'll incorporate your feedback in the next phase of development."
                 },
-                newMessages: [
+                messages: [
+                    ...pastMessages,
                     {...createUserMessage(userMessage), conversationId: IdGenerator.generateConversationId()},
                     {...createAssistantMessage("I received your message and I'm passing it along to our development team. They'll incorporate your feedback in the next phase of development."), conversationId: IdGenerator.generateConversationId()}
                 ]

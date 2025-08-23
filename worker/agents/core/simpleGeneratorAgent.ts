@@ -39,7 +39,6 @@ import { eq } from 'drizzle-orm';
 import { BaseSandboxService } from '../../services/sandbox/BaseSandboxService';
 import { getSandboxService } from '../../services/sandbox/factory';
 import { WebSocketMessageData, WebSocketMessageType } from '../../api/websocketTypes';
-import { ConversationMessage } from '../inferutils/common';
 import { InferenceContext, AgentActionKey, ModelConfig } from '../inferutils/config.types';
 import { AGENT_CONFIG } from '../inferutils/config';
 import { ModelConfigService } from '../../database/services/ModelConfigService';
@@ -1709,13 +1708,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         handleWebSocketClose(connection);
     }
 
-    private saveConversationMessages(messages: ConversationMessage[]) {
-        this.setState({
-            ...this.state,
-            conversationMessages: [...this.state.conversationMessages, ...messages]
-        });
-    }
-
     public broadcast<T extends WebSocketMessageType>(type: T, data: WebSocketMessageData<T>): void;
     public broadcast(msg: string | ArrayBuffer | ArrayBufferView<ArrayBufferLike>, without?: string[]): void;
     
@@ -1726,7 +1718,10 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         // Send the event to the conversational assistant if its a relevant event
         if (this.operations.processUserMessage.isProjectUpdateType(typeOrMsg)) {
             const messages = this.operations.processUserMessage.processProjectUpdates(typeOrMsg, dataOrWithout as WebSocketMessageData<WebSocketMessageType>, this.logger);
-            this.saveConversationMessages(messages);
+            this.setState({
+                ...this.state,
+                conversationMessages: [...this.state.conversationMessages, ...messages]
+            });
         }
         broadcastToConnections(this, typeOrMsg as WebSocketMessageType, dataOrWithout as WebSocketMessageData<WebSocketMessageType>);
     }
@@ -2182,8 +2177,11 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 { env: this.env, agentId: this.state.sessionId, context, logger: this.logger, inferenceContext: this.state.inferenceContext }
             );
 
-            const { conversationResponse, newMessages } = conversationalResponse;
-            this.saveConversationMessages(newMessages);
+            const { conversationResponse, messages } = conversationalResponse;
+            this.setState({
+                ...this.state,
+                conversationMessages: messages
+            });
 
             // Add enhanced request to pending user inputs
             const updatedPendingInputs = [
