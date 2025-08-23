@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
-import type { AppWithFavoriteStatus, EnhancedAppData, ApiResponse } from '@/api-types';
+import type { AppWithFavoriteStatus, ApiResponse } from '@/api-types';
 import { appEvents } from '@/lib/app-events';
 import type { AppEvent, AppDeletedEvent, AppUpdatedEvent } from '@/lib/app-events';
 import { useAuthGuard } from './useAuthGuard';
