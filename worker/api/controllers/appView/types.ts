@@ -3,6 +3,7 @@
  * Following strict DRY principles by reusing existing database types
  */
 
+import { AgentSummary } from '../../../agents/core/types';
 import { EnhancedAppData } from '../../../database/types';
 
 /**
@@ -26,7 +27,7 @@ export interface AppDetailsData extends EnhancedAppData {
         displayName: string;
         avatarUrl: string | null;
     };
-    generatedCode: GeneratedCodeFile[];
+    agentSummary: AgentSummary | null;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router';
-import type { AgentStateData, AppDetailsData, FileType } from '@/api-types';
+import type { AppDetailsData, FileType } from '@/api-types';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { appEvents } from '@/lib/app-events';
 import {
@@ -27,7 +27,6 @@ import {
 import { MonacoEditor } from '../../components/monaco-editor/monaco-editor';
 import { getFileType } from '../../utils/string';
 import { SmartPreviewIframe } from '../chat/components/smart-preview-iframe';
-import { WebSocket } from 'partysocket';
 import { Button } from '@/components/ui/button';
 import {
 	Card,
@@ -78,7 +77,6 @@ export default function AppView() {
 	const { user } = useAuth();
 	const { requireAuth } = useAuthGuard();
 	const [app, setApp] = useState<AppDetails | null>(null);
-	const [agentState, setAgentState] = useState<AgentStateData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [isFavorited, setIsFavorited] = useState(false);
@@ -86,7 +84,6 @@ export default function AppView() {
 	const [copySuccess, setCopySuccess] = useState(false);
 	const [activeTab, setActiveTab] = useState('preview');
 	const [isDeploying, setIsDeploying] = useState(false);
-	const [websocket, setWebsocket] = useState<WebSocket | null>(null);
 	const [deploymentProgress, setDeploymentProgress] = useState<string>('');
 	const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -112,21 +109,6 @@ export default function AppView() {
 			} else {
 				throw new Error(appResponse.error || 'Failed to fetch app details');
 			}
-
-			// Try to fetch agent state (optional - may not exist for some apps)
-			try {
-				const agentResponse = await apiClient.getAgentState(id);
-				if (agentResponse.success && agentResponse.data) {
-					setAgentState(agentResponse.data);
-				} else {
-					console.log('Agent state not available - this may be normal for some apps');
-					setAgentState(null);
-				}
-			} catch (agentError) {
-				console.log('Agent state not available:', agentError);
-				setAgentState(null);
-			}
-
 		} catch (err) {
 			console.error('Error fetching app:', err);
 			if (err instanceof ApiError) {
@@ -148,10 +130,10 @@ export default function AppView() {
 	}, [id, fetchAppDetails]);
 
 
-	// Convert agent state files to chat FileType format
+	// Convert agent files to chat FileType format
 	const files = useMemo<FileType[]>(() => {
-		if (!agentState?.progress.generatedCode) return [];
-		return agentState.progress.generatedCode
+		if (!app?.agentSummary?.generatedCode) return [];
+		return app.agentSummary.generatedCode
 			.filter((file) => file && file.filePath && typeof file.filePath === 'string')
 			.map((file) => ({
 				filePath: file.filePath,
@@ -162,7 +144,7 @@ export default function AppView() {
 				needsFixing: false,
 				hasErrors: false,
 			}));
-	}, [agentState?.progress.generatedCode]);
+	}, [app?.agentSummary?.generatedCode]);
 
 	// Get active file
 	const activeFile = useMemo(() => {
@@ -721,7 +703,6 @@ export default function AppView() {
 											src={appUrl}
 											className="w-full h-[600px] lg:h-[800px]"
 											title={`${app.title} Preview`}
-											webSocket={websocket}
 											devMode={false}
 										/>
 									) : (
@@ -791,9 +772,9 @@ export default function AppView() {
 								<div className="flex items-center justify-between">
 									<div>
 										<CardTitle>Generated Code</CardTitle>
-										{agentState && (
+										{app?.agentSummary && (
 											<p className="text-sm text-muted-foreground">
-												{files.length} files generated ({agentState.progress.totalFiles} total planned)
+												{files.length} files generated
 											</p>
 										)}
 									</div>
@@ -888,7 +869,7 @@ export default function AppView() {
 								) : (
 									<div className="flex items-center justify-center h-[400px]">
 										<p className="text-muted-foreground">
-											{agentState === null 
+											{app?.agentSummary === null 
 												? 'Loading code...' 
 												: 'No code has been generated yet.'
 											}
@@ -908,26 +889,26 @@ export default function AppView() {
 								</CardDescription>
 							</CardHeader>
 							<CardContent>
-								{agentState?.state.query || agentState?.state.conversationMessages?.length ? (
+								{app?.agentSummary?.query || app?.agentSummary?.conversation?.length ? (
 									<div className="space-y-4">
 										{/* Original Prompt */}
-										{agentState.state.query && (
+										{app?.agentSummary?.query && (
 											<div className="border-l-4 border-blue-500 pl-4 py-2">
 												<div className="flex items-center gap-2 mb-2">
 													<User className="h-4 w-4 text-blue-600" />
 													<span className="text-sm font-medium text-blue-600">Original Prompt</span>
 												</div>
 												<p className="text-sm bg-blue-50 p-3 rounded">
-													{agentState.state.query}
+													{app?.agentSummary?.query}
 												</p>
 											</div>
 										)}
 										
 										{/* Conversation Messages */}
-										{agentState.state.conversationMessages && agentState.state.conversationMessages.length > 0 && (
+										{app?.agentSummary?.conversation && app?.agentSummary?.conversation.length > 0 && (
 											<div className="space-y-3">
 												<h4 className="text-sm font-medium text-muted-foreground">Development Conversation</h4>
-												{agentState.state.conversationMessages.map((message, index) => (
+												{app?.agentSummary?.conversation.map((message, index) => (
 													<div
 														key={index}
 														className={cn(
@@ -969,7 +950,7 @@ export default function AppView() {
 									<div className="flex items-center justify-center py-12 text-muted-foreground">
 										<MessageSquare className="h-8 w-8 mr-3" />
 										<p>
-											{agentState === null 
+											{app?.agentSummary === null 
 												? 'Loading conversation...' 
 												: 'No conversation history available'
 											}

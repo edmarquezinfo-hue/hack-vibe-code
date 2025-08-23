@@ -1,6 +1,7 @@
 
 import type { RuntimeError, StaticAnalysisResponse } from '../../services/sandbox/sandboxTypes';
-import type { ClientReportedErrorType } from '../schemas';
+import type { ClientReportedErrorType, FileOutputType } from '../schemas';
+import type { ConversationMessage } from '../inferutils/common';
 
 export interface AllIssues {
     runtimeErrors: RuntimeError[];
@@ -17,4 +18,10 @@ export interface ScreenshotData {
     viewport: { width: number; height: number };
     userAgent?: string;
     screenshot?: string; // Base64 data URL from Cloudflare Browser Rendering REST API
+}
+
+export interface AgentSummary {
+    query: string;
+    generatedCode: FileOutputType[];
+    conversation: ConversationMessage[];
 }

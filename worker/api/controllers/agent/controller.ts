@@ -390,11 +390,8 @@ export class CodingAgentController extends BaseController {
                 // Get the agent instance
                 const agentInstance = await getAgentStub(env, agentId, true);
                 
-                // Get current progress (includes generated code)
-                const agentProgress = await agentInstance.getProgress();
-                
                 // Get the full agent state to access conversation messages and other details
-                const fullState = await agentInstance.getState() as CodeGenState;
+                const fullState = await agentInstance.getFullState() as CodeGenState;
                 this.logger.info('Agent state fetched successfully', {
                     agentId,
                     // state: fullState,
@@ -407,13 +404,12 @@ export class CodingAgentController extends BaseController {
                 const responseData: AgentStateData = {
                     agentId,
                     websocketUrl,
-                    progress: agentProgress,
                     state: fullState,
                 };
 
                 this.codeGenLogger.info('Agent state fetched successfully', {
                     agentId,
-                    codeFiles: responseData.progress.generatedCode.length,
+                    codeFiles: responseData.state.generatedFilesMap.length,
                     conversationMessages: responseData.state.conversationMessages.length,
                     phases: responseData.state.generatedPhases.length
                 });

@@ -2,7 +2,6 @@ import { Agent, Connection } from 'agents';
 import { 
     AgentActionType, 
     Blueprint, 
-    CodeOutputType, 
     PhaseConceptGenerationSchemaType, 
     PhaseConceptType,
     FileOutputType,
@@ -12,7 +11,7 @@ import {
 import { GitHubExportRequest, PreviewType, StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
 import { GitHubExportOptions, GitHubExportResult } from '../../types/github';
 import { CodeGenState, CurrentDevState, MAX_PHASES, FileState } from './state';
-import { AllIssues, ScreenshotData } from './types';
+import { AllIssues, AgentSummary, ScreenshotData } from './types';
 import { WebSocketMessageResponses } from '../constants';
 import { broadcastToConnections, handleWebSocketClose, handleWebSocketMessage } from './websocket';
 import { createObjectLogger } from '../../logger';
@@ -25,7 +24,6 @@ import { StateManager } from '../services/implementations/StateManager';
 // import { WebSocketBroadcaster } from '../services/implementations/WebSocketBroadcaster';
 import { GenerationContext } from '../domain/values/GenerationContext';
 import { IssueReport } from '../domain/values/IssueReport';
-import { PhaseManagement } from '../domain/pure/PhaseManagement';
 import { PhaseImplementationOperation, LAST_PHASE_PROMPT as FINAL_CODE_PHASE_DESCRIPTION } from '../operations/PhaseImplementation';
 import { CodeReviewOperation } from '../operations/CodeReview';
 import { FileRegenerationOperation } from '../operations/FileRegeneration';
@@ -1008,24 +1006,21 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     }
 
     getTotalFiles(): number {
-        return PhaseManagement.getTotalFiles(
-            this.fileManager.getGeneratedFilePaths().length,
-            this.state.currentPhase || this.state.blueprint.initialPhase
-        );
+        return this.fileManager.getGeneratedFilePaths().length + ((this.state.currentPhase || this.state.blueprint.initialPhase)?.files?.length || 0);
     }
 
-    getProgress(): Promise<CodeOutputType> {
+    getSummary(): Promise<AgentSummary> {
         // Ensure state is migrated before accessing files
         this.migrateStateIfNeeded();
-        
-        const progress = PhaseManagement.getProgress(
-            this.state.generatedFilesMap,
-            this.getTotalFiles()
-        );
-        return Promise.resolve(progress);
+        const summaryData = {
+            query: this.state.query,
+            generatedCode: this.fileManager.getGeneratedFiles(),
+            conversation: this.state.conversationMessages,
+        };
+        return Promise.resolve(summaryData);
     }
 
-    async getState(): Promise<CodeGenState> {
+    async getFullState(): Promise<CodeGenState> {
         // Ensure state is migrated before returning state
         this.migrateStateIfNeeded();
         return this.state;
