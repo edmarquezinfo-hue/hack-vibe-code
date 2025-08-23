@@ -1,11 +1,10 @@
 import type { Blueprint, ClientReportedErrorType, PhaseConceptType ,
     FileOutputType,
-    // FileStructureOutputType,
-    CodeReviewOutputType,
 } from '../schemas';
 import type { TemplateDetails } from '../../services/sandbox/sandboxTypes';
-import type { ScreenshotData } from './types';
+// import type { ScreenshotData } from './types';
 import type { ConversationMessage } from '../inferutils/common';
+import type { InferenceContext } from '../inferutils/config.types';
 
 export interface FileState extends FileOutputType {
     last_hash: string;
@@ -27,6 +26,8 @@ export enum CurrentDevState {
     FINALIZING,
 }
 
+export const MAX_PHASES = 10;
+
 export interface CodeGenState {
     blueprint: Blueprint;
     query: string;
@@ -37,23 +38,21 @@ export interface CodeGenState {
     lastPackageJson?: string; // Last package.json file contents
     templateDetails: TemplateDetails;
     sandboxInstanceId?: string;
-    previewURL?: string;
-    tunnelURL?: string;
-    lastCodeReview?: CodeReviewOutputType;
-    enableFileEnhancement?: boolean; // Flag to control file enhancement feature
+    // previewURL?: string;
+    // tunnelURL?: string;
     clientReportedErrors: ClientReportedErrorType[];
-    latestScreenshot?: ScreenshotData; // Store captured screenshot
+    // latestScreenshot?: ScreenshotData; // Store captured screenshot
     shouldBeGenerating?: boolean; // Persistent flag indicating generation should be active
-
-    // conversationalAssistant: ConversationalAssistant;
     agentMode: 'deterministic' | 'smart';
     sessionId: string;
     hostname: string;
+    phasesCounter: number;
 
     pendingUserInputs: string[];
     currentDevState: CurrentDevState;
     reviewCycles?: number; // Number of review cycles for code review phase
     currentPhase?: PhaseConceptType; // Current phase being worked on
-
+    
     conversationMessages: ConversationMessage[];
+    inferenceContext: InferenceContext;
 }  

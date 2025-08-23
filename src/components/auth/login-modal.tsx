@@ -26,7 +26,7 @@ interface LoginModalProps {
 		email: string;
 		password: string;
 	}) => Promise<void>;
-	onOAuthLogin?: (provider: 'google' | 'github') => void;
+	onOAuthLogin?: (provider: 'google' | 'github', redirectUrl?: string) => void;
 	onRegister?: (data: {
 		email: string;
 		password: string;
@@ -34,6 +34,10 @@ interface LoginModalProps {
 	}) => Promise<void>;
 	error?: string | null;
 	onClearError?: () => void;
+	
+	// Contextual messaging
+	actionContext?: string; // e.g., "to star this app", "to fork this project"
+	showCloseButton?: boolean;
 }
 
 type AuthMode = 'login' | 'register';
@@ -47,6 +51,8 @@ export function LoginModal({
 	onRegister,
 	error,
 	onClearError,
+	actionContext,
+	showCloseButton = true,
 }: LoginModalProps) {
 	const [mode, setMode] = useState<AuthMode>('login');
 	// const [showPassword, setShowPassword] = useState(false);
@@ -146,7 +152,8 @@ export function LoginModal({
 	const handleOAuthClick = (provider: 'google' | 'github') => {
 		// Use the new interface if available, otherwise fall back to original
 		if (onOAuthLogin) {
-			onOAuthLogin(provider);
+			// Pass the current URL as redirect URL for context preservation
+			onOAuthLogin(provider, window.location.pathname + window.location.search);
 		} else {
 			onLogin(provider);
 		}
@@ -178,12 +185,14 @@ export function LoginModal({
 						<div className="bg-background/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl overflow-hidden">
 							{/* Header */}
 							<div className="relative p-6 pb-0">
-								<button
-									onClick={handleClose}
-									className="absolute right-4 top-4 p-2 rounded-lg hover:bg-accent transition-colors"
-								>
-									<X className="h-4 w-4" />
-								</button>
+								{showCloseButton && (
+									<button
+										onClick={handleClose}
+										className="absolute right-4 top-4 p-2 rounded-lg hover:bg-accent transition-colors"
+									>
+										<X className="h-4 w-4" />
+									</button>
+								)}
 
 								<div className="text-center space-y-2">
 									<div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
@@ -202,12 +211,16 @@ export function LoginModal({
 										</svg>
 									</div>
 									<h2 className="text-2xl font-semibold mb-2">
-										{hasEmailAuth && mode === 'register'
+										{actionContext
+											? `Sign in ${actionContext}`
+											: hasEmailAuth && mode === 'register'
 											? 'Create an account'
 											: 'Welcome back'}
 									</h2>
 									<p className="text-muted-foreground">
-										{hasEmailAuth && mode === 'register'
+										{actionContext
+											? 'Authentication required for this action'
+											: hasEmailAuth && mode === 'register'
 											? 'Join to start building amazing applications'
 											: 'Sign in to save your apps and access your workspace'}
 									</p>

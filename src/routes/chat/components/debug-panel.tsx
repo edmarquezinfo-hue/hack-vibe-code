@@ -54,7 +54,7 @@ export interface DebugMessage {
   details?: string;
   source?: string;
   messageType?: string;
-  rawMessage?: any;
+  rawMessage?: unknown;
   wsCategory?: 'generation' | 'phase' | 'file' | 'deployment' | 'system';
   duration?: number; // Time since previous message
   isBookmarked?: boolean;

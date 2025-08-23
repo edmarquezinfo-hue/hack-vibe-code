@@ -1,7 +1,7 @@
 import { PhaseConceptGenerationSchema, PhaseConceptGenerationSchemaType } from '../schemas';
 import { IssueReport } from '../domain/values/IssueReport';
 import { createUserMessage } from '../inferutils/common';
-import { executeInference } from '../inferutils/inferenceUtils';
+import { executeInference } from '../inferutils/infer';
 import { issuesPromptFormatter, PROMPT_UTILS, STRATEGIES } from '../prompts';
 import { Message } from '../inferutils/common';
 import { AgentOperation, getSystemPromptWithProjectContext, OperationOptions } from '../operations/common';
@@ -24,8 +24,6 @@ const SYSTEM_PROMPT = `<ROLE>
     You are to follow the <PHASES GENERATION STRATEGY> provided as a reference policy we use to build and deliver projects.
     You are not permitted to suggest any changes to the core configuration of the project like package.json, tsconfig.json, etc. directly (except some exceptions such as tailwind.config.js)
 </TASK>
-
-${STRATEGIES.FRONTEND_FIRST_PLANNING}
 
 <STARTING TEMPLATE>
 {{template}}
@@ -53,7 +51,7 @@ These are the only dependencies, components and plugins available for the projec
 
 const INITIAL_PHASE_USER_PROMPT = `**GENERATE THE INITIAL PHASE**
 Generate the initial phase of the application.
-Adhere to the following guidelines: 
+Adhere to the following guidelines:
 
 <SUGGESTING INITIAL PHASE>
 •   Suggest the initial phase based on the blueprint provided, our phase planning strategy and the client query.
@@ -86,6 +84,9 @@ Adhere to the following guidelines:
 •   **Every phase needs to be deployable with all the views/pages working properly!**
 </SUGGESTING NEXT PHASE>
 
+Always remember our strategy for phase generation: 
+${STRATEGIES.FRONTEND_FIRST_PLANNING}
+
 <DONT_TOUCH_FILES>
 **STRICTLY DO NOT TOUCH THESE FILES**
 - "wrangler.jsonc"
@@ -97,6 +98,8 @@ Adhere to the following guidelines:
 
 These files are very critical and redacted for security reasons. Don't modify the worker bindings the core-utils or the worker index file.
 </DONT_TOUCH_FILES>
+
+${PROMPT_UTILS.COMMON_DEP_DOCUMENTATION}
 
 {{issues}}
 
@@ -139,14 +142,18 @@ export class PhaseGenerationOperation extends AgentOperation<PhaseGenerationInpu
                 createUserMessage(INITIAL_PHASE_USER_PROMPT)
             ];
             const { object: results } = await executeInference({
-                id: options.agentId,
                 env: env,
                 messages,
-                schemaName: "phaseGeneration",
+                agentActionName: "phaseGeneration",
                 schema: PhaseConceptGenerationSchema,
-                operationName: 'generateNextPhase',
+                context: options.inferenceContext || { agentId: options.agentId },
                 // format: 'markdown',
             });
+
+            if (results) {
+                // Filter and remove any pdf files
+                results.files = results.files.filter(f => !f.path.endsWith('.pdf'));
+            }
     
             logger.info(`Generated initial phase: ${results.name}, ${results.description}`);
     
@@ -176,12 +183,11 @@ export class PhaseGenerationOperation extends AgentOperation<PhaseGenerationInpu
             ];
     
             const { object: results } = await executeInference({
-                id: options.agentId,
                 env: env,
                 messages,
-                schemaName: "phaseGeneration",
+                agentActionName: "phaseGeneration",
                 schema: PhaseConceptGenerationSchema,
-                operationName: 'generateNextPhase',
+                context: options.inferenceContext,
                 format: 'markdown',
             });
     

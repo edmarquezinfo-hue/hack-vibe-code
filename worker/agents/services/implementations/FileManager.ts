@@ -2,6 +2,7 @@ import { IFileManager } from '../interfaces/IFileManager';
 import { IStateManager } from '../interfaces/IStateManager';
 import { FileOutputType } from '../../schemas';
 import { TemplateDetails } from '../../../services/sandbox/sandboxTypes';
+import { FileProcessing } from '../../domain/pure/FileProcessing';
 
 /**
  * Manages file operations for code generation
@@ -12,9 +13,9 @@ export class FileManager implements IFileManager {
         private stateManager: IStateManager
     ) {}
 
-    getTemplateFile(path: string): { file_path: string; file_contents: string } | null {
+    getTemplateFile(path: string): { filePath: string; fileContents: string } | null {
         const state = this.stateManager.getState();
-        return state.templateDetails?.files?.find(file => file.file_path === path) || null;
+        return state.templateDetails?.files?.find(file => file.filePath === path) || null;
     }
 
     getGeneratedFile(path: string): FileOutputType | null {
@@ -24,21 +25,7 @@ export class FileManager implements IFileManager {
 
     getAllFiles(): FileOutputType[] {
         const state = this.stateManager.getState();
-        const templateFiles = state.templateDetails?.files.map(file => ({
-            file_path: file.file_path,
-            file_contents: file.file_contents,
-            file_purpose: 'Boilerplate template file'
-        })) || [];
-        
-        // Filter out template files that have been overridden
-        const nonOverriddenTemplateFiles = templateFiles.filter(
-            file => !state.generatedFilesMap[file.file_path]
-        );
-        
-        return [
-            ...nonOverriddenTemplateFiles,
-            ...Object.values(state.generatedFilesMap)
-        ];
+        return FileProcessing.getAllFiles(state.templateDetails, state.generatedFilesMap);
     }
 
     saveGeneratedFile(file: FileOutputType): void {
@@ -47,7 +34,7 @@ export class FileManager implements IFileManager {
             ...state,
             generatedFilesMap: {
                 ...state.generatedFilesMap,
-                [file.file_path]: {
+                [file.filePath]: {
                     ...file,
                     last_hash: '',
                     last_modified: Date.now(),
@@ -62,7 +49,7 @@ export class FileManager implements IFileManager {
         const newFilesMap = { ...state.generatedFilesMap };
         
         for (const file of files) {
-            newFilesMap[file.file_path] = {
+            newFilesMap[file.filePath] = {
                 ...file,
                 last_hash: '',
                 last_modified: Date.now(),
@@ -79,11 +66,11 @@ export class FileManager implements IFileManager {
     getFileContents(path: string): string {
         const generatedFile = this.getGeneratedFile(path);
         if (generatedFile) {
-            return generatedFile.file_contents;
+            return generatedFile.fileContents;
         }
         
         const templateFile = this.getTemplateFile(path);
-        return templateFile?.file_contents || '';
+        return templateFile?.fileContents || '';
     }
 
     fileExists(path: string): boolean {

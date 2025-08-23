@@ -83,8 +83,8 @@ export async function fixUndefinedName(
             const generatedCode = generateCode(updatedAST);
 
             modifiedFiles.push({
-                file_path: issue.filePath,
-                file_contents: generatedCode.code,
+                filePath: issue.filePath,
+                fileContents: generatedCode.code,
             });
 
             fixedIssues.push({

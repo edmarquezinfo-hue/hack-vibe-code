@@ -4,14 +4,31 @@ import z from 'zod';
 import { Blueprint, BlueprintSchema, ClientReportedErrorSchema, ClientReportedErrorType, FileOutputType, PhaseConceptSchema, PhaseConceptType } from "./schemas";
 import { TemplateSelection } from "./planning/templateSelector";
 import { IssueReport } from "./domain/values/IssueReport";
-import { SCOFFormat } from "./code-formats/scof";
+import { SCOFFormat } from "./streaming-formats/scof";
+import { MAX_PHASES } from "./core/state";
 
 export const PROMPT_UTILS = {
+    /**
+     * Replace template variables in a prompt string
+     * @param template The template string with {{variable}} placeholders
+     * @param variables Object with variable name -> value mappings
+     */
+    replaceTemplateVariables(template: string, variables: Record<string, string>): string {
+        let result = template;
+        
+        for (const [key, value] of Object.entries(variables)) {
+            const placeholder = `{{${key}}}`;
+            result = result.replaceAll(placeholder, value ?? '');
+        }
+        
+        return result;
+    },
+
     serializeTemplate(template?: TemplateDetails, forCodegen: boolean = true): string {
         if (template) {
             // const filesText = JSON.stringify(tpl.files, null, 2);
             const filesText = TemplateRegistry.markdown.serialize(
-                { files: template.files.filter(f => !f.file_path.includes('package.json')) },
+                { files: template.files.filter(f => !f.filePath.includes('package.json')) },
                 z.object({ files: z.array(TemplateFileSchema) })
             );
             // const indentedFilesText = filesText.replace(/^(?=.)/gm, '\t\t\t\t'); // Indent each line with 4 spaces
@@ -38,6 +55,8 @@ Apart from these files, All SHADCN Components are present in ./src/components/ui
 
 Template Usage Instructions: 
 ${template.description.usage}
+
+**Websockets and dynamic imports are not supported, so please avoid using them.**
 
 </TEMPLATE DETAILS>`;
         } else {
@@ -107,7 +126,7 @@ ${staticAnalysis.typecheck?.rawOutput || 'N/A'}
     serializeFiles(files: FileOutputType[]): string {
         // TemplateRegistry.markdown.serialize({ files: files }, z.object({ files: z.array(FileOutputSchema) }))
         // return files.map(file => {
-        //     return `File: ${file.file_path}\nPurpose: ${file.file_purpose}\nContents: ${file.file_contents}`;
+        //     return `File: ${file.filePath}\nPurpose: ${file.filePurpose}\nContents: ${file.fileContents}`;
         // }).join('\n');
         // Use scof format
         return new SCOFFormat().serialize(files.map(file => {
@@ -375,6 +394,8 @@ Here's how and why it happens most often and what to do about it.
     - All Tailwind classes exist in config
     - External dependencies are available
 
+    **Also there is no support for websockets and dynamic imports may not work, so please avoid using them.**
+
     # Few more heuristics:
         **IF** you receive a TypeScript error "cannot be used as a JSX component" for a component \`<MyComponent />\`, **AND** the error says its type is \`'typeof import(...)'\`, **THEN** the import statement for \`MyComponent\` is wrong.
         **The fix is to change the import from a default to a named import.**
@@ -408,8 +429,11 @@ Here's how and why it happens most often and what to do about it.
 
         - Import like this:
         \`import { ReactFlow } from '@xyflow/react';\`
+    • **@react-three/fiber ^9.0.0 and @react-three/drei ^10.0.0 require react ^19 and will not work with react ^18.**
+        - Please upgrade react to 19 to use these packages.
+        - With react 18, it will throw runtime error: Cannot read properties of undefined (reading 'S')
 
-
+    • **No support for websockets and dynamic imports may not work, so please avoid using them.**
 </COMMON DEPENDENCY DOCUMENTATION>
 `,
     COMMANDS: `<SETUP COMMANDS>
@@ -574,12 +598,13 @@ export const STRATEGIES_UTILS = {
         * **Phase Granularity:** For *simple* applications, the entire functional project might be achievable in a *single phase*. For *more complex* applications, this initial phase will be the foundation of the application, especially the frontend, views and mockups.
         * **Deployable Milestone:** Every phase should be deployable. For the initial phase, we want the frontend to be visually mostly complete and polished with basic functionality.`,
     SUBSEQUENT_PHASE_GUIDELINES: `**Subsequent Phases: Fleshing out & Backend Integration**
-        * **Iterative Build:** Add additional functionalities, auth, etc iteratively. Keep implementing application logic and features iteratively.
+        * **Iterative Build:** Add additional functionalities and application logic expected in the project iteratively.
         * **Implement all views/pages and features:** Implement all views/pages and features that appear in the application or blueprint or user query. Flesh out the application as much as possible.
         * **Backend Integration:** Introduce backend services, state management, and data fetching. Instead of using mock data, make sure to use real data from the backend.
         * **Feature Expansion:** Add new features, components, and pages as needed. Nothing should be left 'coming soon' or 'to be implemented later'. Every button and feature should work.
         * **Scalable Phasing:** The *number* of these subsequent phases depends directly on the application's complexity. Simple apps might need only one refinement phase, while complex apps will require several.
-        * **UI/UX:** Enhance, improve and make the application visually complete and polished. Every button and feature should work. The application should be beautiful and a piece of art.
+        * **UI/UX:** Enhance, improve and make the application visually complete and polished. Every button and feature should work. The application should be beautiful, user friendly, visually pleasing and a piece of art.
+        * **Avoid focus on non-essential stuff:** Stuff like security are non critical for shipping the product to the client. Focus on polishing and delivering the product to the client so we can get feedback directly and improve as needed.
         * **Final Polish & Review:** Conclude with a phase dedicated to final integration checks, robustness, performance tuning, and overall polish.`,
     CODING_GUIDELINES: `**Make sure the product is **FUNCTIONAL** along with **POLISHED***
     **MAKE SURE TO NOT BREAK THE APPLICATION in SUBSEQUENT PHASES. Look out for simple syntax errors and dependencies you use!**
@@ -590,17 +615,19 @@ export const STRATEGIES_UTILS = {
         **Before writing any components of your own, make sure to check the existing components and files in the template, try to use them if possible (for example preinstalled shadcn components)**
 
         **Applications with single view/page or mostly static content are considered **Simple Projects** and those with multiple views/pages should are considered **Complex Projects** and should be designed accordingly.**
-        * **Phase Count:** Aim for a maximum of 1-2 phases for simple applications and 6-9 phases for complex applications. Keep the size of each phase small in terms of number of characters!
+        * **Phase Count:** Aim for a maximum of 1-2 phases for simple applications and 4-7 phases for complex applications. Each phase should be self-contained. Do not exceed more than ${MAX_PHASES} phases.
         * **File Count:** Aim for a maximum of 1-3 files per phase for simple applications and 8-12 files per phase for complex applications.
         * The number of files in the project should be proportional to the number of views/pages that the project has.
         * Keep the size of codebase as small as possible, write encapsulated and abstracted code that can be reused, maximize code and component reuse and modularity. If a function/component is to be used in multiple files, it should be defined in a shared file.
         **DO NOT WRITE/MODIFY README FILES, LICENSES, ESSENTIAL CONFIG, OR OTHER NON-APPLICATION FILES as they are already configured in the final deployment. You are allowed to modify tailwind.config.js, vite.config.js etc if necessary**
+            - Be very careful while working on vite.config.js, tailwind.config.js, etc. as any wrong changes can break the application.
+        **DO NOT WRITE pdf files, images, or any other non-text files as they are not supported by the deployment.**
 
         **Examples**:
             * Building any tic-tac-toe game: Has a single page, simple logic -> **Simple Project** - 1 phase and 1-2 files. Initial phase should yield a perfectly working game.        
             * Building any themed 2048 game: Has a single page, simple logic -> **Simple Project** - 1 phase and 2 files max. Initial phase should yield a perfectly working game.
-            * Building a full chess platform: Has multiple pages -> **Complex Project** - 4-5 phases and 5-15 files, with initial phase having around 5-11 files and should have the primary homepage working with mockups for all other views.
-            * Building a full e-commerce platform: Has multiple pages -> **Complex Project** - 4-5 phases and 5-15 files max, with initial phase having around 5-11 files and should have the primary homepage working with mockups for all other views.
+            * Building a full chess platform: Has multiple pages -> **Complex Project** - 4-7 phases and 5-15 files, with initial phase having around 5-11 files and should have the primary homepage working with mockups for all other views.
+            * Building a full e-commerce platform: Has multiple pages -> **Complex Project** - 4-7 phases and 5-15 files max, with initial phase having around 5-11 files and should have the primary homepage working with mockups for all other views.
     </PHASE GENERATION CONSTRAINTS>`,
 }
 
@@ -655,25 +682,31 @@ export function generalSystemPromptBuilder(
     prompt: string,
     params: GeneralSystemPromptBuilderParams
 ): string {
-    let formattedPrompt = prompt
-        .replaceAll('{{query}}', params.query)
-        .replaceAll('{{template}}', PROMPT_UTILS.serializeTemplate(params.templateDetails, params.forCodegen))
-        .replaceAll('{{dependencies}}', JSON.stringify(params.dependencies || []))
-    
+    // Base variables always present
+    const variables: Record<string, string> = {
+        query: params.query,
+        template: PROMPT_UTILS.serializeTemplate(params.templateDetails, params.forCodegen),
+        dependencies: JSON.stringify(params.dependencies || [])
+    };
+
+    // Optional blueprint variables
     if (params.blueprint) {
-        formattedPrompt = formattedPrompt.replaceAll('{{blueprint}}', TemplateRegistry.markdown.serialize(params.blueprint, BlueprintSchema))
-            .replaceAll('{{blueprintDependencies}}', params.blueprint.frameworks.join(', '));
+        variables.blueprint = TemplateRegistry.markdown.serialize(params.blueprint, BlueprintSchema);
+        variables.blueprintDependencies = params.blueprint.frameworks.join(', ');
     }
 
+    // Optional language and frameworks
     if (params.language) {
-        formattedPrompt = formattedPrompt.replaceAll('{{language}}', params.language);
+        variables.language = params.language;
     }
     if (params.frameworks) {
-        formattedPrompt = formattedPrompt.replaceAll('{{frameworks}}', params.frameworks.join(', '));
+        variables.frameworks = params.frameworks.join(', ');
     }
     if (params.templateMetaInfo) {
-        formattedPrompt = formattedPrompt.replaceAll('{{usecaseSpecificInstructions}}', params.templateMetaInfo ? getUsecaseSpecificInstructions(params.templateMetaInfo) : '');
+        variables.usecaseSpecificInstructions = getUsecaseSpecificInstructions(params.templateMetaInfo);
     }
+
+    const formattedPrompt = PROMPT_UTILS.replaceTemplateVariables(prompt, variables);
     return PROMPT_UTILS.verifyPrompt(formattedPrompt);
 }
 
@@ -695,19 +728,19 @@ ${PROMPT_UTILS.serializeStaticAnalysis(issues.staticAnalysis)}
 
 export const USER_PROMPT_FORMATTER = {
     PROJECT_CONTEXT: (phases: PhaseConceptType[], files: FileOutputType[], commandsHistory: string[]) => {
-        let prompt = PROMPT_UTILS.PROJECT_CONTEXT
-            .replaceAll('{{phases}}', TemplateRegistry.markdown.serialize({ phases: phases }, z.object({ phases: z.array(PhaseConceptSchema) })))
-            .replaceAll('{{files}}', PROMPT_UTILS.serializeFiles(files))
-
-        if (commandsHistory.length > 0) {
-            prompt = prompt.replaceAll('{{commandsHistory}}', `<COMMANDS HISTORY>
+        const variables: Record<string, string> = {
+            phases: TemplateRegistry.markdown.serialize({ phases: phases }, z.object({ phases: z.array(PhaseConceptSchema) })),
+            files: PROMPT_UTILS.serializeFiles(files),
+            commandsHistory: commandsHistory.length > 0 ? `<COMMANDS HISTORY>
 
 The following commands have been executed successfully in the project environment so far (These may not include the ones that are currently pending):
 
 ${commandsHistory.join('\n')}
 
-</COMMANDS HISTORY>`);
-        }
+</COMMANDS HISTORY>` : ''
+        };
+
+        const prompt = PROMPT_UTILS.replaceTemplateVariables(PROMPT_UTILS.PROJECT_CONTEXT, variables);
         
         return PROMPT_UTILS.verifyPrompt(prompt);
     },

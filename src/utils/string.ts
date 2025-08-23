@@ -1,4 +1,5 @@
 export const getFileType = (path: string): string => {
+	if (!path || typeof path !== 'string') return 'plaintext';
 	const extension = path.split('.').pop();
 
 	switch (extension) {

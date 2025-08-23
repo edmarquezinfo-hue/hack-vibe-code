@@ -3,6 +3,7 @@ import { setupRouter } from './api/routes/codegenRoutes';
 import { errorResponse } from './api/responses';
 import { SmartCodeGeneratorAgent } from "./agents/core/smartGeneratorAgent";
 import { proxyToSandbox } from '@cloudflare/sandbox';
+import { isDispatcherAvailable } from './utils/dispatcherUtils';
 
 export class CodeGeneratorAgent extends SmartCodeGeneratorAgent {}
 export { UserAppSandboxService, DeployerService } from './services/sandbox/sandboxSdkClient';
@@ -16,27 +17,40 @@ export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
         const url = new URL(request.url);
         const hostname = url.hostname;
-        // Check if hostname is an ip address via regex
-        const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/;
-        if (!ipRegex.test(hostname)) {
-            // Get the immideate subdomain of the hostname
-            const subdomain = hostname.split('.')[0];
-            // logger.info(`Subdomain: ${subdomain}, Hostname: ${hostname}`);
-            // If the subdomain is not build, or there are less than 3 subdomains, redirect it to dispatcher
-            // Thus either the main site should be build.somehost.com or build.something.somehost.com or something.com or www.something.com
-            if (subdomain !== 'localhost' && subdomain !== 'www' && subdomain !== 'build' && hostname.split('.').length >= 2) {
-                const proxyResponse = await proxyToSandbox(request, env);
-                if (proxyResponse) return proxyResponse;
-                logger.info(`Dispatching request to dispatcher`);
-                // Get worker from dispatch namespace
-                const worker = env.DISPATCHER.get(subdomain);
-                if (worker) {
-                    logger.info(`Dispatching request to worker ${subdomain}`);
-                    // Dispatch request to worker
-                    const response = await worker.fetch(request);
-                    return response;
+        try {
+            // make a copy of request
+            const requestCopy = request.clone() as Request<unknown, CfProperties<unknown>>;
+            // Check if hostname is an ip address via regex
+            const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/;
+            if (!ipRegex.test(hostname)) {
+                // Get the immideate subdomain of the hostname
+                const subdomain = hostname.split('.')[0];
+                // logger.info(`Subdomain: ${subdomain}, Hostname: ${hostname}`);
+                // If the subdomain is not build, or there are less than 3 subdomains, redirect it to dispatcher
+                // Thus either the main site should be build.somehost.com or build.something.somehost.com or something.com or www.something.com
+                if (hostname !== env.CUSTOM_DOMAIN && subdomain !== 'localhost' && subdomain !== 'www' && subdomain !== 'build' && hostname.split('.').length >= 2) {
+                    const proxyResponse = await proxyToSandbox(requestCopy, env);
+                    if (proxyResponse) return proxyResponse;
+                    // WFP-start --> Do not remove this comment
+                    logger.info(`Dispatching request to dispatcher`);
+                    if (isDispatcherAvailable(env)) {
+                        // Get worker from dispatch namespace
+                        const dispatcher = env['DISPATCHER'] as any;
+                        const worker = dispatcher.get(subdomain);
+                        if (worker) {
+                            logger.info(`Dispatching request to worker ${subdomain}`);
+                            // Dispatch request to worker
+                            const response = await worker.fetch(requestCopy);
+                            return response;
+                        }
+                    } else {
+                        logger.info(`Dispatcher not available, skipping dispatch for subdomain: ${subdomain}`);
+                    }
+                    // WFP-end --> Do not remove this comment
                 }
             }
+        } catch (error) {
+            logger.warn(`Error dispatching request to dispatcher ${error}, will try to serve it from main worker`);
         }
 
         // If the request is NOT to /api, redirect it to assets

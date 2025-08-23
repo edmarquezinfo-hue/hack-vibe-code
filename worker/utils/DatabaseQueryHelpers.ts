@@ -19,28 +19,28 @@ export class DatabaseQueryHelpers {
      * Find a user-owned resource by ID
      * Prevents unauthorized access by ensuring the resource belongs to the user
      */
-    static async findUserOwnedResource<T>(
+    static async findUserOwnedResource<T = Record<string, unknown>>(
         dbService: DatabaseService,
-        table: any,
+        table: unknown,
         resourceId: string,
         userId: string,
         resourceIdField: string = 'id',
         userIdField: string = 'userId'
     ): Promise<T[]> {
         try {
+            const tableRef = table as any;
             return await dbService.db
                 .select()
-                .from(table)
+                .from(tableRef)
                 .where(and(
-                    eq(table[resourceIdField], resourceId),
-                    eq(table[userIdField], userId)
+                    eq(tableRef[resourceIdField], resourceId),
+                    eq(tableRef[userIdField], userId)
                 ))
                 .limit(1);
         } catch (error) {
             logger.error('Error finding user-owned resource', { 
                 resourceId, 
                 userId, 
-                table: table.name,
                 error: error instanceof Error ? error.message : 'Unknown error'
             });
             throw error;
@@ -51,20 +51,21 @@ export class DatabaseQueryHelpers {
      * Get paginated results from a query
      */
     static async getPaginatedResults<T>(
-        query: any,
+        query: unknown,
         page: number = 1,
         limit: number = 10
     ): Promise<{ data: T[]; total: number; page: number; limit: number }> {
         try {
             const offset = (page - 1) * limit;
+            const queryRef = query as any;
             
             // Execute paginated query
-            const data = await query
+            const data = await queryRef
                 .limit(limit)
                 .offset(offset);
 
             // Get total count (simplified - in production you might want to optimize this)
-            const totalResults = await query;
+            const totalResults = await queryRef;
             const total = Array.isArray(totalResults) ? totalResults.length : 0;
 
             return {
@@ -88,26 +89,26 @@ export class DatabaseQueryHelpers {
      */
     static async cleanupExpiredRecords(
         dbService: DatabaseService,
-        table: any,
+        table: unknown,
         expirationField: string = 'expiresAt'
     ): Promise<number> {
         try {
             const now = new Date();
+            const tableRef = table as any;
             const result = await dbService.db
-                .delete(table)
-                .where(lt(table[expirationField], now));
+                .delete(tableRef)
+                .where(lt(tableRef[expirationField], now));
 
             const deletedCount = result.meta?.changes || 0;
             
             logger.info('Cleaned up expired records', {
-                table: table.name,
-                deletedCount
+                deletedCount,
+                expirationField
             });
 
             return deletedCount;
         } catch (error) {
             logger.error('Error cleaning up expired records', {
-                table: table.name,
                 error: error instanceof Error ? error.message : 'Unknown error'
             });
             throw error;
@@ -120,7 +121,7 @@ export class DatabaseQueryHelpers {
     static async findUserByEmail(
         dbService: DatabaseService,
         email: string
-    ): Promise<any | null> {
+    ): Promise<Record<string, unknown> | null> {
         try {
             const users = await dbService.db
                 .select()
@@ -144,7 +145,7 @@ export class DatabaseQueryHelpers {
     static async getUserActiveSessions(
         dbService: DatabaseService,
         userId: string
-    ): Promise<any[]> {
+    ): Promise<Record<string, unknown>[]> {
         try {
             return await dbService.db
                 .select()
@@ -167,7 +168,7 @@ export class DatabaseQueryHelpers {
         dbService: DatabaseService,
         userId: string,
         activeOnly: boolean = false
-    ): Promise<any[]> {
+    ): Promise<Record<string, unknown>[]> {
         try {
             const whereConditions = [eq(schema.apiKeys.userId, userId)];
             
@@ -202,23 +203,24 @@ export class DatabaseQueryHelpers {
      */
     static async updateUserOwnedResource(
         dbService: DatabaseService,
-        table: any,
+        table: unknown,
         resourceId: string,
         userId: string,
-        updateData: Record<string, any>,
+        updateData: Record<string, unknown>,
         resourceIdField: string = 'id',
         userIdField: string = 'userId'
     ): Promise<boolean> {
         try {
+            const tableRef = table as any;
             const result = await dbService.db
-                .update(table)
+                .update(tableRef)
                 .set({
                     ...updateData,
                     updatedAt: new Date()
                 })
                 .where(and(
-                    eq(table[resourceIdField], resourceId),
-                    eq(table[userIdField], userId)
+                    eq(tableRef[resourceIdField], resourceId),
+                    eq(tableRef[userIdField], userId)
                 ));
 
             const wasUpdated = (result.meta?.changes || 0) > 0;
@@ -226,8 +228,7 @@ export class DatabaseQueryHelpers {
             if (!wasUpdated) {
                 logger.warn('Attempted to update non-existent or unauthorized resource', {
                     resourceId,
-                    userId,
-                    table: table.name
+                    userId
                 });
             }
 
@@ -236,7 +237,6 @@ export class DatabaseQueryHelpers {
             logger.error('Error updating user-owned resource', {
                 resourceId,
                 userId,
-                table: table.name,
                 error: error instanceof Error ? error.message : 'Unknown error'
             });
             throw error;
@@ -248,21 +248,22 @@ export class DatabaseQueryHelpers {
      */
     static async deactivateResource(
         dbService: DatabaseService,
-        table: any,
+        table: unknown,
         resourceId: string,
         userId?: string,
         resourceIdField: string = 'id',
         userIdField: string = 'userId'
     ): Promise<boolean> {
         try {
-            const whereConditions = [eq(table[resourceIdField], resourceId)];
+            const tableRef = table as any;
+            const whereConditions = [eq(tableRef[resourceIdField], resourceId)];
             
             if (userId) {
-                whereConditions.push(eq(table[userIdField], userId));
+                whereConditions.push(eq(tableRef[userIdField], userId));
             }
 
             const result = await dbService.db
-                .update(table)
+                .update(tableRef)
                 .set({
                     isActive: false,
                     updatedAt: new Date()
@@ -274,7 +275,6 @@ export class DatabaseQueryHelpers {
             logger.error('Error deactivating resource', {
                 resourceId,
                 userId,
-                table: table.name,
                 error: error instanceof Error ? error.message : 'Unknown error'
             });
             throw error;
@@ -286,28 +286,28 @@ export class DatabaseQueryHelpers {
      */
     static async countUserOwnedResources(
         dbService: DatabaseService,
-        table: any,
+        table: unknown,
         userId: string,
         userIdField: string = 'userId',
-        additionalConditions?: any[]
+        additionalConditions?: unknown[]
     ): Promise<number> {
         try {
-            const whereConditions = [eq(table[userIdField], userId)];
+            const tableRef = table as any;
+            const whereConditions = [eq(tableRef[userIdField], userId)];
             
             if (additionalConditions) {
-                whereConditions.push(...additionalConditions);
+                whereConditions.push(...(additionalConditions as any[]));
             }
 
             const results = await dbService.db
                 .select()
-                .from(table)
+                .from(tableRef)
                 .where(and(...whereConditions));
 
             return results.length;
         } catch (error) {
             logger.error('Error counting user-owned resources', {
                 userId,
-                table: table.name,
                 error: error instanceof Error ? error.message : 'Unknown error'
             });
             throw error;

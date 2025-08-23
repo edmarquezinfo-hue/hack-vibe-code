@@ -2,7 +2,7 @@ import { FileGenerationOutputType } from '../schemas';
 import { AgentOperation, OperationOptions } from '../operations/common';
 import { RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
 import { FileOutputType } from '../schemas';
-import { AGENT_CONFIG } from '../config';
+import { AGENT_CONFIG } from '../inferutils/config';
 
 export interface FileRegenerationInputs {
     file: FileOutputType;
@@ -29,9 +29,9 @@ Path: {{filePath}}
 Purpose: {{filePurpose}}
 </file_info>
 
-<file_contents>
+<fileContents>
 {{fileContents}}
-</file_contents>
+</fileContents>
 </file_to_fix>
 
 **Identified Issues Requiring Patch:**
@@ -82,7 +82,7 @@ export class FileRegenerationOperation extends AgentOperation<FileRegenerationIn
         try {
             
             // Use realtime code fixer to fix the file
-            const realtimeCodeFixer = new RealtimeCodeFixer(options.env, options.agentId, false, undefined, AGENT_CONFIG.fileRegeneration, SYSTEM_PROMPT, USER_PROMPT);
+            const realtimeCodeFixer = new RealtimeCodeFixer(options.env, options.inferenceContext, false, undefined, AGENT_CONFIG.fileRegeneration, SYSTEM_PROMPT, USER_PROMPT);
             const fixedFile = await realtimeCodeFixer.run(
                 inputs.file, {
                     previousFiles: options.context.allFiles,

@@ -36,29 +36,29 @@ export class FileProcessing {
         originalContents: string,
         logger?: Pick<StructuredLogger, 'info' | 'warn' | 'error'>
     ): string {
-        const cleanedContents = FileProcessing.cleanFileContents(generatedFile.file_contents);
+        const cleanedContents = FileProcessing.cleanFileContents(generatedFile.fileContents);
         
         // File contents can either be raw or in unified diff format
         if (generatedFile.format === 'unified_diff') {
-            logger?.info(`Applying unified diff to file: ${generatedFile.file_path}`);
+            logger?.info(`Applying unified diff to file: ${generatedFile.filePath}`);
             
             if (originalContents) {
-                logger?.info(`Valid file contents found for ${generatedFile.file_path}, applying diff`);
+                logger?.info(`Valid file contents found for ${generatedFile.filePath}, applying diff`);
             } else {
-                logger?.warn(`No valid file contents found for ${generatedFile.file_path}, but diff was generated`);
+                logger?.warn(`No valid file contents found for ${generatedFile.filePath}, but diff was generated`);
             }
             
-            logger?.info(`Diff for ${generatedFile.file_path}: `, cleanedContents);
+            logger?.info(`Diff for ${generatedFile.filePath}: `, cleanedContents);
             
             try {
                 return applyUnifiedDiff(originalContents, cleanedContents);
             } catch (error) {
-                logger?.error(`Error applying diff to file ${generatedFile.file_path}:`, error);
+                logger?.error(`Error applying diff to file ${generatedFile.filePath}:`, error);
                 return originalContents;
             }
         }
         
-        logger?.info(`Setting file contents to cleaned contents ${generatedFile.file_path}`);
+        logger?.info(`Setting file contents to cleaned contents ${generatedFile.filePath}`);
         return cleanedContents;
     }
 
@@ -79,7 +79,7 @@ export class FileProcessing {
         // Then search in previously generated files
         const generatedFile = generatedFilesMap[filePath];
         if (generatedFile) {
-            return generatedFile.file_purpose;
+            return generatedFile.filePurpose;
         }
         
         return "";
@@ -94,14 +94,14 @@ export class FileProcessing {
         generatedFilesMap: Record<string, FileOutputType>
     ): FileOutputType[] {
         const templateFiles = templateDetails?.files.map(file => ({
-            file_path: file.file_path,
-            file_contents: file.file_contents,
-            file_purpose: 'Boilerplate template file'
+            filePath: file.filePath,
+            fileContents: file.fileContents,
+            filePurpose: 'Boilerplate template file'
         })) || [];
         
         // Filter out template files that have been overridden by generated files
         const nonOverriddenTemplateFiles = templateFiles.filter(
-            file => !generatedFilesMap[file.file_path]
+            file => !generatedFilesMap[file.filePath]
         );
         
         return [

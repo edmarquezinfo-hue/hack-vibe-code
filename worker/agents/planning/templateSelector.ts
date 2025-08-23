@@ -2,7 +2,8 @@ import { MessageRole } from '../inferutils/common';
 import { TemplateListResponse} from '../../services/sandbox/sandboxTypes';
 import z from 'zod';
 import { createLogger } from '../../logger';
-import { executeInference } from '../inferutils/inferenceUtils';
+import { executeInference } from '../inferutils/infer';
+import { InferenceMetadata } from '../inferutils/config.types';
 
 const logger = createLogger('TemplateSelector');
 
@@ -20,7 +21,7 @@ export type TemplateSelection = z.infer<typeof TemplateSelectionSchema>;
 
 interface SelectTemplateArgs {
     env: Env;
-    agentId: string;
+    metadata: InferenceMetadata;
     query: string;
     availableTemplates: TemplateListResponse['templates'];
 }
@@ -28,7 +29,7 @@ interface SelectTemplateArgs {
 /**
  * Uses AI to select the most suitable template for a given query.
  */
-export async function selectTemplate({ env, agentId, query, availableTemplates }: SelectTemplateArgs): Promise<TemplateSelection> {
+export async function selectTemplate({ env, metadata, query, availableTemplates }: SelectTemplateArgs): Promise<TemplateSelection> {
     if (availableTemplates.length === 0) {
         logger.info("No templates available for selection.");
         return { selectedTemplateName: null, reasoning: "No templates were available to choose from.", useCase: null, complexity: null, styleSelection: null, projectName: '' };
@@ -74,22 +75,12 @@ Which template (if any) is the most suitable starting point for this query?`;
             { role: "user" as MessageRole, content: userPrompt }
         ];
 
-        // const selection = await infer<typeof TemplateSelectionSchema>({
-        //     env,
-        //     messages,
-        //     schemaName: "templateSelection",
-        //     schema: TemplateSelectionSchema,
-        //     modelName: AIModels.GEMINI_2_5_FLASH_LITE,
-        //     maxTokens: 2000,
-        //     providerOverride: 'direct'
-        // });
         const { object: selection } = await executeInference({
-            id: agentId,
             env,
             messages,
-            schemaName: "templateSelection",
+            agentActionName: "templateSelection",
             schema: TemplateSelectionSchema,
-            // modelName: AIModels.GEMINI_2_5_FLASH_LITE,
+            context: metadata,
             maxTokens: 2000,
         });
 

@@ -266,8 +266,8 @@ export function generateMockFiles(): FileType[] {
   const filePaths = Object.keys(mockFileContents);
   
   return filePaths.map((filePath, index) => ({
-    file_path: filePath,
-    file_contents: mockFileContents[filePath as keyof typeof mockFileContents],
+    filePath: filePath,
+    fileContents: mockFileContents[filePath as keyof typeof mockFileContents],
     isGenerating: index >= filePaths.length - 2, // Last 2 files are "generating"
   }));
 }
@@ -291,48 +291,48 @@ import clsx from 'clsx';
 
   return [
     {
-      file_path: 'src/components/very-complex-and-extremely-long-named-components/super-detailed-user-interface-elements/advanced-dashboard-analytics-visualization-component.tsx',
-      file_contents: generateContent(15234, 'tsx'), // Very high line count
+      filePath: 'src/components/very-complex-and-extremely-long-named-components/super-detailed-user-interface-elements/advanced-dashboard-analytics-visualization-component.tsx',
+      fileContents: generateContent(15234, 'tsx'), // Very high line count
       isGenerating: false,
     },
     {
-      file_path: 'src/features/user-management/authentication/multi-factor-authentication/providers/oauth/google/configuration-and-settings.ts',
-      file_contents: generateContent(8947, 'ts'),
+      filePath: 'src/features/user-management/authentication/multi-factor-authentication/providers/oauth/google/configuration-and-settings.ts',
+      fileContents: generateContent(8947, 'ts'),
       isGenerating: false,
     },
     {
-      file_path: 'src/utils/database/migrations/version-2024-07-17/add-user-preferences-and-advanced-settings-with-json-schema-validation.sql',
-      file_contents: generateContent(2456, 'sql'),
+      filePath: 'src/utils/database/migrations/version-2024-07-17/add-user-preferences-and-advanced-settings-with-json-schema-validation.sql',
+      fileContents: generateContent(2456, 'sql'),
       isGenerating: true,
     },
     {
-      file_path: 'src/api/endpoints/v2/external-integrations/third-party-services/payment-processing/stripe/webhooks/subscription-management.ts',
-      file_contents: generateContent(12589, 'ts'),
+      filePath: 'src/api/endpoints/v2/external-integrations/third-party-services/payment-processing/stripe/webhooks/subscription-management.ts',
+      fileContents: generateContent(12589, 'ts'),
       isGenerating: false,
     },
     {
-      file_path: 'src/types/interfaces/backend-api-contracts/user-generated-content/comments-and-ratings-system-with-moderation.ts',
-      file_contents: generateContent(6743, 'ts'),
+      filePath: 'src/types/interfaces/backend-api-contracts/user-generated-content/comments-and-ratings-system-with-moderation.ts',
+      fileContents: generateContent(6743, 'ts'),
       isGenerating: false,
     },
     {
-      file_path: 'index.ts',
-      file_contents: generateContent(42, 'ts'), // Short file name, low line count
+      filePath: 'index.ts',
+      fileContents: generateContent(42, 'ts'), // Short file name, low line count
       isGenerating: false,
     },
     {
-      file_path: 'src/extremely-long-path-that-should-definitely-be-truncated-in-the-user-interface/nested/deeply/component.tsx',
-      file_contents: generateContent(987, 'tsx'),
+      filePath: 'src/extremely-long-path-that-should-definitely-be-truncated-in-the-user-interface/nested/deeply/component.tsx',
+      fileContents: generateContent(987, 'tsx'),
       isGenerating: false,
     },
     {
-      file_path: 'src/app.tsx',
-      file_contents: generateContent(156, 'tsx'), // Short file name, normal line count
+      filePath: 'src/app.tsx',
+      fileContents: generateContent(156, 'tsx'), // Short file name, normal line count
       isGenerating: true,
     },
     {
-      file_path: 'src/features/advanced-enterprise-level-business-logic/complex-workflow-management/automated-processes/background-job-scheduler.ts',
-      file_contents: generateContent(23847, 'ts'), // Extremely high line count + long name
+      filePath: 'src/features/advanced-enterprise-level-business-logic/complex-workflow-management/automated-processes/background-job-scheduler.ts',
+      fileContents: generateContent(23847, 'ts'), // Extremely high line count + long name
       isGenerating: true,
     }
   ];
@@ -343,18 +343,18 @@ export function generateMockFilesForPhases(): FileType[] {
   const allFiles = [
     // Core Components (completed)
     {
-      file_path: 'src/components/Button.tsx',
-      file_contents: mockFileContents['src/components/Button.tsx'],
+      filePath: 'src/components/Button.tsx',
+      fileContents: mockFileContents['src/components/Button.tsx'],
       isGenerating: false,
     },
     {
-      file_path: 'src/components/Input.tsx', 
-      file_contents: mockFileContents['src/components/Input.tsx'],
+      filePath: 'src/components/Input.tsx', 
+      fileContents: mockFileContents['src/components/Input.tsx'],
       isGenerating: false,
     },
     {
-      file_path: 'src/types/index.ts',
-      file_contents: `export interface User {
+      filePath: 'src/types/index.ts',
+      fileContents: `export interface User {
   id: string;
   displayName: string;
   email: string;
@@ -369,13 +369,13 @@ export interface ApiResponse<T> {
     },
     // API Integration (completed)
     {
-      file_path: 'src/api/client.ts',
-      file_contents: mockFileContents['src/api/client.ts'],
+      filePath: 'src/api/client.ts',
+      fileContents: mockFileContents['src/api/client.ts'],
       isGenerating: false,
     },
     {
-      file_path: 'src/hooks/useApi.tsx', 
-      file_contents: `import { useState, useEffect } from 'react';
+      filePath: 'src/hooks/useApi.tsx', 
+      fileContents: `import { useState, useEffect } from 'react';
 import { apiClient } from '../api/client';
 
 export function useApi<T>(endpoint: string) {
@@ -396,13 +396,13 @@ export function useApi<T>(endpoint: string) {
     },
     // Game Logic (currently generating)
     {
-      file_path: 'src/game/Game.tsx',
-      file_contents: mockFileContents['src/game/Game.tsx'],
+      filePath: 'src/game/Game.tsx',
+      fileContents: mockFileContents['src/game/Game.tsx'],
       isGenerating: true,
     },
     {
-      file_path: 'src/game/Board.tsx',
-      file_contents: `import React from 'react';
+      filePath: 'src/game/Board.tsx',
+      fileContents: `import React from 'react';
 import { Tile } from './Tile';
 
 interface BoardProps {

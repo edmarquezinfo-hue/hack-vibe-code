@@ -35,7 +35,7 @@
           "step": 3,
           "name": "API Request Initiation",
           "actor": "Frontend",
-          "action": "POST /api/codegen/incremental",
+          "action": "POST /api/agent",
           "payload": {
             "query": "User's natural language request",
             "sessionToken": "Anonymous session token (if applicable)",
@@ -46,8 +46,8 @@
         {
           "step": 4,
           "name": "Request Validation & Processing",
-          "actor": "CodeGenController",
-          "file": "worker/api/controllers/codeGenController.ts",
+          "actor": "CodingAgentController",
+          "file": "worker/api/controllers/codingAgentController.ts",
           "action": "startCodeGeneration()",
           "validations": [
             "Query length and content validation",
@@ -75,7 +75,7 @@
         {
           "step": 1,
           "name": "Template Selection Initiation",
-          "actor": "CodeGenController",
+          "actor": "CodingAgentController",
           "action": "Invoke Template Selector Agent",
           "file": "worker/agents/planning/templateSelector.ts",
           "aiModel": "Google Gemini Flash",
@@ -110,7 +110,7 @@
         {
           "step": 3,
           "name": "Blueprint Generation Initiation",
-          "actor": "CodeGenController",
+          "actor": "CodingAgentController",
           "action": "Invoke Blueprint Generator Agent",
           "file": "worker/agents/planning/blueprint.ts", 
           "aiModel": "Anthropic Claude",
@@ -181,7 +181,7 @@
         {
           "step": 1,
           "name": "Database App Record Creation",
-          "actor": "CodeGenController",
+          "actor": "CodingAgentController",
           "action": "Create app record in D1 database",
           "table": "apps",
           "data": {
@@ -198,7 +198,7 @@
         {
           "step": 2,
           "name": "Durable Object Instantiation",
-          "actor": "CodeGenController", 
+          "actor": "CodingAgentController", 
           "action": "Get or create CodeGeneratorAgent Durable Object",
           "durableObjectId": "Generated from appId and user context",
           "file": "worker/agents/codegen/codeGeneratorAgent.ts",
@@ -230,7 +230,7 @@
           "step": 4,
           "name": "WebSocket Connection Establishment", 
           "actor": "Frontend (useChat hook)",
-          "action": "Connect to /api/codegen/ws/:agentId",
+          "action": "Connect to /api/agent/:agentId/ws",
           "connectionLogic": [
             "Extract WebSocket URL from initial response",
             "Establish WebSocket connection with retry logic",
@@ -422,8 +422,8 @@
                   "webSocketMessage": {
                     "type": "FILE_GENERATING",
                     "data": {
-                      "file_path": "Path to file being generated",
-                      "file_purpose": "Purpose and role of the file",
+                      "filePath": "Path to file being generated",
+                      "filePurpose": "Purpose and role of the file",
                       "is_regeneration": "false (for new files)"
                     }
                   }
@@ -435,7 +435,7 @@
                   "webSocketMessage": {
                     "type": "FILE_CHUNK_GENERATED", 
                     "data": {
-                      "file_path": "File being updated",
+                      "filePath": "File being updated",
                       "chunk": "Content chunk",
                       "format": "full_content or unified_diff"
                     }
@@ -449,9 +449,9 @@
                     "type": "FILE_GENERATED",
                     "data": {
                       "file": {
-                        "file_path": "Complete file path",
-                        "file_contents": "Full file content",
-                        "file_purpose": "File purpose and description"
+                        "filePath": "Complete file path",
+                        "fileContents": "Full file content",
+                        "filePurpose": "File purpose and description"
                       },
                       "message": "Generation completion message"
                     }
@@ -856,8 +856,8 @@
               "webSocketMessage": {
                 "type": "FILE_GENERATING",
                 "data": {
-                  "file_path": "File being regenerated",
-                  "file_purpose": "Purpose and requirements", 
+                  "filePath": "File being regenerated",
+                  "filePurpose": "Purpose and requirements", 
                   "is_regeneration": "true",
                   "issues": "Specific issues being addressed"
                 }

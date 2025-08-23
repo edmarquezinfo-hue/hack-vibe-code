@@ -1,34 +1,52 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react-swc' // Add this
+import react from '@vitejs/plugin-react'
+import svgr from 'vite-plugin-svgr';
 
 import { cloudflare } from '@cloudflare/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
-import path from 'path';
+// import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 // https://vite.dev/config/
 export default defineConfig({
-    build: {
-        minify: 'esbuild', // This is the default and fastest option
-        rollupOptions: {
-          output: {
-            manualChunks(id) {
-              if (id.includes('node_modules')) {
-                // Group all node_modules into a vendor chunk
-                return 'vendor'; 
-              }
-            },
-          },
-        },
+    optimizeDeps: {
+        exclude: ['format', 'editor.all'],
+        include: ['monaco-editor/esm/vs/editor/editor.api']
     },
-	plugins: [react(),  
+    // build: {
+    //     rollupOptions: {
+    //       output: {
+    //             advancedChunks: {
+    //                 groups: [{name: 'vendor', test: /node_modules/}]
+    //             }
+    //         }
+    //     }
+    // },
+	plugins: [
+        react(),  
+        svgr(),
         cloudflare({
           configPath: "wrangler.jsonc",
           experimental: { remoteBindings: true },
         }),
-        tailwindcss()],
+        tailwindcss(),
+        // Add the node polyfills plugin here
+        // nodePolyfills({
+        //     exclude: [
+        //       'tty', // Exclude 'tty' module
+        //     ],
+        //     // We recommend leaving this as `true` to polyfill `global`.
+        //     globals: {
+        //         global: true,
+        //     },
+        // })
+    ],
 	resolve: {
 	  alias: {
-		"@": path.resolve(__dirname, "./src"),
+        // 'path': 'path-browserify',
+        // Add this line to fix the 'debug' package issue
+        'debug': 'debug/src/browser', 
+		// "@": path.resolve(__dirname, "./src"),
+        "@": new URL('./src', import.meta.url).pathname,
 	  },
 	},
 	// Configure for Prisma + Cloudflare Workers compatibility
@@ -44,6 +62,6 @@ export default defineConfig({
 		format: 'es'
 	},
 	server: {
-		allowedHosts: ['localhost', '127.0.0.1', 'build.chat.cloudflare.dev', 'orange_build.eti-india.workers.dev', 'build.ashishkumarsingh.com', 'build.cloudflare.dev']
+		allowedHosts: true
 	},
 });

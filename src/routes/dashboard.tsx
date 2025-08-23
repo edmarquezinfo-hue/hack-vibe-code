@@ -39,8 +39,8 @@ export default function Dashboard() {
   // Calculate real stats (memoized to avoid re-computation)
   const stats = useMemo(() => ({
     totalApps: apps.length,
-    activeProjects: apps.filter(app => app.status === 'generating' || app.status === 'generated').length,
-    deployedApps: apps.filter(app => app.status === 'deployed').length,
+    activeProjects: apps.filter(app => app.status === 'generating').length,
+    completedApps: apps.filter(app => app.status === 'completed').length,
     totalViews: 0, // TODO: Implement view tracking
     favoriteCount: apps.filter(app => app.isFavorite).length,
     teamCount: 0, // TODO: Implement teams
@@ -49,9 +49,11 @@ export default function Dashboard() {
 
   // Get recent apps for activity and top apps (memoized)
   const recentApps = useMemo(() => 
-    [...apps].sort((a, b) => 
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    ).slice(0, 5)
+    [...apps].sort((a, b) => {
+      const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return bTime - aTime;
+    }).slice(0, 5)
   , [apps]);
   
   // Top apps with formatted dates (memoized)
@@ -60,7 +62,7 @@ export default function Dashboard() {
       ...app,
       views: 0, // TODO: Implement view tracking
       likes: app.isFavorite ? 1 : 0,
-      lastUpdated: formatAppDate(app.updatedAt)
+      lastUpdated: formatAppDate(app.updatedAt ? app.updatedAt.toString() : '')
     }))
   , [recentApps]);
 
@@ -203,7 +205,7 @@ export default function Dashboard() {
                           <div className="flex-1">
                             <p className="text-sm font-medium">{app.title}</p>
                             <p className="text-xs text-muted-foreground">
-                              {formatAppDate(app.updatedAt)}
+                              {formatAppDate(app.updatedAt ? app.updatedAt.toString() : '')}
                             </p>
                           </div>
                         </div>

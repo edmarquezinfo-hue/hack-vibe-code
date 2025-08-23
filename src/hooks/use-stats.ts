@@ -1,46 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/auth-context';
-
-interface UserStats {
-  totalApps: number;
-  publicApps: number;
-  totalViews: number;
-  totalLikes: number;
-  favoriteCount: number;
-  teamCount: number;
-  boardCount: number;
-  streak: number;
-  achievements: Array<{
-    id: string;
-    name: string;
-    description?: string;
-    unlockedAt: string;
-    icon?: React.ComponentType<{ className?: string }>;
-    color?: string;
-    [key: string]: unknown;
-  }>;
-}
-
-interface Activity {
-  type: string;
-  title: string;
-  timestamp: string;
-  metadata?: Record<string, unknown>;
-}
+import { apiClient } from '@/lib/api-client';
+import type { EnhancedUserStats, UserActivity } from '@/api-types';
 
 export function useUserStats() {
   const { isAuthenticated } = useAuth();
-  const [stats, setStats] = useState<UserStats>({
-    totalApps: 0,
-    publicApps: 0,
-    totalViews: 0,
-    totalLikes: 0,
-    favoriteCount: 0,
-    teamCount: 0,
-    boardCount: 0,
-    streak: 0,
-    achievements: []
-  });
+  const [stats, setStats] = useState<EnhancedUserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,17 +16,8 @@ export function useUserStats() {
     }
 
     try {
-      const response = await fetch(`/api/stats`, {
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch stats');
-      }
-
-      const data = await response.json();
-      console.log('Stats API response:', data);
-      setStats(data.data || data);
+      const response = await apiClient.getUserStats();
+      setStats(response.data || null);
     } catch (err) {
       console.error('Error fetching stats:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch stats');
@@ -79,7 +35,7 @@ export function useUserStats() {
 
 export function useUserActivity() {
   const { isAuthenticated } = useAuth();
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const [activities, setActivities] = useState<UserActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,17 +46,8 @@ export function useUserActivity() {
     }
 
     try {
-      const response = await fetch(`/api/stats/activity`, {
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch activity');
-      }
-
-      const data = await response.json();
-      console.log('Activity API response:', data);
-      setActivities(data.data?.activities || []);
+      const response = await apiClient.getUserActivity();
+      setActivities(response.data?.activities || []);
     } catch (err) {
       console.error('Error fetching activity:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch activity');

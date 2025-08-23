@@ -35,7 +35,7 @@
       {
         "step": 1,
         "name": "Object ID Generation",
-        "actor": "CodeGenController",
+        "actor": "CodingAgentController",
         "action": "Generate deterministic object ID",
         "algorithm": {
           "input": "appId + userContext + timestamp",

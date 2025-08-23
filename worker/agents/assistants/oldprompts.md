@@ -2,9 +2,9 @@ realtimeCodeFixer: `Before we begin the review process, here's some important co
 
 Here's the file you need to review:
 
-<file_contents>
+<fileContents>
 {{fileContents}}
-</file_contents>
+</fileContents>
 
 1. Previously generated files (before the current file):
 <previous_files>
@@ -16,7 +16,7 @@ Here's the file you need to review:
 {{query}}
 </user_query>
 
-<file_path>
+<filePath>
 Path: {{filePath}}
 Purpose: {{filePurpose}}
 </file_info>

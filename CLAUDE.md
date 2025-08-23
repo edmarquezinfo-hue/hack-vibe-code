@@ -63,8 +63,8 @@ The heart of the system is the `CodeGeneratorAgent` Durable Object that implemen
 - **Runner Service**: External service for code execution and validation
 
 ### Frontend-Worker Communication
-- **Initial Request**: POST `/api/codegen/incremental`
-- **WebSocket Connection**: `/api/codegen/ws/:agentId` for real-time updates
+- **Initial Request**: POST `/api/agent`
+- **WebSocket Connection**: `/api/agent/:agentId/ws` for real-time updates
 - **Message Types**: Typed protocol for file updates, errors, phase transitions
 
 ## Areas Under Development
@@ -117,6 +117,9 @@ Required in `.dev.vars` for local development:
 - Keep code quality high and maintainability in mind
 - Always research and understand the codebase before making changes
 - Never use 'any' type. If you see 'any', Find the proper appropriate type in the project and then replace it. If nothing is found, then write a type for it. 
+- Never use dynamic imports. If you see dynamic imports, Correct it!
+- Implement everything the 'right' and 'correct' way instead of 'fast' and 'quick'.
+- Don't add comments for explaining your changes to me. Comments should be professional, to the point and should be there to explain the code, not your changes
 
 ## Common Tasks
 

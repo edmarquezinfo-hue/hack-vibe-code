@@ -2,7 +2,7 @@ import { CodeReviewOutputType, CodeReviewOutput , FileOutputSchema } from '../sc
 import { GenerationContext } from '../domain/values/GenerationContext';
 import { IssueReport } from '../domain/values/IssueReport';
 import { createSystemMessage, createUserMessage } from '../inferutils/common';
-import { executeInference } from '../inferutils/inferenceUtils';
+import { executeInference } from '../inferutils/infer';
 import { generalSystemPromptBuilder, issuesPromptFormatter, PROMPT_UTILS } from '../prompts';
 import { TemplateRegistry } from '../inferutils/schemaFormatters';
 import { z } from 'zod';
@@ -188,13 +188,12 @@ export class CodeReviewOperation extends AgentOperation<CodeReviewInputs, CodeRe
 
         try {
             const { object: reviewResult } = await executeInference({
-                id: options.agentId,
                 env: env,
                 messages,
                 schema: CodeReviewOutput,
-                schemaName: "codeReview",
-                operationName: "Code review",
-                format: 'markdown'
+                agentActionName: "codeReview",
+                context: options.inferenceContext,
+                // format: 'markdown'
             });
 
             if (!reviewResult) {

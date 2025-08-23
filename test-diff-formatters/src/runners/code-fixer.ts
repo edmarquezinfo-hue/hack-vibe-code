@@ -34,9 +34,9 @@ export class CodeFixer implements ICodeFixer {
         try {
 
             const buggyFile: FileOutputType = {
-                file_path: category.enginePath,
-                file_purpose: `${category.description} - contains intentional bugs for testing RealtimeCodeFixer`,
-                file_contents: originalCode
+                filePath: category.enginePath,
+                filePurpose: `${category.description} - contains intentional bugs for testing RealtimeCodeFixer`,
+                fileContents: originalCode
             };
 
             const context: RealtimeCodeFixerContext = {
@@ -55,12 +55,12 @@ export class CodeFixer implements ICodeFixer {
                 modelId
             );
 
-            const success = fixedFile.file_contents !== originalCode;
+            const success = fixedFile.fileContents !== originalCode;
             
             CLIUtils.log('info', `✅ Code fixing ${success ? 'succeeded' : 'failed'}`);
             
             return {
-                fixedCode: fixedFile.file_contents,
+                fixedCode: fixedFile.fileContents,
                 llmDiff: 'Check RealtimeCodeFixer logs above for diff details',
                 diffLogs: ['Logs are preserved in RealtimeCodeFixer output'],
                 success

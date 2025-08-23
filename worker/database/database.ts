@@ -1,6 +1,20 @@
+/**
+ * Core Database Service
+ * Provides database connection, core utilities, and base operations
+ * Domain-specific operations have been moved to dedicated services
+ */
+
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, and, or, desc, count, sql, lt } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import * as schema from './schema';
+import { generateId } from '../utils/idGenerator';
+
+// Import centralized types
+import type { HealthStatusResult } from './types';
+
+// ========================================
+// TYPE DEFINITIONS AND INTERFACES
+// ========================================
 
 // Type-safe database environment interface
 export interface DatabaseEnv {
@@ -17,14 +31,17 @@ export type {
     GitHubIntegration, NewGitHubIntegration,
     AppLike, NewAppLike, AppComment, NewAppComment,
     AppView, NewAppView, OAuthState, NewOAuthState,
-    SystemSetting, NewSystemSetting
+    SystemSetting, NewSystemSetting,
+    UserSecret, NewUserSecret,
+    UserModelConfig, NewUserModelConfig,
+    UserProviderKey, NewUserProviderKey
 } from './schema';
 
 /**
- * Orange Database Service - Production-ready database operations
+ * Core Database Service - Connection and Base Operations
  * 
- * Provides a clean, type-safe interface for all database operations
- * in the Orange project with proper error handling and performance optimization.
+ * Provides database connection, shared utilities, and core operations.
+ * Domain-specific operations are handled by dedicated service classes.
  */
 export class DatabaseService {
     public readonly db: ReturnType<typeof drizzle>;
@@ -34,240 +51,13 @@ export class DatabaseService {
     }
 
     // ========================================
-    // USER MANAGEMENT
-    // ========================================
-
-    async createUser(userData: schema.NewUser): Promise<schema.User> {
-        const [user] = await this.db
-            .insert(schema.users)
-            .values({ ...userData, id: crypto.randomUUID() })
-            .returning();
-        return user;
-    }
-
-    async findUserByEmail(email: string): Promise<schema.User | null> {
-        const users = await this.db
-            .select()
-            .from(schema.users)
-            .where(eq(schema.users.email, email))
-            .limit(1);
-        return users[0] || null;
-    }
-
-    async findUserById(id: string): Promise<schema.User | null> {
-        const users = await this.db
-            .select()
-            .from(schema.users)
-            .where(eq(schema.users.id, id))
-            .limit(1);
-        return users[0] || null;
-    }
-
-    async findUserByProvider(provider: string, providerId: string): Promise<schema.User | null> {
-        const users = await this.db
-            .select()
-            .from(schema.users)
-            .where(and(
-                eq(schema.users.provider, provider),
-                eq(schema.users.providerId, providerId)
-            ))
-            .limit(1);
-        return users[0] || null;
-    }
-
-    async updateUserActivity(userId: string): Promise<void> {
-        await this.db
-            .update(schema.users)
-            .set({ 
-                lastActiveAt: new Date(),
-                updatedAt: new Date()
-            })
-            .where(eq(schema.users.id, userId));
-    }
-
-    // ========================================
-    // SESSION MANAGEMENT
-    // ========================================
-
-    async createSession(sessionData: schema.NewSession): Promise<schema.Session> {
-        const [session] = await this.db
-            .insert(schema.sessions)
-            .values({ ...sessionData, id: crypto.randomUUID() })
-            .returning();
-        return session;
-    }
-
-    async findValidSession(sessionId: string): Promise<schema.Session | null> {
-        const sessions = await this.db
-            .select()
-            .from(schema.sessions)
-            .where(and(
-                eq(schema.sessions.id, sessionId),
-                sql`${schema.sessions.expiresAt} > CURRENT_TIMESTAMP`
-            ))
-            .limit(1);
-        return sessions[0] || null;
-    }
-
-    async cleanupExpiredSessions(): Promise<void> {
-        const now = new Date();
-        await this.db
-            .delete(schema.sessions)
-            .where(lt(schema.sessions.expiresAt, now));
-    }
-
-    // ========================================
-    // TEAM OPERATIONS
-    // ========================================
-
-    async createTeam(teamData: Omit<schema.NewTeam, 'id'>): Promise<schema.Team> {
-        const [team] = await this.db
-            .insert(schema.teams)
-            .values({
-                ...teamData,
-                id: crypto.randomUUID(),
-                slug: this.generateSlug(teamData.name),
-            })
-            .returning();
-
-        // Add owner as team member
-        await this.addTeamMember(team.id, team.ownerId, 'owner');
-        return team;
-    }
-
-    async addTeamMember(teamId: string, userId: string, role: 'owner' | 'admin' | 'member' | 'viewer' = 'member'): Promise<void> {
-        await this.db
-            .insert(schema.teamMembers)
-            .values({
-                id: crypto.randomUUID(),
-                teamId,
-                userId,
-                role: role as 'owner' | 'admin' | 'member' | 'viewer',
-                joinedAt: new Date(),
-            });
-    }
-
-    async getUserTeams(userId: string): Promise<Array<schema.Team & { memberRole: string }>> {
-        const results = await this.db
-            .select({
-                id: schema.teams.id,
-                name: schema.teams.name,
-                slug: schema.teams.slug,
-                description: schema.teams.description,
-                avatarUrl: schema.teams.avatarUrl,
-                visibility: schema.teams.visibility,
-                ownerId: schema.teams.ownerId,
-                createdAt: schema.teams.createdAt,
-                updatedAt: schema.teams.updatedAt,
-                deletedAt: schema.teams.deletedAt,
-                plan: schema.teams.plan,
-                maxMembers: schema.teams.maxMembers,
-                maxApps: schema.teams.maxApps,
-                allowMemberInvites: schema.teams.allowMemberInvites,
-                memberRole: schema.teamMembers.role,
-            })
-            .from(schema.teams)
-            .innerJoin(schema.teamMembers, eq(schema.teams.id, schema.teamMembers.teamId))
-            .where(and(
-                eq(schema.teamMembers.userId, userId),
-                eq(schema.teamMembers.status, 'active')
-            ));
-        return results as Array<schema.Team & { memberRole: string }>;
-    }
-
-    // ========================================
-    // APP OPERATIONS
-    // ========================================
-
-    async createApp(appData: Omit<schema.NewApp, 'id'>): Promise<schema.App> {
-        const [app] = await this.db
-            .insert(schema.apps)
-            .values({
-                ...appData,
-                id: crypto.randomUUID(),
-                slug: appData.title ? this.generateSlug(appData.title) : undefined,
-            })
-            .returning();
-        return app;
-    }
-
-    async getUserApps(
-        userId: string,
-        options: {
-            teamId?: string;
-            status?: string;
-            visibility?: string;
-            limit?: number;
-            offset?: number;
-        } = {}
-    ): Promise<schema.App[]> {
-        const { teamId, status, visibility, limit = 50, offset = 0 } = options;
-
-        const whereConditions: any[] = [eq(schema.apps.userId, userId)];
-        
-        if (teamId) whereConditions.push(eq(schema.apps.teamId, teamId));
-        if (status) whereConditions.push(eq(schema.apps.status, status as 'draft' | 'generating' | 'completed' | 'deployed' | 'error'));
-        if (visibility) whereConditions.push(eq(schema.apps.visibility, visibility as 'private' | 'team' | 'board' | 'public'));
-
-        const whereClause = whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0];
-
-        return await this.db
-            .select()
-            .from(schema.apps)
-            .where(whereClause)
-            .orderBy(desc(schema.apps.updatedAt))
-            .limit(limit)
-            .offset(offset);
-    }
-
-    async getPublicApps(boardId?: string, limit: number = 20, offset: number = 0): Promise<schema.App[]> {
-        const whereConditions: any[] = [
-            or(
-                eq(schema.apps.visibility, 'public'),
-                eq(schema.apps.visibility, 'board')
-            )
-        ];
-
-        if (boardId) {
-            whereConditions.push(eq(schema.apps.boardId, boardId));
-        }
-
-        const whereClause = whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0];
-
-        return await this.db
-            .select()
-            .from(schema.apps)
-            .where(whereClause)
-            .orderBy(desc(schema.apps.createdAt))
-            .limit(limit)
-            .offset(offset);
-    }
-
-    async updateAppStatus(appId: string, status: string, metadata?: any): Promise<void> {
-        const updateData: any = { 
-            status, 
-            updatedAt: new Date() 
-        };
-
-        if (status === 'deployed' && metadata?.deploymentUrl) {
-            updateData.deploymentUrl = metadata.deploymentUrl;
-            updateData.lastDeployedAt = new Date();
-        }
-
-        await this.db
-            .update(schema.apps)
-            .set(updateData)
-            .where(eq(schema.apps.id, appId));
-    }
-
-    // ========================================
-    // CODE GENERATION INSTANCES
+    // CODE GENERATION INSTANCES (Core Operations)
     // ========================================
 
     async createCodeGenInstance(instanceData: Omit<schema.NewCodeGenInstance, 'id'>): Promise<schema.CodeGenInstance> {
         const [instance] = await this.db
             .insert(schema.codeGenInstances)
-            .values({ ...instanceData, id: crypto.randomUUID() })
+            .values({ ...instanceData, id: generateId() })
             .returning();
         return instance;
     }
@@ -292,44 +82,19 @@ export class DatabaseService {
     }
 
     // ========================================
-    // CLOUDFLARE INTEGRATION
+    // CLOUDFLARE INTEGRATION (Core Operations)
     // ========================================
 
     async addCloudflareAccount(accountData: Omit<schema.NewCloudflareAccount, 'id'>): Promise<schema.CloudflareAccount> {
         const [account] = await this.db
             .insert(schema.cloudflareAccounts)
-            .values({ ...accountData, id: crypto.randomUUID() })
+            .values({ ...accountData, id: generateId() })
             .returning();
         return account;
     }
 
-    async getCloudflareAccounts(userId?: string, teamId?: string): Promise<schema.CloudflareAccount[]> {
-        const whereConditions: any[] = [eq(schema.cloudflareAccounts.isActive, true)];
-
-        if (userId && teamId) {
-            whereConditions.push(
-                or(
-                    eq(schema.cloudflareAccounts.userId, userId),
-                    eq(schema.cloudflareAccounts.teamId, teamId)
-                )
-            );
-        } else if (userId) {
-            whereConditions.push(eq(schema.cloudflareAccounts.userId, userId));
-        } else if (teamId) {
-            whereConditions.push(eq(schema.cloudflareAccounts.teamId, teamId));
-        }
-
-        const whereClause = whereConditions.length > 1 ? and(...whereConditions) : whereConditions[0];
-
-        return await this.db
-            .select()
-            .from(schema.cloudflareAccounts)
-            .where(whereClause)
-            .orderBy(desc(schema.cloudflareAccounts.isDefault));
-    }
-
     // ========================================
-    // BOARD AND COMMUNITY OPERATIONS
+    // BOARD AND COMMUNITY OPERATIONS (Core Operations)
     // ========================================
 
     async createBoard(boardData: Omit<schema.NewBoard, 'id'>): Promise<schema.Board> {
@@ -337,7 +102,7 @@ export class DatabaseService {
             .insert(schema.boards)
             .values({
                 ...boardData,
-                id: crypto.randomUUID(),
+                id: generateId(),
                 slug: this.generateSlug(boardData.name),
             })
             .returning();
@@ -391,46 +156,121 @@ export class DatabaseService {
             })
             .from(schema.boards)
             .where(eq(schema.boards.visibility, 'public'))
-            .orderBy(desc(sql`popularityScore`))
+            .orderBy(sql`popularityScore DESC`)
             .limit(limit);
     }
 
     // ========================================
-    // ANALYTICS AND TRACKING
+    // GITHUB INTEGRATION OPERATIONS (Core Operations)
     // ========================================
 
-    async recordAppView(viewData: Omit<schema.NewAppView, 'id'>): Promise<void> {
-        // Just record the view - no need to update denormalized counters
-        await this.db
-            .insert(schema.appViews)
-            .values({ ...viewData, id: crypto.randomUUID() });
+    /**
+     * Get GitHub integration for a user with proper typing
+     * Returns formatted data ready for API response
+     */
+    async getGitHubIntegration(userId: string): Promise<schema.GitHubIntegration | null> {
+        const integration = await this.db
+            .select()
+            .from(schema.githubIntegrations)
+            .where(eq(schema.githubIntegrations.userId, userId))
+            .get();
+
+        return integration || null;
     }
 
-    async getAppAnalytics(appId: string, days: number = 30): Promise<{
-        views: number;
-        likes: number;
-        period: string;
-    }> {
-        const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    /**
+     * Upsert GitHub integration with validation and proper error handling
+     * Handles both create and update operations efficiently
+     */
+    async upsertGitHubIntegration(
+        userId: string,
+        githubData: {
+            githubUserId: string;
+            githubUsername: string;
+            accessToken: string;
+            refreshToken?: string;
+            scopes: string[];
+        }
+    ): Promise<schema.GitHubIntegration> {
+        // Input validation
+        if (!userId?.trim()) {
+            throw new Error('User ID is required');
+        }
+        
+        // Validate GitHub user ID format (must be numeric)
+        if (!/^\d+$/.test(githubData.githubUserId)) {
+            throw new Error('Invalid GitHub user ID format');
+        }
+        
+        // Sanitize GitHub username (remove potentially dangerous characters)
+        const sanitizedUsername = githubData.githubUsername
+            .replace(/[<>"'&]/g, '')
+            .trim();
+        
+        if (!sanitizedUsername || sanitizedUsername.length > 39) { // GitHub max username length
+            throw new Error('Invalid GitHub username');
+        }
+        
+        // Basic access token validation
+        if (!githubData.accessToken || typeof githubData.accessToken !== 'string') {
+            throw new Error('Invalid GitHub access token format');
+        }
 
-        const [viewsResult] = await this.db
-            .select({ count: count() })
-            .from(schema.appViews)
-            .where(and(
-                eq(schema.appViews.appId, appId),
-                sql`${schema.appViews.viewedAt} >= ${cutoffDate}`
-            ));
+        // Check if integration already exists
+        const existing = await this.db
+            .select()
+            .from(schema.githubIntegrations)
+            .where(eq(schema.githubIntegrations.userId, userId))
+            .get();
 
-        const [likesResult] = await this.db
-            .select({ count: count() })
-            .from(schema.appLikes)
-            .where(eq(schema.appLikes.appId, appId));
-
-        return {
-            views: viewsResult?.count || 0,
-            likes: likesResult?.count || 0,
-            period: `${days} days`,
+        const integrationData = {
+            githubUserId: githubData.githubUserId,
+            githubUsername: sanitizedUsername,
+            accessTokenHash: githubData.accessToken,
+            refreshTokenHash: githubData.refreshToken || null,
+            scopes: JSON.stringify(githubData.scopes),
+            isActive: true,
+            lastValidated: new Date(),
+            updatedAt: new Date()
         };
+
+        if (existing) {
+            // Update existing integration
+            const [updated] = await this.db
+                .update(schema.githubIntegrations)
+                .set(integrationData)
+                .where(eq(schema.githubIntegrations.userId, userId))
+                .returning();
+            
+            return updated;
+        } else {
+            // Create new integration
+            const [created] = await this.db
+                .insert(schema.githubIntegrations)
+                .values({
+                    ...integrationData,
+                    id: generateId(),
+                    userId,
+                    createdAt: new Date()
+                })
+                .returning();
+
+            return created;
+        }
+    }
+
+    /**
+     * Deactivate GitHub integration (soft delete)
+     * Follows existing database service patterns
+     */
+    async deactivateGitHubIntegration(userId: string): Promise<void> {
+        await this.db
+            .update(schema.githubIntegrations)
+            .set({
+                isActive: false,
+                updatedAt: new Date()
+            })
+            .where(eq(schema.githubIntegrations.userId, userId));
     }
 
     // ========================================
@@ -447,7 +287,7 @@ export class DatabaseService {
             .substring(0, 50);
     }
 
-    async getHealthStatus(): Promise<{ healthy: boolean; timestamp: string }> {
+    async getHealthStatus(): Promise<HealthStatusResult> {
         try {
             await this.db.select().from(schema.systemSettings).limit(1);
             return {

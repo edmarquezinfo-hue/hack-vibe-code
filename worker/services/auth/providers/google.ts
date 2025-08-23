@@ -68,12 +68,11 @@ export class GoogleOAuthProvider extends BaseOAuthProvider {
     /**
      * Create Google OAuth provider instance
      */
-    static create(env: Env): GoogleOAuthProvider {
+    static create(env: Env, baseUrl: string): GoogleOAuthProvider {
         if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
             throw new Error('Google OAuth credentials not configured');
         }
         
-        const baseUrl = env.BASE_URL || 'http://localhost:8787';
         const redirectUri = `${baseUrl}/api/auth/callback/google`;
         
         return new GoogleOAuthProvider(

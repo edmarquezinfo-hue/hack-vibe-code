@@ -2,9 +2,7 @@ import { WebSocket } from 'partysocket';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
 	BlueprintType,
-	GeneratedFile,
 	WebSocketMessage,
-	ApiResponse,
 	CodeFixEdits,
 } from '../api-types';
 import {
@@ -13,12 +11,14 @@ import {
 } from '../../../utils/ndjson-parser/ndjson-parser';
 import { getFileType } from '../../../utils/string';
 import { logger } from '../../../utils/logger';
-import { useAuth } from '@/contexts/auth-context';
 import { getPreviewUrl } from '@/lib/utils';
+import { generateId } from '../../../utils/id-generator';
+import { apiClient } from '@/lib/api-client';
+import { appEvents } from '@/lib/app-events';
 
 export interface FileType {
-	file_path: string;
-	file_contents: string;
+	filePath: string;
+	fileContents: string;
 	explanation?: string;
 	isGenerating?: boolean;
 	needsFixing?: boolean;
@@ -71,28 +71,21 @@ type ChatMessage = {
 	isThinking?: boolean;
 };
 
-// Helper function to get or create session token for anonymous users
-function getOrCreateSessionToken(): string {
-	let token = localStorage.getItem('anonymous_session_token');
-	if (!token) {
-		token = crypto.randomUUID();
-		localStorage.setItem('anonymous_session_token', token);
-	}
-	return token;
-}
+// Session token management is now handled by the API client automatically
 
 export function useChat({
 	chatId: urlChatId,
 	query: userQuery,
 	agentMode = 'deterministic',
 	onDebugMessage,
+	onTerminalMessage,
 }: {
 	chatId?: string;
 	query: string | null;
 	agentMode?: 'deterministic' | 'smart';
 	onDebugMessage?: (type: 'error' | 'warning' | 'info' | 'websocket', message: string, details?: string, source?: string, messageType?: string, rawMessage?: unknown) => void;
+	onTerminalMessage?: (log: { id: string; content: string; type: 'command' | 'stdout' | 'stderr' | 'info' | 'error' | 'warn' | 'debug'; timestamp: number; source?: string }) => void;
 }) {
-	const { user } = useAuth();
 	const connectionStatus = useRef<'idle' | 'connecting' | 'connected' | 'failed' | 'retrying'>('idle');
 	const retryCount = useRef(0);
 	const maxRetries = 5;
@@ -209,7 +202,7 @@ export function useChat({
 	const sendUserMessage = useCallback((message: string) => {
 		setMessages((prev) => [
 			...prev,
-			{ type: 'user', id: crypto.randomUUID(), message },
+			{ type: 'user', id: generateId(), message },
 		]);
 	}, []);
 
@@ -218,7 +211,7 @@ export function useChat({
 			...prev,
 			...files.map((file) => ({
 				...file,
-				language: getFileType(file.file_path),
+				language: getFileType(file.filePath),
 			})),
 		]);
 	};
@@ -226,15 +219,15 @@ export function useChat({
 	const addFile = (file: FileType) => {
 		// add file to files if it doesn't exist, else replace old file with new one
 		setFiles((prev) => {
-			const fileExists = prev.some((f) => f.file_path === file.file_path);
+			const fileExists = prev.some((f) => f.filePath === file.filePath);
 			if (fileExists) {
-				return prev.map((f) => (f.file_path === file.file_path ? file : f));
+				return prev.map((f) => (f.filePath === file.filePath ? file : f));
 			}
 			return [...prev, file];
 		});
 	};
 
-	const handleWebSocketMessage = (message: WebSocketMessage) => {
+	const handleWebSocketMessage = (websocket: WebSocket, message: WebSocketMessage) => {
 		if (message.type !== 'file_chunk_generated' && message.type !== 'cf_agent_state' && message.type.length <= 50) {
 			logger.info('received message', message.type, message);
 			// Capture ALL WebSocket messages for debug panel (lightweight when not open)
@@ -276,12 +269,12 @@ export function useChat({
 					if (state.generatedFilesMap && files.length === 0) {
 						setFiles(
 							Object.values(state.generatedFilesMap).map((file) => ({
-								file_path: file.file_path,
-								file_contents: file.file_contents,
+								filePath: file.filePath,
+								fileContents: file.fileContents,
 								isGenerating: false,
 								needsFixing: false,
 								hasErrors: false,
-								language: getFileType(file.file_path),
+								language: getFileType(file.filePath),
 							})),
 						);
 					}
@@ -300,7 +293,7 @@ export function useChat({
                                     path: filesConcept.path,
                                     purpose: filesConcept.purpose,
                                     status: (file? 'completed' as const : 'generating' as const),
-                                    contents: file?.file_contents
+                                    contents: file?.fileContents
                                 };
                             }),
                             timestamp: Date.now(),
@@ -313,7 +306,7 @@ export function useChat({
 						console.log('💬 Restoring conversation messages:', state.conversationMessages.length);
 						const restoredMessages = state.conversationMessages.map((msg) => ({
 							type: msg.role === 'user' ? 'user' as const : 'ai' as const,
-							id: (msg.conversationId || crypto.randomUUID()),
+							id: (msg.conversationId || generateId()),
 							message: msg.content as string,
 							isThinking: false
 						}));
@@ -341,20 +334,22 @@ export function useChat({
 
 					// Mark initial restoration as complete
 					setIsInitialStateRestored(true);
+
+					// Request preview deployment for existing chats with files
+					// This ensures the preview is deployed when navigating to existing chats or reconnecting
+					if (state.generatedFilesMap && Object.keys(state.generatedFilesMap).length > 0 && 
+						websocket && websocket.readyState === WebSocket.OPEN && 
+						urlChatId !== 'new') {
+						console.log('🚀 Requesting preview deployment for existing chat with files');
+						websocket.send(JSON.stringify({ type: 'preview' }));
+					} else {
+                        // Print all the arguments to check
+                        console.log('🚀 Requesting preview deployment for existing chat with files', state.generatedFilesMap, Object.keys(state.generatedFilesMap).length, websocket, urlChatId);
+                    }
 				}
 
-				// Always handle preview URL updates (this is safe to do repeatedly)
-				const finalPreviewURL = getPreviewUrl(state.previewURL, state.tunnelURL);
-				if (finalPreviewURL && finalPreviewURL !== previewUrl) {
-					setPreviewUrl(finalPreviewURL);
-					// Only send deployment message if this is a new URL
-					if (!previewUrl) {
-						sendMessage({
-							id: 'deployment-status',
-							message: 'Your project has been deployed to ' + finalPreviewURL,
-						});
-					}
-				}
+				// Preview URLs are now only set from deployment_completed websocket messages
+				// No longer using potentially stale URLs from agent state
 
 				// Always handle shouldBeGenerating flag for auto-resume (this is important for reconnects)
 				if (state.shouldBeGenerating) {
@@ -375,7 +370,7 @@ export function useChat({
 							updateStage('validate', { status: 'completed' });
 
 							// Auto-deploy preview if we have generated files but no preview URL
-							if (!finalPreviewURL && websocket && websocket.readyState === WebSocket.OPEN) {
+							if (!previewUrl && websocket && websocket.readyState === WebSocket.OPEN) {
 								console.log('🚀 Generated files exist but no preview URL - auto-deploying preview');
 								websocket.send(JSON.stringify({ type: 'preview' }));
 							}
@@ -389,13 +384,13 @@ export function useChat({
 
 			case 'file_generating': {
 				addFile({
-					file_path: message.file_path,
-					file_contents: '',
+					filePath: message.filePath,
+					fileContents: '',
 					explanation: '',
 					isGenerating: true,
 					needsFixing: false,
 					hasErrors: false,
-					language: getFileType(message.file_path),
+					language: getFileType(message.filePath),
 				});
 				break;
 			}
@@ -404,22 +399,22 @@ export function useChat({
 				// update the file
 				setFiles((prev) => {
 					const file = prev.find(
-						(file) => file.file_path === message.file_path,
+						(file) => file.filePath === message.filePath,
 					);
 					if (!file)
 						return [
 							...prev,
 							{
-								file_path: message.file_path,
-								file_contents: message.chunk,
+								filePath: message.filePath,
+								fileContents: message.chunk,
 								explanation: '',
 								isGenerating: true,
 								needsFixing: false,
 								hasErrors: false,
-								language: getFileType(message.file_path),
+								language: getFileType(message.filePath),
 							},
 						];
-					file.file_contents += message.chunk;
+					file.fileContents += message.chunk;
 					return [...prev];
 				});
 				break;
@@ -430,22 +425,22 @@ export function useChat({
 				// find the file and change isGenerating to false with the file in same index
 				setFiles((prev) => {
 					const file = prev.find(
-						(file) => file.file_path === message.file.file_path,
+						(file) => file.filePath === message.file.filePath,
 					);
 					if (!file)
 						return [
 							...prev,
 							{
-								file_path: message.file.file_path,
-								file_contents: message.file.file_contents,
+								filePath: message.file.filePath,
+								fileContents: message.file.fileContents,
 								isGenerating: false,
 								needsFixing: false,
 								hasErrors: false,
-								language: getFileType(message.file.file_path),
+								language: getFileType(message.file.filePath),
 							},
 						];
 					file.isGenerating = false;
-					file.file_contents = message.file.file_contents;
+					file.fileContents = message.file.fileContents;
 					return [...prev];
 				});
 				
@@ -456,12 +451,12 @@ export function useChat({
 					// Find the active phase (not completed) and update the specific file
 					for (let i = updated.length - 1; i >= 0; i--) {
 						if (updated[i].status !== 'completed') {
-							const fileInPhase = updated[i].files.find(f => f.path === message.file.file_path);
+							const fileInPhase = updated[i].files.find(f => f.path === message.file.filePath);
 							if (fileInPhase) {
 								fileInPhase.status = 'completed';
 								// Store the final contents of the file for this phase
-								fileInPhase.contents = message.file.file_contents;
-								console.log(`File completed in phase ${updated[i].name}: ${message.file.file_path}`);
+								fileInPhase.contents = message.file.fileContents;
+								console.log(`File completed in phase ${updated[i].name}: ${message.file.filePath}`);
 								break;
 							}
 						}
@@ -477,10 +472,10 @@ export function useChat({
 				// update the file
 				setFiles((prev) => {
 					const file = prev.find(
-						(file) => file.file_path === message.file.file_path,
+						(file) => file.filePath === message.file.filePath,
 					);
 					if (!file) return prev;
-					file.file_contents = message.file.file_contents;
+					file.fileContents = message.file.fileContents;
 					// Clear regenerating flags
 					file.isGenerating = false;
 					file.needsFixing = false;
@@ -494,12 +489,12 @@ export function useChat({
 					
 					// Find the most recent phase that contains this file and mark as completed
 					for (let i = updated.length - 1; i >= 0; i--) {
-						const fileInPhase = updated[i].files.find(f => f.path === message.file.file_path);
+						const fileInPhase = updated[i].files.find(f => f.path === message.file.filePath);
 						if (fileInPhase) {
 							fileInPhase.status = 'completed';
 							// Store the updated contents for this phase
-							fileInPhase.contents = message.file.file_contents;
-							console.log(`File regeneration completed in phase ${updated[i].name}: ${message.file.file_path}`);
+							fileInPhase.contents = message.file.fileContents;
+							console.log(`File regeneration completed in phase ${updated[i].name}: ${message.file.filePath}`);
 							break;
 						}
 					}
@@ -557,11 +552,11 @@ export function useChat({
 
 			case 'code_reviewed': {
 				const reviewData = message.review;
-				const totalIssues = reviewData?.files_to_fix?.reduce((count, file) => count + file.issues.length, 0) || 0;
+				const totalIssues = reviewData?.filesToFix?.reduce((count, file) => count + file.issues.length, 0) || 0;
 				
 				let reviewMessage = 'Code review complete';
-				if (reviewData?.issues_found) {
-					reviewMessage = `Code review complete - ${totalIssues} issue${totalIssues !== 1 ? 's' : ''} found across ${reviewData.files_to_fix?.length || 0} file${reviewData.files_to_fix?.length !== 1 ? 's' : ''}`;
+				if (reviewData?.issuesFound) {
+					reviewMessage = `Code review complete - ${totalIssues} issue${totalIssues !== 1 ? 's' : ''} found across ${reviewData.filesToFix?.length || 0} file${reviewData.filesToFix?.length !== 1 ? 's' : ''}`;
 				} else {
 					reviewMessage = 'Code review complete - no issues found';
 				}
@@ -576,7 +571,7 @@ export function useChat({
 			case 'file_regenerating': {
 				// Mark file as being regenerated (similar to file_generating)
 				setFiles((prev) => {
-					const existingFile = prev.find(f => f.file_path === message.file_path);
+					const existingFile = prev.find(f => f.filePath === message.filePath);
 					if (existingFile) {
 						existingFile.isGenerating = true;
 						existingFile.needsFixing = true; // Indicate this is a regeneration
@@ -584,13 +579,13 @@ export function useChat({
 					}
 					// If file doesn't exist, add it
 					return [...prev, {
-						file_path: message.file_path,
-						file_contents: '',
+						filePath: message.filePath,
+						fileContents: '',
 						explanation: 'File being regenerated...',
 						isGenerating: true,
 						needsFixing: true,
 						hasErrors: false,
-						language: getFileType(message.file_path),
+						language: getFileType(message.filePath),
 					}];
 				});
 				
@@ -600,10 +595,10 @@ export function useChat({
 					
 					// Find the most recent phase that contains this file
 					for (let i = updated.length - 1; i >= 0; i--) {
-						const fileInPhase = updated[i].files.find(f => f.path === message.file_path);
+						const fileInPhase = updated[i].files.find(f => f.path === message.filePath);
 						if (fileInPhase) {
 							fileInPhase.status = 'generating'; // Show as regenerating
-							console.log(`File regenerating in phase ${updated[i].name}: ${message.file_path}`);
+							console.log(`File regenerating in phase ${updated[i].name}: ${message.filePath}`);
 							break;
 						}
 					}
@@ -710,12 +705,12 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 							description: message.phase.description,
 							files: message.phase.files?.map(f => {
 								// Capture current file contents for incremental calculation
-								// const existingFile = files.find(file => file.file_path === f.path);
+								// const existingFile = files.find(file => file.filePath === f.path);
 								return {
 									path: f.path,
 									purpose: f.purpose,
 									status: 'generating' as const,
-									// contents: existingFile?.file_contents || '' // Store current contents
+									// contents: existingFile?.fileContents || '' // Store current contents
 								};
 							}) || [],
 							status: 'generating' as const,
@@ -954,10 +949,39 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 				break;
 			}
 
+			case 'terminal_output': {
+				// Handle terminal output from server
+				const terminalLog = {
+					id: `terminal-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+					content: message.output,
+					type: message.outputType as 'stdout' | 'stderr' | 'info',
+					timestamp: message.timestamp
+				};
+				if (onTerminalMessage) {
+					onTerminalMessage(terminalLog);
+				}
+				break;
+			}
+
+			case 'server_log': {
+				// Handle server logs
+				const serverLog = {
+					id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+					content: message.message,
+					type: message.level as 'info' | 'warn' | 'error' | 'debug',
+					timestamp: message.timestamp,
+					source: message.source
+				};
+				if (onTerminalMessage) {
+					onTerminalMessage(serverLog);
+				}
+				break;
+			}
+
 			default:
 				console.warn('Unhandled message:', message);
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+		 
 	};
 
 	// Enhanced WebSocket connection with retry logic
@@ -1020,7 +1044,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 				ws.addEventListener('message', (event) => {
 					try {
 						const message: WebSocketMessage = JSON.parse(event.data);
-						handleWebSocketMessage(message);
+						handleWebSocketMessage(ws, message);
 					} catch (parseError) {
 						console.error('❌ Error parsing WebSocket message:', parseError, event.data);
 					}
@@ -1132,26 +1156,14 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 						return;
 					}
 
-					// Start new code generation
-					const headers: HeadersInit = {
-						'Content-Type': 'application/json',
-					};
-					
-					// Add session token for anonymous users
-					if (!user) {
-						headers['X-Session-Token'] = getOrCreateSessionToken();
-					}
-					
-					const response = await fetch('/api/codegen/incremental',
-						{
-							method: 'POST',
-							headers,
-							body: JSON.stringify({ query: userQuery, agentMode }),
-						},
-					);
+					// Start new code generation using API client
+					const response = await apiClient.createAgentSession({
+						query: userQuery,
+						agentMode,
+					});
 
-					if (!response.ok) {
-						throw new Error(`HTTP error ${response.status}`);
+					if (!response.success) {
+						throw new Error(response.error);
 					}
 
 					const parser = createRepairingJSONParser();
@@ -1177,7 +1189,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 						isThinking: true,
 					});
 
-					for await (const obj of ndjsonStream(response)) {
+					for await (const obj of ndjsonStream(response.stream)) {
 						if (obj.chunk) {
 							if (!startedBlueprintStream) {
 								sendMessage({
@@ -1228,6 +1240,12 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 					logger.debug('connecting to ws with created id');
 					connect(result.websocketUrl);
 					setChatId(result.agentId); // This comes from the server response
+					
+					// Emit app-created event for sidebar updates
+					appEvents.emitAppCreated(result.agentId, {
+						title: userQuery || 'New App',
+						description: userQuery,
+					});
 				} else if (connectionStatus.current === 'idle') {
 					setIsBootstrapping(false);
 					// Get existing progress
@@ -1235,15 +1253,12 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 						id: 'fetching-chat',
 						message: 'Fetching your previous chat...',
 					});
-					const response = await fetch(`/api/codegen/incremental/${urlChatId}`,
-						{
-							method: 'GET',
-						},
-					);
 
-					if (!response.ok) {
-						console.error(`Failed to fetch existing chat ${urlChatId}:`, response.status, response.statusText);
-						if (response.status === 404) {
+					const response = await apiClient.connectToAgent(urlChatId);
+
+					if (!response.success) {
+						console.error('Failed to fetch existing chat:', { chatId: urlChatId, error: response.error });
+						if (response.statusCode === 404) {
 							sendMessage({
 								id: 'chat-not-found',
 								message: 'Chat session not found. Starting a new session...',
@@ -1255,54 +1270,12 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 							}, 1500);
 							return;
 						}
-						throw new Error(`HTTP error ${response.status}`);
+						throw new Error(response.error || 'Failed to connect to agent');
 					}
+					logger.debug('Existing agentId API result', response.data);
 
-					const result: ApiResponse = await response.json();
-
-					logger.debug('Existing agentId API result', result);
-
-					if (result.data.blueprint) {
-						setBlueprint(result.data.blueprint);
-						updateStage('bootstrap', { status: 'completed' });
-						updateStage('blueprint', { status: 'completed' });
-						// If blueprint exists, assume prior stages are done for an existing agent
-						setBlueprint(result.data.blueprint);
-					}
-
-					if (result.data.progress) {
-						setTotalFiles(result.data.progress.totalFiles);
-						console.log(result.data.progress);
-
-						// if (
-						// 	result.data.progress.completedFiles ===
-						// 	result.data.progress.totalFiles
-						// ) {
-						// 	console.log('complete');
-						// 	updateStage('code', { status: 'completed' });
-						// 	updateStage('validate', { status: 'completed' });
-						// }
-					}
-
-					let loadedFiles: FileType[] = [];
-
-					// Load existing files into state
-					if (result.data.generated_code) {
-						loadedFiles = result.data.generated_code.map(
-							(file: GeneratedFile) => {
-								return {
-									file_path: file.file_path,
-									file_contents: file.file_contents,
-									isGenerating: false,
-									needsFixing: false,
-									hasErrors: false,
-									language: getFileType(file.file_path),
-								};
-							},
-						);
-
-						setFiles(loadedFiles);
-					}
+					// Set the chatId for existing chat - this enables the chat input
+					setChatId(urlChatId);
 
 					sendMessage({
 						id: 'resuming-chat',
@@ -1310,24 +1283,10 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 						isThinking: false,
 					});
 
-					// Initialize basic stage states based on recovered data
-					updateStage('bootstrap', { status: 'completed' });
-					if (result.data.blueprint) {
-						updateStage('blueprint', { status: 'completed' });
-					}
-					if (loadedFiles.length > 0) {
-						updateStage('code', { status: 'completed' });
-						updateStage('validate', { status: 'completed' });
-					}
-
 					logger.debug('connecting from init for existing chatId');
-					// Construct proper WebSocket URL for existing chat
-					const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-					const wsUrl = `${protocol}//${window.location.host}/api/codegen/ws/${urlChatId}`;
-					console.log('📡 Connecting to existing chat WebSocket:', wsUrl);
-					connect(wsUrl, {
-						disableGenerate: true, // We'll handle generation resume in the WebSocket open handler
-					});
+                    connect(response.data.websocketUrl, {
+                        disableGenerate: true, // We'll handle generation resume in the WebSocket open handler
+                    });
 				}
 			} catch (error) {
 				console.error('Error initializing code generation:', error);
@@ -1350,8 +1309,8 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 			return () => {
 				setFiles((prev) =>
 					prev.map((file) => {
-						if (file.file_path === edit.filePath) {
-							file.file_contents = file.file_contents.replace(
+						if (file.filePath === edit.filePath) {
+							file.fileContents = file.fileContents.replace(
 								edit.search,
 								edit.replacement,
 							);

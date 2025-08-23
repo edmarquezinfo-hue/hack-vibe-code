@@ -9,7 +9,7 @@ export interface IFileManager {
     /**
      * Get a template file by path
      */
-    getTemplateFile(path: string): { file_path: string; file_contents: string } | null;
+    getTemplateFile(path: string): { filePath: string; fileContents: string } | null;
 
     /**
      * Get a generated file by path

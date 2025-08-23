@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, forwardRef } from 'react';
 import { RotateCcw, RefreshCw } from 'lucide-react';
 import { WebSocket } from 'partysocket';
-// import { captureScreenshot } from '@/utils/screenshot';
+
 
 interface SmartPreviewIframeProps {
 	src: string;
@@ -17,6 +17,8 @@ interface SmartPreviewIframeProps {
 	manualRefreshTrigger?: number;
 	// Phase timeline for tracking progress
 	phaseTimelineLength?: number;
+	// Development mode - enables screenshot capture
+	devMode?: boolean;
 }
 
 interface RetryState {
@@ -31,7 +33,7 @@ interface RetryState {
 }
 
 export const SmartPreviewIframe = forwardRef<HTMLIFrameElement, SmartPreviewIframeProps>(
-	({ src, className = '', title = 'Preview',  shouldRefreshPreview = false, webSocket = null, manualRefreshTrigger }, ref) => {
+	({ src, className = '', title = 'Preview',  shouldRefreshPreview = false, webSocket = null, manualRefreshTrigger, devMode = false }, ref) => {
 		const [retryState, setRetryState] = useState<RetryState>({
 			attempt: 0,
 			isRetrying: false,
@@ -245,18 +247,31 @@ export const SmartPreviewIframe = forwardRef<HTMLIFrameElement, SmartPreviewIfra
 						try {
 							// Try to access iframe document to verify it's not empty/error page
 							const iframeDoc = testFrame.contentDocument || testFrame.contentWindow?.document;
-							const hasContent = !!(iframeDoc && 
-							iframeDoc.body && 
-							iframeDoc.body.children.length > 0 &&
-							iframeDoc.title !== 'Error' &&
-							!iframeDoc.body.textContent?.includes('Cannot GET') &&
-							!iframeDoc.body.textContent?.includes('404'));
+							const bodyText = iframeDoc?.body?.textContent?.toLowerCase() || '';
+							const titleText = iframeDoc?.title?.toLowerCase() || '';
+							
+							// Check for container proxy errors (any IP address pattern)
+							const hasContainerError = 
+								bodyText.includes('error proxying request to container') ||
+								bodyText.includes('the container is not listening') ||
+								bodyText.includes('tcp address') ||
+								titleText.includes('error') ||
+								bodyText.includes('cannot get') ||
+								bodyText.includes('404') ||
+								bodyText.includes('internal server error') ||
+								bodyText.includes('502 bad gateway') ||
+								bodyText.includes('503 service unavailable');
+
+							const hasValidContent = !!(iframeDoc && 
+								iframeDoc.body && 
+								iframeDoc.body.children.length > 0 &&
+								!hasContainerError);
 						
-						if (!hasResolved) {
-							hasResolved = true;
-							clearTimeout(timeout);
-							document.body.removeChild(testFrame);
-							resolve(hasContent);
+							if (!hasResolved) {
+								hasResolved = true;
+								clearTimeout(timeout);
+								document.body.removeChild(testFrame);
+								resolve(hasValidContent);
 							}
 						} catch {
 							// Cross-origin restrictions - assume content is ready if iframe loaded
@@ -330,51 +345,32 @@ export const SmartPreviewIframe = forwardRef<HTMLIFrameElement, SmartPreviewIfra
 										lastReactErrorBody: null
 									}));
 										
-									// // Capture screenshot on successful load (no errors)
-									// if (webSocket && webSocket.readyState === WebSocket.OPEN) {
-									// 	// Wait a bit longer to ensure the page is fully rendered
-									// 	setTimeout(async () => {
-									// 		try {
-									// 			console.log('📸 Attempting to capture screenshot of successfully loaded preview');
-													
-									// 			// Get iframe element
-									// 			const iframeElement = (ref as any)?.current;
-									// 			if (!iframeElement) {
-									// 				console.warn('Iframe element not available for screenshot');
-									// 				return;
-									// 			}
-													
-									// 			// Capture screenshot of just the iframe
-									// 			const screenshot = await captureScreenshot({
-									// 				// element: iframeElement,
-									// 				quality: 0.8,
-									// 				format: 'jpeg',
-									// 				excludeElements: [
-									// 					'[data-debug-panel]',
-									// 					'[data-overlay]',
-									// 					'.debug-panel'
-									// 				],
-									// 				scale: 1
-									// 			});
-													
-									// 			// Send screenshot to backend for analysis
-									// 			webSocket.send(JSON.stringify({
-									// 				type: 'screenshot_captured',
-									// 				data: {
-									// 					url: currentSrc,
-									// 					timestamp: screenshot.metadata.timestamp,
-									// 					viewport: screenshot.metadata.viewport,
-									// 					userAgent: screenshot.metadata.userAgent,
-									// 					screenshot: screenshot.dataUrl,
-									// 				}
-									// 			}));
-													
-									// 			console.log('✅ Screenshot captured and sent to backend', screenshot);
-									// 		} catch (screenshotError) {
-									// 			console.error('❌ Failed to capture screenshot:', screenshotError);
-									// 		}
-									// 	}, 2000); // Wait 2 seconds for full page render
-									// }
+									// Trigger server-side screenshot capture in dev mode
+									if (devMode && webSocket && webSocket.readyState === WebSocket.OPEN) {
+										// Wait a bit to ensure the page is fully rendered
+										setTimeout(() => {
+											try {
+												console.log('📸 Requesting server-side screenshot of preview');
+												
+												// Send screenshot capture request to backend (server will handle the actual capture)
+												webSocket.send(JSON.stringify({
+													type: 'screenshot_captured',
+													data: {
+														url: currentSrc,
+														timestamp: Date.now(),
+														viewport: { 
+															width: 1280, 
+															height: 720 
+														}
+													}
+												}));
+												
+												console.log('✅ Screenshot request sent to backend');
+											} catch (screenshotError) {
+												console.error('❌ Failed to send screenshot request:', screenshotError);
+											}
+										}, 2000); // Wait 2 seconds for full page render
+									}
 							} catch (error) {
 								// Cross-origin restrictions prevent access - that's okay
 								console.log('Cannot access iframe content due to CORS - assuming app is working');

@@ -87,23 +87,23 @@ export function PhaseTimelinePreview() {
           <div className="lg:col-span-2">
             <div className="bg-card rounded-lg shadow-lg p-6">
               <h2 className="text-lg font-semibold text-foreground mb-4">
-                {activeFile ? `File: ${activeFile.file_path}` : 'Select a file to view details'}
+                {activeFile ? `File: ${activeFile.filePath}` : 'Select a file to view details'}
               </h2>
               
               {activeFile ? (
                 <div className="space-y-4">
                   <div className="bg-muted rounded-lg p-4">
                     <h3 className="font-medium text-foreground mb-2">File Details</h3>
-                    <p><span className="font-medium">Path:</span> {activeFile.file_path}</p>
+                    <p><span className="font-medium">Path:</span> {activeFile.filePath}</p>
                     <p><span className="font-medium">Status:</span> {activeFile.isGenerating ? 'Generating' : 'Completed'}</p>
-                    <p><span className="font-medium">Lines:</span> {activeFile.file_contents.split('\n').length}</p>
+                    <p><span className="font-medium">Lines:</span> {activeFile.fileContents.split('\n').length}</p>
                   </div>
                   
                   <div>
                     <h3 className="font-medium text-foreground mb-2">File Contents Preview</h3>
                     <pre className="bg-zinc-900 dark:bg-zinc-950 text-zinc-100 p-4 rounded-lg overflow-auto text-sm max-h-96">
-                      {activeFile.file_contents.slice(0, 1000)}
-                      {activeFile.file_contents.length > 1000 && '\n\n... (truncated)'}
+                      {activeFile.fileContents.slice(0, 1000)}
+                      {activeFile.fileContents.length > 1000 && '\n\n... (truncated)'}
                     </pre>
                   </div>
                 </div>

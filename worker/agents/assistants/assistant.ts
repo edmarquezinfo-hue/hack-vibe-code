@@ -1,15 +1,16 @@
 // An assistant to agents
 
 import { Message } from "../inferutils/common";
+import { InferenceContext } from "../inferutils/config.types";
 
 class Assistant<Env> {
     protected history: Message[] = [];
     protected env: Env;
-    protected agentId: string;
+    protected inferenceContext: InferenceContext;
 
-    constructor(env: Env, agentId: string, systemPrompt?: Message) {
+    constructor(env: Env, inferenceContext: InferenceContext, systemPrompt?: Message) {
         this.env = env;
-        this.agentId = agentId;
+        this.inferenceContext = inferenceContext;
         if (systemPrompt) {
             this.history.push(systemPrompt);
         }

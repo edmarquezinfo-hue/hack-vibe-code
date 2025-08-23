@@ -1,15 +1,14 @@
 import React from 'react';
 import {
-	Star,
 	Users,
 	Settings,
 	Plus,
 	ChevronRight,
 	Search,
-	Code2,
 	Globe,
 	Lock,
 	Users2,
+	Bookmark,
 	// LayoutGrid,
 	Compass,
 } from 'lucide-react';
@@ -17,7 +16,7 @@ import './sidebar-overrides.css';
 import {
 	useRecentApps,
 	useFavoriteApps,
-	toggleFavorite,
+	useApps,
 } from '@/hooks/use-apps';
 import { CloudflareLogo } from '../icons/logos';
 import {
@@ -35,7 +34,6 @@ import {
 	SidebarFooter,
 	useSidebar,
 } from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -48,12 +46,15 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { formatDistanceToNow, isValid } from 'date-fns';
+import { AppActionsDropdown } from '@/components/shared/AppActionsDropdown';
 
 interface App {
 	id: string;
 	title: string;
-	framework?: string;
-	updatedAt: string;
+	framework?: string | null;
+	updatedAt: Date | null;
+	updatedAtFormatted?: string;
 	visibility: 'private' | 'team' | 'board' | 'public';
 	isFavorite?: boolean;
 }
@@ -67,8 +68,77 @@ interface Board {
 	iconUrl?: string | null;
 }
 
+// Reusable AppMenuItem component for consistent app display
+interface AppMenuItemProps {
+	app: App;
+	onClick: (id: string) => void;
+	variant?: 'recent' | 'bookmarked';
+	showActions?: boolean;
+	isCollapsed: boolean;
+	getVisibilityIcon: (visibility: App['visibility']) => React.ReactNode;
+}
+
+function AppMenuItem({ 
+	app, 
+	onClick, 
+	variant = 'recent',
+	showActions = true,
+	isCollapsed,
+	getVisibilityIcon 
+}: AppMenuItemProps) {
+	const formatTimestamp = () => {
+		if (app.updatedAtFormatted) return app.updatedAtFormatted;
+		if (app.updatedAt && isValid(app.updatedAt)) {
+			return formatDistanceToNow(app.updatedAt, { addSuffix: true });
+		}
+		return 'Recently';
+	};
+
+	return (
+		<SidebarMenuItem className="group/app-item">
+			<SidebarMenuButton
+				onClick={() => onClick(app.id)}
+				tooltip={app.title}
+				className="cursor-pointer transition-opacity hover:opacity-75"
+			>
+				<div className="flex-1 min-w-0 pr-2">
+					<div className="flex items-center gap-2 min-w-0">
+						{variant === 'bookmarked' && (
+							<Bookmark className="h-3 w-3 fill-yellow-500 text-yellow-500 flex-shrink-0" />
+						)}
+						<div className="flex-shrink-0">
+							{getVisibilityIcon(app.visibility)}
+						</div>
+						<div className="relative flex-1 min-w-0 overflow-hidden">
+							<span className="font-medium text-primary/80 whitespace-nowrap">
+								{app.title}
+							</span>
+							<div className="absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-bg-2 to-transparent pointer-events-none" />
+						</div>
+					</div>
+					<p className="text-xs text-muted-foreground truncate">
+						{formatTimestamp()}
+					</p>
+				</div>
+			</SidebarMenuButton>
+			
+			{!isCollapsed && showActions && (
+				<SidebarMenuAction asChild className="opacity-0 group-hover/app-item:opacity-100 transition-opacity">
+					<AppActionsDropdown
+						appId={app.id}
+						appTitle={app.title}
+						size="sm"
+						className="h-6 w-6"
+						showOnHover={false}
+					/>
+				</SidebarMenuAction>
+			)}
+		</SidebarMenuItem>
+	);
+}
+
 export function AppSidebar() {
-	const { user, token } = useAuth();
+	const { user } = useAuth();
 	const navigate = useNavigate();
 	const [searchQuery, setSearchQuery] = React.useState('');
 	const [expandedGroups, setExpandedGroups] = React.useState<string[]>([
@@ -81,26 +151,24 @@ export function AppSidebar() {
 	// Fetch real data from API
 	const {
 		apps: recentApps,
-		refetch: refetchRecent,
 		moreAvailable,
 	} = useRecentApps();
-	const { apps: favoriteApps, refetch: refetchFavorites } = useFavoriteApps();
+	const { apps: favoriteApps } = useFavoriteApps();
+	const { apps: allApps, loading: allAppsLoading } = useApps();
+
 
 	const boards: Board[] = []; // Remove mock boards
 
-	const getFrameworkIcon = (framework?: string) => {
-		return null;
-		switch (framework) {
-			case 'react':
-				return <Code2 className="h-4 w-4 text-blue-500" />;
-			case 'vue':
-				return <Code2 className="h-4 w-4 text-green-500" />;
-			case 'svelte':
-				return <Code2 className="h-4 w-4 text-orange-500" />;
-			default:
-				return <Code2 className="h-4 w-4 text-muted-foreground" />;
-		}
-	};
+	// Search functionality - filter all apps based on search query
+	const searchResults = React.useMemo(() => {
+		if (!searchQuery.trim()) return [];
+		
+		return allApps.filter(app => 
+			app.title.toLowerCase().includes(searchQuery.toLowerCase().trim())
+		);
+	}, [allApps, searchQuery]);
+
+	const isSearching = searchQuery.trim().length > 0;
 
 	const getVisibilityIcon = (visibility: App['visibility']) => {
 		switch (visibility) {
@@ -122,6 +190,7 @@ export function AppSidebar() {
 				: [...prev, group],
 		);
 	};
+
 
 	if (!user) return;
 
@@ -175,7 +244,7 @@ export function AppSidebar() {
 										<TooltipTrigger asChild>
 											<button
 												className={cn(
-													'group flex w-full border-[0.5px] border-bg-2 items-center gap-2 bg-bg-1 font-semibold hover:opacity-80 hover:cursor-pointer text-lg p-2 rounded-md cursor-hand text-text-secondary hover:text-text-primary',
+													'group flex w-full border-[0.5px] border-bg-2 items-center gap-2 bg-bg-1 font-medium hover:opacity-80 hover:cursor-pointer p-2 rounded-md cursor-hand text-text-secondary hover:text-text-primary',
 													isCollapsed
 														? 'justify-center'
 														: 'justify-start',
@@ -184,7 +253,7 @@ export function AppSidebar() {
 											>
 												<Plus className="h-4 w-4 text-primary/40" />
 												{!isCollapsed && (
-													<span className="">
+													<span className="font-medium text-primary/80">
 														New build
 													</span>
 												)}
@@ -196,8 +265,10 @@ export function AppSidebar() {
 						</SidebarGroupContent>
 					</SidebarGroup>
 
-					{!isCollapsed && (
-						<ScrollArea className="flex-1 px-1">
+                    {!isCollapsed && (
+					    <ScrollArea className="flex-1 px-1 relative">
+							{/* Gradient fade overlay for app names at sidebar edge */}
+							<div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-bg-2 to-transparent pointer-events-none z-10"></div>
 							{/* Navigation */}
 							<SidebarGroup>
 								{expandedGroups.includes('apps') && (
@@ -213,106 +284,79 @@ export function AppSidebar() {
 														e.target.value,
 													)
 												}
-												className="h-10 w-full pl-8 text-lg placeholder:text-lg placeholder:text-primary/40"
+												className="h-10 w-full pl-8 placeholder:text-primary/40"
 											/>
 										</div>
 										<SidebarMenu>
-											{recentApps.map((app) => (
-												<SidebarMenuItem key={app.id}>
-													<SidebarMenuButton
-														onClick={() =>
-															navigate(
-																`/app/${app.id}`,
-															)
-														}
-														tooltip={app.title}
-														className="group app-item-button pl-2 hover:cursor-pointer hover:opacity-60"
-													>
-														{/* <div
-															className={cn(
-																'rounded-lg flex-shrink-0 flex items-center justify-center transition-colors',
-																'h-8 w-8',
-																isCollapsed
-																	? 'bg-sidebar-accent'
-																	: 'bg-sidebar-accent/50',
-															)}
-														>
-															{getFrameworkIcon(
-																app.framework,
-															)}
-														</div> */}
-
-														<div className="flex-1 min-w-0">
-															<div className="flex items-center gap-2">
-																<span className="truncate font-medium text-base text-primary/80">
-																	{app.title}
-																</span>
-																<div className="opacity-0 group-hover:opacity-100 transition-opacity">
-																	{getVisibilityIcon(
-																		app.visibility,
-																	)}
-																</div>
+											{isSearching ? (
+												// Search Results
+												<>
+													{allAppsLoading ? (
+														<SidebarMenuItem>
+															<div className="flex items-center justify-center py-4">
+																<div className="text-sm text-muted-foreground">Searching...</div>
 															</div>
-															<p className="text-xs text-muted-foreground">
-																{app.updatedAt}
-															</p>
-														</div>
-													</SidebarMenuButton>
-
-													<SidebarMenuAction>
-														<Button
-															variant="ghost"
-															size="icon"
-															className="h-6 w-6"
-															onClick={async (
-																e,
-															) => {
-																e.stopPropagation();
-																if (token) {
-																	try {
-																		await toggleFavorite(
-																			app.id,
-																		);
-																		refetchRecent();
-																		refetchFavorites();
-																	} catch (error) {
-																		console.error(
-																			'Failed to toggle favorite:',
-																			error,
-																		);
-																	}
+														</SidebarMenuItem>
+													) : searchResults.length > 0 ? (
+														<>
+															<SidebarMenuItem>
+																<div className="px-2 py-1 text-xs text-muted-foreground">
+																	Found {searchResults.length} app{searchResults.length !== 1 ? 's' : ''}
+																</div>
+															</SidebarMenuItem>
+															{searchResults.map((app) => (
+																<AppMenuItem
+																	key={app.id}
+																	app={app}
+																	onClick={(id) => navigate(`/app/${id}`)}
+																	variant="recent"
+																	showActions={true}
+																	isCollapsed={isCollapsed}
+																	getVisibilityIcon={getVisibilityIcon}
+																/>
+															))}
+														</>
+													) : (
+														<SidebarMenuItem>
+															<div className="flex items-center justify-center py-4">
+																<div className="text-sm text-muted-foreground">No apps found for "{searchQuery}"</div>
+															</div>
+														</SidebarMenuItem>
+													)}
+												</>
+											) : (
+												// Normal Recent Apps View
+												<>
+													{recentApps.map((app) => (
+														<AppMenuItem
+															key={app.id}
+															app={app}
+															onClick={(id) => navigate(`/app/${id}`)}
+															variant="recent"
+															showActions={true}
+															isCollapsed={isCollapsed}
+															getVisibilityIcon={getVisibilityIcon}
+														/>
+													))}
+													{moreAvailable && (
+														<SidebarMenuItem>
+															<SidebarMenuButton
+																onClick={() =>
+																	navigate('/apps')
 																}
-															}}
-														>
-															<Star
-																className={cn(
-																	'h-3 w-3 transition-colors',
-																	app.isFavorite
-																		? 'fill-yellow-500 text-yellow-500'
-																		: 'text-muted-foreground hover:text-yellow-500',
+																tooltip="View all apps"
+																className="text-muted-foreground hover:text-foreground view-all-button"
+															>
+																<ChevronRight className="h-4 w-4" />
+																{!isCollapsed && (
+																	<span className="font-medium text-primary/80">
+																		View all apps →
+																	</span>
 																)}
-															/>
-														</Button>
-													</SidebarMenuAction>
-												</SidebarMenuItem>
-											))}
-											{moreAvailable && (
-												<SidebarMenuItem>
-													<SidebarMenuButton
-														onClick={() =>
-															navigate('/apps')
-														}
-														tooltip="View all apps"
-														className="text-muted-foreground hover:text-foreground view-all-button"
-													>
-														<ChevronRight className="h-4 w-4" />
-														{!isCollapsed && (
-															<span className="text-sm">
-																View all apps →
-															</span>
-														)}
-													</SidebarMenuButton>
-												</SidebarMenuItem>
+															</SidebarMenuButton>
+														</SidebarMenuItem>
+													)}
+												</>
 											)}
 										</SidebarMenu>
 									</SidebarGroupContent>
@@ -331,34 +375,21 @@ export function AppSidebar() {
 													'justify-center px-0',
 											)}
 										>
-											<Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
-											{!isCollapsed && 'Favorites'}
+											<Bookmark className="h-4 w-4 fill-yellow-500 text-yellow-500" />
+											{!isCollapsed && 'Bookmarked'}
 										</SidebarGroupLabel>
 										<SidebarGroupContent>
 											<SidebarMenu>
 												{favoriteApps.map((app) => (
-													<SidebarMenuItem
+													<AppMenuItem
 														key={app.id}
-													>
-														<SidebarMenuButton
-															onClick={() =>
-																navigate(
-																	`/app/${app.id}`,
-																)
-															}
-															tooltip={app.title}
-															className="favorite-item-button"
-														>
-															{getFrameworkIcon(
-																app.framework,
-															)}
-															{!isCollapsed && (
-																<span className="truncate">
-																	{app.title}
-																</span>
-															)}
-														</SidebarMenuButton>
-													</SidebarMenuItem>
+														app={app}
+														onClick={(id) => navigate(`/app/${id}`)}
+														variant="bookmarked"
+														showActions={true}
+														isCollapsed={isCollapsed}
+														getVisibilityIcon={getVisibilityIcon}
+													/>
 												))}
 											</SidebarMenu>
 										</SidebarGroupContent>
@@ -447,9 +478,7 @@ export function AppSidebar() {
 																{!isCollapsed && (
 																	<div className="flex-1 min-w-0">
 																		<p className="text-sm font-medium truncate">
-																			{
-																				board.name
-																			}
+																			{board.name}
 																		</p>
 																		<p className="text-xs text-muted-foreground truncate">
 																			{
@@ -479,7 +508,7 @@ export function AppSidebar() {
 														>
 															<Plus className="h-4 w-4" />
 															{!isCollapsed && (
-																<span className="text-sm ml-2">
+																<span className="font-medium text-primary/80 ml-2">
 																	Browse all
 																	boards
 																</span>
@@ -499,29 +528,15 @@ export function AppSidebar() {
 				<SidebarFooter>
 					{user && (
 						<SidebarMenu>
-							{/* <SidebarMenuItem>
-								<SidebarMenuButton
-									onClick={() => navigate('/dashboard')}
-									tooltip="Dashboard"
-									className="nav-button"
-								>
-									<LayoutGrid className="h-4 w-4 text-primary/60" />
-									{!isCollapsed && (
-										<span className="text-primary/80 font-medium">
-											Dashboard
-										</span>
-									)}
-								</SidebarMenuButton>
-							</SidebarMenuItem> */}
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									onClick={() => navigate('/discover')}
 									tooltip="Discover"
-									className="nav-button"
+									className="group hover:opacity-80 hover:cursor-pointer hover:bg-bg-1/50 transition-all duration-200"
 								>
-									<Compass className="h-4 w-4 text-primary/60" />
+									<Compass className="h-4 w-4 text-primary/60 group-hover:text-primary/80 transition-colors" />
 									{!isCollapsed && (
-										<span className="text-primary/80 font-medium">
+										<span className="text-primary/80 font-medium group-hover:text-primary transition-colors">
 											Discover
 										</span>
 									)}
@@ -531,11 +546,11 @@ export function AppSidebar() {
 								<SidebarMenuButton
 									onClick={() => navigate('/settings')}
 									tooltip="Settings"
-									className="settings-button"
+									className="group hover:opacity-80 hover:cursor-pointer hover:bg-bg-1/50 transition-all duration-200"
 								>
-									<Settings className="h-4 w-4 text-primary/60" />
+									<Settings className="h-4 w-4 text-primary/60 group-hover:text-primary/80 transition-colors" />
 									{!isCollapsed && (
-										<span className="font-medium text-primary/80">
+										<span className="font-medium text-primary/80 group-hover:text-primary transition-colors">
 											Settings
 										</span>
 									)}
@@ -543,7 +558,7 @@ export function AppSidebar() {
 							</SidebarMenuItem>
 							<SidebarMenuItem>
 								<SidebarMenuButton
-									onClick={() => navigate('/profile')}
+									// onClick={() => navigate('/profile')}
 									size="lg"
 									tooltip={user.displayName || user.email}
 									className="mt-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground profile-button"

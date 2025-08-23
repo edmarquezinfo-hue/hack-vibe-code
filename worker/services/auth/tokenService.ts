@@ -8,6 +8,7 @@ import { SecurityError, SecurityErrorType } from '../../types/security';
 import { createLogger } from '../../logger';
 import { TokenValidator } from './tokenValidator';
 import { CryptoUtils } from '../../utils/CryptoUtils';
+import { generateId } from '../../utils/idGenerator';
 
 const logger = createLogger('TokenService');
 
@@ -35,7 +36,7 @@ export class TokenService {
     /**
      * Create a new JWT token
      */
-    async createToken(payload: Omit<TokenPayload, 'iat' | 'exp'>, expiresIn: number = 3600): Promise<string> {
+    async createToken(payload: Omit<TokenPayload, 'iat' | 'exp'>, expiresIn: number = 24 * 3600): Promise<string> {
         try {
             const now = Math.floor(Date.now() / 1000);
             
@@ -95,7 +96,7 @@ export class TokenService {
         refreshToken: string;
         expiresIn: number;
     }> {
-        const accessTokenExpiry = 3600; // 1 hour
+        const accessTokenExpiry = 24 * 3600; // 24 hours (1 day)
         const refreshTokenExpiry = 7 * 24 * 3600; // 7 days
         
         const [accessToken, refreshToken] = await Promise.all([
@@ -109,7 +110,42 @@ export class TokenService {
                 sub: userId,
                 email,
                 type: 'refresh',
-                jti: crypto.randomUUID() // Unique ID for refresh token
+                jti: generateId() // Unique ID for refresh token
+            }, refreshTokenExpiry)
+        ]);
+        
+        return {
+            accessToken,
+            refreshToken,
+            expiresIn: accessTokenExpiry
+        };
+    }
+    
+    /**
+     * Create access and refresh token pair with session ID
+     */
+    async createTokenPairWithSession(userId: string, email: string, sessionId: string): Promise<{
+        accessToken: string;
+        refreshToken: string;
+        expiresIn: number;
+    }> {
+        const accessTokenExpiry = 24 * 3600; // 24 hours (1 day)
+        const refreshTokenExpiry = 7 * 24 * 3600; // 7 days
+        
+        const [accessToken, refreshToken] = await Promise.all([
+            this.createToken({
+                sub: userId,
+                email,
+                type: 'access',
+                sessionId
+            }, accessTokenExpiry),
+            
+            this.createToken({
+                sub: userId,
+                email,
+                type: 'refresh',
+                sessionId,
+                jti: generateId() // Unique ID for refresh token
             }, refreshTokenExpiry)
         ]);
         
@@ -143,7 +179,7 @@ export class TokenService {
         
         return {
             accessToken,
-            expiresIn: 3600
+            expiresIn: 24 * 3600 // 24 hours
         };
     }
     
@@ -178,11 +214,8 @@ export class TokenService {
      * Base64 URL encode
      */
     private base64UrlEncode(data: string): string {
-        const base64 = btoa(data);
-        return base64
-            .replace(/\+/g, '-')
-            .replace(/\//g, '_')
-            .replace(/=/g, '');
+        const bytes = this.encoder.encode(data);
+        return CryptoUtils.arrayBufferToBase64Url(bytes.buffer);
     }
     
     // base64UrlDecode method removed - no longer needed after switching to TokenValidator
@@ -191,12 +224,8 @@ export class TokenService {
      * Convert ArrayBuffer to base64url
      */
     private arrayBufferToBase64Url(buffer: ArrayBuffer): string {
-        const bytes = new Uint8Array(buffer);
-        let binary = '';
-        for (let i = 0; i < bytes.byteLength; i++) {
-            binary += String.fromCharCode(bytes[i]);
-        }
-        return this.base64UrlEncode(binary);
+        // Delegate directly to CryptoUtils to avoid unnecessary conversions
+        return CryptoUtils.arrayBufferToBase64Url(buffer);
     }
     
     /**

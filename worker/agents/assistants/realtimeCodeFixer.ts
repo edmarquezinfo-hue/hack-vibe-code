@@ -2,14 +2,19 @@ import { TemplateDetails } from "../../services/sandbox/sandboxTypes";
 import { createAssistantMessage, createSystemMessage, createUserMessage } from "../inferutils/common";
 import { Blueprint, FileOutputType, PhaseConceptType } from "../schemas";
 import { createObjectLogger } from "../../logger";
-import { executeInference } from "../inferutils/inferenceUtils";
+import { executeInference } from "../inferutils/infer";
 import { PROMPT_UTILS } from "../prompts";
 import Assistant from "./assistant";
 import { applySearchReplaceDiff } from "../diff-formats";
-import { AIModels, infer } from "../inferutils/aigateway";
+import { infer } from "../inferutils/core";
 import { MatchingStrategy, FailedBlock } from "../diff-formats/search-replace";
-import { ModelConfig } from "../config";
+import { AIModels, ModelConfig, InferenceMetadata } from "../inferutils/config.types";
 // import { analyzeTypeScriptFile } from "../../services/code-fixer/analyzer";
+
+// Constants for magic numbers
+const DEFAULT_PASSES = 5;
+const MAX_RETRIES = 3;
+const FUZZY_THRESHOLD = 0.87;
 
 export interface RealtimeCodeFixerContext {
     previousFiles?: FileOutputType[];
@@ -45,9 +50,9 @@ Path: {{filePath}}
 Purpose: {{filePurpose}}
 </file_info>
 
-<file_contents>
+<fileContents>
 {{fileContents}}
-</file_contents>
+</fileContents>
 
 {{issues}}
 
@@ -141,10 +146,6 @@ The SEARCH section must exactly match an existing block of lines including all w
 # The other {{successfulBlocksCount}} SEARCH/REPLACE blocks were applied successfully.
 Don't re-send them. Just reply with fixed versions of the failed blocks.
 
-Here is the current file content after the successful blocks were applied:
-
-{{currentContent}}
-
 CRITICAL REQUIREMENTS:
 - The SEARCH section must EXACTLY match existing lines in the current file
 - Include all whitespace, comments, indentation exactly as they appear
@@ -161,36 +162,36 @@ Just reply with the corrected SEARCH/REPLACE blocks in this format:
 >>>>>>> REPLACE`
 
 const userPromptFormatter = (user_prompt: string, query: string, file: FileOutputType, previousFiles?: FileOutputType[], currentPhase?: PhaseConceptType, issues?: string[]) => {
-    let prompt = user_prompt
-        .replaceAll('{{query}}', query)
-        .replaceAll('{{previousFiles}}', previousFiles ? PROMPT_UTILS.serializeFiles(previousFiles) : '')
-        .replaceAll('{{filePath}}', file.file_path)
-        .replaceAll('{{filePurpose}}', file.file_purpose)
-        .replaceAll('{{fileContents}}', file.file_contents)
-        .replaceAll('{{phaseConcept}}', currentPhase ? `
+    const variables: Record<string, string> = {
+        query,
+        previousFiles: previousFiles ? PROMPT_UTILS.serializeFiles(previousFiles) : '',
+        filePath: file.filePath,
+        filePurpose: file.filePurpose,
+        fileContents: file.fileContents,
+        phaseConcept: currentPhase ? `
 Current project phase overview:
 <current_phase>
 ${JSON.stringify(currentPhase, null, 2)}
-</current_phase>` : '')
-        .replaceAll('{{issues}}', issues ? `
+</current_phase>` : '',
+        issues: issues ? `
 <issues>
 Here are some issues that were found via static analysis. These may or may not be false positives:
 ${issues.join('\n')}
-</issues>` : '');
-        if(file.file_path.endsWith('.tsx') || file.file_path.endsWith('.jsx')) {
-            prompt = prompt.replaceAll('{{appendix}}', EXTRA_JSX_SPECIFIC);
-        } else {
-            prompt = prompt.replaceAll('{{appendix}}', '');
-        }
+</issues>` : '',
+        appendix: (file.filePath.endsWith('.tsx') || file.filePath.endsWith('.jsx')) ? EXTRA_JSX_SPECIFIC : ''
+    };
+    
+    const prompt = PROMPT_UTILS.replaceTemplateVariables(user_prompt, variables);
     return PROMPT_UTILS.verifyPrompt(prompt);
 }
 
 const diffPromptFormatter = (currentContent: string, failedBlocks: string, failedBlocksCount: number, successfulBlocksCount: number) => {
-    const prompt = DIFF_FIXER_PROMPT
-        .replaceAll('{{currentContent}}', currentContent)
-        .replaceAll('{{failedBlocks}}', failedBlocks)
-        .replaceAll('{{failedBlocksCount}}', failedBlocksCount.toString())
-        .replaceAll('{{successfulBlocksCount}}', successfulBlocksCount.toString());
+    const prompt = PROMPT_UTILS.replaceTemplateVariables(DIFF_FIXER_PROMPT, {
+        currentContent,
+        failedBlocks,
+        failedBlocksCount: failedBlocksCount.toString(),
+        successfulBlocksCount: successfulBlocksCount.toString()
+    });
     return PROMPT_UTILS.verifyPrompt(prompt);
 }
 
@@ -204,14 +205,14 @@ export class RealtimeCodeFixer extends Assistant<Env> {
 
     constructor(
         env: Env,
-        agentId: string,
+        metadata: InferenceMetadata,
         lightMode: boolean = false,
         altPassModelOverride?: string,// = AIModels.GEMINI_2_5_FLASH,
         modelConfigOverride?: ModelConfig,
         systemPrompt: string = SYSTEM_PROMPT,
         userPrompt: string = USER_PROMPT
     ) {
-        super(env, agentId);
+        super(env, metadata);
         this.lightMode = lightMode;
         this.altPassModelOverride = altPassModelOverride;
         this.userPrompt = userPrompt;
@@ -224,16 +225,16 @@ export class RealtimeCodeFixer extends Assistant<Env> {
         context: RealtimeCodeFixerContext,
         currentPhase?: PhaseConceptType,
         issues: string[] = [],
-        passes: number = 2
+        passes: number = DEFAULT_PASSES
     ): Promise<FileOutputType> {
         try {
             // Ignore css or json files or *.config.js
-            if (generatedFile.file_path.endsWith('.css') || generatedFile.file_path.endsWith('.json') || generatedFile.file_path.endsWith('.config.js')) {
-                this.logger.info(`Skipping realtime code fixer for file: ${generatedFile.file_path}`);
+            if (generatedFile.filePath.endsWith('.css') || generatedFile.filePath.endsWith('.json') || generatedFile.filePath.endsWith('.config.js')) {
+                this.logger.info(`Skipping realtime code fixer for file: ${generatedFile.filePath}`);
                 return generatedFile;
             }
 
-            let content = generatedFile.file_contents;
+            let content = generatedFile.fileContents;
 
             this.save([createSystemMessage(this.systemPrompt)]);
 
@@ -242,9 +243,9 @@ export class RealtimeCodeFixer extends Assistant<Env> {
             let i = 0;
             while (searchBlocks !== 0 && i < passes) {
                 // Do a static analysis of the file
-                // const analysis = await analyzeTypeScriptFile(generatedFile.file_path, content);
+                // const analysis = await analyzeTypeScriptFile(generatedFile.filePath, content);
                 // issues = [...issues, ...analysis.issues.map(issue => JSON.stringify(issue, null, 2))];
-                this.logger.info(`Running realtime code fixer for file: ${generatedFile.file_path} (pass ${i + 1}/${passes}), issues: ${JSON.stringify(issues, null, 2)}`);
+                this.logger.info(`Running realtime code fixer for file: ${generatedFile.filePath} (pass ${i + 1}/${passes}), issues: ${JSON.stringify(issues, null, 2)}`);
                 const messages = this.save([
                     i === 0 ? createUserMessage(userPromptFormatter(this.userPrompt, context.query, generatedFile, context.previousFiles, currentPhase, issues)) : 
                     createUserMessage(`
@@ -261,7 +262,7 @@ ${content}
 If you think the file is corrupted or too broken, you can completely rewrite it from scratch and provide the raw code inside the commented out <content> tags as follows:
 \`\`\`
 //<content>
-...code...
+...raw, full code...
 //</content>
 \`\`\`
 **MAKE SURE TO COMMENT THE TAGS AND THERE SHOULD ONLY BE ONE <content> TAG AND IT SHOULD BE CLOSED PROPERLY BY </content> TAG**
@@ -270,10 +271,10 @@ Don't be nitpicky, If there are no actual issues, just say "No issues found".
 `),
                 ]);
 
-                const { string: fixResult } = await executeInference({
+                const fixResult = await executeInference({
                     env: this.env,
-                    id: this.agentId,
-                    schemaName: "realtimeCodeFixer",
+                    agentActionName: "realtimeCodeFixer",
+                    context: this.inferenceContext,
                     messages,
                     modelName: (i !== 0 && this.altPassModelOverride) || this.lightMode ? this.altPassModelOverride : undefined,
                     temperature: (i !== 0 && this.altPassModelOverride) || this.lightMode ? 0.0 : undefined,
@@ -282,15 +283,15 @@ Don't be nitpicky, If there are no actual issues, just say "No issues found".
                 });
 
                 if (!fixResult) {
-                    this.logger.warn(`Realtime code fixer returned no fix for file: ${generatedFile.file_path}`);
+                    this.logger.warn(`Realtime code fixer returned no fix for file: ${generatedFile.filePath}`);
                     return generatedFile;
                 }
 
-                this.save([createAssistantMessage(fixResult)]);
+                this.save([createAssistantMessage(fixResult.string)]);
 
-                if (fixResult.includes('<content>')) {
+                if (fixResult.string.includes('<content>')) {
                     // Complete rewrite, extract content between tags
-                    const contentMatch = fixResult.match(/<content>([\s\S]*?)<\/content>/);
+                    const contentMatch = fixResult.string.match(/<content>([\s\S]*?)<\/content>/);
                     if (contentMatch) {
                         content = contentMatch[1].trim();
                     }
@@ -299,17 +300,17 @@ Don't be nitpicky, If there are no actual issues, just say "No issues found".
                 }
                 
                 // Search the number of search blocks in fixResult
-                searchBlocks = fixResult.match(/<<<\s+SEARCH/g)?.length ?? 0;
+                searchBlocks = fixResult.string.match(/<<<\s+SEARCH/g)?.length ?? 0;
 
-                this.logger.info(`Applied search replace diff to file: ${generatedFile.file_path}
+                this.logger.info(`Applied search replace diff to file: ${generatedFile.filePath}
 ================================================================================
 Raw content (pass ${i + 1}, found ${searchBlocks} search blocks): 
 ${content}
 -------------------------
 Diff:
-${fixResult}
+${fixResult.string}
 -------------------------`);
-                content = await this.applyDiffSafely(content, fixResult);
+                content = await this.applyDiffSafely(content, fixResult.string);
 
                 this.logger.info(`
 -------------------------
@@ -320,14 +321,14 @@ ${content}
                 i++;
             }
             const endTime = Date.now();
-            this.logger.info(`Realtime code fixer completed for file: ${generatedFile.file_path} in ${endTime - startTime}ms, found ${searchBlocks} search blocks`);
+            this.logger.info(`Realtime code fixer completed for file: ${generatedFile.filePath} in ${endTime - startTime}ms, found ${searchBlocks} search blocks`);
 
             return {
                 ...generatedFile,
-                file_contents: content
+                fileContents: content
             };
         } catch (error) {
-            this.logger.error(`Error during realtime code fixer for file ${generatedFile.file_path}:`, error);
+            this.logger.error(`Error during realtime code fixer for file ${generatedFile.filePath}:`, error);
         }
         return generatedFile;
     }
@@ -339,7 +340,7 @@ ${content}
     async applyDiffSafely(
         originalContent: string, 
         originalDiff: string, 
-        maxRetries: number = 3
+        maxRetries: number = MAX_RETRIES
     ): Promise<string> {
         if (!originalContent || !originalDiff?.trim()) {
             this.logger.warn('Empty content or diff provided to applyDiffSafely');
@@ -362,7 +363,7 @@ ${content}
                     const correctedDiff = await this.getLLMCorrectedDiff(
                         currentContent, 
                         [],
-                        ["Mismatched search and replace blocks"],
+                        [`Mismatched search and replace blocks in current diff: ${searchBlocks} search blocks and ${replaceBlocks} replace blocks. Current diff: \n${currentDiff}`],
                         0
                     );
 
@@ -379,7 +380,7 @@ ${content}
                 const result = applySearchReplaceDiff(currentContent, currentDiff, {
                     strict: false,
                     matchingStrategies: [MatchingStrategy.EXACT, MatchingStrategy.WHITESPACE_INSENSITIVE, MatchingStrategy.INDENTATION_PRESERVING, MatchingStrategy.FUZZY],
-                    fuzzyThreshold: 0.87
+                    fuzzyThreshold: FUZZY_THRESHOLD
                 });
 
                 const { blocksApplied, blocksTotal, blocksFailed, failedBlocks } = result.results;
@@ -479,10 +480,10 @@ ${block.error}
             
             const llmResponse = await infer({
                 env: this.env,
-                id: this.agentId,
+                metadata: this.inferenceContext,
                 modelName: AIModels.GEMINI_2_5_FLASH,
                 reasoning_effort: 'low',
-                temperature: 0.1,
+                temperature: 0.0,
                 maxTokens: 10000,
                 messages,
             });
@@ -491,6 +492,9 @@ ${block.error}
                 this.logger.warn("❌ No LLM response received");
                 return null;
             }
+
+            this.logger.info(`LLM response received: ${llmResponse.string}`);
+            this.save([createAssistantMessage(llmResponse.string)]);
 
             // The new prompt returns corrected diff directly without XML tags
             const trimmed = llmResponse.string.trim();

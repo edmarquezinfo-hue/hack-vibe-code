@@ -10,17 +10,19 @@ import { ArrowRight } from 'react-feather';
 import { useParams, useSearchParams, useNavigate } from 'react-router';
 import { MonacoEditor } from '../../components/monaco-editor/monaco-editor';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Expand, LoaderCircle, RefreshCw } from 'lucide-react';
+import { Expand, Github, LoaderCircle, RefreshCw } from 'lucide-react';
 import { Blueprint } from './components/blueprint';
 import { FileExplorer } from './components/file-explorer';
 import { UserMessage, AIMessage } from './components/messages';
 import { PhaseTimeline } from './components/phase-timeline';
 import { SmartPreviewIframe } from './components/smart-preview-iframe';
 import { ViewModeSwitch } from './components/view-mode-switch';
+import { Terminal, type TerminalLog } from './components/terminal';
 import { DebugPanel, type DebugMessage } from './components/debug-panel';
 import { DeploymentControls } from './components/deployment-controls';
 import { useChat, type FileType } from './hooks/use-chat';
 import type { BlueprintType } from './api-types';
+import type { ModelConfigsData } from '@/api-types';
 import { Copy } from './components/copy';
 import { useFileContentStream } from './hooks/use-file-content-stream';
 import { logger } from '../../utils/logger';
@@ -29,6 +31,7 @@ import { useApp } from '@/hooks/use-app';
 import { AgentModeDisplay } from '../../components/agent-mode-display';
 import { useGitHubExport } from '@/hooks/use-github-export';
 import { GitHubExportModal } from '@/components/github-export-modal';
+import { ModelConfigInfo } from './components/model-config-info';
 
 export default function Chat() {
 	const { chatId: urlChatId } = useParams();
@@ -118,6 +121,9 @@ export default function Chat() {
 		query: userQuery,
 		agentMode: agentMode as 'deterministic' | 'smart',
 		onDebugMessage: addDebugMessage,
+		onTerminalMessage: (log) => {
+			setTerminalLogs(prev => [...prev, log]);
+		},
 	});
 
 	// GitHub export functionality
@@ -126,12 +132,56 @@ export default function Chat() {
 	const navigate = useNavigate();
 
 	const [activeFilePath, setActiveFilePath] = useState<string>();
-	const [view, setView] = useState<'editor' | 'preview' | 'blueprint'>(
+	const [view, setView] = useState<'editor' | 'preview' | 'blueprint' | 'terminal'>(
 		'editor',
 	);
 
+	// Terminal state
+	const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
+
 	// Debug panel state
 	const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
+
+	// Model config info state  
+	const [modelConfigs, setModelConfigs] = useState<{
+		agents: Array<{ key: string; name: string; description: string; }>;
+		userConfigs: ModelConfigsData['configs'];
+		defaultConfigs: ModelConfigsData['defaults'];
+	} | undefined>();
+	const [loadingConfigs, setLoadingConfigs] = useState(false);
+
+	// Handler for model config info requests
+	const handleRequestConfigs = useCallback(() => {
+		if (!websocket) return;
+		
+		setLoadingConfigs(true);
+		websocket.send(JSON.stringify({
+			type: 'get_model_configs'
+		}));
+	}, [websocket]);
+
+	// Listen for model config info WebSocket messages
+	useEffect(() => {
+		if (!websocket) return;
+
+		const handleMessage = (event: MessageEvent) => {
+			try {
+				const message = JSON.parse(event.data);
+				if (message.type === 'model_configs_info') {
+					setModelConfigs(message.configs);
+					setLoadingConfigs(false);
+				}
+			} catch (error) {
+				console.error('Error parsing WebSocket message for model configs:', error);
+			}
+		};
+
+		websocket.addEventListener('message', handleMessage);
+		
+		return () => {
+			websocket.removeEventListener('message', handleMessage);
+		};
+	}, [websocket]);
 
 	const hasSeenPreview = useRef(false);
 	const hasSwitchedFile = useRef(false);
@@ -154,7 +204,7 @@ export default function Chat() {
 	const handleFileClick = useCallback((file: FileType) => {
 		logger.debug('handleFileClick()', file);
 		clearEdit();
-		setActiveFilePath(file.file_path);
+		setActiveFilePath(file.filePath);
 		setView('editor');
 		if (!hasSwitchedFile.current) {
 			hasSwitchedFile.current = true;
@@ -162,9 +212,30 @@ export default function Chat() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	const handleViewModeChange = useCallback((mode: 'preview' | 'editor') => {
+	const handleViewModeChange = useCallback((mode: 'preview' | 'editor' | 'terminal') => {
 		setView(mode);
 	}, []);
+
+	// Terminal functions
+	const handleTerminalCommand = useCallback((command: string) => {
+		if (websocket && websocket.readyState === WebSocket.OPEN) {
+			// Add command to terminal logs
+			const commandLog: TerminalLog = {
+				id: `cmd-${Date.now()}`,
+				content: command,
+				type: 'command',
+				timestamp: Date.now()
+			};
+			setTerminalLogs(prev => [...prev, commandLog]);
+
+			// Send command via WebSocket
+			websocket.send(JSON.stringify({
+				type: 'terminal_command',
+				command,
+				timestamp: Date.now()
+			}));
+		}
+	}, [websocket, setTerminalLogs]);
 
 	const generatingCount = useMemo(
 		() =>
@@ -195,13 +266,13 @@ export default function Chat() {
 		}
 		if (!hasSwitchedFile.current && isBootstrapping) {
 			return streamedBootstrapFiles.find(
-				(file) => file.file_path === activeFilePath,
+				(file) => file.filePath === activeFilePath,
 			);
 		}
 		return (
-			files.find((file) => file.file_path === activeFilePath) ??
+			files.find((file) => file.filePath === activeFilePath) ??
 			streamedBootstrapFiles.find(
-				(file) => file.file_path === activeFilePath,
+				(file) => file.filePath === activeFilePath,
 			)
 		);
 	}, [
@@ -213,7 +284,7 @@ export default function Chat() {
 	]);
 
 	const isPhase1Complete = useMemo(() => {
-		return phaseTimeline.length > 0;
+		return phaseTimeline.length > 0 && phaseTimeline[0].status === 'completed';
 	}, [phaseTimeline]);
 
 	const showMainView = useMemo(
@@ -246,7 +317,7 @@ export default function Chat() {
 
 	useEffect(() => {
 		if (!edit) return;
-		if (files.some((file) => file.file_path === edit.filePath)) {
+		if (files.some((file) => file.filePath === edit.filePath)) {
 			setActiveFilePath(edit.filePath);
 			setView('editor');
 		}
@@ -258,14 +329,14 @@ export default function Chat() {
 			streamedBootstrapFiles.length > 0 &&
 			!hasSwitchedFile.current
 		) {
-			setActiveFilePath(streamedBootstrapFiles.at(-1)!.file_path);
+			setActiveFilePath(streamedBootstrapFiles.at(-1)!.filePath);
 		} else if (
 			view === 'editor' &&
 			!activeFile &&
 			files.length > 0 &&
 			!hasSwitchedFile.current
 		) {
-			setActiveFilePath(files.at(-1)!.file_path);
+			setActiveFilePath(files.at(-1)!.filePath);
 		}
 	}, [view, activeFile, files, isBootstrapping, streamedBootstrapFiles]);
 
@@ -703,6 +774,7 @@ export default function Chat() {
 												onChange={handleViewModeChange}
 												previewAvailable={!!previewUrl}
 												showTooltip={showTooltip}
+												terminalAvailable={true}
 											/>
 										</div>
 
@@ -727,8 +799,8 @@ export default function Chat() {
 											</div>
 										</div>
 
-										{/* <div className="flex items-center justify-end gap-1.5">
-											<button
+										<div className="flex items-center justify-end gap-1.5">
+											{/* <button
 												className="flex items-center gap-1.5 px-2 py-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-md transition-all duration-200 text-xs font-medium shadow-sm"
 												onClick={() => handleDeployToCloudflare(chatId!)}
 												disabled={isDeploying}
@@ -740,11 +812,22 @@ export default function Chat() {
 													<Save className="size-3" />
 												)}
 												{isDeploying ? 'Deploying...' : 'Save'}
-											</button>
+											</button> */}
+											<ModelConfigInfo
+												configs={modelConfigs}
+												onRequestConfigs={handleRequestConfigs}
+												loading={loadingConfigs}
+											/>
 											<button
-												className="flex items-center gap-1.5 px-2 py-1 bg-gray-800 hover:bg-gray-900 text-white rounded-md transition-all duration-200 text-xs font-medium shadow-sm"
-												onClick={githubExport.openModal}
-												title="Export to GitHub"
+												className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-all duration-200 text-xs font-medium shadow-sm ${
+													isPhase1Complete 
+														? 'bg-gray-800 hover:bg-gray-900 text-white' 
+														: 'bg-gray-600 text-gray-400 cursor-not-allowed'
+												}`}
+												onClick={isPhase1Complete ? githubExport.openModal : undefined}
+												disabled={!isPhase1Complete}
+												title={isPhase1Complete ? "Export to GitHub" : "Complete Phase 1 to enable GitHub export"}
+												aria-label={isPhase1Complete ? "Export to GitHub" : "GitHub export disabled - complete Phase 1 first"}
 											>
 												<Github className="size-3" />
 												GitHub
@@ -758,7 +841,7 @@ export default function Chat() {
 											>
 												<Expand className="size-4 text-text/50" />
 											</button>
-										</div> */}
+										</div>
 									</div>
 									<SmartPreviewIframe
 										src={previewUrl}
@@ -775,6 +858,7 @@ export default function Chat() {
 										phaseTimelineLength={
 											phaseTimeline.length
 										}
+										devMode={true}
 									/>
 								</div>
 							)}
@@ -806,6 +890,75 @@ export default function Chat() {
 								</div>
 							)}
 
+							{view === 'terminal' && (
+								<div className="flex-1 flex flex-col bg-bg-light rounded-xl shadow-md overflow-hidden border border-text/10">
+									<div className="grid grid-cols-3 px-2 h-10 bg-bg border-b">
+										<div className="flex items-center">
+											<ViewModeSwitch
+												view={view}
+												onChange={handleViewModeChange}
+												previewAvailable={!!previewUrl}
+												showTooltip={showTooltip}
+												terminalAvailable={true}
+											/>
+										</div>
+
+										<div className="flex items-center justify-center">
+											<div className="flex items-center gap-3">
+												<span className="text-sm font-mono text-text-50/70">
+													Terminal
+												</span>
+												<div className={clsx(
+													'flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium',
+													websocket && websocket.readyState === WebSocket.OPEN
+														? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+														: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+												)}>
+													<div className={clsx(
+														'size-1.5 rounded-full',
+														websocket && websocket.readyState === WebSocket.OPEN ? 'bg-green-500' : 'bg-red-500'
+													)} />
+													{websocket && websocket.readyState === WebSocket.OPEN ? 'Connected' : 'Disconnected'}
+												</div>
+											</div>
+										</div>
+
+										<div className="flex items-center justify-end gap-1.5">
+											<button
+												onClick={() => {
+													const logText = terminalLogs
+														.map(log => `[${new Date(log.timestamp).toLocaleTimeString()}] ${log.content}`)
+														.join('\n');
+													navigator.clipboard.writeText(logText);
+												}}
+												className={clsx(
+													"h-7 w-7 p-0 rounded-md transition-all duration-200",
+													"text-gray-500 hover:text-gray-700",
+													"dark:text-gray-400 dark:hover:text-gray-200",
+													"hover:bg-gray-100 dark:hover:bg-gray-700"
+												)}
+												title="Copy all logs"
+											>
+												<Copy text="" />
+											</button>
+											<ModelConfigInfo
+												configs={modelConfigs}
+												onRequestConfigs={handleRequestConfigs}
+												loading={loadingConfigs}
+											/>
+										</div>
+									</div>
+									<div className="flex-1">
+										<Terminal
+											logs={terminalLogs}
+											onCommand={handleTerminalCommand}
+											isConnected={!!websocket && websocket.readyState === WebSocket.OPEN}
+											className="h-full"
+										/>
+									</div>
+								</div>
+							)}
+
 							{view === 'editor' && (
 								<div className="flex-1 flex flex-col bg-bg-light rounded-xl shadow-md overflow-hidden border border-text/10">
 									{activeFile && (
@@ -820,13 +973,14 @@ export default function Chat() {
 														!!previewUrl
 													}
 													showTooltip={showTooltip}
+													terminalAvailable={true}
 												/>
 											</div>
 
 											<div className="flex items-center justify-center">
 												<div className="flex items-center gap-2">
 													<span className="text-sm font-mono text-text-50/70">
-														{activeFile.file_path}
+														{activeFile.filePath}
 													</span>
 													{previewUrl && (
 														<Copy
@@ -851,13 +1005,24 @@ export default function Chat() {
 													{isDeploying ? 'Deploying...' : 'Save'}
 												</button>
 												<button
-													className="flex items-center gap-1.5 px-2 py-1 bg-gray-800 hover:bg-gray-900 text-white rounded-md transition-all duration-200 text-xs font-medium shadow-sm"
-													onClick={githubExport.openModal}
-													title="Export to GitHub"
+													className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-all duration-200 text-xs font-medium shadow-sm ${
+														isPhase1Complete 
+															? 'bg-gray-800 hover:bg-gray-900 text-white' 
+															: 'bg-gray-600 text-gray-400 cursor-not-allowed'
+													}`}
+													onClick={isPhase1Complete ? githubExport.openModal : undefined}
+													disabled={!isPhase1Complete}
+													title={isPhase1Complete ? "Export to GitHub" : "Complete Phase 1 to enable GitHub export"}
+													aria-label={isPhase1Complete ? "Export to GitHub" : "GitHub export disabled - complete Phase 1 first"}
 												>
 													<Github className="size-3" />
 													GitHub
 												</button> */}
+												<ModelConfigInfo
+													configs={modelConfigs}
+													onRequestConfigs={handleRequestConfigs}
+													loading={loadingConfigs}
+												/>
 												<button
 													className="p-1 hover:bg-bg-lighter rounded transition-colors"
 													onClick={() => {
@@ -888,7 +1053,7 @@ export default function Chat() {
 													className="h-full"
 													createOptions={{
 														value:
-															activeFile?.file_contents ||
+															activeFile?.fileContents ||
 															'',
 														language:
 															activeFile?.language ||
@@ -906,14 +1071,14 @@ export default function Chat() {
 													find={
 														edit &&
 														edit.filePath ===
-															activeFile?.file_path
+															activeFile?.filePath
 															? edit.search
 															: undefined
 													}
 													replace={
 														edit &&
 														edit.filePath ===
-															activeFile?.file_path
+															activeFile?.filePath
 															? edit.replacement
 															: undefined
 													}

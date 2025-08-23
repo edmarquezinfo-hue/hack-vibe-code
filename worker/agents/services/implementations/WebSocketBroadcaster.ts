@@ -1,4 +1,4 @@
-import { WebSocketMessageType, WebSocketMessageData } from '../../websocketTypes';
+import { WebSocketMessageType, WebSocketMessageData } from '../../../api/websocketTypes';
 import { IMessageBroadcaster } from '../interfaces/IMessageBroadcaster';
 
 /**

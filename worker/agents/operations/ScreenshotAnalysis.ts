@@ -1,9 +1,10 @@
 import { Blueprint, ScreenshotAnalysisSchema, ScreenshotAnalysisType } from '../schemas';
 import { createSystemMessage, createMultiModalUserMessage } from '../inferutils/common';
-import { executeInference } from '../inferutils/inferenceUtils';
+import { executeInference } from '../inferutils/infer';
 import { PROMPT_UTILS } from '../prompts';
 import { ScreenshotData } from '../core/types';
 import { AgentOperation, OperationOptions } from './common';
+import { OperationError } from '../utils/operationError';
 
 export interface ScreenshotAnalysisInput {
     screenshotData: ScreenshotData,
@@ -46,9 +47,10 @@ Analyze the screenshot and provide:
 4. Whether the UI matches the blueprint specifications`
 
 const userPromptFormatter = (screenshotData: { viewport: { width: number; height: number }; }, blueprint: Blueprint) => {
-    const prompt = USER_PROMPT
-        .replaceAll('{{blueprint}}', JSON.stringify(blueprint, null, 2))
-        .replaceAll('{{viewport}}', `${screenshotData.viewport.width}x${screenshotData.viewport.height}`)
+    const prompt = PROMPT_UTILS.replaceTemplateVariables(USER_PROMPT, {
+        blueprint: JSON.stringify(blueprint, null, 2),
+        viewport: `${screenshotData.viewport.width}x${screenshotData.viewport.height}`
+    });
     return PROMPT_UTILS.verifyPrompt(prompt);
 }
 
@@ -67,23 +69,26 @@ export class ScreenshotAnalysisOperation extends AgentOperation<ScreenshotAnalys
                 screenshotDataLength: screenshotData.screenshot?.length || 0
             });
     
+            if (!screenshotData.screenshot) {
+                throw new Error('No screenshot data available for analysis');
+            }
+
             // Create multi-modal messages
             const messages = [
                 createSystemMessage(SYSTEM_PROMPT),
                 createMultiModalUserMessage(
                     userPromptFormatter(screenshotData, context.blueprint),
-                    screenshotData.screenshot, // The base64 data URL
+                    screenshotData.screenshot, // The base64 data URL or image URL
                     'high' // Use high detail for better analysis
                 )
             ];
     
             const { object: analysisResult } = await executeInference({
-                id: options.agentId,
                 env: env,
                 messages,
                 schema: ScreenshotAnalysisSchema,
-                schemaName: 'screenshotAnalysis',
-                operationName: "Screenshot Analysis",
+                agentActionName: 'screenshotAnalysis',
+                context: options.inferenceContext,
                 retryLimit: 3
             });
     
@@ -108,8 +113,7 @@ export class ScreenshotAnalysisOperation extends AgentOperation<ScreenshotAnalys
     
             return analysisResult;
         } catch (error) {
-            logger.error('Error analyzing screenshot:', error);
-            throw new Error(error instanceof Error ? error.message : String(error));
+            OperationError.logAndThrow(logger, "screenshot analysis", error);
         }
     }
 }

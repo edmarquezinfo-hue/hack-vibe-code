@@ -4,6 +4,14 @@
  */
 
 import { createLogger } from '../../logger';
+import { 
+    createGitHubHeaders, 
+    isValidGitHubToken, 
+    encodeOAuthState, 
+    decodeOAuthState, 
+    extractGitHubErrorText,
+    validateGitHubScopes,
+} from '../../utils/authUtils';
 
 interface GitHubTokenResponse {
     access_token?: string;
@@ -72,16 +80,16 @@ export class OAuthIntegrationService {
 
         const tokenData = await response.json() as GitHubTokenResponse;
         
-        if (!tokenData.access_token) {
-            this.logger.error('No access token received from provider', { provider });
-            throw new Error('No access token received from OAuth provider');
+        if (!isValidGitHubToken(tokenData.access_token)) {
+            this.logger.error('No valid access token received from provider', { provider });
+            throw new Error('No valid access token received from OAuth provider');
         }
 
         return tokenData;
     }
 
     /**
-     * Fetch user information from OAuth provider
+     * Fetch user information from OAuth provider with retry logic
      */
     async fetchUserInfo(accessToken: string, provider: 'github'): Promise<GitHubUserResponse> {
         const endpoints = {
@@ -89,35 +97,73 @@ export class OAuthIntegrationService {
         };
 
         const headers = {
-            github: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Accept': 'application/vnd.github.v3+json',
-            }
+            github: createGitHubHeaders(accessToken)
         };
 
-        const response = await fetch(endpoints[provider], {
-            headers: headers[provider],
-        });
+        // Retry logic for rate limiting
+        let lastError: Error;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                const response = await fetch(endpoints[provider], {
+                    headers: headers[provider],
+                });
 
-        if (!response.ok) {
-            this.logger.error('Failed to fetch user info from provider', { 
-                provider, 
-                status: response.status 
-            });
-            throw new Error(`Failed to fetch user info: ${response.status}`);
+                if (!response.ok) {
+                    const errorText = await extractGitHubErrorText(response).catch(() => 'Unable to read error response');
+                    
+                    // Handle rate limiting (status 403 with specific message or status 429)
+                    if (response.status === 403 || response.status === 429) {
+                        const retryAfter = response.headers.get('retry-after');
+                        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
+                        
+                        if (attempt < 2) { // Don't wait on the last attempt
+                            this.logger.warn(`Rate limited, retrying in ${waitTime}ms`, { 
+                                provider, 
+                                attempt: attempt + 1,
+                                status: response.status 
+                            });
+                            await new Promise(resolve => setTimeout(resolve, waitTime));
+                            continue;
+                        }
+                    }
+
+                    this.logger.error('Failed to fetch user info from provider', { 
+                        provider, 
+                        status: response.status,
+                        statusText: response.statusText,
+                        errorBody: errorText,
+                        attempt: attempt + 1
+                    });
+                    lastError = new Error(`Failed to fetch user info: ${response.status} - ${errorText}`);
+                    continue;
+                }
+
+                const userData = await response.json() as GitHubUserResponse;
+                
+                if (!userData.id || !userData.login) {
+                    this.logger.error('Invalid user data received from provider', { 
+                        provider, 
+                        userData 
+                    });
+                    throw new Error('Invalid user data received from OAuth provider');
+                }
+
+                return userData;
+
+            } catch (error) {
+                lastError = error instanceof Error ? error : new Error('Unknown error occurred');
+                if (attempt === 2) break; // Last attempt, don't continue
+                
+                this.logger.warn('Retrying user info fetch due to error', {
+                    provider,
+                    attempt: attempt + 1,
+                    error: lastError.message
+                });
+                await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+            }
         }
 
-        const userData = await response.json() as GitHubUserResponse;
-        
-        if (!userData.id || !userData.login) {
-            this.logger.error('Invalid user data received from provider', { 
-                provider, 
-                userData 
-            });
-            throw new Error('Invalid user data received from OAuth provider');
-        }
-
-        return userData;
+        throw lastError!;
     }
 
     /**
@@ -131,10 +177,11 @@ export class OAuthIntegrationService {
             // Fetch user information
             const userData = await this.fetchUserInfo(tokenData.access_token!, provider);
             
-            // Process scopes
-            const scopes = tokenData.scope ? 
+            // Process and validate scopes
+            const rawScopes = tokenData.scope ? 
                 tokenData.scope.split(',').map(s => s.trim()) : 
                 ['repo', 'user:email', 'read:user'];
+            const scopes = validateGitHubScopes(rawScopes);
 
             return {
                 githubUserId: userData.id.toString(),
@@ -175,7 +222,7 @@ export class OAuthIntegrationService {
             client_id: providerConfig.clientId,
             redirect_uri: providerConfig.redirectUri,
             scope: scopeList.join(' '),
-            state: Buffer.from(state).toString('base64'),
+            state: encodeOAuthState(JSON.parse(state)),
             response_type: 'code'
         });
 
@@ -184,14 +231,17 @@ export class OAuthIntegrationService {
 
     /**
      * Validate and parse OAuth state
+     * Handles both JSON states (integration flows) and simple string states (regular login flows)
      */
     parseOAuthState(state: string): { type?: string; userId?: string; timestamp?: number } | null {
         try {
-            const decodedState = Buffer.from(state, 'base64').toString();
-            return JSON.parse(decodedState);
+            // Try to decode as base64 JSON first (for integration flows)
+            return decodeOAuthState<{ type?: string; userId?: string; timestamp?: number }>(state);
         } catch (error) {
-            this.logger.warn('Failed to parse OAuth state', { 
-                error: error instanceof Error ? error.message : 'Unknown error' 
+            // If decoding fails, this might be a simple string state for regular login flows
+            // Return null to indicate this is not an integration flow
+            this.logger.debug('OAuth state is not base64 JSON, treating as regular login flow', { 
+                stateLength: state.length 
             });
             return null;
         }

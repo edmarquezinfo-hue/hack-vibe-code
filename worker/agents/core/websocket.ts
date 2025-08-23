@@ -2,7 +2,7 @@ import { Connection } from 'agents';
 import { createLogger } from '../../logger';
 import { WebSocketMessageRequests, WebSocketMessageResponses } from '../constants';
 import { SimpleCodeGeneratorAgent } from './simpleGeneratorAgent';
-import { WebSocketMessage, WebSocketMessageData, WebSocketMessageType } from '../websocketTypes';
+import { WebSocketMessage, WebSocketMessageData, WebSocketMessageType } from '../../api/websocketTypes';
 
 const logger = createLogger('CodeGeneratorWebSocket');
 
@@ -22,9 +22,9 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                 // Check if generation is already active to avoid duplicate processes
                 if (agent.isGenerating) {
                     logger.info('Generation already in progress, skipping duplicate request');
-                    sendToConnection(connection, WebSocketMessageResponses.GENERATION_STARTED, {
-                        message: 'Code generation is already in progress'
-                    });
+                    // sendToConnection(connection, WebSocketMessageResponses.GENERATION_STARTED, {
+                    //     message: 'Code generation is already in progress'
+                    // });
                     return;
                 }
                 
@@ -59,13 +59,13 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                     }
                     sendToConnection(connection, WebSocketMessageResponses.CODE_REVIEW, {
                         review: reviewResult,
-                        issuesFound: reviewResult.issues_found,
+                        issuesFound: reviewResult.issuesFound,
                     });
-                    if (reviewResult.issues_found && parsedMessage.autoFix === true) {
-                        for (const fileToFix of reviewResult.files_to_fix) {
-                            const fileToRegenerate = agent.state.generatedFilesMap[fileToFix.file_path];
+                    if (reviewResult.issuesFound && parsedMessage.autoFix === true) {
+                        for (const fileToFix of reviewResult.filesToFix) {
+                            const fileToRegenerate = agent.state.generatedFilesMap[fileToFix.filePath];
                             if (!fileToRegenerate) {
-                                logger.warn(`File to fix not found in generated files: ${fileToFix.file_path}`);
+                                logger.warn(`File to fix not found in generated files: ${fileToFix.filePath}`);
                                 continue;
                             }
                             agent.regenerateFile(
@@ -73,7 +73,7 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                                 fileToFix.issues,
                                 0
                             ).catch((error: unknown) => {
-                                logger.error(`Error regenerating file ${fileToRegenerate.file_path}:`, error);
+                                logger.error(`Error regenerating file ${fileToRegenerate.filePath}:`, error);
                                 sendError(connection, `Error regenerating file: ${error instanceof Error ? error.message : String(error)}`);
                             });
                         }
@@ -113,13 +113,18 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                     viewport: parsedMessage.data.viewport
                 });
                 
-                // Save screenshot to agent state
-                agent.setState({ 
-                    ...agent.state, 
-                    latestScreenshot: parsedMessage.data
+                // // Save screenshot to agent state
+                // agent.setState({ 
+                //     ...agent.state, 
+                //     latestScreenshot: parsedMessage.data
+                // });
+                
+                // Update database with screenshot
+                agent.saveScreenshotToDatabase(parsedMessage.data).catch(error => {
+                    logger.error('Error saving screenshot to database:', error);
                 });
                 
-                logger.info(`Screenshot saved to state.`);
+                logger.info(`Screenshot saved to state and database update initiated.`);
                 break;
             case WebSocketMessageRequests.STOP_GENERATION:
                 // Clear shouldBeGenerating flag when user manually stops
@@ -154,9 +159,9 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                         sendError(connection, `Error resuming generation: ${error instanceof Error ? error.message : String(error)}`);
                     });
                 } else {
-                    sendToConnection(connection, WebSocketMessageResponses.GENERATION_STARTED, {
-                        message: 'Code generation is already in progress'
-                    });
+                    // sendToConnection(connection, WebSocketMessageResponses.GENERATION_STARTED, {
+                    //     message: 'Code generation is already in progress'
+                    // });
                 }
                 break;
             case WebSocketMessageRequests.GITHUB_EXPORT:
@@ -208,6 +213,41 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                     logger.error('Error handling user suggestion:', error);
                     sendError(connection, `Error processing user suggestion: ${error instanceof Error ? error.message : String(error)}`);
                 });
+                break;
+            case WebSocketMessageRequests.GET_MODEL_CONFIGS:
+                logger.info('Fetching model configurations');
+                agent.getModelConfigsInfo().then(configsInfo => {
+                    sendToConnection(connection, WebSocketMessageResponses.MODEL_CONFIGS_INFO, {
+                        message: 'Model configurations retrieved',
+                        configs: configsInfo
+                    });
+                }).catch((error: unknown) => {
+                    logger.error('Error fetching model configs:', error);
+                    sendError(connection, `Error fetching model configurations: ${error instanceof Error ? error.message : String(error)}`);
+                });
+                break;
+            case WebSocketMessageRequests.TERMINAL_COMMAND:
+                // Handle terminal command execution
+                logger.info('Received terminal command', {
+                    command: parsedMessage.command,
+                    timestamp: parsedMessage.timestamp
+                });
+                
+                if (!parsedMessage.command) {
+                    sendError(connection, 'No command provided');
+                    return;
+                }
+                
+                // Execute terminal command  
+                agent.executeTerminalCommand(parsedMessage.command, connection as any)
+                    .catch((error: unknown) => {
+                        logger.error('Error executing terminal command:', error);
+                        sendToConnection(connection, WebSocketMessageResponses.TERMINAL_OUTPUT, {
+                            output: `Error: ${error instanceof Error ? error.message : String(error)}`,
+                            outputType: 'stderr' as const,
+                            timestamp: Date.now()
+                        });
+                    });
                 break;
             default:
                 sendError(connection, `Unknown message type: ${parsedMessage.type}`);

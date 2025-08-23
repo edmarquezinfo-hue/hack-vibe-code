@@ -5,11 +5,30 @@ import {
 	AgentModeToggle,
 	type AgentMode,
 } from '../components/agent-mode-toggle';
+import { useAuthGuard } from '../hooks/useAuthGuard';
 
 export default function Home() {
 	const navigate = useNavigate();
+	const { requireAuth } = useAuthGuard();
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const [agentMode, setAgentMode] = useState<AgentMode>('deterministic');
+
+	const handleCreateApp = (query: string, mode: AgentMode) => {
+		const encodedQuery = encodeURIComponent(query);
+		const encodedMode = encodeURIComponent(mode);
+		const intendedUrl = `/chat/new?query=${encodedQuery}&agentMode=${encodedMode}`;
+		
+		if (!requireAuth({ 
+			requireFullAuth: true, 
+			actionContext: 'to create applications',
+			intendedUrl: intendedUrl
+		})) {
+			return;
+		}
+
+		// User is already authenticated, navigate immediately
+		navigate(intendedUrl);
+	};
 
 	// Auto-resize textarea based on content
 	const adjustTextareaHeight = () => {
@@ -36,11 +55,8 @@ export default function Home() {
 					method="POST"
 					onSubmit={(e) => {
 						e.preventDefault();
-						const query = encodeURIComponent(
-							textareaRef.current!.value,
-						);
-						const mode = encodeURIComponent(agentMode);
-						navigate(`chat/new?query=${query}&agentMode=${mode}`);
+						const query = textareaRef.current!.value;
+						handleCreateApp(query, agentMode);
 					}}
 					className="flex flex-col w-full min-h-[150px] bg-bg-4 justify-between dark:bg-card rounded-[18px] shadow-textarea p-5 transition-all duration-200"
 				>
@@ -54,13 +70,8 @@ export default function Home() {
 						onKeyDown={(e) => {
 							if (e.key === 'Enter' && !e.shiftKey) {
 								e.preventDefault();
-								const query = encodeURIComponent(
-									textareaRef.current!.value,
-								);
-								const mode = encodeURIComponent(agentMode);
-								navigate(
-									`chat/new?query=${query}&agentMode=${mode}`,
-								);
+								const query = textareaRef.current!.value;
+								handleCreateApp(query, agentMode);
 							}
 						}}
 					/>

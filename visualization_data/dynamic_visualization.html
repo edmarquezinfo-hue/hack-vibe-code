@@ -655,7 +655,7 @@
                                     "callbacks": [
                                         {
                                             "name": "onFileOpen",
-                                            "action": "file_path detected",
+                                            "action": "filePath detected",
                                             "websocket_message": "FILE_GENERATING"
                                         },
                                         {
@@ -790,17 +790,17 @@
                     {
                         "type": "FILE_GENERATING",
                         "description": "Starting file generation",
-                        "data": "{ file_path, file_purpose, is_regeneration?, issue? }"
+                        "data": "{ filePath, filePurpose, is_regeneration?, issue? }"
                     },
                     {
                         "type": "FILE_CHUNK_GENERATED",
                         "description": "File content chunk received",
-                        "data": "{ file_path, chunk, format }"
+                        "data": "{ filePath, chunk, format }"
                     },
                     {
                         "type": "FILE_GENERATED",
                         "description": "File generation completed",
-                        "data": "{ file: { file_path, file_contents, file_purpose }, message }"
+                        "data": "{ file: { filePath, fileContents, filePurpose }, message }"
                     },
                     {
                         "type": "DEPLOYMENT_COMPLETED",
@@ -1014,7 +1014,7 @@ sequenceDiagram
     LLM->>SCOF: Stream SCOF chunks
     Note right of SCOF: Parsing cat file commands
     
-    SCOF->>Agent: onFileOpen(file_path)
+    SCOF->>Agent: onFileOpen(filePath)
     Agent->>Client: WebSocket FILE_GENERATING
     
     loop Content Streaming
@@ -1023,7 +1023,7 @@ sequenceDiagram
         Agent->>Client: WebSocket FILE_CHUNK_GENERATED
     end
     
-    SCOF->>Agent: onFileClose(file_path)
+    SCOF->>Agent: onFileClose(filePath)
     Agent->>Client: WebSocket FILE_GENERATED
     
     Note over Agent: File processing and state updates

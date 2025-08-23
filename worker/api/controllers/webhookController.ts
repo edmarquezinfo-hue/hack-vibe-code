@@ -244,7 +244,7 @@ export class WebhookController extends BaseController {
                     return await this.handleCommandExecutionEvent(event, context);
                     
                 default:
-                    this.webhookLogger.warn('Unhandled webhook event type', { eventType: (event as any).eventType });
+                    this.webhookLogger.warn('Unhandled webhook event type', { eventType: (event as Record<string, unknown>).eventType });
                     return { success: true, message: 'Event type not handled, but acknowledged' };
             }
             

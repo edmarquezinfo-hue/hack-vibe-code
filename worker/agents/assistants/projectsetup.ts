@@ -2,10 +2,11 @@ import { TemplateDetails } from "../../services/sandbox/sandboxTypes";
 import { FileOutputType, SetupCommandsType, type Blueprint } from "../schemas";
 import { createObjectLogger, StructuredLogger } from '../../logger';
 import { generalSystemPromptBuilder, PROMPT_UTILS } from '../prompts';
-import { createAssistantMessage, createSystemMessage, createUserMessage, extractCommands } from "../inferutils/common";
-import { executeInference } from "../inferutils/inferenceUtils";
+import { createAssistantMessage, createSystemMessage, createUserMessage } from "../inferutils/common";
+import { executeInference, } from "../inferutils/infer";
 import Assistant from "./assistant";
-import { AIModels } from "../inferutils/aigateway";
+import { AIModels, InferenceContext } from "../inferutils/config.types";
+import { extractCommands } from "../utils/common";
 
 interface GenerateSetupCommandsArgs {
     env: Env;
@@ -13,6 +14,7 @@ interface GenerateSetupCommandsArgs {
     query: string;
     blueprint: Blueprint;
     template: TemplateDetails;
+    inferenceContext: InferenceContext;
 }
 
 const SYSTEM_PROMPT = `You are an Expert senior full-stack engineer at Cloudflare tasked with designing and developing a full stack application for the user based on their original query and provided blueprint. `
@@ -33,6 +35,11 @@ You may also suggest other common dependencies that are used along with the othe
     - All frameworks or dependencies listed in the blueprint need to be installed.
     - Use \`bun add\` to install dependencies, do not use \`npm install\` or \`yarn add\` or \`pnpm add\`.
     - Do not remove or uninstall any dependencies that are already installed.
+
+    - Make sure there are no version conflicts.
+        For example, 
+            • **@react-three/fiber ^9.0.0 and @react-three/drei ^10.0.0 require react ^19 and will not work with react ^18.**
+                - Please upgrade react to 19 to use these packages.
 </INSTRUCTIONS>
 
 ${PROMPT_UTILS.COMMANDS}
@@ -58,28 +65,25 @@ You need to make sure **ALL THESE** are installed at the least:
 
 </INPUT DATA>`;
 
+const README_GENERATION_PROMPT = `<TASK>
+Generate a comprehensive README.md file for this project based on the provided blueprint and template information.
+The README should be professional, well-structured, and provide clear instructions for users and developers.
+</TASK>
 
-const ENSURE_USER_PROMPT = `The following includes were added/modified to the project. Identify any dependencies that they use and are not installed and provide the commands to install them.
-======================================================
-{{codebase}}
-======================================================
-Currently installed dependencies:
-{{dependencies}}
-======================================================
-Just provide the \`bun add\` commands to install the dependencies in markdown code fence, do not provide any explanation or additional text.
-Example:
-\`\`\`sh
-bun add react@18
-bun add react-dom@18
-\`\`\``;
+<INSTRUCTIONS>
+- Create a professional README with proper markdown formatting
+- Include project title, description, and key features from the blueprint
+- Add technology stack section based on the template dependencies
+- Include setup/installation instructions using bun (not npm/yarn)
+- Add usage examples and development instructions
+- Include a deployment section with Cloudflare-specific instructions
+- **IMPORTANT**: Add a [CloudflareButton] placeholder in the deployment section for the Cloudflare deploy button
+- Structure the content clearly with appropriate headers and sections
+- Be concise but comprehensive - focus on essential information
+- Use professional tone suitable for open source projects
+</INSTRUCTIONS>
 
-function extractAllIncludes(files: FileOutputType[]) {
-    // Extract out all lines that start with #include or require or import
-    const includes = files.flatMap(file => {
-        return file.file_contents.split('\n').filter(line => line.startsWith('#include') || line.startsWith('require') || line.startsWith('import'));
-    });
-    return includes;
-}
+Generate the complete README.md content in markdown format. Do not provide any additional text or explanation. All your would be directly saved in the README.md file.`;
 
 export class ProjectSetupAssistant extends Assistant<Env> {
     private query: string;
@@ -87,13 +91,13 @@ export class ProjectSetupAssistant extends Assistant<Env> {
     
     constructor({
         env,
-        agentId,
+        inferenceContext,
         query,
         blueprint,
-        template
+        template,
     }: GenerateSetupCommandsArgs) {
         const systemPrompt = createSystemMessage(SYSTEM_PROMPT);
-        super(env, agentId, systemPrompt);
+        super(env, inferenceContext, systemPrompt);
         this.save([createUserMessage(generalSystemPromptBuilder(SETUP_USER_PROMPT, {
             query,
             blueprint,
@@ -102,7 +106,7 @@ export class ProjectSetupAssistant extends Assistant<Env> {
             forCodegen: false
         }))]);
         this.query = query;
-        this.logger = createObjectLogger(this, 'ProjectSetupAssistant');
+        this.logger = createObjectLogger(this, 'ProjectSetupAssistant')
     }
 
     async generateSetupCommands(error?: string): Promise<SetupCommandsType> {
@@ -121,58 +125,65 @@ ${error}`);
 
             const results = await executeInference({
                 env: this.env,
-                id: this.agentId,
                 messages,
-                schemaName: "projectSetup",
-                // schema: SetupCommandsSchema,
-                operationName: 'generateSetupCommands',
-                // format: 'markdown',
+                agentActionName: "projectSetup",
+                context: this.inferenceContext,
                 modelName: error? AIModels.GEMINI_2_5_FLASH : undefined,
             });
-            if (!results.string) {
-                this.logger.info(`Failed to generate setup commands`);
+            if (!results || typeof results !== 'string') {
+                this.logger.info(`Failed to generate setup commands, results: ${results}`);
                 return { commands: [] };
             }
 
-            this.logger.info(`Generated setup commands: ${results.string}`);
+            this.logger.info(`Generated setup commands: ${results}`);
 
-            this.save([createAssistantMessage(results.string)]);
-            return { commands: extractCommands(results.string) };
+            this.save([createAssistantMessage(results)]);
+            return { commands: extractCommands(results) };
         } catch (error) {
             this.logger.error("Error generating setup commands:", error);
             throw error;
         }
     }
 
-    async ensureDependencies(allFiles: FileOutputType[], currentDependencies: Record<string, string>) : Promise<SetupCommandsType> {
-        this.logger.info("Ensuring dependencies are installed for the current project.");
+    async generateReadme(existingReadme?: { filePath: string; fileContents: string }): Promise<FileOutputType> {
+        this.logger.info("Generating README.md for the project");
+
         try {
-            const prompt = ENSURE_USER_PROMPT
-            // .replaceAll("{{codebase}}", PROMPT_UTILS.serializeFiles(allFiles))
-            .replaceAll("{{codebase}}", extractAllIncludes(allFiles).join('\n'))
-            .replaceAll("{{dependencies}}", JSON.stringify(currentDependencies));
-            // const messages = this.save([createUserMessage(prompt)]);
-            const messages = [...this.getHistory(), createUserMessage(prompt)];     // Don't save the message to avoid context overflow
-            // Instead, save [REDACTED] for the codebase
-            this.save([createUserMessage(ENSURE_USER_PROMPT.replaceAll("{{codebase}}", "[REDACTED]").replaceAll("{{dependencies}}", "[REDACTED]"))]);
-            const results = await executeInference({
-                env: this.env,
-                id: this.agentId,
-                messages,
-                schemaName: "projectSetup",
-                operationName: 'generateSetupCommands',
-            });
-            if (!results) {
-                this.logger.info(`Failed to generate setup commands`);
-                return { commands: [] };
+            let readmePrompt = README_GENERATION_PROMPT;
+            
+            if (existingReadme) {
+                // Modify prompt for updating existing README
+                readmePrompt = `Please update the existing README.md file`
+                this.logger.info('Updating existing README.md');
+            } else {
+                this.logger.info('Creating new README.md');
             }
 
-            this.logger.info(`Generated setup commands: ${results.string}`);
+            const messages = this.save([createUserMessage(readmePrompt)]);
 
-            this.save([createAssistantMessage(results.string)]); 
-            return { commands: extractCommands(results.string) };
+            const results = await executeInference({
+                env: this.env,
+                messages,
+                agentActionName: "projectSetup",
+                context: this.inferenceContext,
+            });
+
+            if (!results || !results.string) {
+                this.logger.error('Failed to generate README.md content');
+                throw new Error('Failed to generate README.md content');
+            }
+
+            this.logger.info('Generated README.md content successfully');
+
+            this.save([createAssistantMessage(results.string)]);
+
+            return {
+                filePath: 'README.md',
+                fileContents: results.string,
+                filePurpose: 'Project documentation and setup instructions'
+            };
         } catch (error) {
-            this.logger.error("Error ensuring dependencies:", error);
+            this.logger.error("Error generating README:", error);
             throw error;
         }
     }

@@ -72,3 +72,20 @@
   -moz-user-select: none !important;
   -ms-user-select: none !important;
 }
+
+/* Ensure SidebarMenuAction works with our custom button styling */
+.group[data-collapsible="expanded"] [data-sidebar="menu-action"] {
+  display: flex !important;
+  opacity: 1 !important;
+  position: absolute !important;
+  right: 4px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  z-index: 10 !important;
+}
+
+/* Ensure menu actions are properly spaced and visible on hover */
+[data-sidebar="menu-item"]:hover [data-sidebar="menu-action"] {
+  opacity: 1 !important;
+}
+

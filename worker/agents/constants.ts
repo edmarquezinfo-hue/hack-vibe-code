@@ -1,4 +1,4 @@
-import { WebSocketMessageType } from "./websocketTypes";
+import { WebSocketMessageType } from "../api/websocketTypes";
 
 export const WebSocketMessageResponses: Record<string, WebSocketMessageType> = {
     GENERATION_STARTED: 'generation_started',
@@ -31,6 +31,9 @@ export const WebSocketMessageResponses: Record<string, WebSocketMessageType> = {
     CLOUDFLARE_DEPLOYMENT_ERROR: 'cloudflare_deployment_error',
     
     // Screenshot messages
+    SCREENSHOT_CAPTURE_STARTED: 'screenshot_capture_started',
+    SCREENSHOT_CAPTURE_SUCCESS: 'screenshot_capture_success',
+    SCREENSHOT_CAPTURE_ERROR: 'screenshot_capture_error',
     SCREENSHOT_ANALYSIS_RESULT: 'screenshot_analysis_result',
     
     ERROR: 'error',
@@ -56,6 +59,13 @@ export const WebSocketMessageResponses: Record<string, WebSocketMessageType> = {
     USER_SUGGESTIONS_PROCESSING: 'user_suggestions_processing',
     USER_SUGGESTIONS_PROCESSED: 'user_suggestions_processed',
     CONVERSATION_RESPONSE: 'conversation_response',
+    
+    // Model configuration info
+    MODEL_CONFIGS_INFO: 'model_configs_info',
+    
+    // Terminal messages
+    TERMINAL_OUTPUT: 'terminal_output',
+    SERVER_LOG: 'server_log',
 }
 
 // WebSocket message types
@@ -78,4 +88,10 @@ export const WebSocketMessageRequests = {
     
     // Conversational AI requests
     USER_SUGGESTION: 'user_suggestion',
+    
+    // Model configuration info request
+    GET_MODEL_CONFIGS: 'get_model_configs',
+    
+    // Terminal command request
+    TERMINAL_COMMAND: 'terminal_command',
 };

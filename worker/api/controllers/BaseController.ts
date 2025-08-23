@@ -5,20 +5,14 @@
 
 import { DatabaseService } from '../../database/database';
 import { authMiddleware } from '../../middleware/security/auth';
-import { errorResponse, successResponse } from '../responses';
-import { extractToken } from '../../utils/authUtils';
-import { SessionService } from '../../services/auth/sessionService';
-import { TokenService } from '../../services/auth/tokenService';
+import { successResponse, errorResponse } from '../responses';
 import { DatabaseQueryHelpers } from '../../utils/DatabaseQueryHelpers';
 import { ControllerErrorHandler, ErrorHandler } from '../../utils/ErrorHandling';
 import { createLogger } from '../../logger';
 import { AuthUser } from '../../types/auth-types';
-
-export interface AuthResult {
-    success: boolean;
-    user?: AuthUser;
-    response?: Response;
-}
+// Import types from separate types file to maintain consistency
+import type { ControllerResponse, ApiResponse } from './BaseController.types';
+import { RouteContext } from '../types/route-context';
 
 /**
  * Base controller class that provides common functionality
@@ -36,9 +30,9 @@ export abstract class BaseController {
     /**
      * Find a user-owned resource with ownership verification
      */
-    protected async findUserOwnedResource<T>(
+    protected async findUserOwnedResource<T = Record<string, unknown>>(
         dbService: DatabaseService,
-        table: any,
+        table: unknown,
         resourceId: string,
         userId: string,
         resourceIdField: string = 'id'
@@ -50,6 +44,27 @@ export abstract class BaseController {
             userId, 
             resourceIdField
         );
+    }
+
+    /**
+     * Extract authenticated user from route context
+     * Type-safe approach using structured RouteContext
+     */
+    protected extractAuthUser(context: RouteContext): AuthUser | null {
+        return context.user;
+    }
+
+    /**
+     * Get optional user for public endpoints that can benefit from user context
+     * Uses authMiddleware directly for optional authentication
+     */
+    protected async getOptionalUser(request: Request, env: Env): Promise<AuthUser | null> {
+        try {
+            return await authMiddleware(request, env);
+        } catch (error) {
+            this.logger.debug('Optional auth failed, continuing without user', { error });
+            return null;
+        }
     }
 
     /**
@@ -71,66 +86,6 @@ export abstract class BaseController {
             updateData,
             resourceIdField
         );
-    }
-
-    /**
-     * Require authentication for the request
-     * Returns user if authenticated, or error response if not
-     */
-    protected async requireAuth(request: Request, env: Env): Promise<AuthResult> {
-        try {
-            const user = await authMiddleware(request, env);
-            if (!user) {
-                return {
-                    success: false,
-                    response: errorResponse('Unauthorized', 401)
-                };
-            }
-            
-            return {
-                success: true,
-                user
-            };
-        } catch (error) {
-            this.logger.error('Authentication failed', error);
-            return {
-                success: false,
-                response: errorResponse('Authentication failed', 401)
-            };
-        }
-    }
-
-    /**
-     * Get session from request using token validation
-     */
-    protected async getSessionFromRequest(request: Request, env: Env) {
-        const token = extractToken(request);
-        if (!token) return null;
-        
-        const db = new DatabaseService({ DB: env.DB });
-        const sessionService = new SessionService(
-            db,
-            new TokenService(env)
-        );
-        return sessionService.validateSession(token);
-    }
-
-    /**
-     * Extract path parameters from URL
-     */
-    protected extractPathParams(request: Request, paramNames: string[]): Record<string, string> {
-        const url = new URL(request.url);
-        const pathParts = url.pathname.split('/').filter(Boolean);
-        const params: Record<string, string> = {};
-        
-        paramNames.forEach((paramName, index) => {
-            const paramIndex = pathParts.length - paramNames.length + index;
-            if (paramIndex >= 0 && paramIndex < pathParts.length) {
-                params[paramName] = pathParts[paramIndex];
-            }
-        });
-        
-        return params;
     }
 
     /**
@@ -179,29 +134,52 @@ export abstract class BaseController {
     /**
      * Validate required parameters
      */
-    protected validateRequiredParams(params: Record<string, any>, requiredFields: string[]): void {
+    protected validateRequiredParams(params: Record<string, unknown>, requiredFields: string[]): void {
         ControllerErrorHandler.validateRequiredParams(params, requiredFields);
     }
 
     /**
      * Require authentication with standardized error
      */
-    protected requireAuthentication(user: any): void {
+    protected requireAuthentication(user: unknown): void {
         ControllerErrorHandler.requireAuthentication(user);
     }
 
     /**
-     * Create a standardized success response
+     * Create a typed success response that enforces response interface compliance
+     * This method ensures the response data matches the expected type T at compile time
      */
-    protected createSuccessResponse<T>(data: T): Response {
-        return successResponse(data);
+    protected createSuccessResponse<T>(data: T): ControllerResponse<ApiResponse<T>> {
+        const response = successResponse(data) as ControllerResponse<ApiResponse<T>>;
+        // The phantom type helps TypeScript understand this response contains type T
+        return response;
     }
 
     /**
-     * Create a standardized error response
+     * Create a typed error response with proper type annotation
      */
-    protected createErrorResponse(message: string, statusCode: number = 500): Response {
-        return errorResponse(message, statusCode);
+    protected createErrorResponse<T = never>(message: string, statusCode: number = 500): ControllerResponse<ApiResponse<T>> {
+        const response = errorResponse(message, statusCode) as ControllerResponse<ApiResponse<T>>;
+        return response;
+    }
+
+    /**
+     * Execute a typed controller operation with automatic error handling and type safety
+     * This method wraps controller operations to ensure they return properly typed responses
+     */
+    protected async executeTypedOperation<T>(
+        operation: () => Promise<T>,
+        operationName: string,
+        context?: Record<string, any>
+    ): Promise<ControllerResponse<ApiResponse<T>>> {
+        try {
+            const result = await operation();
+            return this.createSuccessResponse(result);
+        } catch (error) {
+            this.logger.error(`Error in ${operationName}`, { error, context });
+            const appError = ErrorHandler.handleError(error, operationName, context);
+            return ErrorHandler.toResponse(appError) as ControllerResponse<ApiResponse<T>>;
+        }
     }
 
     /**

@@ -39,7 +39,7 @@ export function useFileContentStream(
 			}
 
 			const currentFile = files[currentFileRef.current];
-			const content = currentFile.file_contents;
+			const content = currentFile.fileContents;
 			const chunkSize = Math.max(1, Math.floor(options.tps / 10)); // Update every 100ms
 
 			// If this is a new file, add it to streamed files
@@ -48,7 +48,7 @@ export function useFileContentStream(
 					...prev,
 					{
 						...currentFile,
-						file_contents: '',
+						fileContents: '',
 					},
 				]);
 			}
@@ -66,7 +66,7 @@ export function useFileContentStream(
 					if (index === prev.length - 1) {
 						return {
 							...file,
-							file_contents: file.file_contents + chunk,
+							fileContents: file.fileContents + chunk,
 						};
 					}
 					return file;

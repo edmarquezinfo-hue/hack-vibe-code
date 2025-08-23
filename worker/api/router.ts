@@ -1,23 +1,65 @@
 import { createObjectLogger, StructuredLogger } from '../logger';
 import { methodNotAllowedResponse } from './responses';
+import { routeAuthMiddleware, AuthRequirement as AuthMiddlewareRequirement, checkAppOwnership } from '../middleware/security/routeAuth';
+import { RouteContext, ContextualRequestHandler } from './types/route-context';
+import { AuthUser } from '../types/auth-types';
+
+// Re-export types for external use
+export type { ContextualRequestHandler, RouteContext };
+
 
 /**
- * Request handler function type
+ * Authentication requirement for routes
  */
-export type RequestHandler = (
-    request: Request,
-    env: Env,
-    ctx: ExecutionContext,
-    params?: Record<string, string>
-) => Promise<Response>;
+export interface AuthRequirement {
+    required: boolean;
+    allowAnonymous?: boolean;
+    level?: 'authenticated' | 'owner-only';
+    resourceOwnershipCheck?: (user: AuthUser, params: Record<string, string>, env: Env) => Promise<boolean>;
+}
+
+/**
+ * Common auth requirement configurations
+ */
+export const AuthConfig = {
+    // Public route - no authentication required
+    public: undefined,
+    
+    // Require full authentication (no anonymous users)
+    authenticated: { 
+        required: true, 
+        level: 'authenticated' as const 
+    },
+    
+    // Allow authenticated users including anonymous
+    authenticatedAllowAnon: { 
+        required: true, 
+        level: 'authenticated' as const, 
+        allowAnonymous: true 
+    },
+    
+    // Require resource ownership (for app editing)
+    ownerOnly: { 
+        required: true, 
+        level: 'owner-only' as const,
+        resourceOwnershipCheck: checkAppOwnership
+    },
+    
+    // Public read access, but owner required for modifications
+    // This will be handled by the controller logic to distinguish read vs write
+    publicReadOwnerWrite: { 
+        required: false 
+    }
+} as const;
 
 /**
  * Route definition
  */
 export interface Route {
     path: string;
-    handler: RequestHandler;
+    handler: ContextualRequestHandler;
     methods: string[];
+    auth?: AuthRequirement;
 }
 
 /**
@@ -32,13 +74,19 @@ export class Router {
     }
 
     /**
-     * Register a new route
+     * Register a new route (all routes now use contextual handlers)
      */
-    register(path: string, handler: RequestHandler, methods: string[] = ['GET']): Router {
+    register(
+        path: string, 
+        handler: ContextualRequestHandler, 
+        methods: string[] = ['GET'], 
+        auth?: AuthRequirement
+    ): Router {
         this.routes.push({
             path,
             handler,
-            methods: methods.map(method => method.toUpperCase())
+            methods: methods.map(method => method.toUpperCase()),
+            auth
         });
         return this;
     }
@@ -46,36 +94,43 @@ export class Router {
     /**
      * Register a GET route
      */
-    get(path: string, handler: RequestHandler): Router {
-        return this.register(path, handler, ['GET']);
+    get(path: string, handler: ContextualRequestHandler, auth?: AuthRequirement): Router {
+        return this.register(path, handler, ['GET'], auth);
     }
 
     /**
      * Register a POST route
      */
-    post(path: string, handler: RequestHandler): Router {
-        return this.register(path, handler, ['POST']);
+    post(path: string, handler: ContextualRequestHandler, auth?: AuthRequirement): Router {
+        return this.register(path, handler, ['POST'], auth);
     }
 
     /**
      * Register a PUT route
      */
-    put(path: string, handler: RequestHandler): Router {
-        return this.register(path, handler, ['PUT']);
+    put(path: string, handler: ContextualRequestHandler, auth?: AuthRequirement): Router {
+        return this.register(path, handler, ['PUT'], auth);
     }
 
     /**
      * Register a DELETE route
      */
-    delete(path: string, handler: RequestHandler): Router {
-        return this.register(path, handler, ['DELETE']);
+    delete(path: string, handler: ContextualRequestHandler, auth?: AuthRequirement): Router {
+        return this.register(path, handler, ['DELETE'], auth);
+    }
+
+    /**
+     * Register a PATCH route
+     */
+    patch(path: string, handler: ContextualRequestHandler, auth?: AuthRequirement): Router {
+        return this.register(path, handler, ['PATCH'], auth);
     }
 
     /**
      * Register a route with multiple methods
      */
-    methods(path: string, handler: RequestHandler, methods: string[]): Router {
-        return this.register(path, handler, methods);
+    methods(path: string, handler: ContextualRequestHandler, methods: string[], auth?: AuthRequirement): Router {
+        return this.register(path, handler, methods, auth);
     }
 
     /**
@@ -170,7 +225,35 @@ export class Router {
             }
 
             this.logger.info(`Matched route: ${request.method} ${route.path}`);
-            return await route.handler(request, env, ctx, params);
+            
+            let authenticatedUser: AuthUser | null = null;
+            
+            // Apply authentication middleware if required
+            if (route.auth?.required) {
+                const authRequirement: AuthMiddlewareRequirement = {
+                    level: route.auth.level === 'owner-only' ? 'owner-only' : 'authenticated',
+                    allowAnonymous: route.auth.allowAnonymous,
+                    resourceOwnershipCheck: route.auth.resourceOwnershipCheck
+                };
+                
+                const authResult = await routeAuthMiddleware(request, env, authRequirement, params);
+                if (!authResult.success) {
+                    return authResult.response!;
+                }
+                
+                authenticatedUser = authResult.user || null;
+            }
+            
+            // Create structured route context
+            const url = new URL(request.url);
+            const routeContext: RouteContext = {
+                user: authenticatedUser,
+                pathParams: params || {},
+                queryParams: url.searchParams
+            };
+            
+            // All handlers now use contextual approach for type safety
+            return await (route.handler as ContextualRequestHandler)(request, env, ctx, routeContext);
         } catch (error) {
             this.logger.error('Error handling request', error);
             throw error;

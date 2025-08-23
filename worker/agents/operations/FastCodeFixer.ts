@@ -1,9 +1,9 @@
 import { createSystemMessage, createUserMessage } from '../inferutils/common';
-import { executeInference } from '../inferutils/inferenceUtils';
+import { executeInference } from '../inferutils/infer';
 import { PROMPT_UTILS } from '../prompts';
 import { AgentOperation, OperationOptions } from '../operations/common';
 import { FileOutputType, PhaseConceptType } from '../schemas';
-import { SCOFFormat } from '../code-formats/scof';
+import { SCOFFormat } from '../streaming-formats/scof';
 import { CodeIssue } from '../../services/sandbox/sandboxTypes';
 
 export interface FastCodeFixerInputs {
@@ -53,10 +53,11 @@ To fix a file, simply rewrite it's entire contents in the output format provided
 `
 
 const userPromptFormatter = (query: string, issues: CodeIssue[], allFiles: FileOutputType[], _allPhases?: PhaseConceptType[]) => {
-    const prompt = USER_PROMPT
-        .replaceAll('{{query}}', query)
-        .replaceAll('{{issues}}', JSON.stringify(issues, null, 2))
-        .replaceAll('{{codebase}}', PROMPT_UTILS.serializeFiles(allFiles));
+    const prompt = PROMPT_UTILS.replaceTemplateVariables(USER_PROMPT, {
+        query,
+        issues: JSON.stringify(issues, null, 2),
+        codebase: PROMPT_UTILS.serializeFiles(allFiles)
+    });
     return PROMPT_UTILS.verifyPrompt(prompt);
 }
 
@@ -80,10 +81,10 @@ export class FastCodeFixerOperation extends AgentOperation<FastCodeFixerInputs, 
         ];
 
         const result = await executeInference({
-            id: options.agentId,    
             env: env,
             messages,
-            schemaName: "fastCodeFixer",
+            agentActionName: "fastCodeFixer",
+            context: options.inferenceContext,
         });
 
         const files = codeGenerationFormat.deserialize(result.string);

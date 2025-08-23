@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
+import { WebSocket } from 'partysocket';
 import { useAuth } from '@/contexts/auth-context';
-import type { WebSocketMessage } from '@/routes/chat/api-types';
+import { apiClient } from '@/lib/api-client';
+import type { WebSocketMessage } from '@/api-types';
 
 export interface GitHubExportOptions {
     repositoryName: string;
@@ -27,7 +29,7 @@ export interface GitHubExportState {
     isModalOpen: boolean;
 }
 
-export function useGitHubExport(websocket?: WebSocket | any) {
+export function useGitHubExport(websocket?: WebSocket | null) {
     const { user, isAuthenticated } = useAuth();
     const [state, setState] = useState<GitHubExportState>({
         isExporting: false,
@@ -156,14 +158,8 @@ export function useGitHubExport(websocket?: WebSocket | any) {
         if (!isAuthenticated) return false;
 
         try {
-            const response = await fetch('/api/integrations/github/status', {
-                credentials: 'include'
-            });
-            
-            if (!response.ok) return false;
-            
-            const data = await response.json();
-            return data.hasIntegration || false;
+            const response = await apiClient.getGitHubIntegrationStatus();
+            return response.data?.hasIntegration || false;
         } catch (error) {
             console.error('Error checking GitHub integration:', error);
             return false;

@@ -5,7 +5,7 @@
 /**
  * Standard response shape for all API endpoints
  */
-export interface ApiResponse<T = any> {
+export interface BaseApiResponse<T = unknown> {
     success: boolean;
     data?: T;
     error?: string;
@@ -16,8 +16,8 @@ export interface ApiResponse<T = any> {
 /**
  * Creates a success response with standard format
  */
-export function successResponse<T = any>(data: T, message?: string): Response {
-    const responseBody: ApiResponse<T> = {
+export function successResponse<T = unknown>(data: T, message?: string): Response {
+    const responseBody: BaseApiResponse<T> = {
         success: true,
         data,
         message,
@@ -36,8 +36,8 @@ export function successResponse<T = any>(data: T, message?: string): Response {
 /**
  * Creates a created response (201) with standard format
  */
-export function createdResponse<T = any>(data: T, message?: string): Response {
-    const responseBody: ApiResponse<T> = {
+export function createdResponse<T = unknown>(data: T, message?: string): Response {
+    const responseBody: BaseApiResponse<T> = {
         success: true,
         data,
         message: message || 'Resource created successfully',
@@ -59,7 +59,7 @@ export function createdResponse<T = any>(data: T, message?: string): Response {
 export function errorResponse(error: string | Error, statusCode = 500, message?: string): Response {
     const errorMessage = error instanceof Error ? error.message : error;
 
-    const responseBody: ApiResponse = {
+    const responseBody: BaseApiResponse = {
         success: false,
         error: errorMessage,
         message: message || 'An error occurred',
