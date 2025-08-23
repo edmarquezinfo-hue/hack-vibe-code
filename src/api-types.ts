@@ -109,8 +109,6 @@ export type {
 export type {
   AgentStateData,
   AgentConnectionData,
-  CodeGenerationResponse,
-  AgentConnectionResponse
 } from 'worker/api/controllers/agent/types';
 
 // WebSocket Types

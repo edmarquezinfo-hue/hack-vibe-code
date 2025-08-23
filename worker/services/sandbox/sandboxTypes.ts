@@ -132,13 +132,17 @@ export const BootstrapRequestSchema = z.object({
 })
 export type BootstrapRequest = z.infer<typeof BootstrapRequestSchema>
 
-export const BootstrapResponseSchema = z.object({
-    success: z.boolean(),
+export const PreviewSchema = z.object({
     runId: z.string().optional(),
-    message: z.string().optional(),
     previewURL: z.string().optional(),
     tunnelURL: z.string().optional(),
+})
+export type PreviewType = z.infer<typeof PreviewSchema>
+
+export const BootstrapResponseSchema = PreviewSchema.extend({
+    success: z.boolean(),
     processId: z.string().optional(),
+    message: z.string().optional(),
     error: z.string().optional(),
 })
 export type BootstrapResponse = z.infer<typeof BootstrapResponseSchema>

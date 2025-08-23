@@ -9,7 +9,7 @@ import {
     TechnicalInstructionType,
     PhaseImplementationSchemaType,
 } from '../schemas';
-import { GitHubExportRequest, StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
+import { GitHubExportRequest, PreviewType, StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
 import { GitHubExportOptions, GitHubExportResult } from '../../types/github';
 import { CodeGenState, CurrentDevState, MAX_PHASES, FileState } from './state';
 import { AllIssues, ScreenshotData } from './types';
@@ -98,9 +98,10 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     protected fileManager: FileManager = new FileManager(
         new StateManager(() => this.state, (s) => this.setState(s)),
     );
+
+    private previewUrlCache: string = '';
     // protected broadcaster: WebSocketBroadcaster = new WebSocketBroadcaster(this);
     
-
     protected operations: Operations = {
         codeReview: new CodeReviewOperation(),
         regenerateFile: new FileRegenerationOperation(),
@@ -115,7 +116,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     isGenerating: boolean = false;
     
     // Deployment queue management to prevent concurrent deployments
-    private currentDeploymentPromise: Promise<string | null> | null = null;
+    private currentDeploymentPromise: Promise<PreviewType | null> | null = null;
     
     public logger = createObjectLogger(this, 'CodeGeneratorAgent');
 
@@ -264,6 +265,10 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 error: `Error setting state: ${error instanceof Error ? error.message : String(error)}; Original state: ${JSON.stringify(this.state, null, 2)}; New state: ${JSON.stringify(state, null, 2)}`
             });
         }
+    }
+
+    getPreviewUrlCache() {
+        return this.previewUrlCache;
     }
 
     getProjectSetupAssistant(): ProjectSetupAssistant {
@@ -446,15 +451,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 return {
                     currentDevState: CurrentDevState.FINALIZING,
                 };
-            }
-            
-            // Clear processed user inputs
-            if (userSuggestions && userSuggestions.length > 0) {
-                this.setState({
-                    ...this.state,
-                    pendingUserInputs: []
-                });
-                this.logger.info(`Processed ${userSuggestions.length} user suggestions in phase generation`);
             }
     
             // Store current phase and transition to implementation
@@ -697,7 +693,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                     ...result,
                     completed: false
                 }
-            ]
+            ],
+            pendingUserInputs: []
         });
         // Notify phase generation complete
         this.broadcast(WebSocketMessageResponses.PHASE_GENERATED, {
@@ -1382,7 +1379,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         });
     }
 
-    async deployToSandbox(files: FileOutputType[] = [], redeploy: boolean = false): Promise<string | null> {
+    async deployToSandbox(files: FileOutputType[] = [], redeploy: boolean = false): Promise<PreviewType | null> {
         // If there's already a deployment in progress, wait for it to complete
         if (this.currentDeploymentPromise) {
             this.logger.info('Deployment already in progress, waiting for completion before starting new deployment');
@@ -1415,7 +1412,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         }
     }
 
-    private async createNewDeployment(): Promise<{ sandboxInstanceId: string; previewURL: string; tunnelURL?: string } | null> {
+    private async createNewDeployment(): Promise<PreviewType | null> {
         // Create new deployment
         const templateName = this.state.templateDetails?.name || 'scratch';
         // Generate a short unique suffix (6 chars from session ID)
@@ -1445,17 +1442,15 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
 
         this.logger.info(`Received createInstance response: ${JSON.stringify(createResponse, null, 2)}`)
 
-        const sandboxInstanceId = createResponse.runId;
-        const previewURL = createResponse.previewURL;
-        const tunnelURL = createResponse.tunnelURL;
-        if (sandboxInstanceId && previewURL) {
-            return { sandboxInstanceId, previewURL, tunnelURL };
+        if (createResponse.runId && createResponse.previewURL) {
+            this.previewUrlCache = createResponse.previewURL;
+            return createResponse;
         }
 
         throw new Error(`Failed to create sandbox instance: ${createResponse?.error || 'Unknown error'}`);
     }
 
-    private async executeDeployment(files: FileOutputType[] = [], redeploy: boolean = false): Promise<string | null> {
+    private async executeDeployment(files: FileOutputType[] = [], redeploy: boolean = false): Promise<PreviewType | null> {
         const { templateDetails, generatedFilesMap } = this.state;
         let { sandboxInstanceId } = this.state;
         let previewURL: string | undefined;
@@ -1492,13 +1487,13 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         try {
             if (!sandboxInstanceId || redeploy) {
                 const results = await this.createNewDeployment();
-                if (!results || !results.sandboxInstanceId || !results.previewURL) {
+                if (!results || !results.runId || !results.previewURL) {
                     this.broadcast(WebSocketMessageResponses.DEPLOYMENT_FAILED, {
                         message: "Failed to create new deployment",
                     });
                     throw new Error('Failed to create new deployment');
                 }
-                sandboxInstanceId = results.sandboxInstanceId;
+                sandboxInstanceId = results.runId;
                 previewURL = results.previewURL;
                 tunnelURL = results.tunnelURL;
 
@@ -1542,14 +1537,18 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 }
             }
 
-            this.broadcast(WebSocketMessageResponses.DEPLOYMENT_COMPLETED, {
-                message: "Deployment completed",
+            const preview = {
+                runId: sandboxInstanceId,
                 previewURL: previewURL,
                 tunnelURL: tunnelURL,
-                instanceId: sandboxInstanceId
+            };
+
+            this.broadcast(WebSocketMessageResponses.DEPLOYMENT_COMPLETED, {
+                message: "Deployment completed",
+                ...preview,
             });
 
-            return sandboxInstanceId;
+            return preview;
         } catch (error) {
             this.logger.error("Error deploying to sandbox service:", error);
             this.setState({

@@ -43,6 +43,8 @@ export function setupRouter(): Router {
     // Only the app owner should be able to connect for editing purposes
     router.get('/api/agent/:agentId/connect', codingAgentController.connectToExistingAgent.bind(codingAgentController), AuthConfig.ownerOnly);
 
+    router.get('/api/agent/:agentId/preview', codingAgentController.deployPreview.bind(codingAgentController), AuthConfig.public);
+
     // Authentication and user management routes
     setupAuthRoutes(router);
     
