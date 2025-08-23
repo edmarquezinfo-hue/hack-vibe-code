@@ -42,7 +42,8 @@ export interface CodeGenState {
     // tunnelURL?: string;
     clientReportedErrors: ClientReportedErrorType[];
     // latestScreenshot?: ScreenshotData; // Store captured screenshot
-    shouldBeGenerating?: boolean; // Persistent flag indicating generation should be active
+    shouldBeGenerating: boolean; // Persistent flag indicating generation should be active
+    mvpGenerated: boolean;
     agentMode: 'deterministic' | 'smart';
     sessionId: string;
     hostname: string;
