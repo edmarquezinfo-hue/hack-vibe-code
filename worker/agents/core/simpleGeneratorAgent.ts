@@ -338,23 +338,21 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
      * State machine controller for code generation with user interaction support
      * Executes phases sequentially with review cycles and proper state transitions
      */
-    async generateAllFiles(reviewCycles: number = 10): Promise<void> {
-        if (this.isGenerating) {
-            this.logger.info("Code generation already in progress");
-            return;
-        }
-
+    async generateAllFiles(reviewCycles: number = 5): Promise<void> {
         if (this.state.generatedPhases.find(phase => phase.name === "Finalization and Review") && this.state.pendingUserInputs.length === 0) {
             this.logger.info("Code generation already completed and no user inputs pending");
             return;
         }
+        if (this.isGenerating) {
+            this.logger.info("Code generation already in progress");
+            return;
+        }
+        this.isGenerating = true;
 
         this.broadcast(WebSocketMessageResponses.GENERATION_STARTED, {
             message: 'Starting code generation',
             totalFiles: this.getTotalFiles()
         });
-
-        this.isGenerating = true;
         this.resetPhasesCounter();
         let currentDevState = CurrentDevState.PHASE_IMPLEMENTING;
         const generatedPhases = this.state.generatedPhases;
