@@ -1,0 +1,54 @@
+State Size Analysis Report
+==================================================
+
+📊 EXECUTIVE SUMMARY
+------------------------------
+Total serialized size growth: 0 characters
+Memory size growth estimate: 0 bytes
+Growth percentage: 0.0%
+New total serialized size: 2,275,551 characters
+
+📈 QUICK STATS
+--------------------
+Properties changed: 0
+Properties added: 0
+Properties removed: 0
+
+🎯 TOP CONTRIBUTORS TO SIZE GROWTH
+----------------------------------------
+📋 ALL PROPERTIES SUMMARY
+------------------------------
+Property                  Old Size     New Size     Growth       Changed 
+---------------------------------------------------------------------------
+conversationMessages        2,006,393   2,006,393           0 No      
+generatedFilesMap             139,676     139,676           0 No      
+generatedPhases                57,274      57,274           0 No      
+templateDetails                50,020      50,020           0 No      
+blueprint                      17,172      17,172           0 No      
+lastPackageJson                 3,942       3,942           0 No      
+inferenceContext                  404         404           0 No      
+query                             348         348           0 No      
+commandsHistory                   172         172           0 No      
+sandboxInstanceId                  63          63           0 No      
+sessionId                          38          38           0 No      
+hostname                           22          22           0 No      
+agentMode                          15          15           0 No      
+shouldBeGenerating                  4           4           0 No      
+pendingUserInputs                   2           2           0 No      
+clientReportedErrors                2           2           0 No      
+reviewCycles                        2           2           0 No      
+currentDevState                     1           1           0 No      
+phasesCounter                       1           1           0 No      
+
+🔬 DETAILED ANALYSIS OF TOP CONTRIBUTORS
+--------------------------------------------------
+💡 RECOMMENDATIONS
+--------------------
+⚠️  WARNING: Total state size exceeds 1MB when serialized
+   This may cause database storage issues
+
+🔍 'conversationMessages' is unusually large (2,006,393 chars)
+   Consider implementing message history limits
+
+🔍 'generatedFilesMap' is unusually large (139,676 chars)
+   Consider implementing file content compression or chunking

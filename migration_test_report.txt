@@ -1,0 +1,130 @@
+Enhanced Migration Test & Analysis Report
+============================================================
+
+🧪 MIGRATION ALGORITHM TEST RESULTS
+---------------------------------------------
+Original message count: 10,406
+After deduplication: 88
+Final count (after limit): 20
+Duplicates removed: 10,318
+Old messages trimmed: 68
+Size reduction: 99.8%
+
+📏 LONGEST MESSAGE ANALYSIS
+-----------------------------------
+Size: 1,494 characters
+Role: assistant
+Conversation ID: conv-1755934737264-w1xlyyc
+Content preview (first 500 chars):
+  <user_response>
+Thank you for that valuable feedback! You're absolutely right, having more robust mock data for organizations and ensuring their profiles are navigable is crucial for a complete experience.
+
+I've noted your request to:
+*   **Expand Mock Data for Organizations**: We'll add more comprehensive mock data for organizations, including their profiles and associated repositories.
+*   **Fix "User Not Found" for Organizations**: We'll ensure that clicking on organization links correctly di
+
+🔍 UNIQUE CONVERSATION IDs ANALYSIS
+----------------------------------------
+Total unique conversation IDs: 88
+
+📊 CONVERSATION ID DETAILS (chronological order)
+-------------------------------------------------------
+Conversation ID                Count  Roles                Sample Content
+----------------------------------------------------------------------------------------------------
+conv-1755933706528-zro4iiw     512    assistant:512        **<Internal Memo>**
+Project Updates: pha
+conv-1755933713940-5y6zbh3     512    assistant:512        **<Internal Memo>**
+Project Updates: dep
+conv-1755933822056-zdlb7yd     512    assistant:512        **<Internal Memo>**
+Project Updates: com
+conv-1755933822470-m6shrhu     512    assistant:512        **<Internal Memo>**
+Project Updates: dep
+conv-1755933828937-j41cp7p     512    assistant:512        **<Internal Memo>**
+Project Updates: pha
+conv-1755933861482-ilcpgxf     512    assistant:512        **<Internal Memo>**
+Project Updates: pha
+conv-1755933913998-uu3f1kc     512    assistant:512        **<Internal Memo>**
+Project Updates: dep
+conv-1755933917731-vf6woz3     512    assistant:512        **<Internal Memo>**
+Project Updates: pha
+conv-1755933948551-ux8bl7u     512    assistant:512        **<Internal Memo>**
+Project Updates: pha
+conv-1755933996815-23znl1y     512    assistant:512        **<Internal Memo>**
+Project Updates: dep
+conv-1755934000946-p7st9md     512    assistant:512        **<Internal Memo>**
+Project Updates: pha
+conv-1755934026919-xjzsa00     512    assistant:512        **<Internal Memo>**
+Project Updates: pha
+conv-1755934086784-j5x45u8     512    assistant:512        **<Internal Memo>**
+Project Updates: dep
+conv-1755934090421-xqvjcmc     512    assistant:512        **<Internal Memo>**
+Project Updates: pha
+conv-1755934128657-k9wgnqv     512    assistant:512        **<Internal Memo>**
+Project Updates: pha
+conv-1755934221686-5slz4mg     512    assistant:512        **<Internal Memo>**
+Project Updates: dep
+conv-1755934225669-n9m9mug     512    assistant:512        **<Internal Memo>**
+Project Updates: pha
+conv-1755934233376-cnmvj71     256    user:256             Make sure to flesh out everything! All o
+conv-1755934246683-lkzx3d3     256    assistant:256        That's a great set of suggestions! I've 
+conv-1755934250764-0cjs4zj     256    assistant:256        **<Internal Memo>**
+Project Updates: pha
+... and 68 more conversation IDs
+
+🎯 MOST DUPLICATED CONVERSATIONS
+-----------------------------------
+conv-1755933706528-zro4iiw: 512 duplicates
+  Sample: **<Internal Memo>**
+Project Updates: phase_implementing
+</Internal Memo>
+
+conv-1755933713940-5y6zbh3: 512 duplicates
+  Sample: **<Internal Memo>**
+Project Updates: deployment_completed
+</Internal Memo>
+
+conv-1755933822056-zdlb7yd: 512 duplicates
+  Sample: **<Internal Memo>**
+Project Updates: command_executing
+</Internal Memo>
+
+conv-1755933822470-m6shrhu: 512 duplicates
+  Sample: **<Internal Memo>**
+Project Updates: deployment_completed
+</Internal Memo>
+
+conv-1755933828937-j41cp7p: 512 duplicates
+  Sample: **<Internal Memo>**
+Project Updates: phase_implemented
+</Internal Memo>
+
+conv-1755933861482-ilcpgxf: 512 duplicates
+  Sample: **<Internal Memo>**
+Project Updates: phase_implementing
+</Internal Memo>
+
+conv-1755933913998-uu3f1kc: 512 duplicates
+  Sample: **<Internal Memo>**
+Project Updates: deployment_completed
+</Internal Memo>
+
+conv-1755933917731-vf6woz3: 512 duplicates
+  Sample: **<Internal Memo>**
+Project Updates: phase_implemented
+</Internal Memo>
+
+conv-1755933948551-ux8bl7u: 512 duplicates
+  Sample: **<Internal Memo>**
+Project Updates: phase_implementing
+</Internal Memo>
+
+conv-1755933996815-23znl1y: 512 duplicates
+  Sample: **<Internal Memo>**
+Project Updates: deployment_completed
+</Internal Memo>
+
+⏱️  TIMELINE ANALYSIS
+--------------------
+Conversation span: 991.6 minutes
+First message: 1755933706528 (2025-08-23 03:21:46)
+Last message: 1755993203816 (2025-08-23 19:53:23)

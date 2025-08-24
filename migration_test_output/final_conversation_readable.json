@@ -1,0 +1,162 @@
+[
+  {
+    "index": 0,
+    "role": "user",
+    "conversationId": "conv-1755934233376-cnmvj71",
+    "timestamp": 1755934233376,
+    "content_length": 128,
+    "content_preview": "Make sure to flesh out everything! All organizations accounts, mock data in all repos etc. And the file edit should work as well"
+  },
+  {
+    "index": 1,
+    "role": "assistant",
+    "conversationId": "conv-1755934246683-lkzx3d3",
+    "timestamp": 1755934246683,
+    "content_length": 879,
+    "content_preview": "That's a great set of suggestions! I've noted your request to flesh out the mock data with more organizations and comprehensive data across all repositories. I also understand you'd like to see file e"
+  },
+  {
+    "index": 2,
+    "role": "user",
+    "conversationId": "conv-1755934258005-qrij2o7",
+    "timestamp": 1755934258005,
+    "content_length": 5,
+    "content_preview": "jello"
+  },
+  {
+    "index": 3,
+    "role": "assistant",
+    "conversationId": "conv-1755934260072-5damjej",
+    "timestamp": 1755934260072,
+    "content_length": 212,
+    "content_preview": "<user_response>\nI'm not quite sure I understand. Could you please elaborate on what you mean by \"jello\"? I'm here to help with any feedback, suggestions, or questions you have about your project!\n</us"
+  },
+  {
+    "index": 4,
+    "role": "user",
+    "conversationId": "conv-1755934278587-l2snsl6",
+    "timestamp": 1755934278587,
+    "content_length": 162,
+    "content_preview": "Did you understand my request for Make sure to flesh out everything! All organizations accounts, mock data in all repos etc. And the file edit should work as well"
+  },
+  {
+    "index": 5,
+    "role": "assistant",
+    "conversationId": "conv-1755934280336-ah4gt2s",
+    "timestamp": 1755934280336,
+    "content_length": 539,
+    "content_preview": "<user_response>\nYes, absolutely! I fully understood your request to flesh out all organizations' accounts and mock data across all repositories, as well as to implement file editing functionality.\n\nTh"
+  },
+  {
+    "index": 6,
+    "role": "user",
+    "conversationId": "conv-1755934405401-zdetcx7",
+    "timestamp": 1755934405401,
+    "content_length": 315,
+    "content_preview": "There are few minor frontend layout issues too - there should be slightly better margins across the edges of the UI, and the dropdown menus can be made more beautiful etc. Also there should be a butto"
+  },
+  {
+    "index": 7,
+    "role": "assistant",
+    "conversationId": "conv-1755934408729-88k64ur",
+    "timestamp": 1755934408729,
+    "content_length": 1355,
+    "content_preview": "<user_response>\nThank you for this detailed feedback! I've noted down all your suggestions:\n\n*   **Frontend Layout Improvements**: We'll work on refining the margins across the UI edges and enhancing "
+  },
+  {
+    "index": 8,
+    "role": "user",
+    "conversationId": "conv-1755934442194-x6gvgmj",
+    "timestamp": 1755934442194,
+    "content_length": 51,
+    "content_preview": "The edit file function doesnt really work right now"
+  },
+  {
+    "index": 9,
+    "role": "assistant",
+    "conversationId": "conv-1755934445064-3uufpxq",
+    "timestamp": 1755934445064,
+    "content_length": 580,
+    "content_preview": "<user_response>\nThank you for letting me know about the issue with the file edit function. I understand that it's not working as expected right now.\n\nI've noted this down as a high-priority fix. This "
+  },
+  {
+    "index": 10,
+    "role": "user",
+    "conversationId": "conv-1755934477141-zxsx3k1",
+    "timestamp": 1755934477141,
+    "content_length": 85,
+    "content_preview": "I also want actions tab to work and kanban board and all other stuff that github has!"
+  },
+  {
+    "index": 11,
+    "role": "assistant",
+    "conversationId": "conv-1755934489477-3j5fbtu",
+    "timestamp": 1755934489477,
+    "content_length": 1331,
+    "content_preview": "<user_response>\nThat's fantastic! I love your ambition to make this a truly comprehensive GitHub clone. I've added your requests to our development roadmap:\n\n*   **Actions Tab**: We'll work on bringin"
+  },
+  {
+    "index": 12,
+    "role": "user",
+    "conversationId": "conv-1755934694542-nmhiz04",
+    "timestamp": 1755934694542,
+    "content_length": 49,
+    "content_preview": "Create repo button doesn't really work right now!"
+  },
+  {
+    "index": 13,
+    "role": "assistant",
+    "conversationId": "conv-1755934697555-ghkk0ea",
+    "timestamp": 1755934697555,
+    "content_length": 607,
+    "content_preview": "<user_response>\nThank you for pointing that out! I understand that the \"Create repo\" button isn't functioning correctly at the moment.\n\nI've noted this as a priority. This issue will be thoroughly inv"
+  },
+  {
+    "index": 14,
+    "role": "user",
+    "conversationId": "conv-1755934733174-x8apmli",
+    "timestamp": 1755934733174,
+    "content_length": 101,
+    "content_preview": "Also there is not enough mock data for mock organizations. clicking on them just says user not found "
+  },
+  {
+    "index": 15,
+    "role": "assistant",
+    "conversationId": "conv-1755934737264-w1xlyyc",
+    "timestamp": 1755934737264,
+    "content_length": 1390,
+    "content_preview": "<user_response>\nThank you for that valuable feedback! You're absolutely right, having more robust mock data for organizations and ensuring their profiles are navigable is crucial for a complete experi"
+  },
+  {
+    "index": 16,
+    "role": "user",
+    "conversationId": "conv-1755934971717-t2wro1o",
+    "timestamp": 1755934971717,
+    "content_length": 80,
+    "content_preview": "In a created repo i cant add files or make anything. Please flesh everything out"
+  },
+  {
+    "index": 17,
+    "role": "assistant",
+    "conversationId": "conv-1755934978338-067g1yy",
+    "timestamp": 1755934978338,
+    "content_length": 1189,
+    "content_preview": "<user_response>\nThank you for that crucial feedback! I understand that even after creating a new repository, you're currently unable to add files or perform any actions within it. This is a very impor"
+  },
+  {
+    "index": 18,
+    "role": "user",
+    "conversationId": "conv-1755937345718-p61mcly",
+    "timestamp": 1755937345718,
+    "content_length": 104,
+    "content_preview": "repo creation isn't working fine. It says repo created but i don't see any repos. Please fix it properly"
+  },
+  {
+    "index": 19,
+    "role": "assistant",
+    "conversationId": "conv-1755937355251-meapfn9",
+    "timestamp": 1755937355251,
+    "content_length": 998,
+    "content_preview": "<user_response>\nThank you for the clear update on the repository creation! I understand that while the UI confirms creation, the new repositories aren't actually appearing, which is definitely not ide"
+  }
+]

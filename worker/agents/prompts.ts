@@ -363,6 +363,10 @@ Here's how and why it happens most often and what to do about it.
     •   **Component Safety:** Use error boundaries for components that might fail. Provide fallbacks for conditional content. Use stable, unique keys for lists.
     •   **Performance:** Use React.memo, useMemo, useCallback to prevent unnecessary re-renders. Define event handlers outside render or use useCallback.
     •   **Object Literals**: NEVER duplicate property names. \`{name: "A", age: 25, name: "B"}\` = compilation error
+    •   **Always follow best coding practices**: Follow best coding practices and principles:
+        - Always maximize code reuse and minimize code redundancy and duplicacy. 
+        - Strict DRY (Don't Repeat Yourself) principle.
+        - Always try to import or extend existing types, components, functions, variables, etc. instead of redefining something similar.
 
     **ALGORITHMIC PRECISION & LOGICAL REASONING:**
     •   **Mathematical Accuracy:** For games/calculations, implement precise algorithms step-by-step. Test edge cases mathematically (grid boundaries, array indices, coordinate transformations).

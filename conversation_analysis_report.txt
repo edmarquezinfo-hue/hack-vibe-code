@@ -1,0 +1,65 @@
+Conversation Messages Analysis Report
+==================================================
+
+📊 CONVERSATION SUMMARY
+------------------------------
+Total messages: 10,406
+Total size: 1,985,581 characters (1939.0 KB)
+Average message size: 190 characters
+
+📈 MESSAGE TYPES
+--------------------
+      assistant: 9894 messages (95.1%) - avg 190 chars each
+           user:  512 messages ( 4.9%) - avg 188 chars each
+
+🎯 LARGEST MESSAGES (Top 20)
+----------------------------------------
+Index     Size         Type Preview
+----------------------------------------------------------------------
+ 5177     1494    assistant <user_response> Thank you for that valuable feedba
+10360     1494    assistant <user_response> Thank you for that valuable feedba
+  319     1456    assistant <user_response> Thank you for this detailed feedba
+  640     1456    assistant <user_response> Thank you for this detailed feedba
+  963     1456    assistant <user_response> Thank you for this detailed feedba
+ 1284     1456    assistant <user_response> Thank you for this detailed feedba
+ 1612     1456    assistant <user_response> Thank you for this detailed feedba
+ 1933     1456    assistant <user_response> Thank you for this detailed feedba
+ 2256     1456    assistant <user_response> Thank you for this detailed feedba
+ 2577     1456    assistant <user_response> Thank you for this detailed feedba
+ 2907     1456    assistant <user_response> Thank you for this detailed feedba
+ 3228     1456    assistant <user_response> Thank you for this detailed feedba
+ 3551     1456    assistant <user_response> Thank you for this detailed feedba
+ 3872     1456    assistant <user_response> Thank you for this detailed feedba
+ 4200     1456    assistant <user_response> Thank you for this detailed feedba
+ 4521     1456    assistant <user_response> Thank you for this detailed feedba
+ 4844     1456    assistant <user_response> Thank you for this detailed feedba
+ 5165     1456    assistant <user_response> Thank you for this detailed feedba
+ 5502     1456    assistant <user_response> Thank you for this detailed feedba
+ 5823     1456    assistant <user_response> Thank you for this detailed feedba
+
+📊 SIZE DISTRIBUTION
+-------------------------
+         tiny (<1KB):    0 messages ( 0.0%)
+       small (1-5KB):   20 messages ( 0.2%)
+     medium (5-20KB):    0 messages ( 0.0%)
+    large (20-100KB):    0 messages ( 0.0%)
+       huge (>100KB):    0 messages ( 0.0%)
+
+💡 RECOMMENDATIONS
+--------------------
+🚨 CRITICAL: Conversation messages exceed 1MB - implement immediate cleanup
+   Implement a maximum message history limit (e.g., 50-100 messages)
+📝 High number of assistant messages - consider keeping only recent ones
+👤 High number of user messages - implement conversation pruning
+💡 SUGGESTED FIX: Keep only the 50 most recent messages
+   Implementation: conversationMessages = conversationMessages.slice(-{keep_recent})
+
+🔧 CODE IMPLEMENTATION SUGGESTIONS
+----------------------------------------
+// Add this to your setState calls to limit conversation history:
+const MAX_CONVERSATION_MESSAGES = 50;
+if (conversationMessages.length > MAX_CONVERSATION_MESSAGES) {
+    conversationMessages = conversationMessages.slice(-MAX_CONVERSATION_MESSAGES);
+}
+
+// Estimated size reduction: ~1,976,040 characters (1929.7KB)
