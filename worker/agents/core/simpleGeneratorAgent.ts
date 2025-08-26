@@ -1788,13 +1788,13 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         dataOrWithout?: WebSocketMessageData<WebSocketMessageType> | unknown
     ): void {
         // Send the event to the conversational assistant if its a relevant event
-        // if (this.operations.processUserMessage.isProjectUpdateType(typeOrMsg)) {
-        //     const messages = this.operations.processUserMessage.processProjectUpdates(typeOrMsg, dataOrWithout as WebSocketMessageData<WebSocketMessageType>, this.logger);
-        //     this.setState({
-        //         ...this.state,
-        //         conversationMessages: [...this.state.conversationMessages, ...messages]
-        //     });
-        // }
+        if (this.operations.processUserMessage.isProjectUpdateType(typeOrMsg)) {
+            const messages = this.operations.processUserMessage.processProjectUpdates(typeOrMsg, dataOrWithout as WebSocketMessageData<WebSocketMessageType>, this.logger);
+            this.setState({
+                ...this.state,
+                conversationMessages: [...this.state.conversationMessages, ...messages]
+            });
+        }
         broadcastToConnections(this, typeOrMsg as WebSocketMessageType, dataOrWithout as WebSocketMessageData<WebSocketMessageType>);
     }
 
@@ -2105,7 +2105,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 isPrivate: options.isPrivate,
                 email: githubIntegration.email,
                 username: githubIntegration.username,
-                commitMessage: `Initial commit: Generated web application\n\n🤖 Generated with Orange Build\n${this.state.blueprint?.title ? `Blueprint: ${this.state.blueprint.title}` : ''}`
+                commitMessage: `Export ready\n\n🤖 Generated with Orange Build\n${this.state.blueprint?.title ? `Blueprint: ${this.state.blueprint.title}` : ''}`
             };
 
             this.logger.info('Exporting to GitHub repository', { exportRequest });
@@ -2148,11 +2148,14 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                     readmeFile.fileContents = readmeFile.fileContents.replaceAll('[cloudflarebutton]', prepareCloudflareButton(repositoryUrl, 'markdown'));
                     this.fileManager.saveGeneratedFile(readmeFile);
                     await this.deployToSandbox([readmeFile], false, "feat: README updated with cloudflare deploy button");
-
+                    // Export again
+                    await this.getSandboxServiceClient().exportToGitHub(this.state.sandboxInstanceId!, exportRequest);
                     this.logger.info('Readme committed successfully');
                 } catch (error) {
                     this.logger.error('Failed to commit readme', error);
                 }
+            } else {
+                this.logger.info('Readme not found, skipping commit');
             }
 
             // Step 3: Finalize

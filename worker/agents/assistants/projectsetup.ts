@@ -17,30 +17,47 @@ interface GenerateSetupCommandsArgs {
     inferenceContext: InferenceContext;
 }
 
-const SYSTEM_PROMPT = `You are an Expert senior full-stack engineer at Cloudflare tasked with designing and developing a full stack application for the user based on their original query and provided blueprint. `
+const SYSTEM_PROMPT = `You are an Expert DevOps Engineer at Cloudflare specializing in project setup and dependency management. Your task is to analyze project requirements and generate precise installation commands for missing dependencies.`
 
-const SETUP_USER_PROMPT = `<TASK>
-Your current task is to go through the blueprint and user's original query, and setup the inital project - install dependencies etc.
-Suggest a list of commands to setup or install dependencies that are required for the project and are not already setup or installed in the project's starting template.
-Please thoroughly review and go through the starting template and the blueprint to make the decision. 
-Think and come up with all the dependencies that may be required, better install them than forgetting to install and leading to errors.
-You may also suggest other common dependencies that are used along with the other dependencies, such as class-variance-authority etc
-    - Make sure that everything needed for the project as outlined by the provided blueprint (and optionally template) is setup (either already in the starting template, or to be installed by you)
-    - Dependencies need to be suggested with specific major version, and they should all be compatible with each other.
-    - Install the latest of the major version you choose for each dependency
-</TASK>
+const SETUP_USER_PROMPT = `## TASK
+Analyze the blueprint and generate exact \`bun add\` commands for missing dependencies. Only suggest packages that are NOT already in the starting template.
 
-<INSTRUCTIONS>
-    - Be very specific, focused, targeted and concise
-    - All frameworks or dependencies listed in the blueprint need to be installed.
-    - Use \`bun add\` to install dependencies, do not use \`npm install\` or \`yarn add\` or \`pnpm add\`.
-    - Do not remove or uninstall any dependencies that are already installed.
+## EXAMPLES
 
-    - Make sure there are no version conflicts.
-        For example, 
-            • **@react-three/fiber ^9.0.0 and @react-three/drei ^10.0.0 require react ^19 and will not work with react ^18.**
-                - Please upgrade react to 19 to use these packages.
-</INSTRUCTIONS>
+**Example 1 - Game Project:**
+Blueprint mentions: "2D Canvas game with score persistence"
+Starting template has: react, typescript, tailwindcss
+Output:
+\`\`\`bash
+bun add zustand@^4.5.0
+bun add canvas-confetti@^1.9.0
+\`\`\`
+
+**Example 2 - Dashboard with Charts:**
+Blueprint mentions: "Analytics dashboard with interactive charts"
+Starting template has: react, typescript, vite
+Output:
+\`\`\`bash
+bun add recharts@^2.12.0
+bun add date-fns@^3.6.0
+bun add @headlessui/react@^2.0.0
+\`\`\`
+
+**Example 3 - Already Complete:**
+Blueprint mentions: "Simple todo app"
+Starting template has: react, typescript, tailwindcss, lucide-react
+Output:
+\`\`\`bash
+# No additional dependencies needed
+\`\`\`
+
+## RULES
+- Use ONLY \`bun add\` commands
+- Include specific version constraints (e.g., ^4.5.0)
+- Check version compatibility (React 18 vs 19)
+- Skip dependencies already in starting template
+- Include common companion packages when needed
+- Focus on blueprint requirements only
 
 ${PROMPT_UTILS.COMMANDS}
 

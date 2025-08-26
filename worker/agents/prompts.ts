@@ -76,7 +76,7 @@ The project should support the following commands in package.json to run the app
 }
 and provide a preview url for the application.
 
-</STAåRT_FROM_SCRATCH>`;
+</START_FROM_SCRATCH>`;
         }
     },
 
@@ -164,6 +164,16 @@ Here's how and why it happens most often and what to do about it.
       }); // No dependency array
       return <div>{count}</div>;
     }
+    
+    // GOOD CODE ✅ Dependency array prevents infinite loop
+    function GoodCounter() {
+      const [count, setCount] = useState(0);
+      useEffect(() => {
+        // Only run once on mount, or on specific dependencies
+        setCount(1);
+      }, []); // Empty array = run once on mount
+      return <div>{count}</div>;
+    }
     \`\`\`
 
   * **useEffect with a self-dependency and unconditional set**
@@ -205,9 +215,126 @@ Here's how and why it happens most often and what to do about it.
     }));
     \`\`\`
 
+    \`\`\`tsx
+    // CORRECT ✅
+    const items = useFilesStore(state => state.items);
+    const selectedFolderId = useFilesStore(state => state.selectedFolderId);
+    const selectFolder = useFilesStore(state => state.selectFolder);
+    \`\`\`
+
+  * **Custom hooks causing loops**
+
+    \`\`\`tsx
+    // BAD CODE ❌ Custom hook with uncontrolled effects
+    function useAutoIncrement() {
+      const [count, setCount] = useState(0);
+      useEffect(() => {
+        setCount(prev => prev + 1); // No dependencies - runs every render
+      });
+      return count;
+    }
+    
+    // GOOD CODE ✅ Custom hook with proper dependency control
+    function useCounter(initialValue = 0) {
+      const [count, setCount] = useState(initialValue);
+      const increment = useCallback(() => setCount(prev => prev + 1), []);
+      return { count, increment };
+    }
+    \`\`\`
+
+  * **Context value recreation**
+
+    \`\`\`tsx
+    // BAD CODE ❌ Context value is recreated on every render
+    function App() {
+      const [user, setUser] = useState(null);
+      const value = { user, setUser }; // New object every render
+      return <UserContext.Provider value={value}>...</UserContext.Provider>;
+    }
+    
+    // GOOD CODE ✅ Memoize context value
+    function App() {
+      const [user, setUser] = useState(null);
+      const value = useMemo(() => ({ user, setUser }), [user]);
+      return <UserContext.Provider value={value}>...</UserContext.Provider>;
+    }
+    \`\`\`
+
+  * **Conditional state updates during render**
+
+    \`\`\`tsx
+    // BAD CODE ❌ State update based on conditional render
+    function Component({ showModal }) {
+      const [modalOpen, setModalOpen] = useState(false);
+      if (showModal && !modalOpen) {
+        setModalOpen(true); // setState during render
+      }
+      return modalOpen ? <Modal /> : null;
+    }
+    
+    // GOOD CODE ✅ Use useEffect for state synchronization
+    function Component({ showModal }) {
+      const [modalOpen, setModalOpen] = useState(false);
+      useEffect(() => {
+        setModalOpen(showModal);
+      }, [showModal]);
+      return modalOpen ? <Modal /> : null;
+    }
+    \`\`\`
+
+  * **Event handlers with stale closures**
+
+    \`\`\`tsx
+    // BAD CODE ❌ Event handler depends on stale state
+    function Counter() {
+      const [count, setCount] = useState(0);
+      const handleClick = () => {
+        setCount(count + 1); // Stale closure problem
+        setCount(count + 1); // Won't increment by 2
+      };
+      return <button onClick={handleClick}>{count}</button>;
+    }
+    
+    // GOOD CODE ✅ Use functional updates to avoid stale closures
+    function Counter() {
+      const [count, setCount] = useState(0);
+      const handleClick = useCallback(() => {
+        setCount(prev => prev + 1);
+        setCount(prev => prev + 1); // Will correctly increment by 2
+      }, []);
+      return <button onClick={handleClick}>{count}</button>;
+    }
+    \`\`\`
+
+  * **Side effects in memoization hooks**
+
+    \`\`\`tsx
+    // BAD CODE ❌ State update inside useMemo/useCallback
+    function Component({ data }) {
+      const [processed, setProcessed] = useState(null);
+      const memoizedValue = useMemo(() => {
+        setProcessed(data.map(transform)); // Side effect in memoization
+        return computedValue;
+      }, [data]);
+      return <div>{memoizedValue}</div>;
+    }
+    
+    // GOOD CODE ✅ Separate side effects from memoization
+    function Component({ data }) {
+      const [processed, setProcessed] = useState(null);
+      const memoizedValue = useMemo(() => computedValue, [data]);
+      
+      useEffect(() => {
+        setProcessed(data.map(transform)); // Side effect in proper place
+      }, [data]);
+      
+      return <div>{memoizedValue}</div>;
+    }
+    \`\`\`
+
   * **LLM-generated code smells**
 
-      * Unconditional setters in effects, “mirror props to state” patterns, setting state inside \`useMemo\`/\`useCallback\`, or subscribing inside render.
+      * Unconditional setters in effects, "mirror props to state" patterns, setting state inside \`useMemo\`/\`useCallback\`, or subscribing inside render.
 
 # How to avoid it (quick checklist)
 
@@ -350,12 +477,12 @@ Here's how and why it happens most often and what to do about it.
 
     COMMON_PITFALLS: `<AVOID COMMON PITFALLS>
     **TOP 6 MISSION-CRITICAL RULES (FAILURE WILL CRASH THE APP):**
-    1. **DEPENDENCY VALIDATION:** Use ONLY dependencies verifiably installed in the project, as listed in <DEPENDENCIES>. Cross-check every import against available dependencies.
+    1. **DEPENDENCY VALIDATION:** BEFORE writing any import statement, verify it exists in <DEPENDENCIES>. Common failures: @xyflow/react uses { ReactFlow } not default import, @/lib/utils for cn function. If unsure, check the dependency list first.
     2. **IMPORT & EXPORT INTEGRITY:** Ensure every component, function, or variable is correctly defined and imported properly (and exported properly). Mismatched default/named imports will cause crashes.
     3. **NO RUNTIME ERRORS:** Write robust, fault-tolerant code. Handle all edge cases gracefully with fallbacks. Never throw uncaught errors that can crash the application.
     4. **NO UNDEFINED VALUES/PROPERTIES/FUNCTIONS/COMPONENTS etc:** Ensure all variables, functions, and components are defined before use. Never use undefined values. If you use something that isn't already defined, you need to define it.
     5. **STATE UPDATE INTEGRITY:** Never call state setters directly during the render phase; all state updates must originate from event handlers or useEffect hooks to prevent infinite loops.
-    6: **STATE SELECTOR STABILITY:** When using state management libraries (Zustand, Redux), always select primitive values individually. Never return a new object or array from a single selector, as this creates unstable references and will cause infinite render loops.
+    6. **STATE SELECTOR STABILITY:** When using state management libraries (Zustand, Redux), always select primitive values individually. Never return a new object or array from a single selector, as this creates unstable references and will cause infinite render loops.
 
     **ENHANCED RELIABILITY PATTERNS:**
     •   **State Management:** Handle loading/success/error states for async operations. Initialize state with proper defaults, never undefined. Use functional updates for dependent state.
@@ -369,11 +496,11 @@ Here's how and why it happens most often and what to do about it.
         - Always try to import or extend existing types, components, functions, variables, etc. instead of redefining something similar.
 
     **ALGORITHMIC PRECISION & LOGICAL REASONING:**
-    •   **Mathematical Accuracy:** For games/calculations, implement precise algorithms step-by-step. Test edge cases mathematically (grid boundaries, array indices, coordinate transformations).
-    •   **Game Logic Systems:** Break complex logic into smaller, testable functions. For positioning systems, validate coordinates at each step. For collision/merge systems, handle all possible states.
-    •   **Array/Grid Operations:** When manipulating 2D grids or arrays, verify index calculations, boundary checks, and transformation logic. Use clear variable names for coordinates (row, col, x, y).
-    •   **State Transitions:** For complex state changes (like game moves), implement pure functions that transform state predictably. Test each transformation independently.
-    •   **Algorithm Verification:** Before implementing complex algorithms, mentally trace through examples. For games like 2048, manually verify tile movements, merges, and positioning logic.
+    •   **Mathematical Accuracy:** For games/calculations, implement precise algorithms step-by-step. ALWAYS validate boundaries: if (x >= 0 && x < width && y >= 0 && y < height). Use === for exact comparisons.
+    •   **Game Logic Systems:** Break complex logic into smaller, testable functions. Example: moveLeft(), checkWin(), updateScore(). Each function should handle ONE responsibility.
+    •   **Array/Grid Operations:** CRITICAL - Check array bounds before access: if (grid[row] && grid[row][col] !== undefined). Use descriptive names: rowIndex, colIndex, not i, j.
+    •   **State Transitions:** For complex state changes, use pure functions that return new state. Example: const newState = {...oldState, score: oldState.score + points}.
+    •   **Algorithm Test Cases:** BEFORE coding, write a simple test case. Example: "moveLeft([2,2,4,0]) should return [4,4,0,0]". Verify your logic matches this expected output.
 
     **FRAMEWORK & SYNTAX SPECIFICS:**
     •   Framework compatibility: Pay attention to version differences (Tailwind v3 vs v4, React Router versions)
@@ -390,30 +517,57 @@ Here's how and why it happens most often and what to do about it.
     1. **IMPORT SYNTAX**: Always use correct import syntax. NEVER write \`import */styles/globals.css'\` - use \`import './styles/globals.css'\`
     2. **UNDEFINED VARIABLES**: Always import/define variables before use. \`cn is not defined\` = missing \`import { cn } from './lib/utils'\`
 
+    **CRITICAL ERROR RECOVERY PATTERNS:**
+    •   **API Call Safety:** Always wrap in try-catch with user-friendly fallbacks:
+        \`const [data, setData] = useState(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(null);\`
+    •   **Component Rendering Safety:** Use conditional rendering to prevent crashes:
+        \`{user ? <Profile user={user} /> : <div>Loading user...</div>}\`
+    •   **Array Operations Safety:** Always check if array exists:
+        \`{items?.length > 0 ? items.map(...) : <div>No items found</div>}\`
+    •   **State Update Safety:** Use functional updates when depending on previous state:
+        \`setCount(prev => prev + 1)\` instead of \`setCount(count + 1)\`
+
     **PRE-CODE VALIDATION CHECKLIST:**
     Before writing any code, mentally verify:
     - All imports use correct syntax and paths. Be cautious about named vs default imports wherever needed.
     - All variables are defined before use  
-    - No setState calls in useEffect or any other lifecycle method
+    - No setState calls during render phase
     - All Tailwind classes exist in config
     - External dependencies are available
+    - Error boundaries around components that might fail
 
     **Also there is no support for websockets and dynamic imports may not work, so please avoid using them.**
 
+    ### **IMPORT VALIDATION EXAMPLES**
+    **CRITICAL**: Verify ALL imports before using. Wrong imports = runtime crashes.
+
+    **BAD IMPORTS** (cause runtime errors):
+    \`\`\`tsx
+    import ReactFlow from '@xyflow/react';      // WRONG: ReactFlow is named export
+    import cn from '@/lib/utils';               // WRONG: cn is named export  
+    import { Button } from 'shadcn/ui';         // WRONG: should be @/components/ui
+    import { useState } from 'react';           // MISSING: React itself
+    import { useRouter } from 'next/navigation'; // WRONG: use 'react-router-dom'
+    \`\`\`
+
+    **GOOD IMPORTS** (correct syntax):
+    \`\`\`tsx
+    import React, { useState, useEffect } from 'react';  // ALWAYS import React
+    import { ReactFlow } from '@xyflow/react';           // CORRECT: named export
+    import { cn } from '@/lib/utils';                    // CORRECT: named export
+    import { Button } from '@/components/ui/button';     // CORRECT: full path
+    import { useNavigate } from 'react-router-dom';      // CORRECT for routing
+    \`\`\`
+
+    **Import Checklist**:
+    - ✅ React imported in every TSX/JSX file
+    - ✅ All @xyflow imports use named exports: { ReactFlow, Node, Edge }
+    - ✅ All UI components use full @/components/ui/[component] path
+    - ✅ cn function from '@/lib/utils' (named export)
+    - ✅ Router hooks from 'react-router-dom' (not Next.js)
+
     # Few more heuristics:
-        **IF** you receive a TypeScript error "cannot be used as a JSX component" for a component \`<MyComponent />\`, **AND** the error says its type is \`'typeof import(...)'\`, **THEN** the import statement for \`MyComponent\` is wrong.
-        **The fix is to change the import from a default to a named import.**
-        **From this:**
-        \`\`\`
-        import MyComponent from 'some-library';
-        \`\`\`
-
-        **To this:**
-
-        \`\`\`
-        import { MyComponent } from 'some-library';
-        \`\`\`
-
+        **IF** you receive a TypeScript error "cannot be used as a JSX component" for a component \`<MyComponent />\`, **AND** the error says its type is \`'typeof import(...)'\`, then check if the import is correct (named vs default import).
         Applying this rule to your situation will fix both the type-check errors and the browser's runtime error.
 
 </AVOID COMMON PITFALLS>`,
@@ -551,9 +705,10 @@ bun add @geist-ui/react@1
         - Implement proper keyboard navigation and accessibility states
     • **Layout Precision Standards:**
         - Container max-widths: Use consistent breakpoints (max-w-sm, max-w-md, max-w-lg, max-w-xl, max-w-2xl)
-        - Grid layouts: Always specify proper gaps and responsive behavior
-        - Flex layouts: Use consistent justify and align patterns
+        - Grid layouts: Always specify proper gaps (gap-4, gap-6, gap-8) and responsive behavior
+        - Flex layouts: Use consistent justify and align patterns (justify-between, items-center, space-y-4)
         - Responsive breakpoints: Test mental layout at sm, md, lg, xl breakpoints
+        - CRITICAL: Add proper page margins (px-4 md:px-6 lg:px-8) and section spacing (py-8 md:py-12)
     • **Content Presentation:**
         - Never leave empty states without proper messaging
         - Always provide loading indicators for async operations
@@ -604,15 +759,16 @@ export const STRATEGIES_UTILS = {
     SUBSEQUENT_PHASE_GUIDELINES: `**Subsequent Phases: Fleshing out & Backend Integration**
         * **Iterative Build:** Add additional functionalities and application logic expected in the project iteratively.
         * **Implement all views/pages and features:** Implement all views/pages and features that appear in the application or blueprint or user query. Flesh out the application as much as possible.
-        * **Backend Integration:** Introduce backend services, state management, and data fetching. Seed the backend appropriately.
+        * **Backend Integration:** If needed, introduce backend services, state management, and data fetching. Seed the backend appropriately while still rely on existing mock data in the application to serve as fallback if the backend errors out.
+            - Strictly follow existing backend patterns in the template. Add new routes or modify existing ones the way it's detailed in the template instructions. 
         * **Feature Expansion:** Add new features, components, and pages as needed. Nothing should be left 'coming soon' or 'to be implemented later'. Every button and feature should work.
         * **Scalable Phasing:** The *number* of these subsequent phases depends directly on the application's complexity. Simple apps might need only one refinement phase, while complex apps will require several.
         * **UI/UX:** Enhance, improve and make the application visually complete and polished. Every button and feature should work. The application should be beautiful, user friendly, visually pleasing and a piece of art.
         * **Avoid focus on non-essential stuff:** Stuff like security are non critical for shipping the product to the client. Focus on polishing and delivering the product to the client so we can get feedback directly and improve as needed.
         * **Address new client requests**: Address any new client requests or feedbacks in 1-2 phases. Direct user feedback/requests are considered urgent and need to be addressed on priority
         * **Final Polish & Review:** Conclude with a phase dedicated to final integration checks, robustness, performance tuning, and overall polish.`,
-    CODING_GUIDELINES: `**Make sure the product is **FUNCTIONAL** along with **POLISHED***
-    **MAKE SURE TO NOT BREAK THE APPLICATION in SUBSEQUENT PHASES. Look out for simple syntax errors and dependencies you use!**
+    CODING_GUIDELINES: `**Make sure the product is **FUNCTIONAL** along with **POLISHED**
+    **MAKE SURE TO NOT BREAK THE APPLICATION in SUBSEQUENT PHASES. Always keep fallbacks and failsafes in place for any backend interactions. Look out for simple syntax errors and dependencies you use!**
     **The client needs to be provided with a good demoable application after each phase. The initial first phase is the most impressionable phase! Make sure it deploys and renders well.**
     **Make sure the primary page is rendered correctly and as expected after each phase**`,
     CONSTRAINTS: `<PHASE GENERATION CONSTRAINTS>
@@ -620,7 +776,7 @@ export const STRATEGIES_UTILS = {
         **Before writing any components of your own, make sure to check the existing components and files in the template, try to use them if possible (for example preinstalled shadcn components)**
         **If auth functionality is required, provide mock auth functionality primarily. Provide real auth functionality ONLY IF template has persistence layer. Remember to seed the persistence layer with mock data AND Always PREFILL the UI with mock credentials. No oauth needed**
 
-        **Applications with single view/page or mostly static content are considered **Simple Projects** and those with multiple views/pages should are considered **Complex Projects** and should be designed accordingly.**
+        **Applications with single view/page or mostly static content are considered **Simple Projects** and those with multiple views/pages are considered **Complex Projects** and should be designed accordingly.**
         * **Phase Count:** Aim for a maximum of 1 phase for simple applications and 3-7 phases for complex applications. Each phase should be self-contained. Do not exceed more than ${Math.floor(MAX_PHASES * 0.8)} phases unless addressing complex client feedbacks.
         * **File Count:** Aim for a maximum of 1-3 files per phase for simple applications and 8-12 files per phase for complex applications.
         * The number of files in the project should be proportional to the number of views/pages that the project has.
@@ -642,7 +798,7 @@ export const STRATEGIES = {
     **STRATEGY: Scalable, Demoable Frontend and core application First / Iterative Feature Addition later**
     The project would be developed live: The user (client) would be provided a preview link after each phase. This is our rapid development and delivery paradigm.
     The core principle is to establish a visually complete and polished frontend presentation early on with core functionalities implemented, before layering in more advanced functionality and fleshing out the backend.
-    The goal is to build and demo a functional and beautiful product as fast as early on as possible.
+    The goal is to build and demo a functional and beautiful product as fast and as early as possible.
     **Each phase should be self-contained, deployable and demoable.**
     The number of phases and files per phase should scale based on the number of views/pages and complexity of the application, layed out as follows:
 
@@ -652,7 +808,7 @@ export const STRATEGIES = {
 
     ${STRATEGIES_UTILS.CONSTRAINTS}
 
-    **No need to add accessibility features. Focus on delivering an actually feature wise polished and complete application in as few phases as possible.**
+    **No need to add accessibility features. Focus on delivering an actually feature-wise polished and complete application in as few phases as possible.**
     **Always stick to existing project/template patterns. Respect and work with existing worker bindings rather than making custom ones**
     **Rely on open source tools and free tier services only apart from whats configured in the environment. Refer to template usage instructions to know if specific cloudflare services are also available for use.**
     **Make sure to implement all the features and functionality requested by the user and more. The application should be fully complete by the end of the last phase. There should be no compromises**
@@ -663,7 +819,7 @@ FRONTEND_FIRST_CODING: `<PHASES GENERATION STRATEGY>
     **STRATEGY: Scalable, Demoable Frontend and core application First / Iterative Feature Addition later**
     The project would be developed live: The user (client) would be provided a preview link after each phase. This is our rapid development and delivery paradigm.
     The core principle is to establish a visually complete and polished frontend presentation early on with core functionalities implemented, before layering in more advanced functionality and fleshing out the backend.
-    The goal is to build and demo a functional and beautiful product as fast as early on as possible.
+    The goal is to build and demo a functional and beautiful product as fast and as early as possible.
     **Each phase should be self-contained, deployable and demoable**
 
     ${STRATEGIES_UTILS.INITIAL_PHASE_GUIDELINES}
@@ -773,10 +929,10 @@ const getStyleInstructions = (style: TemplateSelection['styleSelection']): strin
         case 'Illustrative':
             return `
 **Style Name: Illustrative**
-- Characteristics: Custom illustrations, sketchy graphics, and playful
+- Characteristics: Custom illustrations, sketchy graphics, and playful elements
 - Philosophy: Human-centered, whimsical, and expressive.
-- Cartoon-style characters, brushstroke fonts, animated SVGs.
-- Heading Font options: Playfair Display, Fredericka the Great, Great Vibes 
+- Example Elements: Cartoon-style characters, brushstroke fonts, animated SVGs.
+- Heading Font options: Playfair Display, Fredericka the Great, Great Vibes
             `
 //         case 'Neumorphism':
 //             return `

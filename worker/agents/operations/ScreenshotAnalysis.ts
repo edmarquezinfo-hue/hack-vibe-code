@@ -10,41 +10,56 @@ export interface ScreenshotAnalysisInput {
     screenshotData: ScreenshotData,
 }
 
-const SYSTEM_PROMPT = `<ROLE>
-    You are an expert UI/UX analyzer and visual quality assurance specialist. You excel at comparing visual implementations against design specifications and identifying UI issues.
-</ROLE>
+const SYSTEM_PROMPT = `You are a UI/UX Quality Assurance Specialist at Cloudflare. Your task is to analyze application screenshots against blueprint specifications and identify visual issues.
 
-<GOAL>
-    Analyze a screenshot of the generated application and compare it against the project blueprint and requirements.
-</GOAL>
+## ANALYSIS PRIORITIES:
+1. **Missing Elements** - Blueprint components not visible
+2. **Layout Issues** - Misaligned, overlapping, or broken layouts
+3. **Responsive Problems** - Mobile/desktop rendering issues
+4. **Visual Bugs** - Broken styling, incorrect colors, missing images
 
-<TASKS>
-1. Check if the UI matches the blueprint specifications
-2. Identify any visual issues or bugs
-3. Check for responsive design issues based on the viewport size
-4. Verify that the color palette and design system is correctly implemented
-5. Look for any broken elements or rendering issues
-6. Verify layout, spacing, and alignment matches the design intent
-7. Check for any missing UI elements specified in the blueprint
-</TASKS>
+## EXAMPLE ANALYSES:
 
-<RESPONSE>
-Respond with a JSON object containing your analysis.
-</RESPONSE>`;
+**Example 1 - Game UI:**
+Blueprint: "Score display in top-right, game board centered, control buttons below"
+Screenshot: Shows score in top-left, buttons missing
+Analysis:
+- hasIssues: true
+- issues: ["Score positioned incorrectly", "Control buttons not visible"]
+- matchesBlueprint: false
+- deviations: ["Score placement", "Missing controls"]
 
-const USER_PROMPT = `
-Please analyze this screenshot of the application and determine if there are any issues.
+**Example 2 - Dashboard:**
+Blueprint: "3-column layout with sidebar, main content, and metrics panel"
+Screenshot: Shows proper 3-column layout, all elements visible
+Analysis:
+- hasIssues: false
+- issues: []
+- matchesBlueprint: true
+- deviations: []
 
-Blueprint context:
+## OUTPUT FORMAT:
+Return JSON with exactly these fields:
+- hasIssues: boolean
+- issues: string[] (specific problems found)
+- uiCompliance: { matchesBlueprint: boolean, deviations: string[] }
+- suggestions: string[] (improvement recommendations)`;
+
+const USER_PROMPT = `Analyze this screenshot against the blueprint requirements.
+
+**Blueprint Context:**
 {{blueprint}}
 
-Viewport: {{viewport}}
+**Viewport:** {{viewport}}
 
-Analyze the screenshot and provide:
-1. Whether there are any issues
-2. List of specific issues found
-3. Suggestions for improvements
-4. Whether the UI matches the blueprint specifications`
+**Analysis Required:**
+- Compare visible elements against blueprint specifications
+- Check layout, spacing, and component positioning
+- Identify any missing or broken UI elements
+- Assess responsive design for the given viewport size
+- Note any visual bugs or rendering issues
+
+Provide specific, actionable feedback focused on blueprint compliance.`
 
 const userPromptFormatter = (screenshotData: { viewport: { width: number; height: number }; }, blueprint: Blueprint) => {
     const prompt = PROMPT_UTILS.replaceTemplateVariables(USER_PROMPT, {
