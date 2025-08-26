@@ -1,15 +1,12 @@
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { AuthButton } from '../auth/auth-button';
 import { ThemeToggle } from '../theme-toggle';
-import { CostDisplay } from '../analytics/cost-display';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/auth-context';
-import { useUserAnalytics } from '@/hooks/use-analytics';
-import { extractUserAnalyticsProps } from '@/utils/analytics';
 
 export function GlobalHeader() {
 	const { user } = useAuth();
-	const { analytics, loading: analyticsLoading } = useUserAnalytics(user?.id, undefined, true, 30000);
+	// const { analytics, loading: analyticsLoading } = useUserAnalytics(user?.id, undefined, true, 30000);
 
 	return (
 		<motion.header
@@ -48,13 +45,13 @@ export function GlobalHeader() {
 						transition={{ delay: 0.2 }}
 						className="flex items-center gap-2"
 					>
-						{user && (
+						{/* {user && (
 							<CostDisplay
 								{...extractUserAnalyticsProps(analytics)}
 								loading={analyticsLoading}
 								variant="inline"
 							/>
-						)}
+						)} */}
 						<ThemeToggle />
 						<AuthButton />
 					</motion.div>
