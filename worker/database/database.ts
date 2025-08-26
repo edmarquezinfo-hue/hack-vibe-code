@@ -5,7 +5,7 @@
  */
 
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq , sql } from 'drizzle-orm';
 import * as schema from './schema';
 import { generateId } from '../utils/idGenerator';
 
@@ -25,7 +25,7 @@ export interface DatabaseEnv {
 export type {
     User, NewUser, Session, NewSession,
     Team, NewTeam, TeamMember, NewTeamMember,
-    App, NewApp, CodeGenInstance, NewCodeGenInstance,
+    App, NewApp,
     Board, NewBoard, BoardMember, NewBoardMember,
     CloudflareAccount, NewCloudflareAccount,
     GitHubIntegration, NewGitHubIntegration,
@@ -49,38 +49,6 @@ export class DatabaseService {
     constructor(env: DatabaseEnv) {
         this.db = drizzle(env.DB, { schema });
     }
-
-    // ========================================
-    // CODE GENERATION INSTANCES (Core Operations)
-    // ========================================
-
-    async createCodeGenInstance(instanceData: Omit<schema.NewCodeGenInstance, 'id'>): Promise<schema.CodeGenInstance> {
-        const [instance] = await this.db
-            .insert(schema.codeGenInstances)
-            .values({ ...instanceData, id: generateId() })
-            .returning();
-        return instance;
-    }
-
-    async updateCodeGenInstance(instanceId: string, updates: Partial<schema.CodeGenInstance>): Promise<void> {
-        await this.db
-            .update(schema.codeGenInstances)
-            .set({ ...updates, lastActivityAt: new Date() })
-            .where(eq(schema.codeGenInstances.id, instanceId));
-    }
-
-    async getStaleCodeGenInstances(hoursOld: number = 24): Promise<schema.CodeGenInstance[]> {
-        const cutoffTime = new Date(Date.now() - hoursOld * 60 * 60 * 1000);
-        
-        return await this.db
-            .select()
-            .from(schema.codeGenInstances)
-            .where(and(
-                eq(schema.codeGenInstances.status, 'active'),
-                sql`${schema.codeGenInstances.lastActivityAt} < ${cutoffTime}`
-            ));
-    }
-
     // ========================================
     // CLOUDFLARE INTEGRATION (Core Operations)
     // ========================================

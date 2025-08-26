@@ -17,8 +17,5 @@ export function setupUserRoutes(router: Router): Router {
     router.put('/api/user/profile', userController.updateProfile.bind(userController), AuthConfig.authenticated);
     router.get('/api/user/teams', userController.getTeams.bind(userController), AuthConfig.authenticated);
     
-    // Agent session creation
-    router.post('/api/user/agent-session', userController.createAgentSession.bind(userController), AuthConfig.authenticated);
-
     return router;
 }

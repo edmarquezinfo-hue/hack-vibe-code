@@ -49,7 +49,7 @@ try {
 const env = {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    GOOGLE_AI_STUDIO_API_KEY: process.env.GOOGLE_AI_STUDIO_API_KEY,
     CF_AI_BASE_URL: process.env.CF_AI_BASE_URL,
     CF_AI_API_KEY: process.env.CF_AI_API_KEY
 };
@@ -94,7 +94,7 @@ async function runBenchmark(algorithms: string[], models: string[]) {
     const codeFixer = new CodeFixer(env);
     
     // Simple API key check
-    if (!env.ANTHROPIC_API_KEY && !env.OPENAI_API_KEY && !env.GEMINI_API_KEY) {
+    if (!env.ANTHROPIC_API_KEY && !env.OPENAI_API_KEY && !env.GOOGLE_AI_STUDIO_API_KEY) {
         console.error('❌ No API keys found - check your .dev.vars file');
         process.exit(1);
     }

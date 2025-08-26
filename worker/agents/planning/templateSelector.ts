@@ -3,7 +3,7 @@ import { TemplateListResponse} from '../../services/sandbox/sandboxTypes';
 import z from 'zod';
 import { createLogger } from '../../logger';
 import { executeInference } from '../inferutils/infer';
-import { InferenceMetadata } from '../inferutils/config.types';
+import { InferenceContext } from '../inferutils/config.types';
 
 const logger = createLogger('TemplateSelector');
 
@@ -21,15 +21,15 @@ export type TemplateSelection = z.infer<typeof TemplateSelectionSchema>;
 
 interface SelectTemplateArgs {
     env: Env;
-    metadata: InferenceMetadata;
     query: string;
     availableTemplates: TemplateListResponse['templates'];
+    inferenceContext: InferenceContext;
 }
 
 /**
  * Uses AI to select the most suitable template for a given query.
  */
-export async function selectTemplate({ env, metadata, query, availableTemplates }: SelectTemplateArgs): Promise<TemplateSelection> {
+export async function selectTemplate({ env, query, availableTemplates, inferenceContext }: SelectTemplateArgs): Promise<TemplateSelection> {
     if (availableTemplates.length === 0) {
         logger.info("No templates available for selection.");
         return { selectedTemplateName: null, reasoning: "No templates were available to choose from.", useCase: null, complexity: null, styleSelection: null, projectName: '' };
@@ -80,7 +80,7 @@ Which template (if any) is the most suitable starting point for this query?`;
             messages,
             agentActionName: "templateSelection",
             schema: TemplateSelectionSchema,
-            context: metadata,
+            context: inferenceContext,
             maxTokens: 2000,
         });
 

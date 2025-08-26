@@ -27,15 +27,6 @@ export interface UserAppsData {
 }
 
 /**
- * Response data for createAgentSession
- * Uses existing schema types directly
- */
-export interface AgentSessionData {
-    app: schema.App;
-    codeGenInstance: schema.CodeGenInstance;
-}
-
-/**
  * Response data for updateProfile
  * Simple result interface - no duplication needed
  */

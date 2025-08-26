@@ -63,6 +63,19 @@ export class FileManager implements IFileManager {
         });
     }
 
+    getFile(path: string): FileOutputType | null {
+        const generatedFile = this.getGeneratedFile(path);
+        if (generatedFile) {
+            return generatedFile;
+        }
+        
+        const templateFile = this.getTemplateFile(path);
+        if (!templateFile) {
+            return null;
+        }
+        return {...templateFile, filePurpose: 'Template file'};
+    }
+    
     getFileContents(path: string): string {
         const generatedFile = this.getGeneratedFile(path);
         if (generatedFile) {

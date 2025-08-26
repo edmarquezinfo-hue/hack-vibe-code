@@ -64,7 +64,7 @@ curl -fsSL https://bun.sh/install | bash
 # Required for benchmark mode, optional for validate mode:
 ANTHROPIC_API_KEY=your_anthropic_key
 OPENAI_API_KEY=your_openai_key  
-GEMINI_API_KEY=your_gemini_key
+GOOGLE_AI_STUDIO_API_KEY=your_gemini_key
 ```
 
 ### Installation

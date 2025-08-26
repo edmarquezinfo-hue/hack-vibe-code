@@ -2,6 +2,18 @@
 import type { RuntimeError, StaticAnalysisResponse } from '../../services/sandbox/sandboxTypes';
 import type { ClientReportedErrorType, FileOutputType } from '../schemas';
 import type { ConversationMessage } from '../inferutils/common';
+import type { InferenceContext } from '../inferutils/config.types';
+import type { TemplateDetails } from '../../services/sandbox/sandboxTypes';
+
+export interface AgentInitArgs {
+    query: string;
+    language?: string;
+    frameworks?: string[];
+    hostname: string;
+    inferenceContext: InferenceContext;
+    onTemplateGenerated: (templateDetails: TemplateDetails) => void;
+    onBlueprintChunk: (chunk: string) => void;
+}
 
 export interface AllIssues {
     runtimeErrors: RuntimeError[];

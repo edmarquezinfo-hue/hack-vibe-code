@@ -410,52 +410,6 @@ export const apps = sqliteTable('apps', {
 }));
 
 /**
- * CodeGenInstances table - Track active generation sessions with real-time state
- */
-export const codeGenInstances = sqliteTable('code_gen_instances', {
-    id: text('id').primaryKey(),
-    
-    // Associated App
-    appId: text('app_id').references(() => apps.id, { onDelete: 'cascade' }),
-    
-    // Session Context
-    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
-    sessionToken: text('session_token'), // For anonymous sessions
-    websocketConnectionId: text('websocket_connection_id'), // For real-time updates
-    
-    // Generation State
-    currentPhase: text('current_phase'),
-    phases: text('phases', { mode: 'json' }).default('[]'), // Array of completed phases
-    isGenerating: integer('is_generating', { mode: 'boolean' }).default(false),
-    isPaused: integer('is_paused', { mode: 'boolean' }).default(false),
-    
-    // Runtime State
-    blueprint: text('blueprint', { mode: 'json' }),
-    generatedFiles: text('generated_files', { mode: 'json' }).default('{}'),
-    runtimeErrors: text('runtime_errors', { mode: 'json' }).default('[]'),
-    deploymentInfo: text('deployment_info', { mode: 'json' }).default('{}'),
-    
-    // Agent Communication
-    agentMessages: text('agent_messages', { mode: 'json' }).default('[]'), // Chat history
-    commandHistory: text('command_history', { mode: 'json' }).default('[]'),
-    
-    // Status and Error Handling
-    status: text('status').notNull().default('active'), // 'active', 'completed', 'error', 'cancelled'
-    errorInfo: text('error_info', { mode: 'json' }),
-    
-    // Timing
-    startedAt: integer('started_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-    completedAt: integer('completed_at', { mode: 'timestamp' }),
-    lastActivityAt: integer('last_activity_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-}, (table) => ({
-    appIdx: index('codegen_instances_app_idx').on(table.appId),
-    userIdx: index('codegen_instances_user_idx').on(table.userId),
-    sessionTokenIdx: index('codegen_instances_session_token_idx').on(table.sessionToken),
-    statusIdx: index('codegen_instances_status_idx').on(table.status),
-    websocketIdx: index('codegen_instances_websocket_idx').on(table.websocketConnectionId),
-}));
-
-/**
  * Favorites table - Track user favorite apps
  */
 export const favorites = sqliteTable('favorites', {
@@ -879,9 +833,6 @@ export type NewTeamMember = typeof teamMembers.$inferInsert;
 
 export type App = typeof apps.$inferSelect;
 export type NewApp = typeof apps.$inferInsert;
-
-export type CodeGenInstance = typeof codeGenInstances.$inferSelect;
-export type NewCodeGenInstance = typeof codeGenInstances.$inferInsert;
 
 export type Board = typeof boards.$inferSelect;
 export type NewBoard = typeof boards.$inferInsert;

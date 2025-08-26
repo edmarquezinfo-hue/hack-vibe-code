@@ -55,7 +55,6 @@ const categorizeAgent = (agentKey: string): string => {
     'conversationalResponse': 'quickstart',
     'phaseGeneration': 'planning',
     'projectSetup': 'planning',
-    'userSuggestionProcessor': 'planning',
     'phaseImplementation': 'coding',
     'firstPhaseImplementation': 'coding',
     'fileRegeneration': 'coding',

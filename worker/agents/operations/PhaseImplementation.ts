@@ -1,4 +1,4 @@
-import { PhaseConceptType, FileOutputType, PhaseConceptSchema, TechnicalInstructionType } from '../schemas';
+import { PhaseConceptType, FileOutputType, PhaseConceptSchema } from '../schemas';
 import { IssueReport } from '../domain/values/IssueReport';
 import { createUserMessage } from '../inferutils/common';
 import { executeInference } from '../inferutils/infer';
@@ -9,14 +9,14 @@ import { FileProcessing } from '../domain/pure/FileProcessing';
 import { AgentOperation, getSystemPromptWithProjectContext, OperationOptions } from '../operations/common';
 import { SCOFFormat, SCOFParsingState } from '../streaming-formats/scof';
 import { TemplateRegistry } from '../inferutils/schemaFormatters';
-import { RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
+import { IsRealtimeCodeFixerEnabled, RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
 import { AGENT_CONFIG } from '../inferutils/config';
 
 export interface PhaseImplementationInputs {
     phase: PhaseConceptType
     issues: IssueReport
-    technicalInstructions?: TechnicalInstructionType | null
     isFirstPhase: boolean
+    shouldAutoFix: boolean
     fileGeneratingCallback: (filePath: string, filePurpose: string) => void
     fileChunkGeneratedCallback: (filePath: string, chunk: string, format: 'full_content' | 'unified_diff') => void
     fileClosedCallback: (file: FileOutputType, message: string) => void
@@ -137,7 +137,7 @@ ${PROMPT_UTILS.COMMON_DEP_DOCUMENTATION}
 
 {{technicalInstructions}}`;
 
-export const LAST_PHASE_PROMPT = `Finalization and Review phase. 
+const LAST_PHASE_PROMPT = `Finalization and Review phase. 
 Goal: Thoroughly review the entire codebase generated in previous phases. Identify and fix any remaining critical issues (runtime errors, logic flaws, rendering bugs) before deployment.
 ** YOU MUST HALT AFTER THIS PHASE **
 
@@ -197,39 +197,38 @@ Goal: Thoroughly review the entire codebase generated in previous phases. Identi
 
 This phase prepares the code for final deployment.`;
 
-const formatTechnicalInstructions = (instructions?: TechnicalInstructionType | null): string => {
-    if (!instructions || instructions.instructions.length === 0 || instructions === null) {
-        return '';
-    }
-    
-    return `<USER TECHNICAL INSTRUCTIONS>
-**Priority Level**: ${instructions.priority.toUpperCase()}
+const README_GENERATION_PROMPT = `<TASK>
+Generate a comprehensive README.md file for this project based on the provided blueprint and template information.
+The README should be professional, well-structured, and provide clear instructions for users and developers.
+</TASK>
 
-**Technical Instructions to Integrate**:
-${instructions.instructions.map((instruction, index) => `${index + 1}. ${instruction}`).join('\n')}
+<INSTRUCTIONS>
+- Create a professional README with proper markdown formatting
+- Include project title, description, and key features from the blueprint
+- Add technology stack section based on the template dependencies
+- Include setup/installation instructions using bun (not npm/yarn)
+- Add usage examples and development instructions
+- Include a deployment section with Cloudflare-specific instructions
+- **IMPORTANT**: Add a \`[cloudflarebutton]\` placeholder near the top and another in the deployment section for the Cloudflare deploy button. Write the **EXACT** string except the backticks.
+- Structure the content clearly with appropriate headers and sections
+- Be concise but comprehensive - focus on essential information
+- Use professional tone suitable for open source projects
+</INSTRUCTIONS>
 
-**Files That May Be Affected**: ${instructions.affectedFiles.length > 0 ? instructions.affectedFiles.join(', ') : 'No specific files identified'}
+Generate the complete README.md content in markdown format. Do not provide any additional text or explanation. All your would be directly saved in the README.md file.`;
 
-**Integration Approach**: Merge these instructions with the phase concepts below. Ensure that both the phase goals AND the user's technical requirements are addressed in your implementation.
+const specialPhasePromptOverrides: Record<string, string> = {
+    "Finalization and Review": LAST_PHASE_PROMPT,
+}
 
-**IMPORTANT INTEGRATION NOTES:**
-- These technical instructions are derived from user feedback and suggestions
-- Integrate these instructions WITH the phase concepts, not instead of them
-- If instructions conflict with phase goals, prioritize architectural consistency while finding creative solutions
-- Focus on high-priority instructions first, then incorporate medium/low priority as feasible
-- Ensure all affected files mentioned in instructions are considered for updates
-</USER TECHNICAL INSTRUCTIONS>`;
-};
-
-const userPropmtFormatter = (phaseConcept: PhaseConceptType, issues: IssueReport, technicalInstructions?: TechnicalInstructionType | null) => {
+const userPropmtFormatter = (phaseConcept: PhaseConceptType, issues: IssueReport) => {
     const phaseText = TemplateRegistry.markdown.serialize(
         phaseConcept,
         PhaseConceptSchema
     );
     
-    const prompt = PROMPT_UTILS.replaceTemplateVariables(USER_PROMPT, {
+    const prompt = PROMPT_UTILS.replaceTemplateVariables(specialPhasePromptOverrides[phaseConcept.name] || USER_PROMPT, {
         phaseText,
-        technicalInstructions: formatTechnicalInstructions(technicalInstructions),
         issues: issuesPromptFormatter(issues)
     });
     return PROMPT_UTILS.verifyPrompt(prompt);
@@ -240,20 +239,16 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
         inputs: PhaseImplementationInputs,
         options: OperationOptions
     ): Promise<PhaseImplementationOutputs> {
-        const { phase, issues, technicalInstructions } = inputs;
+        const { phase, issues } = inputs;
         const { env, logger, context } = options;
         
-        const instructionsInfo = technicalInstructions 
-            ? `with ${technicalInstructions.instructions.length} technical instructions (${technicalInstructions.priority} priority)`
-            : "without technical instructions";
-            
-        logger.info(`Generating files for phase: ${phase.name} ${instructionsInfo}`, phase.description, "files:", phase.files.map(f => f.path));
+        logger.info(`Generating files for phase: ${phase.name}`, phase.description, "files:", phase.files.map(f => f.path));
     
         // Notify phase start
         const codeGenerationFormat = new SCOFFormat();
         // Build messages for generation
         const messages = getSystemPromptWithProjectContext(SYSTEM_PROMPT, context, true);
-        messages.push(createUserMessage(userPropmtFormatter(phase, issues, technicalInstructions) + codeGenerationFormat.formatInstructions()));
+        messages.push(createUserMessage(userPropmtFormatter(phase, issues) + codeGenerationFormat.formatInstructions()));
     
         // Initialize streaming state
         const streamingState: CodeGenerationStreamingState = {
@@ -263,24 +258,13 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
         };
     
         const fixedFilePromises: Promise<FileOutputType>[] = [];
-        
-        // // Pre-compute expensive operations outside the callback for efficiency
-        // const filesBeingGenerated = new Set(phase.files.map(f => f.path));
-        // const allFilesLookup = context.allFiles.reduce((acc, file) => ({ ...acc, [file.filePath]: file }), {});
-        
-        // // Pre-filter existing files that won't be generated in this phase
-        // const existingFilesNotBeingGenerated = context.allFiles
-        //     .filter(f => !filesBeingGenerated.has(f.filePath))
-        //     .map(f => ({
-        //         filePath: f.filePath,
-        //         fileContents: f.fileContents,
-        //         filePurpose: FileProcessing.findFilePurpose(f.filePath, phase, allFilesLookup)
-        //     }));
 
         let modelConfig = AGENT_CONFIG.phaseImplementation;
         if (inputs.isFirstPhase) {
             modelConfig = AGENT_CONFIG.firstPhaseImplementation;
         }
+
+        const shouldEnableRealtimeCodeFixer = inputs.shouldAutoFix && IsRealtimeCodeFixerEnabled(options.inferenceContext);
     
         // Execute inference with streaming
         await executeInference({
@@ -329,36 +313,24 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
                                     context.allFiles.reduce((acc, f) => ({ ...acc, [f.filePath]: f }), {})
                                 )
                             };
-    
-                            // // Build previousFiles efficiently using pre-computed values
-                            // // Get files already generated in this phase (excluding current file)
-                            // const generatedFilesInPhase = Array.from(streamingState.completedFiles.values())
-                            //     .filter(f => f.filePath !== filePath)
-                            //     .map(f => ({
-                            //         filePath: f.filePath,
-                            //         fileContents: f.fileContents,
-                            //         filePurpose: FileProcessing.findFilePurpose(f.filePath, phase, allFilesLookup)
-                            //     }));
-                            
-                            // // Combine pre-computed existing files + already generated files for realtime code fixer
-                            // const previousFiles = [...existingFilesNotBeingGenerated, ...generatedFilesInPhase];
 
-                            // Call realtime code fixer immediately - this is the "realtime" aspect
-                            const realtimeCodeFixer = new RealtimeCodeFixer(env, options.inferenceContext);
-                            const fixPromise = realtimeCodeFixer.run(
-                                generatedFile, 
-                                {
-                                    // previousFiles: previousFiles,
-                                    query: context.query,
-                                    blueprint: context.blueprint,
-                                    template: context.templateDetails
-                                },
-                                phase
-                            );
-
-                            // const fixPromise = Promise.resolve(generatedFile);
-                            
-                            fixedFilePromises.push(fixPromise);
+                            if (shouldEnableRealtimeCodeFixer) {
+                                // Call realtime code fixer immediately - this is the "realtime" aspect
+                                const realtimeCodeFixer = new RealtimeCodeFixer(env, options.inferenceContext);
+                                const fixPromise = realtimeCodeFixer.run(
+                                    generatedFile, 
+                                    {
+                                        // previousFiles: previousFiles,
+                                        query: context.query,
+                                        blueprint: context.blueprint,
+                                        template: context.templateDetails
+                                    },
+                                    phase
+                                );
+                                fixedFilePromises.push(fixPromise);
+                            } else {
+                                fixedFilePromises.push(Promise.resolve(generatedFile));
+                            }
     
                             inputs.fileClosedCallback(generatedFile, `Completed generation of ${filePath}`);
                         }
@@ -380,5 +352,38 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
             deploymentNeeded: fixedFilePromises.length > 0,
             commands,
         };
+    }
+
+    async generateReadme(options: OperationOptions): Promise<FileOutputType> {
+        const { env, logger, context } = options;
+        logger.info("Generating README.md for the project");
+
+        try {
+            let readmePrompt = README_GENERATION_PROMPT;
+            const messages = [...getSystemPromptWithProjectContext(SYSTEM_PROMPT, context, true), createUserMessage(readmePrompt)];
+
+            const results = await executeInference({
+                env: env,
+                messages,
+                agentActionName: "projectSetup",
+                context: options.inferenceContext,
+            });
+
+            if (!results || !results.string) {
+                logger.error('Failed to generate README.md content');
+                throw new Error('Failed to generate README.md content');
+            }
+
+            logger.info('Generated README.md content successfully');
+
+            return {
+                filePath: 'README.md',
+                fileContents: results.string,
+                filePurpose: 'Project documentation and setup instructions'
+            };
+        } catch (error) {
+            logger.error("Error generating README:", error);
+            throw error;
+        }
     }
 }

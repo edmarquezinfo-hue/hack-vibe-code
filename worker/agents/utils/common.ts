@@ -1,5 +1,3 @@
-
-
 export function extractCommands(rawOutput: string, onlyInstallCommands: boolean = false): string[] {
 	const commands: string[] = [];
 

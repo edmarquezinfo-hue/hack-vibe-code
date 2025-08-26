@@ -67,7 +67,8 @@ export const CodeReviewOutput = z.object({
 export const BlueprintSchema = z.object({
     title: z.string().describe('Title of the application'),
     projectName: z.string().describe('Name of the project, in small case, no special characters, no spaces, no dots. Only letters, numbers, hyphens, underscores are allowed.'),
-    description: z.string().describe('Enhanced and detailed description of what the application does and how its supposed to work. Break down the project into smaller components and describe each component in detail.'),
+    detailedDescription: z.string().describe('Enhanced and detailed description of what the application does and how its supposed to work. Break down the project into smaller components and describe each component in detail.'),
+    description: z.string().describe('Short, brief, concise description of the application in a single sentence'),
     colorPalette: z.array(z.string()).describe('Color palette RGB codes to be used in the application, only base colors and not their shades, max 3 colors'),
     views: z.array(z.object({
         name: z.string().describe('Name of the view'),
@@ -152,16 +153,6 @@ export const ConversationalResponseSchema = z.object({
     userResponse: z.string().describe('Response message to send back to the user via WebSocket'),
 });
 
-export const TechnicalInstructionSchema = z.object({
-    instructions: z.array(z.string()).describe('Targeted, concise, DRY technical change instructions (no code)'),
-    priority: z.enum(['high', 'medium', 'low']).describe('Priority level for implementing these instructions'),
-    affectedFiles: z.array(z.object({
-        path: z.string().describe('Path to the file relative to the project root'),
-        changes: z.array(z.string()).describe('Concise and brief description of the changes to be made to the file'),
-    })).describe('List of file paths that may be affected by these instructions'),
-});
-
 export type ConversationalResponseType = z.infer<typeof ConversationalResponseSchema>;
-export type TechnicalInstructionType = z.infer<typeof TechnicalInstructionSchema>;
 
 

@@ -1,6 +1,6 @@
 import { SimpleCodeGeneratorAgent } from "./simpleGeneratorAgent";
-import { Blueprint } from '../schemas';
-import { TemplateDetails } from '../../services/sandbox/sandboxTypes';
+import { CodeGenState } from "./state";
+import { AgentInitArgs } from "./types";
 
 /**
  * SmartCodeGeneratorAgent - Smartly orchestrated AI-powered code generation
@@ -19,31 +19,16 @@ export class SmartCodeGeneratorAgent extends SimpleCodeGeneratorAgent {
      * Sets up services and begins deployment process
      */
     async initialize(
-        query: string,
-        blueprint: Blueprint,
-        templateDetails: TemplateDetails,
-        sessionId: string,
-        hostname: string,
-        userId: string,
+        initArgs: AgentInitArgs,
         agentMode: 'deterministic' | 'smart'
-    ): Promise<void> {
-        this.logger.setFields({
-            sessionId,
-            blueprintPhases: blueprint.implementationRoadmap?.length || 0,
-            agentType: agentMode
-        });
-        
+    ): Promise<CodeGenState> {
         this.logger.info('🧠 Initializing SmartCodeGeneratorAgent with enhanced AI orchestration', {
-            queryLength: query.length,
-            blueprintPhases: blueprint.implementationRoadmap?.length || 0,
-            templateName: templateDetails?.name,
+            queryLength: initArgs.query.length,
             agentType: agentMode
         });
 
         // Call the parent initialization
-        await super.initialize(query, blueprint, templateDetails, sessionId, hostname, userId);
-        
-        this.logger.info("🚀 Smart Agent initialized successfully with AI orchestration capabilities");
+        return await super.initialize(initArgs);
     }
 
     async generateAllFiles(reviewCycles: number = 10): Promise<void> {

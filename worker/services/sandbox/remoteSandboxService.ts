@@ -170,8 +170,8 @@ export class RemoteSandboxServiceClient extends BaseSandboxService{
     /**
      * Write files to a runner instance.
      */
-    async writeFiles(instanceId: string, files: WriteFilesRequest['files']): Promise<WriteFilesResponse> {
-        const requestBody: WriteFilesRequest = { files };
+    async writeFiles(instanceId: string, files: WriteFilesRequest['files'], commitMessage?: string): Promise<WriteFilesResponse> {
+        const requestBody: WriteFilesRequest = { files, commitMessage };
         return this.makeRequest(`/instances/${instanceId}/files`, 'POST', WriteFilesResponseSchema, requestBody);
     }
 
