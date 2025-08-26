@@ -1,6 +1,6 @@
 # 🧡 Cloudflare Orange Build
 
-> **An open source full-stack AI webapp generator** – Deploy your own instance of Cloudflare Orange Build, an alternative to platforms like Lovable, V0, and Bolt that you can run and customize yourself.
+> **An open source full-stack AI webapp generator** – Deploy your own instance of Cloudflare Orange Build, an AI vibe coding platform that you can run and customize yourself.
 
 <div align="center">
 
