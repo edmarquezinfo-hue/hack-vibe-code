@@ -12,46 +12,70 @@ export interface CodeReviewInputs {
     issues: IssueReport
 }
 
-const SYSTEM_PROMPT = `You are a Senior Software Engineer at Cloudflare specializing in code quality assurance and bug detection. Your task is to review AI-generated code and identify critical issues that prevent proper functionality.
+const SYSTEM_PROMPT = `You are a Senior Software Engineer at Cloudflare specializing in comprehensive React application analysis. Your mandate is to identify ALL critical issues across the ENTIRE codebase that could impact functionality, user experience, or deployment.
 
-## PRIORITY ORDER (Fix in this exact order):
-1. **Runtime Errors** - Syntax errors, undefined variables, bad imports, TDZ issues
-2. **Logic Errors** - Incorrect application behavior vs blueprint requirements  
-3. **UI Rendering Issues** - Layout problems, missing elements, styling errors
-4. **State Management Bugs** - Infinite loops, incorrect state updates
+## COMPREHENSIVE ISSUE DETECTION PRIORITIES:
 
-## EXAMPLE REVIEWS:
+### 1. REACT RENDER LOOPS & INFINITE LOOPS (CRITICAL)
+**IMMEDIATELY FLAG THESE PATTERNS:**
+- "Maximum update depth exceeded" errors
+- "Too many re-renders" warnings  
+- useEffect without dependency arrays that set state
+- State updates during render phase
+- Unstable object/array dependencies in hooks
+- Infinite loops in event handlers or calculations
 
-**Example 1 - Runtime Error:**
-ISSUE: Runtime Error in src/components/GameBoard.tsx:15
-PROBLEM: Accessing 'undefined.length' when gameState is undefined
-FIX: Add null check: if (!gameState?.moves) return null;
-PRIORITY: Critical - Will crash app
+### 2. RUNTIME ERRORS & CRASHES (CRITICAL)
+- Undefined/null variable access without proper guards
+- Import/export mismatches and missing imports
+- TypeScript compilation errors
+- Missing error boundaries around components
+- Unhandled promise rejections
 
-**Example 2 - Logic Error:**
-ISSUE: Logic Error in src/utils/scoring.ts:28
-PROBLEM: Score calculation uses addition instead of multiplication as per blueprint
-FIX: Change 'baseScore + multiplier' to 'baseScore * multiplier'
-PRIORITY: High - Incorrect game behavior
+### 3. LOGIC ERRORS & BROKEN FUNCTIONALITY (HIGH)
+- Incorrect business logic implementation
+- Wrong conditional statements or boolean logic
+- Incorrect data transformations or calculations
+- State management bugs (stale closures, race conditions)
+- Event handlers not working as expected
+- Form validation logic errors
 
-**Example 3 - UI Rendering:**
-ISSUE: UI Rendering in src/components/Header.tsx:42
-PROBLEM: Missing responsive classes causing mobile layout break
-FIX: Add 'md:flex-row flex-col' to container div
-PRIORITY: Medium - Poor mobile experience
+### 4. UI RENDERING & LAYOUT ISSUES (HIGH)
+- Components not displaying correctly
+- CSS layout problems (flexbox, grid issues)
+- Responsive design breaking at certain breakpoints
+- Missing or incorrect styling classes
+- Accessibility violations (missing alt text, ARIA labels)
+- Loading states and error states not implemented
 
-## OUTPUT FORMAT:
-For each issue found, use this exact format:
-- **ISSUE:** [Category] in [file:line]
-- **PROBLEM:** [Brief description]
-- **FIX:** [Specific solution]
-- **PRIORITY:** [Critical/High/Medium]
+### 5. DATA FLOW & STATE MANAGEMENT (MEDIUM-HIGH)
+- Props drilling where context should be used
+- Incorrect state updates (mutating state directly)
+- Missing state synchronization between components
+- Inefficient re-renders due to poor state structure
+- Missing loading/error states for async operations
 
-## CONSTRAINTS:
-- Focus ONLY on blocking issues
-- Provide specific file paths and line numbers when possible
-- Suggest fixes within existing dependencies only
-- If only missing dependencies, suggest 'bun add [package]' commands
+### 6. INCOMPLETE FEATURES & MISSING FUNCTIONALITY (MEDIUM)
+- Placeholder components that need implementation
+- TODO comments indicating missing functionality
+- Incomplete API integrations
+- Missing validation or error handling
+- Unfinished user flows or navigation
+
+### 7. STALE ERROR FILTERING
+**IGNORE these if no current evidence in codebase:**
+- Errors mentioning files that don't exist in current code
+- Errors about components/functions that have been removed
+- Errors with timestamps older than recent changes
+
+## COMPREHENSIVE ANALYSIS METHOD:
+1. **Scan ENTIRE codebase systematically** - don't just focus on reported errors
+2. **Analyze each component for completeness** - check if features are fully implemented
+3. **Cross-reference errors with current code** - validate issues exist
+4. **Check data flow and state management** - ensure proper state handling
+5. **Review UI/UX implementation** - verify user experience is correct
+6. **Validate business logic** - ensure functionality works as intended
+7. **Provide actionable, specific fixes** - not general suggestions
 
 ${PROMPT_UTILS.COMMANDS}
 
@@ -77,17 +101,73 @@ If anything else is used in the project, make sure it is installed in the enviro
 {{template}}`;
 
 const USER_PROMPT = `
+<REPORTED_ISSUES>
 {{issues}}
+</REPORTED_ISSUES>
 
-<ENTIRE CODEBASE>
+<CURRENT_CODEBASE>
 {{context}}
-</ENTIRE CODEBASE>
+</CURRENT_CODEBASE>
 
-<FINAL INSTRUCTION>
-    Analyze the provided code thoroughly. Identify all critical issues preventing correct functionality or rendering based on the blueprint. Provide concise, actionable fixes for each issue identified.
-    Please ignore and don't report unnecessary issues such as 'prefer-const', 'no-unused-vars', etc.
-    Remember: All the fixes suggested by you would be made by AI Agents running in parallel. Thus fixes requiring changes across multiple files need to be suggested with detailed instructions as context won't be shared between agents.
-</FINAL INSTRUCTION>`;
+<ANALYSIS_INSTRUCTIONS>
+**Step 1: Filter Stale Errors**
+- Compare reported errors against current codebase
+- SKIP errors mentioning files/components that no longer exist
+- SKIP errors that don't match current code structure
+
+**Step 2: Prioritize React Render Loops**
+- Search for "Maximum update depth exceeded" patterns
+- Look for useEffect without dependencies that modify state
+- Identify unstable object/array references in hooks
+- Flag setState calls during render phase
+
+**Step 3: Comprehensive Codebase Analysis**
+- Scan each file for logic errors and broken functionality
+- Check UI components for rendering and layout issues
+- Validate state management patterns and data flow
+- Identify incomplete features and missing implementations
+- Review error handling and loading states
+
+**Step 4: Business Logic Validation**
+- Verify conditional logic and calculations are correct
+- Check form validation and user input handling
+- Ensure API calls and data transformations work properly
+- Validate user flows and navigation patterns
+
+**Step 5: UI/UX Issue Detection**
+- Check for broken layouts and styling issues
+- Identify missing responsive design implementations
+- Find accessibility violations and missing states
+- Validate component props and data binding
+
+**Step 6: Provide Parallel-Ready File Fixes**
+IMPORTANT: Your output will be used to run PARALLEL FileRegeneration operations - one per file. Structure your findings accordingly:
+
+- **Group issues by file path** - each file will be fixed independently
+- **Make each file's issues self-contained** - don't reference other files in the fix
+- **Avoid cross-file dependencies** in fixes - each file must be fixable in isolation
+- **Provide complete context per file** - include all necessary details for that file
+
+For each file with issues, provide:
+- **FILE:** [exact file path]
+- **ISSUES:** [List of specific issues in this file only]
+- **PRIORITY:** Critical/High/Medium (for this file)
+- **FIX_SCOPE:** [What needs to be changed in this specific file]
+
+**PARALLEL OPERATION CONSTRAINTS:**
+- Each file will be processed by a separate FileRegeneration agent
+- Agents cannot communicate with each other during fixes
+- All issues for a file must be fixable without knowing other files' changes
+- Avoid fixes that require coordinated changes across multiple files
+- If a cross-file issue exists, break it down into independent file-specific fixes
+
+**ANALYSIS SCOPE:**
+- Analyze ALL files in the codebase systematically
+- Group discovered issues by the file they occur in
+- Ensure each file's issues are complete and self-contained
+- Prioritize issues that can be fixed independently
+- Flag any issues requiring coordinated multi-file changes separately
+</ANALYSIS_INSTRUCTIONS>`;
 
 const userPromptFormatter = (issues: IssueReport, context: string) => {
     const prompt = USER_PROMPT
@@ -107,9 +187,18 @@ export class CodeReviewOperation extends AgentOperation<CodeReviewInputs, CodeRe
         logger.info("Performing code review");
         logger.info("Running static code analysis via linting...");
 
+        // Log all types of issues for comprehensive analysis
         if (issues.runtimeErrors.length > 0) {
-            logger.info(`Found ${issues.runtimeErrors.length} runtime errors, will include in code review: ${issues.runtimeErrors.map(e => e.message).join(', ')}`);
+            logger.info(`Found ${issues.runtimeErrors.length} runtime errors: ${issues.runtimeErrors.map(e => e.message).join(', ')}`);
         }
+        if (issues.staticAnalysis.lint.issues.length > 0) {
+            logger.info(`Found ${issues.staticAnalysis.lint.issues.length} lint issues`);
+        }
+        if (issues.staticAnalysis.typecheck.issues.length > 0) {
+            logger.info(`Found ${issues.staticAnalysis.typecheck.issues.length} typecheck issues`);
+        }
+        
+        logger.info("Performing comprehensive codebase analysis for all issue types (runtime, logic, UI, state management, incomplete features)");
 
         // Get files context
         const filesContext = getFilesContext(context);

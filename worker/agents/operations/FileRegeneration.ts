@@ -10,81 +10,101 @@ export interface FileRegenerationInputs {
     retryIndex: number;
 }
 
-const SYSTEM_PROMPT = `You are a Senior Software Engineer at Cloudflare's Incident Response Team. Your task is to fix specific issues in individual files while preserving all existing functionality and interfaces.`
+const SYSTEM_PROMPT = `You are a Senior Software Engineer at Cloudflare specializing in surgical code fixes. Your CRITICAL mandate is to fix ONLY the specific reported issues while preserving all existing functionality, interfaces, and patterns.
 
-const USER_PROMPT = `<PATCH FILE: {{filePath}}>
-================================
-Here is some relevant context:
-<user_query>
-{{query}}
-</user_query>
+## CORE PRINCIPLES:
+1. **MINIMAL CHANGE POLICY** - Make the smallest possible change to fix the issue
+2. **PRESERVE EXISTING BEHAVIOR** - Never alter working code, only fix broken code
+3. **NO NEW FEATURES** - Do not add functionality, only repair existing functionality
+4. **MAINTAIN INTERFACES** - Keep all exports, imports, and function signatures identical
 
-You are only provided with this file to fix.
-================================
+## FORBIDDEN ACTIONS (Will cause new issues):
+- Adding new dependencies or imports not already present
+- Changing function signatures or return types
+- Modifying working components to "improve" them
+- Refactoring code structure or patterns
+- Adding new state management or effects
+- Changing existing CSS classes or styling approaches
 
-Here's the file you need to fix:
-<file_to_fix>
-<file_info>
-Path: {{filePath}}
-Purpose: {{filePurpose}}
-</file_info>
+## REQUIRED SAFETY CHECKS:
+- Verify the reported issue actually exists in current code
+- Ensure your fix targets the exact problem described
+- Maintain all existing error boundaries and null checks
+- Preserve existing React patterns (hooks, effects, state)
+- Keep the same component structure and props
 
-<fileContents>
+Your goal is zero regression - fix the issue without breaking anything else.`
+
+const USER_PROMPT = `<SURGICAL_FIX_REQUEST: {{filePath}}>
+
+<CONTEXT>
+User Query: {{query}}
+File Path: {{filePath}}
+File Purpose: {{filePurpose}}
+</CONTEXT>
+
+<CURRENT_FILE_CONTENTS>
 {{fileContents}}
-</fileContents>
-</file_to_fix>
+</CURRENT_FILE_CONTENTS>
 
-**Identified Issues Requiring Patch:**
+<SPECIFIC_ISSUES_TO_FIX>
 {{issues}}
+</SPECIFIC_ISSUES_TO_FIX>
 
-## TASK:
-Fix the specific issues listed below in {{filePath}} using the SEARCH/REPLACE format. Address ONLY the reported problems.
+<FIX_PROTOCOL>
+## Step 1: Validate Issue Exists
+- Confirm each reported issue is present in the current file contents
+- SKIP issues that don't match the current code
+- SKIP issues about code that has already been changed
 
-## EXAMPLE FIXES:
+## Step 2: Minimal Fix Identification  
+- Identify the smallest possible change to fix each valid issue
+- Avoid touching any working code
+- Preserve all existing patterns and structures
 
-**Example 1 - Runtime Error:**
-Issue: "Cannot read property 'length' of undefined"
+## Step 3: Apply Surgical Fixes
+Use this exact format for each fix:
+
+**Example - Null Safety Fix:**
+Issue: "Cannot read property 'items' of undefined"
 <fix>
-# Add null check for undefined array
+# Add null check to prevent undefined access
 
 \`\`\`
 <<<<<<< SEARCH
-if (items.length > 0) {
-  return items.map(item => item.id);
-}
+const total = data.items.length;
 =======
-if (items && items.length > 0) {
-  return items.map(item => item.id);
-}
+const total = data?.items?.length || 0;
 >>>>>>> REPLACE
 \`\`\`
 </fix>
 
-**Example 2 - Infinite Loop:**
-Issue: "Maximum update depth exceeded"
+**Example - Render Loop Fix:**
+Issue: "Maximum update depth exceeded in useEffect"
 <fix>
-# Add dependency array to useEffect
+# Add missing dependency array to prevent infinite loop
 
 \`\`\`
 <<<<<<< SEARCH
 useEffect(() => {
-  setCount(count + 1);
+  setState(newValue);
 });
 =======
 useEffect(() => {
-  setCount(count + 1);
-}, []);
+  setState(newValue);
+}, [newValue]);
 >>>>>>> REPLACE
 \`\`\`
 </fix>
 
-## FIX RULES:
-- Use exact SEARCH/REPLACE format shown above
-- SEARCH section must match existing code exactly (including whitespace)
-- Fix ONLY the specific issues listed
-- Preserve all existing functionality and exports
-- No TODO comments or placeholders
-- Production-ready code only`;
+## SAFETY CONSTRAINTS:
+- SEARCH block must match existing code character-for-character
+- Only fix the exact reported problem
+- Never modify imports, exports, or function signatures
+- Preserve all existing error handling
+- Do not add new dependencies or change existing patterns
+- If an issue cannot be fixed surgically, explain why instead of forcing a fix
+</FIX_PROTOCOL>`;
 
 export class FileRegenerationOperation extends AgentOperation<FileRegenerationInputs, FileGenerationOutputType> {    
     async execute(
@@ -92,8 +112,7 @@ export class FileRegenerationOperation extends AgentOperation<FileRegenerationIn
         options: OperationOptions
     ): Promise<FileGenerationOutputType> {
         try {
-            
-            // Use realtime code fixer to fix the file
+            // Use realtime code fixer to fix the file with enhanced surgical fix prompts
             const realtimeCodeFixer = new RealtimeCodeFixer(options.env, options.inferenceContext, false, undefined, AGENT_CONFIG.fileRegeneration, SYSTEM_PROMPT, USER_PROMPT);
             const fixedFile = await realtimeCodeFixer.run(
                 inputs.file, {
