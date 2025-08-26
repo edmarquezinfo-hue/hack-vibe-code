@@ -1087,6 +1087,90 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             }
         }
 
+        // Fix conversation message exponential bloat caused by incorrect message accumulation
+        let migratedConversationMessages = this.state.conversationMessages;
+        const MIN_MESSAGES_FOR_CLEANUP = 25;
+        
+        if (migratedConversationMessages && migratedConversationMessages.length > 0) {
+            const originalCount = migratedConversationMessages.length;
+            
+            // Deduplicate messages by conversationId
+            const seen = new Set<string>();
+            const uniqueMessages = [];
+            
+            for (const message of migratedConversationMessages) {
+                // Use conversationId as primary unique key since it should be unique per message
+                let key = message.conversationId;
+                if (!key) {
+                    // Fallback for messages without conversationId
+                    const contentStr = typeof message.content === 'string' 
+                        ? message.content.substring(0, 100)
+                        : JSON.stringify(message.content || '').substring(0, 100);
+                    key = `${message.role || 'unknown'}_${contentStr}_${Date.now()}`;
+                }
+                
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    uniqueMessages.push(message);
+                }
+            }
+            
+            // Sort messages by timestamp (extracted from conversationId) to maintain chronological order
+            uniqueMessages.sort((a, b) => {
+                const getTimestamp = (msg: any) => {
+                    if (msg.conversationId && typeof msg.conversationId === 'string' && msg.conversationId.startsWith('conv-')) {
+                        const parts = msg.conversationId.split('-');
+                        if (parts.length >= 2) {
+                            return parseInt(parts[1]) || 0;
+                        }
+                    }
+                    return 0;
+                };
+                return getTimestamp(a) - getTimestamp(b);
+            });
+            
+            // Smart filtering: if we have more than MIN_MESSAGES_FOR_CLEANUP, remove internal memos but keep actual conversations
+            if (uniqueMessages.length > MIN_MESSAGES_FOR_CLEANUP) {
+                const realConversations = [];
+                const internalMemos = [];
+                
+                for (const message of uniqueMessages) {
+                    const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content || '');
+                    const isInternalMemo = content.includes('**<Internal Memo>**') || content.includes('Project Updates:');
+                    
+                    if (isInternalMemo) {
+                        internalMemos.push(message);
+                    } else {
+                        realConversations.push(message);
+                    }
+                }
+                
+                this.logger.info('Conversation cleanup analysis', {
+                    totalUniqueMessages: uniqueMessages.length,
+                    realConversations: realConversations.length,
+                    internalMemos: internalMemos.length,
+                    willRemoveInternalMemos: uniqueMessages.length > MIN_MESSAGES_FOR_CLEANUP
+                });
+                
+                // Keep all real conversations, remove internal memos if we exceed the threshold
+                migratedConversationMessages = realConversations;
+            } else {
+                // If we have few messages, keep everything
+                migratedConversationMessages = uniqueMessages;
+            }
+            
+            if (migratedConversationMessages.length !== originalCount) {
+                this.logger.info('Fixed conversation message exponential bloat', {
+                    originalCount,
+                    deduplicatedCount: uniqueMessages.length,
+                    finalCount: migratedConversationMessages.length,
+                    duplicatesRemoved: originalCount - uniqueMessages.length,
+                    internalMemosRemoved: uniqueMessages.length - migratedConversationMessages.length
+                });
+                needsMigration = true;
+            }
+        }
+
         // Check for deprecated properties
         const stateHasDeprecatedProps = 'latestScreenshot' in (this.state as any);
         if (stateHasDeprecatedProps) {
@@ -1095,15 +1179,17 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         
         // Apply migration if needed
         if (needsMigration) {
-            this.logger.info('Migrating state from snake_case to camelCase format', {
+            this.logger.info('Migrating state format and fixing conversation message bloat', {
                 generatedFilesCount: Object.keys(migratedFilesMap).length,
-                templateFilesCount: migratedTemplateDetails?.files?.length || 0
+                templateFilesCount: migratedTemplateDetails?.files?.length || 0,
+                finalConversationCount: migratedConversationMessages?.length || 0
             });
             
             const newState = {
                 ...this.state,
                 generatedFilesMap: migratedFilesMap,
-                templateDetails: migratedTemplateDetails
+                templateDetails: migratedTemplateDetails,
+                conversationMessages: migratedConversationMessages
             };
             
             // Remove deprecated properties
@@ -1724,13 +1810,13 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         dataOrWithout?: WebSocketMessageData<WebSocketMessageType> | unknown
     ): void {
         // Send the event to the conversational assistant if its a relevant event
-        if (this.operations.processUserMessage.isProjectUpdateType(typeOrMsg)) {
-            const messages = this.operations.processUserMessage.processProjectUpdates(typeOrMsg, dataOrWithout as WebSocketMessageData<WebSocketMessageType>, this.logger);
-            this.setState({
-                ...this.state,
-                conversationMessages: [...this.state.conversationMessages, ...messages]
-            });
-        }
+        // if (this.operations.processUserMessage.isProjectUpdateType(typeOrMsg)) {
+        //     const messages = this.operations.processUserMessage.processProjectUpdates(typeOrMsg, dataOrWithout as WebSocketMessageData<WebSocketMessageType>, this.logger);
+        //     this.setState({
+        //         ...this.state,
+        //         conversationMessages: [...this.state.conversationMessages, ...messages]
+        //     });
+        // }
         broadcastToConnections(this, typeOrMsg as WebSocketMessageType, dataOrWithout as WebSocketMessageData<WebSocketMessageType>);
     }
 
