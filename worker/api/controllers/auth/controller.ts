@@ -678,6 +678,34 @@ export class AuthController extends BaseController {
             return this.handleError(error, 'revoke API key');
         }
     }
+
+    /**
+     * Get available authentication providers
+     * GET /api/auth/providers
+     */
+    async getAuthProviders(
+        _request: Request,
+        env: Env,
+        _ctx: ExecutionContext,
+        _routeContext?: RouteContext
+    ) {
+        try {
+            const providers = {
+                google: !!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET,
+                github: !!env.GITHUB_CLIENT_ID && !!env.GITHUB_CLIENT_SECRET,
+                email: true // Email/password is always available
+            };
+
+            return this.createSuccessResponse({
+                providers,
+                hasOAuth: providers.google || providers.github,
+                requiresEmailAuth: !providers.google && !providers.github
+            });
+        } catch (error) {
+            console.error('Get auth providers error:', error);
+            return this.createErrorResponse('Failed to get authentication providers', 500);
+        }
+    }
     
     // Helper methods moved to BaseController
     // Token extraction, cookie management, and parsing utilities moved to utils/authUtils.ts
