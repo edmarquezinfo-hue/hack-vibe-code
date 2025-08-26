@@ -2,7 +2,6 @@ import { Agent, Connection } from 'agents';
 import { 
     AgentActionType, 
     Blueprint, 
-    CodeOutputType, 
     PhaseConceptGenerationSchemaType, 
     PhaseConceptType,
     FileOutputType,
@@ -12,7 +11,7 @@ import {
 import { GitHubExportRequest, PreviewType, StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
 import { GitHubExportOptions, GitHubExportResult } from '../../types/github';
 import { CodeGenState, CurrentDevState, MAX_PHASES, FileState } from './state';
-import { AllIssues, ScreenshotData } from './types';
+import { AllIssues, AgentSummary, ScreenshotData } from './types';
 import { WebSocketMessageResponses } from '../constants';
 import { broadcastToConnections, handleWebSocketClose, handleWebSocketMessage } from './websocket';
 import { createObjectLogger } from '../../logger';
@@ -25,7 +24,6 @@ import { StateManager } from '../services/implementations/StateManager';
 // import { WebSocketBroadcaster } from '../services/implementations/WebSocketBroadcaster';
 import { GenerationContext } from '../domain/values/GenerationContext';
 import { IssueReport } from '../domain/values/IssueReport';
-import { PhaseManagement } from '../domain/pure/PhaseManagement';
 import { PhaseImplementationOperation, LAST_PHASE_PROMPT as FINAL_CODE_PHASE_DESCRIPTION } from '../operations/PhaseImplementation';
 import { CodeReviewOperation } from '../operations/CodeReview';
 import { FileRegenerationOperation } from '../operations/FileRegeneration';
@@ -141,6 +139,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         conversationMessages: [],
         currentDevState: CurrentDevState.IDLE,
         phasesCounter: MAX_PHASES,
+        mvpGenerated: false,
+        shouldBeGenerating: false
     };
 
     /**
@@ -297,11 +297,13 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         return this.isGenerating;
     }
 
-    resetPhasesCounter(max_phases: number = MAX_PHASES): void {
-        this.setState({
-            ...this.state,
-            phasesCounter: max_phases
-        });
+    rechargePhasesCounter(max_phases: number = MAX_PHASES): void {
+        if (this.getPhasesCounter() <= max_phases) {
+            this.setState({
+                ...this.state,
+                phasesCounter: max_phases
+            });
+        }
     }
 
     decrementPhasesCounter(): number {
@@ -344,7 +346,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
      * Executes phases sequentially with review cycles and proper state transitions
      */
     async generateAllFiles(reviewCycles: number = 5): Promise<void> {
-        if (this.state.generatedPhases.find(phase => phase.name === "Finalization and Review") && this.state.pendingUserInputs.length === 0) {
+        if (this.state.mvpGenerated && this.state.pendingUserInputs.length === 0) {
             this.logger.info("Code generation already completed and no user inputs pending");
             return;
         }
@@ -358,7 +360,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             message: 'Starting code generation',
             totalFiles: this.getTotalFiles()
         });
-        this.resetPhasesCounter();
         let currentDevState = CurrentDevState.PHASE_IMPLEMENTING;
         const generatedPhases = this.state.generatedPhases;
         const completedPhases = generatedPhases.filter(phase => !phase.completed);
@@ -420,9 +421,12 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 error: `Error during generation: ${errorMessage}`
             });
         } finally {
-            this.isGenerating = false;
-
             await this.updateDatabase({ status: 'completed' });
+            this.isGenerating = false;
+            this.setState({
+                ...this.state,
+                mvpGenerated: true
+            });
 
             this.broadcast(WebSocketMessageResponses.GENERATION_COMPLETE, {
                 message: "Code generation and review process completed.",
@@ -441,9 +445,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             
             // Generate next phase with user suggestions if available
             const userSuggestions = this.state.pendingUserInputs.length > 0 ? this.state.pendingUserInputs : undefined;
-            if (userSuggestions && userSuggestions.length > 0) {
-                this.resetPhasesCounter(Math.min(5, MAX_PHASES));
-            }
             const nextPhase = await this.generateNextPhase(currentIssues, userSuggestions);
                 
             if (!nextPhase) {
@@ -1008,24 +1009,21 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     }
 
     getTotalFiles(): number {
-        return PhaseManagement.getTotalFiles(
-            this.fileManager.getGeneratedFilePaths().length,
-            this.state.currentPhase || this.state.blueprint.initialPhase
-        );
+        return this.fileManager.getGeneratedFilePaths().length + ((this.state.currentPhase || this.state.blueprint.initialPhase)?.files?.length || 0);
     }
 
-    getProgress(): Promise<CodeOutputType> {
+    getSummary(): Promise<AgentSummary> {
         // Ensure state is migrated before accessing files
         this.migrateStateIfNeeded();
-        
-        const progress = PhaseManagement.getProgress(
-            this.state.generatedFilesMap,
-            this.getTotalFiles()
-        );
-        return Promise.resolve(progress);
+        const summaryData = {
+            query: this.state.query,
+            generatedCode: this.fileManager.getGeneratedFiles(),
+            conversation: this.state.conversationMessages,
+        };
+        return Promise.resolve(summaryData);
     }
 
-    async getState(): Promise<CodeGenState> {
+    async getFullState(): Promise<CodeGenState> {
         // Ensure state is migrated before returning state
         this.migrateStateIfNeeded();
         return this.state;
@@ -2193,17 +2191,20 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 conversationMessages: messages
             });
 
-            // Add enhanced request to pending user inputs
-            const updatedPendingInputs = [
-                ...this.state.pendingUserInputs,
-                conversationResponse.enhancedUserRequest
-            ];
+            if (conversationResponse.enhancedUserRequest.length > 0) {
+                this.rechargePhasesCounter(3);
+                // Add enhanced request to pending user inputs
+                const updatedPendingInputs = [
+                    ...this.state.pendingUserInputs,
+                    conversationResponse.enhancedUserRequest
+                ];
 
-            // Update state with new pending input
-            this.setState({
-                ...this.state,
-                pendingUserInputs: updatedPendingInputs
-            });
+                // Update state with new pending input
+                this.setState({
+                    ...this.state,
+                    pendingUserInputs: updatedPendingInputs
+                });
+            }
 
              if (!this.isGenerating) {
                 // If idle, start generation process
@@ -2216,7 +2217,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             this.logger.info('User input processed successfully', {
                 responseLength: conversationResponse.userResponse.length,
                 enhancedRequestLength: conversationResponse.enhancedUserRequest.length,
-                totalPendingInputs: updatedPendingInputs.length,
             });
 
         } catch (error) {

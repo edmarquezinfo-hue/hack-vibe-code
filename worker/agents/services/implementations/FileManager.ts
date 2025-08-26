@@ -91,4 +91,9 @@ export class FileManager implements IFileManager {
         const state = this.stateManager.getState();
         return state.generatedFilesMap;
     }
+
+    getGeneratedFiles(): FileOutputType[] {
+        const state = this.stateManager.getState();
+        return Object.values(state.generatedFilesMap);
+    }
 }

@@ -8,8 +8,8 @@ import {
     AppDetailsData, 
     AppStarToggleData, 
     ForkAppData, 
-    GeneratedCodeFile 
 } from './types';
+import { AgentSummary } from '../../../agents/core/types';
 
 export class AppViewController extends BaseController {
     constructor() {
@@ -54,21 +54,12 @@ export class AppViewController extends BaseController {
             }
 
             // Try to fetch current agent state to get latest generated code
-            let generatedCode: GeneratedCodeFile[] = [];
+            let agentSummary: AgentSummary | null = null;
             let previewUrl: string = '';
             
             try {
                 const agentStub = await getAgentStub(env, appResult.id, true);
-                const agentProgress = await agentStub.getProgress();
-                
-                if (agentProgress && agentProgress.generatedCode && agentProgress.generatedCode.length > 0) {
-                    // Convert agent progress format to expected frontend format
-                    generatedCode = agentProgress.generatedCode.map((file: { filePath: string; fileContents: string; explanation?: string }) => ({
-                        filePath: file.filePath,
-                        fileContents: file.fileContents,
-                        explanation: file.explanation
-                    }));
-                }
+                agentSummary = await agentStub.getSummary();
 
                 previewUrl = await agentStub.getPreviewUrlCache();
             } catch (agentError) {
@@ -85,7 +76,7 @@ export class AppViewController extends BaseController {
                     displayName: appResult.userName || 'Unknown',
                     avatarUrl: appResult.userAvatar
                 },
-                generatedCode
+                agentSummary,
             };
 
             return this.createSuccessResponse(responseData);

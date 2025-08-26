@@ -1,5 +1,4 @@
 import { CodeGenState } from "../../../agents/core/state";
-import { CodeOutputType } from "../../../agents/schemas";
 import { PreviewType } from "../../../services/sandbox/sandboxTypes";
 
 /**
@@ -8,7 +7,6 @@ import { PreviewType } from "../../../services/sandbox/sandboxTypes";
 export interface AgentStateData {
     agentId: string;
     websocketUrl: string;
-    progress: CodeOutputType;
     state: CodeGenState;
 }
 

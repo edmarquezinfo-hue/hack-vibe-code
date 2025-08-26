@@ -6,15 +6,6 @@ export const FileOutputSchema = z.object({
     filePurpose: z.string().describe('Concise purpose of the file and it\'s expected contents')
 });
 
-/**
- * Schema for code generation output
- */
-export const CodeOutput = z.object({
-    textExplaination: z.string().describe('A detailed explanation of the generated code'),
-    generatedCode: z.array(FileOutputSchema),
-    totalFiles: z.number().describe('Total number of files to be generated')
-});
-
 export const FileConceptSchema = z.object({
     path: z.string().describe('Path to the file relative to the project root. File name should be valid and not contain any special characters apart from hyphen, underscore and dot.'),
     purpose: z.string().describe('Very short, Breif, Concise, to the point description, purpose and expected contents of this file including its role in the architecture, data and code flow details'),
@@ -142,7 +133,6 @@ export const AgentActionSchema = z.object({
 });
 
 export type Blueprint = z.infer<typeof BlueprintSchema>;
-export type CodeOutputType = z.infer<typeof CodeOutput>;
 export type FileConceptType = z.infer<typeof FileConceptSchema>;
 export type PhaseConceptType = z.infer<typeof PhaseConceptSchema>;
 export type FileOutputType = z.infer<typeof FileOutputSchema>
