@@ -253,7 +253,18 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         // You can leave this empty to disable logging
         // Or, you can log a more specific message, for example:
         this.logger.info("State was updated.");
-      }
+    }
+
+    setState(state: CodeGenState): void {
+        try {
+            super.setState(state);
+        } catch (error) {
+            this.logger.error("Error setting state:", error);
+            this.broadcast(WebSocketMessageResponses.ERROR, {
+                error: `Error setting state: ${error instanceof Error ? error.message : String(error)}; Original state: ${JSON.stringify(this.state, null, 2)}; New state: ${JSON.stringify(state, null, 2)}`
+            });
+        }
+    }
 
     getProjectSetupAssistant(): ProjectSetupAssistant {
         if (this.projectSetupAssistant === undefined) {
@@ -1109,6 +1120,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             
             this.setState(newState);
         }
+
+        
     }
 
     getFileGenerated(filePath: string) {
