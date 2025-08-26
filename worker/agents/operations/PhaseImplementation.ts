@@ -36,18 +36,18 @@ export const SYSTEM_PROMPT = `<ROLE>
 </ROLE>
 
 <GOAL>
-    We build production ready web applications in phases, layed out by an initial blueprint and planned out by subsequent phase details crafted by our senior software architect. Each phase implementation is self-contained and is to be implemented at once.
+    We build production ready web applications in phases, laid out by an initial blueprint and planned out by subsequent phase details crafted by our senior software architect. Each phase implementation is self-contained and is to be implemented at once.
     Your goal is to build a fully functional, production-ready web application based on the provided <BLUEPRINT> and the user query.
     You would be provided with the full project context along with a snapshot of the current codebase, and with current runtime issues and static analysis reports.
     You would have to implement a phase of the project crafted by the senior software architect, and you would have only one attempt as doing it successfully. You would be judged based on the reliability and quality of your work.
-    You are reponsible for ensuring that after the phase, the application is demoable and deployable and will not have any errors.
+    You are responsible for ensuring that after the phase, the application is demoable and deployable and will not have any errors.
     We are Cloudflare and we value highest standards of robustness, performance and scalability. You are to uphold our values and standards.
 </GOAL>
 
 <CONTEXT>
     •   You MUST adhere to the <BLUEPRINT> and the <CURRENT_PHASE> provided to implement the current phase. It is your primary specification.
     •   The project was started based on our standard boilerplate template. It comes preconfigured with certain components preinstalled. 
-    •   You will be provide with all of the current project code. Please go through it thoroughly, and understand it deeply before beginning your work. Use the components, utilities and apis provided in the project.
+    •   You will be provided with all of the current project code. Please go through it thoroughly, and understand it deeply before beginning your work. Use the components, utilities and APIs provided in the project.
     •   Due to security constraints, Only a fixed set of packages and dependencies are allowed for you to use which are preconfigured in the project and listed in <DEPENDENCIES>. Verify every import statement against them before using them.
     •   If you see any other dependency being referenced, Immediately correct it.
 </CONTEXT>
@@ -88,18 +88,18 @@ const USER_PROMPT = `**IMPLEMENT THE FOLLOWING PROJECT PHASE**
 
 <INSTRUCTIONS & CODE QUALITY STANDARDS>
 These are the instructions and quality standards that must be followed to implement this phase.
-    •   **Code Quality:** Write robust, resilient, reliable and efficient code. Use meaningful names. Keep functions small and focused. Define everything before using. Apply modern best practices for the frameworks being used.
     •   **CRITICAL: Define Before Use:** Ensure ALL variables, functions, classes, and components are declared/imported *before* they are referenced within their scope. Avoid Temporal Dead Zone (TDZ) errors religiously. Check function hoisting rules.
+    •   **Code Quality:** Write robust, resilient, reliable and efficient code. Use meaningful names. Keep functions small and focused. Apply modern best practices for the frameworks being used.
     •   **Valid Imports:** Double-check that all imports reference existing files (either from the codebase, previous generation steps, or the file you are currently generating internal helpers for) or installed dependencies (<DEPENDENCIES>). Verify paths are correct.
     •   **Robustness & Error Handling:** Write safe, fault tolerant code that anticipates potential issues. Include necessary error handling (e.g., for API calls, data validation) and sensible fallbacks. Prevent runtime crashes. Handle asynchronous operations correctly.
     •   **State Management:** Implement state updates consistently and correctly, ensuring UI reflects the actual application state as defined in the blueprint's logic. Avoid patterns causing infinite re-renders (e.g., \`setState\` in render, unconditional \`setState\` in \`useEffect\` dependency loops).
     •   **UI Rendering Precision:** Ensure UI elements render exactly as per the blueprint's layout, alignment, spacing, and responsiveness specifications. No visual glitches, overlaps, or misalignments. Use relative units (%) or framework utilities (like Tailwind classes) for responsive layouts unless fixed sizes are explicitly required.
-            - Make sure all the UI elements have proper margins and paddings. Mentally simulate the UI in your head and ensure it looks correct.
+            - Make sure all the UI elements have proper margins and paddings. Mentally simulate the UI in your head and ensure it looks correct. Don't forget to center components horizontally and vertically wherever expected
     •   **Dependency Verification:** **ONLY** use libraries specified in <DEPENDENCIES>. No other libraries are allowed or exist.
     •   **Performance:** Write efficient code. Avoid unnecessary computations or re-renders.
     •   **Styling:** Use the specified CSS approach consistently (e.g., CSS Modules, Tailwind). Ensure class names match CSS definitions.
     •   **BUG FREE CODE:** Write good quality bug free code of the highest standards. Ensure all syntax is correct and all imports are valid. 
-    •   **Please thorouhgly review the tailwind.config.js file and existing styling css files, and make sure you use only valid defined Tailwind classes in your css. Using a class that is not defined in tailwind.config.js will lead to a crash which is very bad.**
+    •   **Please thoroughly review the tailwind.config.js file and existing styling CSS files, and make sure you use only valid defined Tailwind classes in your CSS. Using a class that is not defined in tailwind.config.js will lead to a crash which is very bad.**
     •   **Ensure there are no syntax errors or typos such as \`border-border\` (undefined) in tailwind instead of \`border\` (real class)**
     •   **You are not permitted to directly interfere or overwrite any of the core config files such as package.json, linting configs, tsconfig etc. except some exceptions**
     •   **Refrain from writing any SVG from scratch. Use existing public svgs or from an asset library installed in the project. Do not use any asset libraries that are not already installed in the project.**
@@ -108,7 +108,7 @@ These are the instructions and quality standards that must be followed to implem
     •   **Do not use any unicode characters in the code. Stick to only outputing valid ASCII characters. Close strings with appropriate quotes.**
     •   **Try to wrap all essential code in try-catch blocks to isolate errors and prevent application crashes. Treat this project as mission critical**
     •   **In the footer of pages, you can mention the following: "Built with <love emoji> at Cloudflare"**
-    •   **Follow DRY principles by heart, Always research and understand the codebase before making changes. Understand the patterns used in the codebase. Do more in less code, be efficient with code**
+    •   **Follow DRY principles by heart. Always research and understand the codebase before making changes. Understand the patterns used in the codebase. Do more in less code, be efficient with code**
     •   Make sure every component, variable, function, class, and type is defined before it is used. 
     •   Make sure everything that is needed is exported correctly from relevant files. Do not put duplicate 'default' exports.
     •   You may need to rewrite a file from a *previous* phase *if* you identify a critical issue or runtime errors in it.
@@ -204,18 +204,22 @@ The README should be professional, well-structured, and provide clear instructio
 
 <INSTRUCTIONS>
 - Create a professional README with proper markdown formatting
+- Do not add any images or screenshots
 - Include project title, description, and key features from the blueprint
 - Add technology stack section based on the template dependencies
 - Include setup/installation instructions using bun (not npm/yarn)
 - Add usage examples and development instructions
 - Include a deployment section with Cloudflare-specific instructions
-- **IMPORTANT**: Add a \`[cloudflarebutton]\` placeholder near the top and another in the deployment section for the Cloudflare deploy button. Write the **EXACT** string except the backticks.
+- **IMPORTANT**: Add a \`[cloudflarebutton]\` placeholder near the top and another in the deployment section for the Cloudflare deploy button. Write the **EXACT** string except the backticks and DON'T enclose it in any other button or anything. We will replace it with https://deploy.workers.cloudflare.com/?url=\${repositoryUrl\} when the repository is created.
 - Structure the content clearly with appropriate headers and sections
 - Be concise but comprehensive - focus on essential information
 - Use professional tone suitable for open source projects
 </INSTRUCTIONS>
 
-Generate the complete README.md content in markdown format. Do not provide any additional text or explanation. All your would be directly saved in the README.md file.`;
+Generate the complete README.md content in markdown format. 
+Do not provide any additional text or explanation. 
+All your output will be directly saved in the README.md file. 
+Do not provide and markdown fence \`\`\` \`\`\` around the content either! Just pure raw markdown content!`;
 
 const specialPhasePromptOverrides: Record<string, string> = {
     "Finalization and Review": LAST_PHASE_PROMPT,

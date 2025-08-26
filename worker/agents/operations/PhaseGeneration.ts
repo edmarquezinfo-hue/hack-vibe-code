@@ -71,11 +71,16 @@ Adhere to the following guidelines:
 <SUGGESTING NEXT PHASE>
 •   Suggest the next phase based on the current progress, the overall application architecture, suggested phases in the blueprint, current runtime errors/bugs and any user suggestions.
 •   Please ignore non functional or non critical issues. Your primary task is to suggest project development phases. Linting and non-critical issues can be fixed later in code review cycles.
-•   If runtime errors/bugs are present, focus on fixing them on priority, and then continue with the rest of the project. Name the phase to reflect the fix.
+•   **CRITICAL**: If runtime errors/bugs are present, they MUST be the primary focus of this phase. Runtime errors prevent deployment and user testing. Common critical errors:
+    - "Maximum update depth exceeded" from infinite render loops
+    - "Cannot read properties of undefined" from missing null checks
+    - Import errors from wrong import syntax (@xyflow/react, @/lib/utils)
+    - Tailwind class errors (border-border vs border)
+    Name the phase to reflect the fix (e.g., "Fix Runtime Errors and Polish UI").
 •   Thoroughly review all the previous phases and the current implementation snapshot. Verify the frontend elements, UI, and backend components.
     - **Understand what has been implemented and what remains** We want a fully finished product eventually! No feature should be left unimplemented if its possible to implement it in the current project environment with purely open source tools and free tier services (i.e, without requiring any third party paid/API key service).
-    - Each phase should work towards achieving the final product. **ONLY** mark as last phase if you are sure the project is atleast 90-95% finished.
-    - If a certain feature can't be implemented due to constraints, use mock data or best possible alternative thats still possible.
+    - Each phase should work towards achieving the final product. **ONLY** mark as last phase if you are sure the project is at least 90-95% finished.
+    - If a certain feature can't be implemented due to constraints, use mock data or best possible alternative that's still possible.
     - Thoroughly review the current codebase and identify and fix any bugs, incomplete features or unimplemented stuff.
 •   Next phase should cover fixes (if any), development as well as also continue on UI/UX refinement.
 •   Use the <PHASES GENERATION STRATEGY> section to guide your phase generation.
@@ -128,7 +133,7 @@ Try to make small targeted, isolated changes to the codebase to address the user
 </USER SUGGESTIONS>`;
 };
 
-const userPropmtFormatter = (issues: IssueReport, userSuggestions?: string[] | null) => {
+const userPromptFormatter = (issues: IssueReport, userSuggestions?: string[] | null) => {
     const prompt = NEXT_PHASE_USER_PROMPT
         .replaceAll('{{issues}}', issuesPromptFormatter(issues))
         .replaceAll('{{userSuggestions}}', formatUserSuggestions(userSuggestions));
@@ -182,7 +187,7 @@ export class PhaseGenerationOperation extends AgentOperation<PhaseGenerationInpu
     
             const messages: Message[] = [
                 ...getSystemPromptWithProjectContext(SYSTEM_PROMPT, context, false),
-                createUserMessage(userPropmtFormatter(issues, userSuggestions))
+                createUserMessage(userPromptFormatter(issues, userSuggestions))
             ];
     
             const { object: results } = await executeInference({
