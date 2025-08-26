@@ -150,7 +150,6 @@ export type {
   CodeReviewOutputType,
   FileConceptType,
   FileOutputType as GeneratedFile,
-  TechnicalInstructionType
 } from 'worker/agents/schemas';
 
 export type { 
