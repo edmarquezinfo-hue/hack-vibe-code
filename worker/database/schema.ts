@@ -647,6 +647,23 @@ export const emailVerificationTokens = sqliteTable('email_verification_tokens', 
 }));
 
 /**
+ * Verification OTPs table - Store OTP codes for email verification
+ */
+export const verificationOtps = sqliteTable('verification_otps', {
+    id: text('id').primaryKey(),
+    email: text('email').notNull(),
+    otp: text('otp').notNull(), // Hashed OTP code
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    used: integer('used', { mode: 'boolean' }).default(false),
+    usedAt: integer('used_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+    emailIdx: index('verification_otps_email_idx').on(table.email),
+    expiresAtIdx: index('verification_otps_expires_at_idx').on(table.expiresAt),
+    usedIdx: index('verification_otps_used_idx').on(table.used),
+}));
+
+/**
  * AuditLogs table - Track important changes for compliance
  */
 export const auditLogs = sqliteTable('audit_logs', {

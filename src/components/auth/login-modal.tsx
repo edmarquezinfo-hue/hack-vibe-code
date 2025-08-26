@@ -32,6 +32,14 @@ interface LoginModalProps {
 		password: string;
 		name?: string;
 	}) => Promise<void>;
+	
+	// Email verification interfaces
+	onVerifyEmail?: (data: {
+		email: string;
+		otp: string;
+	}) => Promise<void>;
+	onResendVerificationOtp?: (email: string) => Promise<void>;
+	
 	error?: string | null;
 	onClearError?: () => void;
 	
@@ -40,7 +48,7 @@ interface LoginModalProps {
 	showCloseButton?: boolean;
 }
 
-type AuthMode = 'login' | 'register';
+type AuthMode = 'login' | 'register' | 'verify-email';
 
 interface AuthProviders {
 	google: boolean;
@@ -61,6 +69,8 @@ export function LoginModal({
 	onEmailLogin,
 	onOAuthLogin,
 	onRegister,
+	onVerifyEmail,
+	onResendVerificationOtp,
 	error,
 	onClearError,
 	actionContext,
@@ -76,6 +86,8 @@ export function LoginModal({
 	const [password, setPassword] = useState('');
 	const [name, setName] = useState('');
 	const [confirmPassword, setConfirmPassword] = useState('');
+	const [otp, setOtp] = useState('');
+	const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
 
 	// Validation errors
 	const [validationErrors, setValidationErrors] = useState<
@@ -119,6 +131,8 @@ export function LoginModal({
 		setPassword('');
 		setName('');
 		setConfirmPassword('');
+		setOtp('');
+		setPendingVerificationEmail('');
 		setValidationErrors({});
 		setShowPassword(false);
 		if (onClearError) onClearError();
@@ -131,7 +145,14 @@ export function LoginModal({
 
 	const switchMode = (newMode: AuthMode) => {
 		setMode(newMode);
-		resetForm();
+		// Don't reset form when switching to verify-email mode
+		if (newMode !== 'verify-email') {
+			resetForm();
+		} else {
+			setOtp('');
+			setValidationErrors({});
+			if (onClearError) onClearError();
+		}
 	};
 
 	const validateForm = (): boolean => {
@@ -167,6 +188,16 @@ export function LoginModal({
 			}
 		}
 
+		// Additional validation for email verification
+		if (mode === 'verify-email') {
+			// OTP validation
+			if (!otp.trim()) {
+				errors.otp = 'Verification code is required';
+			} else if (otp.trim().length !== 6 || !/^\d{6}$/.test(otp.trim())) {
+				errors.otp = 'Please enter a valid 6-digit code';
+			}
+		}
+
 		setValidationErrors(errors);
 		return Object.keys(errors).length === 0;
 	};
@@ -181,7 +212,21 @@ export function LoginModal({
 			if (mode === 'login' && onEmailLogin) {
 				await onEmailLogin({ email, password });
 			} else if (mode === 'register' && onRegister) {
-				await onRegister({ email, password, name: name.trim() });
+				try {
+					await onRegister({ email, password, name: name.trim() });
+				} catch (err) {
+					// If registration requires verification, switch to verify mode
+					const errorMessage = err instanceof Error ? err.message : '';
+					if (errorMessage === 'verification_required') {
+						setPendingVerificationEmail(email);
+						setMode('verify-email');
+						return; // Don't re-throw, just switch modes
+					}
+					throw err; // Re-throw other errors
+				}
+			} else if (mode === 'verify-email' && onVerifyEmail) {
+				const emailToVerify = pendingVerificationEmail || email;
+				await onVerifyEmail({ email: emailToVerify, otp: otp.trim() });
 			}
 			// Don't auto-close here - let the parent handle success/error
 		} catch (err) {
@@ -253,14 +298,18 @@ export function LoginModal({
 										</svg>
 									</div>
 									<h2 className="text-2xl font-semibold mb-2">
-										{actionContext
+										{mode === 'verify-email' 
+											? 'Verify your email'
+											: actionContext
 											? `Sign in ${actionContext}`
 											: hasEmailAuth && mode === 'register'
 											? 'Create an account'
 											: 'Welcome back'}
 									</h2>
 									<p className="text-muted-foreground">
-										{actionContext
+										{mode === 'verify-email'
+											? 'Enter the 6-digit code we sent to your email address'
+											: actionContext
 											? 'Authentication required for this action'
 											: hasEmailAuth && mode === 'register'
 											? 'Join to start building amazing applications'
@@ -282,7 +331,7 @@ export function LoginModal({
 							{/* Authentication Options */}
 							<div className={clsx('p-6 space-y-5 pt-12')}>
 								{/* OAuth providers (conditionally shown) */}
-								{showOAuth && (
+								{showOAuth && mode !== 'verify-email' && (
 									<div className="space-y-4">
 										{/* GitHub */}
 										{authProviders?.providers.github && (
@@ -324,7 +373,7 @@ export function LoginModal({
 								)}
 
 								{/* Divider (only if both OAuth and email are available) */}
-								{showOAuth && hasEmailAuth && (
+								{showOAuth && hasEmailAuth && mode !== 'verify-email' && (
 									<div className="relative">
 										<div className="absolute inset-0 flex items-center">
 											<div className="w-full border-t border-border" />
@@ -336,7 +385,7 @@ export function LoginModal({
 								)}
 
 								{/* Email/Password Form (conditionally shown) */}
-								{hasEmailAuth && (
+								{hasEmailAuth && mode !== 'verify-email' && (
 									<form onSubmit={handleSubmit} className="space-y-4">
 										{mode === 'register' && (
 											<div>
@@ -426,6 +475,57 @@ export function LoginModal({
 										>
 											{isLoading ? 'Please wait...' : mode === 'login' ? 'Sign in' : 'Create account'}
 										</motion.button>
+									</form>
+								)}
+
+								{/* Email Verification Form (conditionally shown) */}
+								{mode === 'verify-email' && (
+									<form onSubmit={handleSubmit} className="space-y-4">
+										<div className="text-center">
+											<p className="text-sm text-muted-foreground mb-4">
+												Verification code sent to: {pendingVerificationEmail || email}
+											</p>
+										</div>
+
+										<div>
+											<input
+												type="text"
+												placeholder="Enter 6-digit code"
+												value={otp}
+												onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+												className={clsx(
+													'w-full p-3 rounded-lg border bg-background transition-colors text-center text-lg tracking-wider',
+													validationErrors.otp ? 'border-destructive' : 'border-border focus:border-primary'
+												)}
+												disabled={isLoading}
+												maxLength={6}
+												autoComplete="one-time-code"
+											/>
+											{validationErrors.otp && (
+												<p className="mt-1 text-sm text-destructive">{validationErrors.otp}</p>
+											)}
+										</div>
+
+										<div className="flex gap-3">
+											<motion.button
+												type="submit"
+												whileTap={{ scale: 0.98 }}
+												disabled={isLoading}
+												className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground p-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+											>
+												{isLoading ? 'Verifying...' : 'Verify Email'}
+											</motion.button>
+											
+											<motion.button
+												type="button"
+												whileTap={{ scale: 0.98 }}
+												disabled={isLoading}
+												onClick={() => onResendVerificationOtp && onResendVerificationOtp(pendingVerificationEmail || email)}
+												className="px-4 py-3 rounded-lg border border-border hover:bg-accent text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+											>
+												Resend
+											</motion.button>
+										</div>
 									</form>
 								)}
 							</div>

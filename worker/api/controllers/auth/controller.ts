@@ -680,6 +680,76 @@ export class AuthController extends BaseController {
     }
 
     /**
+     * Verify email with OTP
+     * POST /api/auth/verify-email
+     */
+    async verifyEmail(request: Request, _env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
+        try {
+            const bodyResult = await this.parseJsonBody<{ email: string; otp: string }>(request);
+            if (!bodyResult.success) {
+                return bodyResult.response!;
+            }
+
+            const { email, otp } = bodyResult.data!;
+
+            if (!email || !otp) {
+                return this.createErrorResponse('Email and OTP are required', 400);
+            }
+
+            const result = await this.authService.verifyEmailWithOtp(email, otp, request);
+            
+            const response = this.createSuccessResponse(
+                formatAuthResponse(result.user, undefined, result.expiresIn)
+            );
+            
+            setSecureAuthCookies(response, {
+                accessToken: result.accessToken,
+                refreshToken: result.refreshToken,
+                accessTokenExpiry: result.expiresIn
+            });
+            
+            return response;
+        } catch (error) {
+            if (error instanceof SecurityError) {
+                return this.createErrorResponse(error.message, error.statusCode);
+            }
+            
+            return this.handleError(error, 'verify email');
+        }
+    }
+
+    /**
+     * Resend verification OTP
+     * POST /api/auth/resend-verification
+     */
+    async resendVerificationOtp(request: Request, _env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
+        try {
+            const bodyResult = await this.parseJsonBody<{ email: string }>(request);
+            if (!bodyResult.success) {
+                return bodyResult.response!;
+            }
+
+            const { email } = bodyResult.data!;
+
+            if (!email) {
+                return this.createErrorResponse('Email is required', 400);
+            }
+
+            await this.authService.resendVerificationOtp(email);
+            
+            return this.createSuccessResponse({
+                message: 'Verification code sent successfully'
+            });
+        } catch (error) {
+            if (error instanceof SecurityError) {
+                return this.createErrorResponse(error.message, error.statusCode);
+            }
+            
+            return this.handleError(error, 'resend verification OTP');
+        }
+    }
+
+    /**
      * Get available authentication providers
      * GET /api/auth/providers
      */

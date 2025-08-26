@@ -27,6 +27,8 @@ export function setupAuthRoutes(router: Router): Router {
     router.get('/api/auth/providers', createHandler('getAuthProviders'));
     router.post('/api/auth/register', createHandler('register'));
     router.post('/api/auth/login', createHandler('login'));
+    router.post('/api/auth/verify-email', createHandler('verifyEmail'));
+    router.post('/api/auth/resend-verification', createHandler('resendVerificationOtp'));
     router.post('/api/auth/refresh', createHandler('refreshToken'));
     router.get('/api/auth/check', createHandler('checkAuth'));
     
