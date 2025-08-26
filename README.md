@@ -84,7 +84,7 @@ Once you click "Deploy to Cloudflare", you'll be taken to your Cloudflare dashbo
 - `CLOUDFLARE_AI_GATEWAY_TOKEN` - Your AI Gateway token 
 - `ANTHROPIC_API_KEY` - Your Anthropic API key for Claude models
 - `OPENAI_API_KEY` - Your OpenAI API key for GPT models  
-- `GEMINI_API_KEY` - Your Google Gemini API key for Gemini models
+- `GOOGLE_AI_STUDIO_API_KEY` - Your Google Gemini API key for Gemini models
 - `JWT_SECRET` - Secure random string for session management (use default: `default`)
 - `WEBHOOK_SECRET` - Webhook authentication secret (use default: `default`)
 
@@ -332,7 +332,7 @@ bun run deploy  # Builds and deploys automatically (includes remote DB migration
    ```bash
    wrangler secret put ANTHROPIC_API_KEY
    wrangler secret put OPENAI_API_KEY
-   wrangler secret put GEMINI_API_KEY
+   wrangler secret put GOOGLE_AI_STUDIO_API_KEY
    # ... etc
    ```
 
@@ -379,7 +379,7 @@ Cloudflare Orange Build implements enterprise-grade security:
 - Check that your account has D1 access enabled
 
 **🔐 "Missing Required Variables"**
-- **Worker Secrets**: Verify all required secrets are set: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `JWT_SECRET`
+- **Worker Secrets**: Verify all required secrets are set: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_AI_STUDIO_API_KEY`, `JWT_SECRET`
 - **AI Gateway Token**: `CLOUDFLARE_AI_GATEWAY_TOKEN` should be set as BOTH build variable and worker secret
 - **Environment Variables**: These are automatically loaded from wrangler.jsonc - no manual setup needed
 - **Authentication**: API tokens and account IDs are automatically provided by Workers Builds

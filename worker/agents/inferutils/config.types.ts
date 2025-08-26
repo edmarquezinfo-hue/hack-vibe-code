@@ -6,6 +6,7 @@
 import { ReasoningEffort } from "openai/resources.mjs";
 
 export enum AIModels {
+    DISABLED = 'disabled',
 	GEMINI_2_5_PRO = 'google-ai-studio/gemini-2.5-pro',
 	GEMINI_2_5_FLASH = 'google-ai-studio/gemini-2.5-flash',
 	GEMINI_2_5_FLASH_LITE = 'google-ai-studio/gemini-2.5-flash-lite',
@@ -56,7 +57,6 @@ export interface AgentConfig {
     realtimeCodeFixer: ModelConfig;
     fastCodeFixer: ModelConfig;
     conversationalResponse: ModelConfig;
-    userSuggestionProcessor: ModelConfig;
 }
 
 // Provider and reasoning effort types for validation
@@ -73,4 +73,5 @@ export type InferenceMetadata = {
 export interface InferenceContext extends InferenceMetadata {
     userModelConfigs?: Record<AgentActionKey, ModelConfig>;
     userApiKeys?: Record<string, string>;
+    enableRealtimeCodeFix: boolean;
 }

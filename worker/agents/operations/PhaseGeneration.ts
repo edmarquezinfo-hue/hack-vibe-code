@@ -5,6 +5,7 @@ import { executeInference } from '../inferutils/infer';
 import { issuesPromptFormatter, PROMPT_UTILS, STRATEGIES } from '../prompts';
 import { Message } from '../inferutils/common';
 import { AgentOperation, getSystemPromptWithProjectContext, OperationOptions } from '../operations/common';
+import { AGENT_CONFIG } from '../inferutils/config';
 
 export interface PhaseGenerationInputs {
     issues: IssueReport;
@@ -68,8 +69,9 @@ Generate the next phase of the application.
 Adhere to the following guidelines: 
 
 <SUGGESTING NEXT PHASE>
-•   Suggest the next phase based on the current progress, the overall application architecture, the blueprint, current runtime errors/bugs and any user suggestions.
+•   Suggest the next phase based on the current progress, the overall application architecture, suggested phases in the blueprint, current runtime errors/bugs and any user suggestions.
 •   Please ignore non functional or non critical issues. Your primary task is to suggest project development phases. Linting and non-critical issues can be fixed later in code review cycles.
+•   If runtime errors/bugs are present, focus on fixing them on priority, and then continue with the rest of the project. Name the phase to reflect the fix.
 •   Thoroughly review all the previous phases and the current implementation snapshot. Verify the frontend elements, UI, and backend components.
     - **Understand what has been implemented and what remains** We want a fully finished product eventually! No feature should be left unimplemented if its possible to implement it in the current project environment with purely open source tools and free tier services (i.e, without requiring any third party paid/API key service).
     - Each phase should work towards achieving the final product. **ONLY** mark as last phase if you are sure the project is atleast 90-95% finished.
@@ -189,6 +191,7 @@ export class PhaseGenerationOperation extends AgentOperation<PhaseGenerationInpu
                 agentActionName: "phaseGeneration",
                 schema: PhaseConceptGenerationSchema,
                 context: options.inferenceContext,
+                reasoning_effort: (userSuggestions || issues.runtimeErrors.length > 0) ? AGENT_CONFIG.phaseGeneration.reasoning_effort == 'low' ? 'medium' : 'high' : undefined,
                 format: 'markdown',
             });
     

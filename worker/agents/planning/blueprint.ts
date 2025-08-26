@@ -5,7 +5,7 @@ import { Blueprint, BlueprintSchema } from '../schemas';
 import { TemplateSelection } from './templateSelector';
 import { createLogger } from '../../logger';
 import { createSystemMessage, createUserMessage } from '../inferutils/common';
-import { InferenceMetadata } from '../inferutils/config.types';
+import { InferenceContext } from '../inferutils/config.types';
 
 const logger = createLogger('Blueprint');
 
@@ -16,6 +16,7 @@ const SYSTEM_PROMPT = `<ROLE>
 
 <TASK>
     You are tasked with creating a detailed yet concise, information dense blueprint (PRD) for a web application project for our client: designing and outlining the frontend UI/UX and core functionality of the application.
+    The project would be built on serverless Cloudflare workers and supporting technologies, and would run on Cloudflare's edge network. The project would be seeded with a starting template.
     Focus on a clear and comprehensive design, be to the point, explicit and detailed in your response, and adhere to our development process. 
     Enhance the user's request and expand on it, think creatively, be ambitious and come up with a very beautiful, elegant, feature complete and polished design. We strive for our products to be pieces of art. Beautiful, refined, and useful.
 </TASK>
@@ -188,7 +189,7 @@ Preinstalled dependencies:
 
 export interface BlueprintGenerationArgs {
     env: Env;
-    metadata: InferenceMetadata;
+    inferenceContext: InferenceContext;
     query: string;
     language: string;
     frameworks: string[];
@@ -205,7 +206,7 @@ export interface BlueprintGenerationArgs {
  * Generate a blueprint for the application based on user prompt
  */
 // Update function signature and system prompt
-export async function generateBlueprint({ env, metadata, query, language, frameworks, templateDetails, templateMetaInfo, stream }: BlueprintGenerationArgs): Promise<Blueprint> {
+export async function generateBlueprint({ env, inferenceContext, query, language, frameworks, templateDetails, templateMetaInfo, stream }: BlueprintGenerationArgs): Promise<Blueprint> {
     try {
         logger.info("Generating application blueprint", { query, queryLength: query.length });
         logger.info(templateDetails ? `Using template: ${templateDetails.name}` : "Not using a template.");
@@ -245,7 +246,7 @@ export async function generateBlueprint({ env, metadata, query, language, framew
             messages,
             agentActionName: "blueprint",
             schema: BlueprintSchema,
-            context: metadata,
+            context: inferenceContext,
             stream: stream,
         });
 

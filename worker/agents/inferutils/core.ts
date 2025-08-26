@@ -95,9 +95,9 @@ export async function buildGatewayUrl(env: Env, providerOverride?: AIGatewayProv
     return baseUrl;
 }
 
-const providerAliasMap: Record<string, string> = {
-    'google-ai-studio': 'gemini',
-}
+// const providerAliasMap: Record<string, string> = {
+//     'google-ai-studio': 'gemini',
+// }
 
 function isValidApiKey(apiKey: string): boolean {
     if (!apiKey || apiKey.trim() === '') {
@@ -111,16 +111,18 @@ function isValidApiKey(apiKey: string): boolean {
 }
 
 function getApiKey(provider: string, env: Env, userProviderKeys?: Record<string, string>): string {
+    console.log("Getting API key for provider: ", provider, userProviderKeys);
     // First check if user has a custom API key for this provider
     if (userProviderKeys && provider in userProviderKeys) {
         const userKey = userProviderKeys[provider];
         if (userKey && isValidApiKey(userKey)) {
+            console.log("Found user API key for provider: ", provider, userKey);
             return userKey;
         }
     }
     
     // Fallback to environment variables
-    const providerKeyString = (providerAliasMap[provider] || provider).toUpperCase().replaceAll('-', '_');
+    const providerKeyString = provider.toUpperCase().replaceAll('-', '_');
     const envKey = `${providerKeyString}_API_KEY` as keyof Env;
     let apiKey: string = env[envKey] as string;
     
@@ -153,7 +155,7 @@ export async function getConfigurationForModel(
         } else if (provider === 'gemini') {
             return {
                 baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-                apiKey: env.GEMINI_API_KEY,
+                apiKey: env.GOOGLE_AI_STUDIO_API_KEY,
             };
         } else if (provider === 'claude') {
             return {
@@ -362,13 +364,8 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 				];
 			}
 		}
-        // messages.forEach((message) => {
-        //     console.log("===============================================================================================================================================")
-        //     console.log("Role: ", message.role, "Content: ", message.content);
-        //     console.log("===============================================================================================================================================")
-        // });
 
-		console.log(`Running inference with ${modelName} using structured output with ${format} format, reasoning effort: ${reasoning_effort}, max tokens: ${maxTokens}, temperature: ${temperature}, baseURL: ${baseURL}, defaultHeaders: ${defaultHeaders}`);
+		console.log(`Running inference with ${modelName} using structured output with ${format} format, reasoning effort: ${reasoning_effort}, max tokens: ${maxTokens}, temperature: ${temperature}, baseURL: ${baseURL}`);
 		// Optimize messages to reduce token count
 		const optimizedMessages = optimizeInputs(messages);
 		console.log(`Token optimization: Original messages size ~${JSON.stringify(messages).length} chars, optimized size ~${JSON.stringify(optimizedMessages).length} chars`);

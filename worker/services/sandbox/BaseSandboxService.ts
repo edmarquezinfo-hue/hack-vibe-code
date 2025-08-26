@@ -161,7 +161,7 @@ import {
      * Write multiple files to an instance
      * Returns: { success: boolean, message?: string, results: [...], error?: string }
      */
-    abstract writeFiles(instanceId: string, files: WriteFilesRequest['files']): Promise<WriteFilesResponse>;
+    abstract writeFiles(instanceId: string, files: WriteFilesRequest['files'], commitMessage?: string): Promise<WriteFilesResponse>;
   
     /**
      * Read specific files from an instance

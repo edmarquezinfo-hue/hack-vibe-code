@@ -19,7 +19,6 @@ import type {
     PublicAppQueryOptions,
     OwnershipResult,
     AppVisibilityUpdateResult,
-    SimpleAppCreation,
     TimePeriod,
     AppSortOption,
 } from '../types';
@@ -134,37 +133,17 @@ export class AppService extends BaseService {
     /**
      * Create a new app with full schema data
      */
-    async createApp(appData: Omit<schema.NewApp, 'id'>): Promise<schema.App> {
+    async createApp(appData:schema.NewApp): Promise<schema.App> {
         const [app] = await this.database
             .insert(schema.apps)
             .values({
                 ...appData,
-                id: generateId(),
                 slug: appData.title ? this.generateSlug(appData.title) : undefined,
             })
             .returning();
         return app;
     }
-
-    /**
-     * Create a new app with simplified interface for common use cases
-     */
-    async createSimpleApp(appData: SimpleAppCreation): Promise<schema.App> {
-        const fullAppData: Omit<schema.NewApp, 'id'> = {
-            userId: appData.userId,
-            title: appData.title,
-            description: appData.description || null,
-            framework: appData.framework || 'react',
-            visibility: appData.visibility || 'private',
-            iconUrl: null,
-            originalPrompt: appData.title, // Use title as original prompt
-            createdAt: new Date(),
-            updatedAt: new Date()
-        };
-
-        return this.createApp(fullAppData);
-    }
-
+    
     async getUserApps(
         userId: string,
         options: AppQueryOptions = {}

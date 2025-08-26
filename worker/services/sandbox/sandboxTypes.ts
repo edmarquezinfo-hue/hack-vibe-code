@@ -181,7 +181,8 @@ export const WriteFilesRequestSchema = z.object({
     files: z.array(z.object({
         filePath: z.string(),
         fileContents: z.string(),
-    })),
+    })), 
+    commitMessage: z.string().optional(),
 })
 export type WriteFilesRequest = z.infer<typeof WriteFilesRequestSchema>
 

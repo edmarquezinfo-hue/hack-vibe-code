@@ -103,7 +103,7 @@ Current implementation in `worker/auth/` and `worker/api/controllers/authControl
 ### Environment Variables
 Required in `.dev.vars` for local development:
 - `JWT_SECRET` - For session management (under development)
-- `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` - AI providers
+- `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_AI_STUDIO_API_KEY` - AI providers
 - `RUNNER_SERVICE_API_KEY` - For code execution service
 - OAuth credentials (being redesigned)
 

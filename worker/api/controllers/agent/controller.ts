@@ -1,18 +1,14 @@
-import { createObjectLogger, Trace, StructuredLogger } from '../../../logger'
-import { generateBlueprint } from '../../../agents/planning/blueprint';
-import { selectTemplate } from '../../../agents/planning/templateSelector';
-import { SandboxSdkClient } from '../../../services/sandbox/sandboxSdkClient';
+import { createObjectLogger, StructuredLogger } from '../../../logger'
 import { WebSocketMessageResponses } from '../../../agents/constants';
-import * as schema from '../../../database/schema';
 import { BaseController } from '../BaseController';
-import { getSandboxService } from '../../../services/sandbox/factory';
 import { generateId } from '../../../utils/idGenerator';
 import { CodeGenState } from '../../../agents/core/state';
 import { getAgentStub } from '../../../agents';
 import { AgentStateData, AgentConnectionData, AgentPreviewResponse } from './types';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
 import { RouteContext } from '../../types/route-context';
-
+import { AppService, DatabaseService, ModelConfigService, SecretsService } from '../../../database';
+import { ModelConfig } from '../../../agents/inferutils/config.types';
 interface CodeGenArgs {
     query: string;
     language?: string;
@@ -45,20 +41,8 @@ export class CodingAgentController extends BaseController {
      * Start the incremental code generation process
      */
     async startCodeGeneration(request: Request, env: Env, _: ExecutionContext, context: RouteContext): Promise<Response> {
-        // Initialize new request context for distributed tracing
-        const chatId = generateId();
-        const requestId = chatId;
-        const requestContext = Trace.startRequest(requestId, {
-            endpoint: '/api/agent',
-            method: 'POST',
-            userAgent: request.headers.get('user-agent') || 'unknown',
-            timestamp: new Date().toISOString()
-        });
-        
         try {
             this.codeGenLogger.info('Starting code generation process', {
-                requestId,
-                traceId: requestContext.getCurrentTraceId(),
                 endpoint: '/api/agent'
             });
 
@@ -76,72 +60,6 @@ export class CodingAgentController extends BaseController {
             if (!query) {
                 return this.createErrorResponse('Missing "query" field in request body', 400);
             }
-
-            const language = body.language || defaultCodeGenArgs.language;
-            const frameworks = body.frameworks || defaultCodeGenArgs.frameworks;
-            const agentMode = body.agentMode || defaultCodeGenArgs.agentMode;
-
-            // Create a new agent instance with a generated ID - spawn the correct agent type
-            const agentInstance = await getAgentStub(env, chatId)
-
-            this.codeGenLogger.info('Created new agent instance with ID: {chatId}', {
-                chatId,
-                requestId,
-                traceId: requestContext.getCurrentTraceId(),
-                agentMode,
-                query: query.substring(0, 100) + (query.length > 100 ? '...' : '')
-            });
-
-            // If no template is selected, fetch available templates
-            const templatesResponse = await SandboxSdkClient.listTemplates();
-            if (!templatesResponse) {
-                return this.createErrorResponse('Failed to fetch templates from sandbox service', 500);
-            }
-
-            const [analyzeQueryResponse, sandboxClient] = await Promise.all([
-                selectTemplate({
-                    env,
-                    metadata: {
-                        agentId: chatId,
-                        userId: '',
-                    },
-                    query,
-                    availableTemplates: templatesResponse.templates,
-                }), 
-                getSandboxService(chatId, hostname)
-            ]);
-
-            this.codeGenLogger.info('Selected template', { selectedTemplate: analyzeQueryResponse });
-
-            // Find the selected template by name in the available templates
-            if (!analyzeQueryResponse.selectedTemplateName) {
-                this.codeGenLogger.error('No suitable template found for code generation');
-                return this.createErrorResponse('No suitable template found for code generation', 404);
-            }
-
-            const selectedTemplate = templatesResponse.templates.find(template => template.name === analyzeQueryResponse.selectedTemplateName);
-            if (!selectedTemplate) {
-                this.codeGenLogger.error('Selected template not found');
-                return this.createErrorResponse('Selected template not found', 404);
-            }
-
-            // Now fetch all the files from the instance
-            const templateDetailsResponse = await sandboxClient.getTemplateDetails(selectedTemplate.name);
-            if (!templateDetailsResponse.success || !templateDetailsResponse.templateDetails) {
-                this.codeGenLogger.error('Failed to fetch files', { templateDetailsResponse });
-                return this.createErrorResponse('Failed to fetch files', 500);
-            }
-
-            const templateDetails = templateDetailsResponse.templateDetails;
-
-            // Generate a blueprint
-            this.codeGenLogger.info('Generating blueprint', { query, queryLength: query.length });
-            this.codeGenLogger.info(`Using language: ${language}, frameworks: ${frameworks ? frameworks.join(", ") : "none"}`);
-
-            // Construct the response URLs
-            const websocketUrl = `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/api/agent/${chatId}/ws`;
-            const httpStatusUrl = `${url.origin}/api/agent/${chatId}`;
-
             const { readable, writable } = new TransformStream({
                 transform(chunk, controller) {
                     if (chunk === "terminate") {
@@ -153,17 +71,6 @@ export class CodingAgentController extends BaseController {
                 }
             });
             const writer = writable.getWriter();
-            writer.write({
-                message: 'Code generation started',
-                agentId: chatId, // Keep as agentId for backward compatibility
-                websocketUrl,
-                httpStatusUrl,
-                template: {
-                    name: templateDetails.name,
-                    files: templateDetails.files,
-                }
-            });
-
             // Check if user is authenticated (required for app creation)
             const user = this.extractAuthUser(context);
             if (!user) {
@@ -172,77 +79,100 @@ export class CodingAgentController extends BaseController {
                     headers: { 'Content-Type': 'application/json' }
                 });
             }
-            
-            generateBlueprint({
-                env,
-                metadata: {
-                    agentId: chatId,
-                    userId: '',
-                },
-                query,
-                language: language!,
-                frameworks: frameworks!,
-                templateDetails,
-                templateMetaInfo: analyzeQueryResponse,
-                stream: {
-                    chunk_size: 256,
-                    onChunk: (chunk) => {
-                        writer.write({ chunk });
-                    }
+
+            const agentId = generateId();
+            const db = new DatabaseService(env);
+            const modelConfigService = new ModelConfigService(db);
+            const secretsService = new SecretsService(db, env);
+                                
+            // Fetch all user model configs, api keys and agent instance at once
+            const [userConfigsRecord, userApiKeys, agentInstance] = await Promise.all([
+                modelConfigService.getUserModelConfigs(user.id),
+                secretsService.getUserProviderKeysMap(user.id),
+                getAgentStub(env, agentId, false, this.codeGenLogger)
+            ]);
+                                
+            // Convert Record to Map and extract only ModelConfig properties
+            const userModelConfigs = new Map();
+            for (const [actionKey, mergedConfig] of Object.entries(userConfigsRecord)) {
+                if (mergedConfig.isUserOverride) {
+                    const modelConfig: ModelConfig = {
+                        name: mergedConfig.name,
+                        max_tokens: mergedConfig.max_tokens,
+                        temperature: mergedConfig.temperature,
+                        reasoning_effort: mergedConfig.reasoning_effort,
+                        fallbackModel: mergedConfig.fallbackModel
+                    };
+                    userModelConfigs.set(actionKey, modelConfig);
                 }
-            }).then(async (blueprint) => {
-                this.codeGenLogger.info('Blueprint generated successfully');
-                
-                // Save the app to database (authenticated users only)
-                try {
-                    const dbService = this.createDbService(env);
-                    
-                    this.codeGenLogger.info('Attempting to save app to database', {
-                        chatId,
-                        userId: user.id,
-                        title: blueprint.title || query.substring(0, 100),
-                        hasDB: !!env.DB
-                    });
-                    
-                    await dbService.db
-                        .insert(schema.apps)
-                        .values({
-                            id: chatId, // Use chatId as the app ID
-                            userId: user.id,
-                            sessionToken: null, // No session tokens for authenticated users
-                            title: blueprint.title || query.substring(0, 100),
-                            description: blueprint.description || null,
-                            originalPrompt: query,
-                            finalPrompt: query,
-                            blueprint: blueprint,
-                            framework: frameworks?.[0] || 'react',
-                            visibility: 'private', // Authenticated users default to private
-                            status: 'generating',
-                            createdAt: new Date(),
-                            updatedAt: new Date()
-                        });
-                    
-                    this.codeGenLogger.info('App saved successfully to database', { 
-                        chatId, 
-                        userId: user.id,
-                        visibility: 'private'
-                    });
-                } catch (error) {
-                    this.codeGenLogger.error('Failed to save app to database', {
-                        error: error instanceof Error ? error.message : String(error),
-                        stack: error instanceof Error ? error.stack : undefined,
-                        chatId,
-                        userId: user.id
-                    });
-                }
-                
-                // Initialize the agent with the blueprint and query
-                await agentInstance.initialize(query, blueprint, templateDetails, chatId, hostname, user.id, agentMode);
-                
-                this.codeGenLogger.info('Agent initialized successfully');
-                writer.write("terminate");
+            }
+
+            const inferenceContext = {
+                userModelConfigs: Object.fromEntries(userModelConfigs),
+                userApiKeys: Object.fromEntries(userApiKeys),
+                agentId: agentId,
+                userId: user.id,
+                enableRealtimeCodeFix: true, // For now disabled from the model configs itself
+            }
+                                
+            this.logger.info(`Initialized inference context for user ${user.id}`, {
+                modelConfigsCount: Object.keys(userModelConfigs).length,
+                apiKeysCount: Object.keys(inferenceContext.userApiKeys || {}).length
             });
 
+            const agentPromise = agentInstance.initialize({
+                query,
+                language: body.language || defaultCodeGenArgs.language,
+                frameworks: body.frameworks || defaultCodeGenArgs.frameworks,
+                hostname,
+                inferenceContext,
+                onTemplateGenerated: (templateDetails) => {
+                    const websocketUrl = `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/api/agent/${agentId}/ws`;
+                    const httpStatusUrl = `${url.origin}/api/agent/${agentId}`;
+                
+                    writer.write({
+                        message: 'Code generation started',
+                        agentId: agentId, // Keep as agentId for backward compatibility
+                        websocketUrl,
+                        httpStatusUrl,
+                        template: {
+                            name: templateDetails.name,
+                            files: templateDetails.files,
+                        }
+                    });
+                },
+                onBlueprintChunk: (chunk) => {
+                    writer.write({ chunk });
+                },
+            }, body.agentMode || defaultCodeGenArgs.agentMode) as Promise<CodeGenState>;
+            agentPromise.then(async (state: CodeGenState) => {
+                this.codeGenLogger.info('Blueprint generated successfully');
+                // Save the app to database (authenticated users only)
+                const appService = new AppService(this.createDbService(env));
+                await appService.createApp({
+                    id: agentId,
+                    userId: user.id,
+                    sessionToken: null,
+                    title: state.blueprint.title || query.substring(0, 100),
+                    description: state.blueprint.description || null,
+                    originalPrompt: query,
+                    finalPrompt: query,
+                    blueprint: state.blueprint,
+                    framework: state.blueprint.frameworks?.[0] || defaultCodeGenArgs.frameworks?.[0],
+                    visibility: 'private',
+                    status: 'generating',
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                });
+                this.codeGenLogger.info('App saved successfully to database', { 
+                    agentId, 
+                    userId: user.id,
+                    visibility: 'private'
+                });
+                this.codeGenLogger.info('Agent initialized successfully');
+            }).finally(() => {
+                writer.write("terminate");
+            });
             return new Response(readable, {
                 status: 200,
                 headers: {
@@ -292,7 +222,7 @@ export class CodingAgentController extends BaseController {
 
             try {
                 // Get the agent instance to handle the WebSocket connection
-                const agentInstance = await getAgentStub(env, chatId, true);
+                const agentInstance = await getAgentStub(env, chatId, true, this.codeGenLogger);
                 
                 this.codeGenLogger.info(`Successfully got agent instance for chat: ${chatId}`);
 
@@ -343,7 +273,7 @@ export class CodingAgentController extends BaseController {
 
             try {
                 // Verify the agent instance exists
-                const agentInstance = await getAgentStub(env, agentId, true);
+                const agentInstance = await getAgentStub(env, agentId, true, this.codeGenLogger);
                 if (!agentInstance || !(await agentInstance.isInitialized())) {
                     return this.createErrorResponse<AgentConnectionData>('Agent instance not found or not initialized', 404);
                 }
@@ -388,7 +318,7 @@ export class CodingAgentController extends BaseController {
 
             try {
                 // Get the agent instance
-                const agentInstance = await getAgentStub(env, agentId, true);
+                const agentInstance = await getAgentStub(env, agentId, true, this.codeGenLogger);
                 
                 // Get the full agent state to access conversation messages and other details
                 const fullState = await agentInstance.getFullState() as CodeGenState;
@@ -445,7 +375,7 @@ export class CodingAgentController extends BaseController {
 
             try {
                 // Get the agent instance
-                const agentInstance = await getAgentStub(env, agentId, true);
+                const agentInstance = await getAgentStub(env, agentId, true, this.codeGenLogger);
                 
                 // Deploy the preview
                 const preview = await agentInstance.deployToSandbox();

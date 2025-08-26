@@ -3,6 +3,8 @@
  * This file serves as the single source of truth for frontend-worker API communication
  */
 
+export type { SecretTemplate } from 'worker/types/secretsTemplates';
+
 // Base API Response Types
 export type { ControllerResponse, ApiResponse } from 'worker/api/controllers/BaseController.types';
 
@@ -41,7 +43,6 @@ export type {
 export type {
   DashboardData,
   UserAppsData,
-  AgentSessionData,
   ProfileUpdateData,
   UserTeamsData
 } from 'worker/api/controllers/user/types';
@@ -51,6 +52,15 @@ export type {
   UserStatsData,
   UserActivityData
 } from 'worker/api/controllers/stats/types';
+
+// Analytics API Types
+export type {
+  UserAnalyticsResponseData,
+  AgentAnalyticsResponseData,
+  AnalyticsQueryParams,
+  UserAnalyticsParams,
+  AgentAnalyticsParams
+} from 'worker/api/controllers/analytics/types';
 
 // Model Config API Types
 export type {
@@ -94,8 +104,7 @@ export type {
   SecretsData,
   SecretStoreData,
   SecretDeleteData,
-  SecretTemplatesData,
-  SecretTemplate
+  SecretTemplatesData
 } from 'worker/api/controllers/secrets/types';
 
 // GitHub Integration API Types
@@ -121,7 +130,6 @@ export type {
 export type { 
   App,
   User,
-  CodeGenInstance,
   UserModelConfig,
   UserModelProvider
 } from 'worker/database/schema';
@@ -165,7 +173,6 @@ export type {
 } from 'worker/agents/inferutils/config.types';
 
 export { AIModels } from 'worker/agents/inferutils/config.types';
-
 // Model selection types
 export type ModelSelectionMode = 'platform' | 'byok' | 'custom';
 

@@ -43,3 +43,5 @@ debugging.ipynb
 
 #bun.lock
 #*.lock
+
+debug-tools/*.json

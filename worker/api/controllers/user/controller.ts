@@ -7,7 +7,6 @@ import type { AppSortOption, SortOrder, TimePeriod } from '../../../database/typ
 import { 
     DashboardData, 
     UserAppsData, 
-    AgentSessionData, 
     ProfileUpdateData, 
     UserTeamsData
 } from './types';
@@ -111,58 +110,6 @@ export class UserController extends BaseController {
         } catch (error) {
             this.logger.error('Error getting user apps:', error);
             return this.createErrorResponse<UserAppsData>('Failed to get user apps', 500);
-        }
-    }
-
-    /**
-     * Create or associate a CodeGeneratorAgent session with the user
-     */
-    async createAgentSession(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AgentSessionData>>> {
-        try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<AgentSessionData>('Authentication required', 401);
-            }
-
-            const bodyResult = await this.parseJsonBody<{
-                agentId: string;
-                prompt: string;
-                title?: string;
-                description?: string;
-                framework?: string;
-            }>(request);
-
-            if (!bodyResult.success) {
-                return bodyResult.response! as ControllerResponse<ApiResponse<AgentSessionData>>;
-            }
-
-            const { agentId, prompt, title, description, framework } = bodyResult.data!;
-
-            if (!agentId || !prompt) {
-                return this.createErrorResponse<AgentSessionData>('Agent ID and prompt are required', 400);
-            }
-
-            const dbService = this.createDbService(env);
-            const userService = new UserService(dbService);
-            
-            // Create app session using user service
-            const sessionResult = await userService.createAppSession(user.id, {
-                agentId,
-                prompt,
-                title,
-                description,
-                framework
-            });
-
-            const responseData: AgentSessionData = {
-                app: sessionResult.app,
-                codeGenInstance: sessionResult.codeGenInstance
-            };
-
-            return this.createSuccessResponse(responseData);
-        } catch (error) {
-            this.logger.error('Error creating agent session:', error);
-            return this.createErrorResponse<AgentSessionData>('Failed to create agent session', 500);
         }
     }
 

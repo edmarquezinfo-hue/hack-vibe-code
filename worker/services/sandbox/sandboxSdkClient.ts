@@ -607,60 +607,6 @@ export class SandboxSdkClient extends BaseSandboxService {
         }
     }
 
-    // private async startCloudflaredTunnel(instanceId: string, port: number): Promise<string> {
-    //     try {
-    //         const process = await this.getSandbox().startProcess(
-    //             `cloudflared tunnel --url http://localhost:${port}`, 
-    //             { cwd: instanceId }
-    //         );
-    //         this.logger.info(`Started cloudflared tunnel for ${instanceId}`);
-
-    //         // Stream process logs to extract the preview URL
-    //         const logStream = await this.getSandbox().streamProcessLogs(process.id);
-            
-    //         return new Promise<string>((resolve, _reject) => {
-    //             const timeout = setTimeout(() => {
-    //                 // reject(new Error('Timeout waiting for cloudflared tunnel URL'));
-    //                 this.logger.warn('Timeout waiting for cloudflared tunnel URL');
-    //                 resolve('');
-    //             }, 20000); // 20 second timeout
-
-    //             const processLogs = async () => {
-    //                 try {
-    //                     for await (const event of parseSSEStream<LogEvent>(logStream)) {
-    //                         if (event.data) {
-    //                             const logLine = event.data;
-    //                             this.logger.info(`Cloudflared log ===> ${logLine}`);
-                                
-    //                             // Look for the preview URL in the logs
-    //                             // Format: https://subdomain.trycloudflare.com
-    //                             const urlMatch = logLine.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
-    //                             if (urlMatch) {
-    //                                 clearTimeout(timeout);
-    //                                 const previewURL = urlMatch[0];
-    //                                 this.logger.info(`Found cloudflared tunnel URL: ${previewURL}`);
-    //                                 resolve(previewURL);
-    //                                 return;
-    //                             }
-    //                         }
-    //                     }
-    //                 } catch (error) {
-    //                     this.logger.error('Cloudflare tunnel process failed', error);
-    //                     clearTimeout(timeout);
-    //                     // reject(error);
-    //                     resolve('');
-    //                 }
-    //             };
-
-    //             processLogs();
-    //         });
-    //     } catch (error) {
-    //         this.logger.warn('Failed to start cloudflared tunnel', error);
-    //         throw error;
-    //     }
-    // }
-
-
     /**
      * Provisions Cloudflare resources for template placeholders in wrangler.jsonc
      */
@@ -866,6 +812,9 @@ export class SandboxSdkClient extends BaseSandboxService {
                     if (localEnvVars) {
                         await this.setLocalEnvVars(instanceId, localEnvVars);
                     }
+                    // Setup git
+                    const gitSetupResult = await this.executeCommand(instanceId, `git init`);
+                    this.logger.info(`Git setup result: ${gitSetupResult.stdout}`);
                     // this.logger.info(`Running setup script for ${instanceId}`);
                     // const setupResult = await this.executeCommand(instanceId, `[ -f setup.sh ] && bash setup.sh ${projectName}`);
                     // this.logger.info(`Setup result: STDOUT: ${setupResult.stdout}, STDERR: ${setupResult.stderr}`);
@@ -1144,19 +1093,14 @@ export class SandboxSdkClient extends BaseSandboxService {
     // FILE OPERATIONS
     // ==========================================
 
-    async writeFiles(instanceId: string, files: WriteFilesRequest['files']): Promise<WriteFilesResponse> {
+    async writeFiles(instanceId: string, files: WriteFilesRequest['files'], commitMessage?: string): Promise<WriteFilesResponse> {
         try {
             const sandbox = this.getSandbox();
 
             const results = [];
-
-            const writePromises = files.map(file => {
-                return sandbox.writeFile(`${instanceId}/${file.filePath}`, file.fileContents);
-            });
             
-            const writeResults = await Promise.all(writePromises);
-            
-            for (const writeResult of writeResults) {
+            for (const file of files) {
+                const writeResult = await sandbox.writeFile(`${instanceId}/${file.filePath}`, file.fileContents);
                 if (writeResult.success) {
                     results.push({
                         file: writeResult.path,
@@ -1175,6 +1119,14 @@ export class SandboxSdkClient extends BaseSandboxService {
             }
 
             const successCount = results.filter(r => r.success).length;
+
+            // Try to commit
+            try {
+                const commitResult = await this.createLatestCommit(instanceId, commitMessage || 'Initial commit');
+                this.logger.info(`Commit result: ${commitResult}`);
+            } catch (error) {
+                this.logger.error(`Failed to commit: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
 
             return {
                 success: true,
@@ -1766,6 +1718,26 @@ export class SandboxSdkClient extends BaseSandboxService {
         return repoName.replace(/[^A-Za-z0-9_.-]/g, '-');
     }
 
+    private async createLatestCommit(instanceId: string, commitMessage: string): Promise<string> {
+        // Add and commit changes using the provided or default commit message
+        const addResult = await this.executeCommand(instanceId, `git add .`);
+        if (addResult.exitCode !== 0) {
+            throw new Error(`Git add failed: ${addResult.stderr}`);
+        }
+                
+        const commitResult = await this.executeCommand(instanceId, `git commit -m "${commitMessage.replace(/"/g, '\\"')}"`);
+        if (commitResult.exitCode !== 0) {
+            throw new Error(`Git commit failed: ${commitResult.stderr}`);
+        }
+                
+        // Extract commit hash from the commit result
+        const hashResult = await this.executeCommand(instanceId, `git rev-parse HEAD`);
+        if (hashResult.exitCode === 0) {
+            return hashResult.stdout.trim();
+        }
+        throw new Error(`Git rev-parse failed: ${hashResult.stderr}`);
+    }
+
     async exportToGitHub(instanceId: string, request: GitHubExportRequest): Promise<GitHubExportResponse> {
         try {
             // Transform repository name according to GitHub's naming rules
@@ -1801,24 +1773,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             const commitMessage = request.commitMessage || "Initial commit";
             
             if (hasUncommittedChanges) {
-                // Add and commit changes using the provided or default commit message
-                const addResult = await this.executeCommand(instanceId, `git add .`);
-                if (addResult.exitCode !== 0) {
-                    throw new Error(`Git add failed: ${addResult.stderr}`);
-                }
-                
-                const commitResult = await this.executeCommand(instanceId, `git commit -m "${commitMessage.replace(/"/g, '\\"')}"`);
-                if (commitResult.exitCode !== 0) {
-                    throw new Error(`Git commit failed: ${commitResult.stderr}`);
-                }
-                
-                // Extract commit hash from the commit result
-                const hashResult = await this.executeCommand(instanceId, `git rev-parse HEAD`);
-                if (hashResult.exitCode === 0) {
-                    commitSha = hashResult.stdout.trim();
-                }
-                
-                this.logger.info(`Created commit ${commitSha} for instance ${instanceId}`);
+                commitSha = await this.createLatestCommit(instanceId, commitMessage);
             } else {
                 // Check if we have any commits at all
                 const logCheck = await this.executeCommand(instanceId, `git log --oneline -1`);

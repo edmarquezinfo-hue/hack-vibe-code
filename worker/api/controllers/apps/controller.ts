@@ -10,7 +10,6 @@ import {
     PublicAppsData,
     SingleAppData,
     FavoriteToggleData,
-    CreateAppData,
     UpdateAppVisibilityData,
     AppDeleteData
 } from './types';
@@ -127,45 +126,6 @@ export class AppController extends BaseController {
         } catch (error) {
             this.logger.error('Error toggling favorite:', error);
             return this.createErrorResponse<FavoriteToggleData>('Failed to toggle favorite', 500);
-        }
-    }
-
-    // Create new app
-    async createApp(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<CreateAppData>>> {
-        try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<CreateAppData>('Authentication required', 401);
-            }
-
-            const body = await this.parseJsonBody(request) as { 
-                title?: string; 
-                description?: string; 
-                framework?: string; 
-                visibility?: 'private' | 'team' | 'board' | 'public' 
-            };
-            const { title, description, framework, visibility } = body;
-
-            if (!title) {
-                return this.createErrorResponse<CreateAppData>('Title is required', 400);
-            }
-
-            const dbService = this.createDbService(env);
-            const appService = new AppService(dbService);
-
-            const newApp = await appService.createSimpleApp({
-                userId: user.id,
-                title,
-                description,
-                framework,
-                visibility
-            });
-
-            const responseData: CreateAppData = { app: newApp };
-            return this.createSuccessResponse(responseData);
-        } catch (error) {
-            this.logger.error('Error creating app:', error);
-            return this.createErrorResponse<CreateAppData>('Failed to create app', 500);
         }
     }
 

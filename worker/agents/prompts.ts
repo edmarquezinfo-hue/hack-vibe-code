@@ -596,7 +596,7 @@ export const STRATEGIES_UTILS = {
         * **Frontend Completion:** Build out all the views/pages with the UI components. We need to deliver a high-fidelity representation of the final frontend UI/UX (You may use mock data for secondary views/pages). Ensure responsiveness and visual polish. Every page and link the application should work.
             - Implement the primary page to completion, with all the components it needs, polished and almost ready with proper links to secondary pages.
             - Implement most of the secondary pages. You can use mock data but actual working functionality is always preferred.
-            - In this phase, all the links should work and the application should be visually complete and polished. 404s need to be rare! Make sure all the pages and routes are implemented.
+            - In this phase, all the links should work and the application should be visually complete and polished Sufficient mock data and views should be available. 404s need to be rare! Make sure all the pages and routes are implemented.
         * **Implement core application logic:** Implement the core application logic and features, atleast for the primary view/page. Strive to make them fully functional (particularly for small-medium projects) but ensure they are robust and handle edge cases. This will help in making the frontend visually complete and polished.
         * **Ensure the primary view/page is visually and functionally complete. Main page should be the last file to be writen in this phase (eg src/pages/index.tsx or src/App.tsx)**
         * **Phase Granularity:** For *simple* applications, the entire functional project might be achievable in a *single phase*. For *more complex* applications, this initial phase will be the foundation of the application, especially the frontend, views and mockups.
@@ -604,11 +604,12 @@ export const STRATEGIES_UTILS = {
     SUBSEQUENT_PHASE_GUIDELINES: `**Subsequent Phases: Fleshing out & Backend Integration**
         * **Iterative Build:** Add additional functionalities and application logic expected in the project iteratively.
         * **Implement all views/pages and features:** Implement all views/pages and features that appear in the application or blueprint or user query. Flesh out the application as much as possible.
-        * **Backend Integration:** Introduce backend services, state management, and data fetching. Instead of using mock data, make sure to use real data from the backend.
+        * **Backend Integration:** Introduce backend services, state management, and data fetching. Seed the backend appropriately.
         * **Feature Expansion:** Add new features, components, and pages as needed. Nothing should be left 'coming soon' or 'to be implemented later'. Every button and feature should work.
         * **Scalable Phasing:** The *number* of these subsequent phases depends directly on the application's complexity. Simple apps might need only one refinement phase, while complex apps will require several.
         * **UI/UX:** Enhance, improve and make the application visually complete and polished. Every button and feature should work. The application should be beautiful, user friendly, visually pleasing and a piece of art.
         * **Avoid focus on non-essential stuff:** Stuff like security are non critical for shipping the product to the client. Focus on polishing and delivering the product to the client so we can get feedback directly and improve as needed.
+        * **Address new client requests**: Address any new client requests or feedbacks in 1-2 phases. Direct user feedback/requests are considered urgent and need to be addressed on priority
         * **Final Polish & Review:** Conclude with a phase dedicated to final integration checks, robustness, performance tuning, and overall polish.`,
     CODING_GUIDELINES: `**Make sure the product is **FUNCTIONAL** along with **POLISHED***
     **MAKE SURE TO NOT BREAK THE APPLICATION in SUBSEQUENT PHASES. Look out for simple syntax errors and dependencies you use!**
@@ -617,9 +618,10 @@ export const STRATEGIES_UTILS = {
     CONSTRAINTS: `<PHASE GENERATION CONSTRAINTS>
         **Focus on building the frontend and all the views/pages in the initial 1-2 phases with core functionality and mostly mock data, then fleshing out the application**    
         **Before writing any components of your own, make sure to check the existing components and files in the template, try to use them if possible (for example preinstalled shadcn components)**
+        **If auth functionality is required, provide mock auth functionality primarily. Provide real auth functionality ONLY IF template has persistence layer. Remember to seed the persistence layer with mock data AND Always PREFILL the UI with mock credentials. No oauth needed**
 
         **Applications with single view/page or mostly static content are considered **Simple Projects** and those with multiple views/pages should are considered **Complex Projects** and should be designed accordingly.**
-        * **Phase Count:** Aim for a maximum of 1-2 phases for simple applications and 4-7 phases for complex applications. Each phase should be self-contained. Do not exceed more than ${MAX_PHASES} phases.
+        * **Phase Count:** Aim for a maximum of 1 phase for simple applications and 3-7 phases for complex applications. Each phase should be self-contained. Do not exceed more than ${Math.floor(MAX_PHASES * 0.8)} phases unless addressing complex client feedbacks.
         * **File Count:** Aim for a maximum of 1-3 files per phase for simple applications and 8-12 files per phase for complex applications.
         * The number of files in the project should be proportional to the number of views/pages that the project has.
         * Keep the size of codebase as small as possible, write encapsulated and abstracted code that can be reused, maximize code and component reuse and modularity. If a function/component is to be used in multiple files, it should be defined in a shared file.
@@ -651,6 +653,7 @@ export const STRATEGIES = {
     ${STRATEGIES_UTILS.CONSTRAINTS}
 
     **No need to add accessibility features. Focus on delivering an actually feature wise polished and complete application in as few phases as possible.**
+    **Always stick to existing project/template patterns. Respect and work with existing worker bindings rather than making custom ones**
     **Rely on open source tools and free tier services only apart from whats configured in the environment. Refer to template usage instructions to know if specific cloudflare services are also available for use.**
     **Make sure to implement all the features and functionality requested by the user and more. The application should be fully complete by the end of the last phase. There should be no compromises**
     **This is a Cloudflare Workers & Durable Objects project. The environment is preconfigured. Absolutely DO NOT Propose changes to wrangler.toml or any other config files. These config files are hidden from you but they do exist.**
