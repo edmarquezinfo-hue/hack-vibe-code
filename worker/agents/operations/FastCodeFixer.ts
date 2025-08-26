@@ -13,7 +13,7 @@ export interface FastCodeFixerInputs {
     allPhases?: PhaseConceptType[];
 }
 
-const SYSTEM_PROMPT = `You are a senior software engineer at Cloudflare, currently on our Incident response team. There may have been several potential issues identified in our codebase. You are to thoroughly review and fix them.`
+const SYSTEM_PROMPT = `You are a Senior Software Engineer at Cloudflare's Incident Response Team specializing in rapid bug fixes. Your task is to analyze identified code issues and generate complete fixed files using the SCOF format.`
 const USER_PROMPT = `
 ================================
 Here is the codebase of the project:
@@ -32,30 +32,39 @@ Identified issues:
 </issues>
 ================================
 
-**TASK:**
-Identify if the issues aren't false positives and need attention, and then fix them file by file, providing output in our special code formatting scheme.
+## EXAMPLES OF COMMON FIXES:
 
-**Patching Guidelines:**
-    •   Analyze the code structure, components, and dependencies.
-    •   **Targeted Fixes:** Address *only* the identified problems. Do not refactor unrelated code or introduce new features.
-    •   **Preserve Functionality:** Ensure the corrected code still fulfills the file's original purpose and maintains its interface (exports) for other files. Ensure all the functions/components still have correct and compatible specifications **Do NOT break working parts.**
-    •   **Quality Standards:** Apply the same high standards as initial generation (clean code, define-before-use, valid imports, etc.). Refer to <SYSTEM_PROMPTS.CODE_GENERATION>.
-    •   **Dependency Constraints:** Use ONLY existing dependencies (<DEPENDENCIES>). Only touch imports if they are obviously wrong.
-    •   **Verification:** Mentally verify your fix addresses the issues without introducing regressions. Check for syntax errors, TDZ, etc.
-    •   **No Placeholders:** Write production ready code. No \`// TODO\`, commented-out blocks, examples, or non-functional placeholders. Include necessary initial/default states or data structures for the app to load correctly.
-    •   **No comments**: Do not add any comments to the code. Just Fix the issues.
+**Example 1 - Runtime Error Fix:**
+Issue: "Cannot read property 'length' of undefined in GameBoard.tsx"
+Problem: Missing null check for gameState
+Solution: Add conditional rendering and null checks
 
-Important reminders:
-    - Include all necessary fixes in your output.    
-    - Pay extra attention to potential "Maximum update depth exceeded" errors, runtime error causing bugs, JSX/TSX Tag mismatches, logical issues and issues that can cause misalignment of UI components.
+**Example 2 - State Loop Fix:**
+Issue: "Maximum update depth exceeded in ScoreDisplay.tsx"
+Problem: useEffect without dependencies causing infinite updates
+Solution: Add proper dependency array and conditional logic
 
-To fix a file, simply rewrite it's entire contents in the output format provided
+**Example 3 - Import Error Fix:**
+Issue: "Module not found: Can't resolve './utils/helpers'"
+Problem: Incorrect import path
+Solution: Fix import path to match actual file structure
+
+## TASK:
+Analyze each reported issue and generate complete file contents with fixes applied. Use SCOF format for output.
+
+## FIX GUIDELINES:
+- Address ONLY the specific issues reported
+- Preserve all existing functionality and exports
+- Use existing dependencies only
+- No TODO comments or placeholders
+- Focus on runtime errors, infinite loops, and import issues
+- Maintain original file structure and interfaces
 `
 
 const userPromptFormatter = (query: string, issues: CodeIssue[], allFiles: FileOutputType[], _allPhases?: PhaseConceptType[]) => {
     const prompt = PROMPT_UTILS.replaceTemplateVariables(USER_PROMPT, {
         query,
-        issues: JSON.stringify(issues, null, 2),
+        issues: issues.length > 0 ? JSON.stringify(issues, null, 2) : 'No specific issues reported - perform general code review',
         codebase: PROMPT_UTILS.serializeFiles(allFiles)
     });
     return PROMPT_UTILS.verifyPrompt(prompt);

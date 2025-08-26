@@ -21,3 +21,4 @@ create web-based 3D model viewers for rendering and manipulating 3D assets in re
 
 Build a full github clone. I should be able to view a repo page, see issues/PRs, navigate to files, also explore new repos, see my open issues/ other use profiles. There should also be a profile page with the timeline for a users changes, and a github like grid with their contributions. Add any other features to make it a complete github clone.
 
+Build a full fledged github clone with all it's functionalities. I should be able to create/edit/commit files, make repos, have organizations, pull requests, issues, proper markdown rendering, code rendering, proper code editor, kanban board, github actions, likes, stars, forks, users, etc.

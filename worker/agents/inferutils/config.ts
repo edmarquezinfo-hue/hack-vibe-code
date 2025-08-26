@@ -78,7 +78,7 @@ export const AGENT_CONFIG: AgentConfig = {
         reasoning_effort: 'medium',
         max_tokens: 64000,
         fallbackModel: AIModels.GEMINI_2_5_FLASH,
-        temperature: 0.5,
+        temperature: 0.7,
     },
     projectSetup: {
         name: AIModels.GEMINI_2_5_PRO,
