@@ -55,6 +55,7 @@ export class AppViewController extends BaseController {
 
             // Try to fetch current agent state to get latest generated code
             let generatedCode: GeneratedCodeFile[] = [];
+            let previewUrl: string = '';
             
             try {
                 const agentStub = await getAgentStub(env, appResult.id, true);
@@ -68,6 +69,8 @@ export class AppViewController extends BaseController {
                         explanation: file.explanation
                     }));
                 }
+
+                previewUrl = await agentStub.getPreviewUrlCache();
             } catch (agentError) {
                 // If agent doesn't exist or error occurred, fall back to database stored files
                 this.logger.warn('Could not fetch agent state, using stored files:', agentError);
@@ -76,7 +79,7 @@ export class AppViewController extends BaseController {
             const responseData: AppDetailsData = {
                 ...appResult, // Spread all EnhancedAppData fields including stats
                 cloudflareUrl: appResult.deploymentUrl,
-                previewUrl: appResult.deploymentUrl,
+                previewUrl: previewUrl || appResult.deploymentUrl,
                 user: {
                     id: appResult.userId!,
                     displayName: appResult.userName || 'Unknown',

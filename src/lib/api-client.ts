@@ -46,12 +46,12 @@ import type {
   GitHubIntegrationRemovalData,
   AgentStateData,
   AgentConnectionData,
-  CodeGenerationResponse,
   AgentStreamingResponse,
   App,
   ActiveSessionsData,
   ApiKeysData
 } from '@/api-types';
+import { AgentPreviewResponse } from 'worker/api/controllers/agent/types';
 
 /**
  * Global auth modal trigger for 401 interception
@@ -716,16 +716,6 @@ class ApiClient {
   // ===============================
 
   /**
-   * Start new code generation
-   */
-  async startCodeGeneration(data: { prompt: string }): Promise<CodeGenerationResponse> {
-    return this.request<AgentStateData>('/api/agent', {
-      method: 'POST',
-      body: data,
-    }) as Promise<CodeGenerationResponse>;
-  }
-
-  /**
    * Get agent state
    */
   async getAgentState(agentId: string): Promise<ApiResponse<AgentStateData>> {
@@ -737,6 +727,13 @@ class ApiClient {
    */
   async connectToAgent(agentId: string): Promise<ApiResponse<AgentConnectionData>> {
     return this.request<AgentConnectionData>(`/api/agent/${agentId}/connect`);
+  }
+
+  /**
+   * Deploy preview
+   */
+  async deployPreview(agentId: string): Promise<ApiResponse<AgentPreviewResponse>> {
+    return this.request<AgentPreviewResponse>(`/api/agent/${agentId}/preview`);
   }
 
   // ===============================

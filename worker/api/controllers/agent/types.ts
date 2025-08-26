@@ -1,5 +1,6 @@
 import { CodeGenState } from "../../../agents/core/state";
 import { CodeOutputType } from "../../../agents/schemas";
+import { PreviewType } from "../../../services/sandbox/sandboxTypes";
 
 /**
  * Data structure for getAgentState response
@@ -19,20 +20,6 @@ export interface AgentConnectionData {
     agentId: string;
 }
 
-/**
- * Generation REST API response - matches ApiResponse structure
- */
-export interface CodeGenerationResponse {
-    success: boolean;
-    data: AgentStateData;
-    statusCode: number;
+export interface AgentPreviewResponse extends PreviewType {
 }
-
-/**
- * Agent connection REST API response
- */
-export interface AgentConnectionResponse {
-    success: boolean;
-    data: AgentConnectionData;
-    statusCode: number;
-}
+    

@@ -9,7 +9,7 @@ import { getSandboxService } from '../../../services/sandbox/factory';
 import { generateId } from '../../../utils/idGenerator';
 import { CodeGenState } from '../../../agents/core/state';
 import { getAgentStub } from '../../../agents';
-import { AgentStateData, AgentConnectionData } from './types';
+import { AgentStateData, AgentConnectionData, AgentPreviewResponse } from './types';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
 import { RouteContext } from '../../types/route-context';
 
@@ -429,6 +429,46 @@ export class CodingAgentController extends BaseController {
             this.codeGenLogger.error('Error fetching agent state', error);
             // Use the typed error handling approach
             const appError = this.handleError(error, 'fetch agent state') as ControllerResponse<ApiResponse<AgentStateData>>;
+            return appError;
+        }
+    }
+
+    async deployPreview(
+        _request: Request,
+        env: Env,
+        _: ExecutionContext,
+        context: RouteContext
+    ): Promise<ControllerResponse<ApiResponse<AgentPreviewResponse>>> {
+        try {
+            const agentId = context.pathParams.agentId;
+            if (!agentId) {
+                return this.createErrorResponse<AgentPreviewResponse>('Missing agent ID parameter', 400);
+            }
+
+            this.codeGenLogger.info(`Deploying preview for agent: ${agentId}`);
+
+            try {
+                // Get the agent instance
+                const agentInstance = await getAgentStub(env, agentId, true);
+                
+                // Deploy the preview
+                const preview = await agentInstance.deployToSandbox();
+                if (!preview) {
+                    return this.createErrorResponse<AgentPreviewResponse>('Failed to deploy preview', 500);
+                }
+                this.codeGenLogger.info('Preview deployed successfully', {
+                    agentId,
+                    previewUrl: preview.previewURL
+                });
+
+                return this.createSuccessResponse(preview);
+            } catch (error) {
+                this.codeGenLogger.error('Failed to deploy preview', { agentId, error });
+                return this.createErrorResponse<AgentPreviewResponse>('Failed to deploy preview', 500);
+            }
+        } catch (error) {
+            this.codeGenLogger.error('Error deploying preview', error);
+            const appError = this.handleError(error, 'deploy preview') as ControllerResponse<ApiResponse<AgentPreviewResponse>>;
             return appError;
         }
     }

@@ -165,7 +165,6 @@ function createForbiddenResponse(message: string): Response {
 export const AuthRequirements = {
     public: { level: 'public' as AuthLevel },
     authenticated: { level: 'authenticated' as AuthLevel },
-    authenticatedAllowAnon: { level: 'authenticated' as AuthLevel, allowAnonymous: true },
     ownerOnly: { level: 'owner-only' as AuthLevel }
 } as const;
 
@@ -178,13 +177,6 @@ export const AuthMiddleware = {
      */
     requireFullAuth: async (request: Request, env: Env, params?: Record<string, string>) => {
         return routeAuthMiddleware(request, env, AuthRequirements.authenticated, params);
-    },
-
-    /**
-     * Require authentication but allow anonymous users
-     */
-    requireAuthAllowAnon: async (request: Request, env: Env, params?: Record<string, string>) => {
-        return routeAuthMiddleware(request, env, AuthRequirements.authenticatedAllowAnon, params);
     },
 
     /**

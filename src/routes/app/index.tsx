@@ -339,75 +339,27 @@ export default function AppView() {
 		try {
 			setIsDeploying(true);
 			setDeploymentProgress('Connecting to agent...');
-
-			// Connect to existing agent
-			const response = await apiClient.connectToAgent(app.id);
-
-			if (response.success && response.data) {
-				const data = response.data;
-				if (data.websocketUrl && data.agentId) {
-				// Connect to WebSocket
-				const ws = new WebSocket(data.websocketUrl);
-				setWebsocket(ws);
-
-				ws.onopen = () => {
-					setDeploymentProgress(
-						'Connected to agent. Starting deployment...',
-					);
-					// Send PREVIEW request
-					ws.send(
-						JSON.stringify({
-							type: 'preview',
-							agentId: data.agentId,
-						}),
-					);
-				};
-
-				ws.onmessage = (event) => {
-					try {
-						const message = JSON.parse(event.data);
-						if (message.type === 'phase_update') {
-							setDeploymentProgress(
-								message.phase || 'Deploying...',
-							);
-						} else if (message.previewURL || message.tunnelURL) {
-							const newUrl = getPreviewUrl(
-								message.previewURL,
-								message.tunnelURL,
-							);
-							setApp((prev) =>
-								prev
-									? {
-											...prev,
-											cloudflareUrl: newUrl,
-											previewUrl: newUrl,
-										}
-									: null,
-							);
-							setDeploymentProgress('Deployment complete!');
-						}
-					} catch (e) {
-						console.error('Error parsing WebSocket message:', e);
-					}
-				};
-
-				ws.onerror = () => {
-					setDeploymentProgress(
-						'Deployment failed. Please try again.',
-					);
-					setIsDeploying(false);
-				};
-
-				ws.onclose = () => {
-					setIsDeploying(false);
-					setWebsocket(null);
-				};
-				} else {
-					throw new Error('Invalid agent connection response');
-				}
-			} else {
-				throw new Error('Failed to connect to agent');
-			}
+            const response = await apiClient.deployPreview(app.id);
+            if (response.success && response.data) {
+                const data = response.data;
+                if (data.previewURL || data.tunnelURL) {
+                    const newUrl = getPreviewUrl(
+                        data.previewURL,
+                        data.tunnelURL,
+                    );
+                    setApp((prev) =>
+                        prev
+                            ? {
+                                    ...prev,
+                                    cloudflareUrl: newUrl,
+                                    previewUrl: newUrl,
+                                }
+                            : null,
+                    );
+                    setDeploymentProgress('Deployment complete!');
+                }
+            }
+            setIsDeploying(false);
 		} catch (error) {
 			console.error('Error starting deployment:', error);
 			setDeploymentProgress('Failed to start deployment');

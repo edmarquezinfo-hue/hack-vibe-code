@@ -31,13 +31,6 @@ export const AuthConfig = {
         level: 'authenticated' as const 
     },
     
-    // Allow authenticated users including anonymous
-    authenticatedAllowAnon: { 
-        required: true, 
-        level: 'authenticated' as const, 
-        allowAnonymous: true 
-    },
-    
     // Require resource ownership (for app editing)
     ownerOnly: { 
         required: true, 

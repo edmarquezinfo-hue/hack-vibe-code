@@ -81,6 +81,7 @@ Adhere to the following guidelines:
 •   Provide a clear, concise, to the point description of the next phase and the purpose and contents of each file in it.
 •   Keep all the description fields very short and concise.
 •   If there are any files that were supposed to be generated in the previous phase, but were not, please mention them in the phase description and suggest them in the phase.
+•   Always suggest phases in sequential ordering - Phase 1 comes after Phase 0, Phase 2 comes after Phase 1 and so on.
 •   **Every phase needs to be deployable with all the views/pages working properly!**
 </SUGGESTING NEXT PHASE>
 
