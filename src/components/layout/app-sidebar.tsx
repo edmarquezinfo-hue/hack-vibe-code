@@ -211,7 +211,7 @@ export function AppSidebar() {
 								className="logo-button"
 							>
 								<a
-									href="/dashboard"
+									href="/"
 									className="flex items-center gap-3"
 								>
 									<CloudflareLogo

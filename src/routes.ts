@@ -5,7 +5,6 @@ import App from './App';
 import Home from './routes/home';
 import Chat from './routes/chat/chat';
 import {PhaseTimelinePreview} from './routes/chat/phase-timeline-preview';
-import Dashboard from './routes/dashboard';
 import Profile from './routes/profile';
 import Settings from './routes/settings/index';
 import AppsPage from './routes/apps';
@@ -29,10 +28,6 @@ const routes = [
 			{
 				path: 'phase-timeline-preview',
 				Component: PhaseTimelinePreview,
-			},
-			{
-				path: 'dashboard',
-				element: React.createElement(ProtectedRoute, { children: React.createElement(Dashboard) }),
 			},
 			{
 				path: 'profile',
