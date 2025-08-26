@@ -82,24 +82,27 @@ and provide a preview url for the application.
 
     serializeErrors(errors: RuntimeError[]): string {
         if (errors && errors.length > 0) {
-            // Just combine all the rawOutput of errors
-            const errorsSerialized = errors.map(e => e.rawOutput ? e.rawOutput : TemplateRegistry.markdown.serialize(e, RuntimeErrorSchema))
-            // Truncate each error to 1000 characters
-            const truncatedErrors = errorsSerialized.map(e => e.slice(0, 1000)).join('\n\n');
-            console.log('Errors:', truncatedErrors);
-            return truncatedErrors;
+            const errorsSerialized = errors.map(e => {
+                // Use rawOutput if available, otherwise serialize using schema
+                const errorText = e.rawOutput || TemplateRegistry.markdown.serialize(e, RuntimeErrorSchema);
+                // Truncate to 1000 characters to prevent context overflow
+                return errorText.slice(0, 1000);
+            });
+            return errorsSerialized.join('\n\n');
         } else {
             return 'N/A';
         }
     },
 
     serializeStaticAnalysis(staticAnalysis: StaticAnalysisResponse): string {
-        return `<lint_issues>
-${staticAnalysis.lint?.rawOutput || 'N/A'}
-</lint_issues>
-<typecheck_issues>
-${staticAnalysis.typecheck?.rawOutput || 'N/A'}
-</typecheck_issues>`
+        const lintOutput = staticAnalysis.lint?.rawOutput || 'No linting issues detected';
+        const typecheckOutput = staticAnalysis.typecheck?.rawOutput || 'No type checking issues detected';
+        
+        return `**LINT ANALYSIS:**
+${lintOutput}
+
+**TYPE CHECK ANALYSIS:**
+${typecheckOutput}`;
     },
 
     serializeClientReportedErrors(errors: ClientReportedErrorType[]): string {
@@ -108,10 +111,9 @@ ${staticAnalysis.typecheck?.rawOutput || 'N/A'}
                 { errors },
                 z.object({ errors: z.array(ClientReportedErrorSchema) })
             );
-            console.log('Client Reported Errors:', errorsText);
             return errorsText;
         } else {
-            return 'N/A';
+            return 'No client-reported errors';
         }
     },
 
@@ -138,341 +140,278 @@ ${staticAnalysis.typecheck?.rawOutput || 'N/A'}
     },
 
     REACT_RENDER_LOOP_PREVENTION: `<REACT_RENDER_LOOP_PREVENTION>
-In React, “Maximum update depth exceeded” means something in your component tree is setting state in a way that immediately triggers another render, which sets state again… and you've created a render→setState→render loop. React aborts after ~50 nested updates and throws this error.
-Here's how and why it happens most often and what to do about it.
+In React, "Maximum update depth exceeded" means something in your component tree is setting state in a way that immediately triggers another render, which sets state again… and you've created a render→setState→render loop. React aborts after ~50 nested updates and throws this error.
 
-# Why it happens (typical patterns)
+## The 3 Root Causes of Infinite Loops
 
-  * **State update during render**
+### 1. **Direct State Updates During Render (MOST COMMON)**
+Never call a state setter directly within the rendering logic of your component. All state updates must happen in event handlers, useEffect hooks, or async callbacks.
 
-    \`\`\`tsx
-    function Bad() {
-        const [n, setN] = useState(0);
-        setN(n + 1); // ❌ runs on every render -> infinite loop
-        return <div>{n}</div>;
-    }
-    \`\`\`
+**Basic Pattern:**
+\`\`\`tsx
+// BAD CODE ❌ State update during render
+function Bad() {
+    const [n, setN] = useState(0);
+    setN(n + 1); // Runs on every render -> infinite loop
+    return <div>{n}</div>;
+}
 
-  * **useEffect without a dependency array**
+// GOOD CODE ✅ State update in event handler
+function Good() {
+    const [n, setN] = useState(0);
+    const handleClick = () => setN(n + 1); // Safe: only runs on user interaction
+    return <button onClick={handleClick}>{n}</button>;
+}
+\`\`\`
 
-    \`\`\`tsx
-    // BAD CODE ❌ This effect runs after every render, causing an infinite loop.
-    function BadCounter() {
-      const [count, setCount] = useState(0);
-      useEffect(() => {
-        setCount(prevCount => prevCount + 1);
-      }); // No dependency array
-      return <div>{count}</div>;
-    }
-    
-    // GOOD CODE ✅ Dependency array prevents infinite loop
-    function GoodCounter() {
-      const [count, setCount] = useState(0);
-      useEffect(() => {
-        // Only run once on mount, or on specific dependencies
-        setCount(1);
-      }, []); // Empty array = run once on mount
-      return <div>{count}</div>;
-    }
-    \`\`\`
-
-  * **useEffect with a self-dependency and unconditional set**
-
-    \`\`\`tsx
-    // BAD CODE ❌ The filters object is a new reference on every render.
-    // The effect runs, calls setFilters, which creates a new reference, which triggers the effect again.
-    useEffect(() => {
-        setFilters({ ...filters }); // new object each time
-    }, [filters]); // ❌ changing filters causes effect, which changes filters again
-    \`\`\`
-
-  * **Parent/child feedback loop via props**
-
-      * Child effect updates parent state → parent rerenders → child gets new props → child effect runs again, etc.
-
-  * **useLayoutEffect that sets state synchronously**
-
-      * Same as useEffect loops, but before paint, so it blows up faster.
-
-  * **Derived state that always changes**
-
-      * This happens when a dependency for a hook is an object or array that is re-created on every single render.
-
-    \`\`\`tsx
-    // BAD CODE ❌ The \`computed\` object is a new identity on every render.
-    const [v, setV] = useState(0);
-    const computed = { v };
-    useEffect(() => { setV(v); }, [computed]);
-    \`\`\`
-
-      * This is very common with state management libraries like Zustand or Redux if not used carefully.
-
-    \`\`\`tsx
-    // BAD CODE ❌ useGameStore selector creates a new object reference on every render.
-    const { score, bestScore } = useGameStore((state) => ({
-      score: state.score,
-      bestScore: state.bestScore,
-    }));
-    \`\`\`
-
-    \`\`\`tsx
-    // CORRECT ✅
-    const items = useFilesStore(state => state.items);
-    const selectedFolderId = useFilesStore(state => state.selectedFolderId);
-    const selectFolder = useFilesStore(state => state.selectFolder);
-    \`\`\`
-
-  * **Custom hooks causing loops**
-
-    \`\`\`tsx
-    // BAD CODE ❌ Custom hook with uncontrolled effects
-    function useAutoIncrement() {
-      const [count, setCount] = useState(0);
-      useEffect(() => {
-        setCount(prev => prev + 1); // No dependencies - runs every render
-      });
-      return count;
-    }
-    
-    // GOOD CODE ✅ Custom hook with proper dependency control
-    function useCounter(initialValue = 0) {
-      const [count, setCount] = useState(initialValue);
-      const increment = useCallback(() => setCount(prev => prev + 1), []);
-      return { count, increment };
-    }
-    \`\`\`
-
-  * **Context value recreation**
-
-    \`\`\`tsx
-    // BAD CODE ❌ Context value is recreated on every render
-    function App() {
-      const [user, setUser] = useState(null);
-      const value = { user, setUser }; // New object every render
-      return <UserContext.Provider value={value}>...</UserContext.Provider>;
-    }
-    
-    // GOOD CODE ✅ Memoize context value
-    function App() {
-      const [user, setUser] = useState(null);
-      const value = useMemo(() => ({ user, setUser }), [user]);
-      return <UserContext.Provider value={value}>...</UserContext.Provider>;
-    }
-    \`\`\`
-
-  * **Conditional state updates during render**
-
-    \`\`\`tsx
-    // BAD CODE ❌ State update based on conditional render
-    function Component({ showModal }) {
-      const [modalOpen, setModalOpen] = useState(false);
-      if (showModal && !modalOpen) {
+**Conditional Updates During Render:**
+\`\`\`tsx
+// BAD CODE ❌ Conditional state update in render
+function Component({ showModal }) {
+    const [modalOpen, setModalOpen] = useState(false);
+    if (showModal && !modalOpen) {
         setModalOpen(true); // setState during render
-      }
-      return modalOpen ? <Modal /> : null;
     }
-    
-    // GOOD CODE ✅ Use useEffect for state synchronization
-    function Component({ showModal }) {
-      const [modalOpen, setModalOpen] = useState(false);
-      useEffect(() => {
+    return modalOpen ? <Modal /> : null;
+}
+
+// GOOD CODE ✅ Use useEffect for state synchronization
+function Component({ showModal }) {
+    const [modalOpen, setModalOpen] = useState(false);
+    useEffect(() => {
         setModalOpen(showModal);
-      }, [showModal]);
-      return modalOpen ? <Modal /> : null;
-    }
-    \`\`\`
+    }, [showModal]);
+    return modalOpen ? <Modal /> : null;
+}
+\`\`\`
 
-  * **Event handlers with stale closures**
-
-    \`\`\`tsx
-    // BAD CODE ❌ Event handler depends on stale state
-    function Counter() {
-      const [count, setCount] = useState(0);
-      const handleClick = () => {
-        setCount(count + 1); // Stale closure problem
-        setCount(count + 1); // Won't increment by 2
-      };
-      return <button onClick={handleClick}>{count}</button>;
-    }
-    
-    // GOOD CODE ✅ Use functional updates to avoid stale closures
-    function Counter() {
-      const [count, setCount] = useState(0);
-      const handleClick = useCallback(() => {
-        setCount(prev => prev + 1);
-        setCount(prev => prev + 1); // Will correctly increment by 2
-      }, []);
-      return <button onClick={handleClick}>{count}</button>;
-    }
-    \`\`\`
-
-  * **Side effects in memoization hooks**
-
-    \`\`\`tsx
-    // BAD CODE ❌ State update inside useMemo/useCallback
-    function Component({ data }) {
-      const [processed, setProcessed] = useState(null);
-      const memoizedValue = useMemo(() => {
+**Side Effects in Memoization:**
+\`\`\`tsx
+// BAD CODE ❌ State update inside useMemo/useCallback
+function Component({ data }) {
+    const [processed, setProcessed] = useState(null);
+    const memoizedValue = useMemo(() => {
         setProcessed(data.map(transform)); // Side effect in memoization
         return computedValue;
-      }, [data]);
-      return <div>{memoizedValue}</div>;
-    }
+    }, [data]);
+    return <div>{memoizedValue}</div>;
+}
+
+// GOOD CODE ✅ Separate side effects from memoization
+function Component({ data }) {
+    const [processed, setProcessed] = useState(null);
+    const memoizedValue = useMemo(() => computedValue, [data]);
     
-    // GOOD CODE ✅ Separate side effects from memoization
-    function Component({ data }) {
-      const [processed, setProcessed] = useState(null);
-      const memoizedValue = useMemo(() => computedValue, [data]);
-      
-      useEffect(() => {
-        setProcessed(data.map(transform)); // Side effect in proper place
-      }, [data]);
-      
-      return <div>{memoizedValue}</div>;
-    }
-    \`\`\`
+    useEffect(() => {
+        setProcessed(data.map(transform));
+    }, [data]);
+    
+    return <div>{memoizedValue}</div>;
+}
+\`\`\`
 
-  * **LLM-generated code smells**
+### 2. **Effects Triggering Themselves Unconditionally**
+An effect that sets state must have logic to prevent it from running again after that state is set.
 
-      * Unconditional setters in effects, "mirror props to state" patterns, setting state inside \`useMemo\`/\`useCallback\`, or subscribing inside render.
+**Missing Dependency Array:**
+\`\`\`tsx
+// BAD CODE ❌ Effect runs after every render
+function BadCounter() {
+    const [count, setCount] = useState(0);
+    useEffect(() => {
+        setCount(prevCount => prevCount + 1);
+    }); // No dependency array -> infinite loop
+    return <div>{count}</div>;
+}
 
-# How to avoid it (quick checklist)
+// GOOD CODE ✅ Dependency array prevents infinite loop
+function GoodCounter() {
+    const [count, setCount] = useState(0);
+    useEffect(() => {
+        setCount(1); // Only run once on mount
+    }, []); // Empty array = run once on mount
+    return <div>{count}</div>;
+}
+\`\`\`
 
-  * **Never set state during render.** Only in event handlers, effects, or async callbacks.
-
-    \`\`\`tsx
-    // GOOD CODE ✅ State is updated inside an event handler, not during render.
-    function GoodButton() {
-      const [toggled, setToggled] = useState(false);
-      const handleClick = () => {
-        setToggled(!toggled); // Safe: only runs on user interaction.
-      };
-      return <button onClick={handleClick}>Toggle</button>;
-    }
-    \`\`\`
-
-  * **Give effects correct dependencies** and make updates **conditional**.
-
-    \`\`\`tsx
-    // GOOD CODE ✅ Effect only runs if \`userId\` changes.
-    function UserData({ userId }) {
-      const [user, setUser] = useState(null);
-      useEffect(() => {
-        if (userId) { // Conditional logic inside the effect
-          fetchUser(userId).then(data => setUser(data));
+**Conditional Effect Logic:**
+\`\`\`tsx
+// GOOD CODE ✅ Effect with conditional logic
+function UserData({ userId }) {
+    const [user, setUser] = useState(null);
+    useEffect(() => {
+        if (userId) { // Conditional logic prevents unnecessary runs
+            fetchUser(userId).then(data => setUser(data));
         }
-      }, [userId]); // Dependency array prevents the loop
-      return <div>{user ? user.name : 'Loading...'}</div>;
-    }
-    \`\`\`
+    }, [userId]); // Only runs when userId changes
+    return <div>{user ? user.name : 'Loading...'}</div>;
+}
+\`\`\`
 
-  * **Avoid “prop → state” mirrors** unless you can prove it stabilizes (or derive on the fly). This anti-pattern often causes loops.
+### 3. **Unstable Dependencies (Referential Inequality)**
+When a dependency for useEffect, useMemo, or useCallback is a non-primitive (object, array, function) that is re-created on every render.
 
-    \`\`\`tsx
-    // BAD CODE ❌ This creates a loop if the parent re-renders for any reason.
-    function BadMirror({ propValue }) {
-      const [localState, setLocalState] = useState(propValue);
-      useEffect(() => {
-        setLocalState(propValue);
-      }, [propValue]);
-      return <div/>;
-    }
+**Objects in useEffect:**
+\`\`\`tsx
+// BAD CODE ❌ Object dependency is recreated every render
+function Component() {
+    const [v, setV] = useState(0);
+    const filters = { type: 'active', status: 'pending' }; // New object every render
+    useEffect(() => {
+        setV(prev => prev + 1);
+    }, [filters]); // Triggers every render due to new object reference
+    return <div>{v}</div>;
+}
 
-    // GOOD CODE ✅ Derive the value directly during render. No state or effects needed.
-    function GoodDerived({ propValue }) {
-      const derivedValue = propValue.toUpperCase();
-      return <div>{derivedValue}</div>;
-    }
-    \`\`\`
+// GOOD CODE ✅ Stabilize object with useMemo
+function Component() {
+    const [v, setV] = useState(0);
+    const filters = useMemo(() => ({ type: 'active', status: 'pending' }), []);
+    useEffect(() => {
+        setV(prev => prev + 1);
+    }, [filters]); // Only triggers when filters actually change
+    return <div>{v}</div>;
+}
+\`\`\`
 
-  * **Stabilize identities**: memoize objects/arrays passed as props or used as dependencies.
+**Context Value Recreation:**
+\`\`\`tsx
+// BAD CODE ❌ Context value recreated every render
+function App() {
+    const [user, setUser] = useState(null);
+    const value = { user, setUser }; // New object every render
+    return <UserContext.Provider value={value}>...</UserContext.Provider>;
+}
 
-    \`\`\`tsx
-    // GOOD CODE ✅ \`useMemo\` stabilizes the object, \`useCallback\` stabilizes the function.
-    const config = useMemo(() => ({ a, b }), [a, b]);
+// GOOD CODE ✅ Memoize context value
+function App() {
+    const [user, setUser] = useState(null);
+    const value = useMemo(() => ({ user, setUser }), [user]);
+    return <UserContext.Provider value={value}>...</UserContext.Provider>;
+}
+\`\`\`
+
+**State Management Library Selectors:**
+\`\`\`tsx
+// BAD CODE ❌ Selector returns new object every render
+const { score, bestScore } = useGameStore((state) => ({
+    score: state.score,
+    bestScore: state.bestScore,
+})); // Creates new object reference every time
+
+// GOOD CODE ✅ Select primitive values individually
+const score = useGameStore((state) => state.score);
+const bestScore = useGameStore((state) => state.bestScore);
+\`\`\`
+
+## Other Common Loop-Inducing Patterns
+
+**Parent/Child Feedback Loops:**
+- Child effect updates parent state → parent rerenders → child gets new props → child effect runs again
+- **Solution:** Lift state up or use callbacks that are idempotent/guarded
+
+**State within Recursive Components:**
+\`\`\`tsx
+// BAD CODE ❌ Each recursive call creates independent state
+function FolderTree({ folders }) {
+    const [expanded, setExpanded] = useState(new Set());
+    return (
+        <div>
+            {folders.map(f => (
+                <FolderTree key={f.id} folders={f.children} />
+            ))}
+        </div>
+    );
+}
+
+// GOOD CODE ✅ Lift state up to non-recursive parent
+function FolderTree({ folders, expanded, onToggle }) {
+    return (
+        <div>
+            {folders.map(f => (
+                <FolderTree key={f.id} folders={f.children} expanded={expanded} onToggle={onToggle} />
+            ))}
+        </div>
+    );
+}
+
+function Sidebar() {
+    const [expanded, setExpanded] = useState(new Set());
+    const handleToggle = (id) => { /* logic */ };
+    return <FolderTree folders={allFolders} expanded={expanded} onToggle={handleToggle} />;
+}
+\`\`\`
+
+**Stale Closures (Correctness Issue):**
+While not directly causing infinite loops, stale closures cause incorrect state transitions:
+\`\`\`tsx
+// BAD CODE ❌ Stale closure in event handler
+function Counter() {
+    const [count, setCount] = useState(0);
+    const handleClick = () => {
+        setCount(count + 1); // Uses stale count value
+        setCount(count + 1); // Won't increment by 2
+    };
+    return <button onClick={handleClick}>{count}</button>;
+}
+
+// GOOD CODE ✅ Functional updates avoid stale closures
+function Counter() {
+    const [count, setCount] = useState(0);
     const handleClick = useCallback(() => {
-      // do something
-    }, [dep1, dep2]);
+        setCount(prev => prev + 1);
+        setCount(prev => prev + 1); // Will correctly increment by 2
+    }, []);
+    return <button onClick={handleClick}>{count}</button>;
+}
+\`\`\`
 
-    // GOOD CODE ✅ For Zustand/Redux, select primitive values individually.
-    const score = useGameStore((state) => state.score);
-    const bestScore = useGameStore((state) => state.bestScore);
-    \`\`\`
+## Quick Prevention Checklist: The Golden Rules
 
-  * **Use functional updates** and equality guards to prevent no-op loops.
+✅ **Move state updates out of render body** - Only update state in useEffect hooks or event handlers  
+✅ **Provide dependency arrays to every useEffect** - Missing dependencies cause infinite loops  
+✅ **Make effect logic conditional** - Add guards like \`if (data.length > 0)\` to prevent re-triggering  
+✅ **Stabilize non-primitive dependencies** - Use useMemo and useCallback for objects/arrays/functions  
+✅ **Select primitives from stores** - \`useStore(s => s.score)\` not \`useStore(s => ({ score: s.score }))\`  
+✅ **Lift state up from recursive components** - Never initialize state inside recursive calls  
+✅ **Use functional updates** - \`setState(prev => prev + 1)\` avoids stale closures  
+✅ **Prefer refs for non-UI data** - \`useRef\` doesn't trigger re-renders when updated  
+✅ **Avoid prop→state mirrors** - Derive values directly or use proper synchronization  
+✅ **Break parent↔child feedback loops** - Lift state or use idempotent callbacks
 
-    \`\`\`tsx
-    // GOOD CODE ✅ Prevents a re-render if the next state is the same as the previous.
-    setState(prev => prev === next ? prev : next);
-    \`\`\`
+\`\`\`tsx
+// GOLDEN RULE EXAMPLES ✅
 
-  * **Prefer refs for non-UI data** that shouldn't cause rerenders.
+// 1. State updates in event handlers only
+const handleClick = () => setState(newValue);
 
-    \`\`\`tsx
-    // GOOD CODE ✅ Updating a ref does not trigger a re-render.
-    const latest = useRef(value);
-    latest.current = value;
-    \`\`\`
+// 2. Effects with dependency arrays
+useEffect(() => { /* logic */ }, [dependency]);
 
-  * **Break parent↔child cycles**: lift state to one place, or pass callbacks that are idempotent/guarded.
+// 3. Conditional effect logic
+useEffect(() => {
+  if (userId) { fetchUser(userId).then(setUser); }
+}, [userId]);
 
-  * **For layout work**, use \`useEffect\` instead of \`useLayoutEffect\` unless you truly need sync, and still guard updates.
+// 4. Stabilized objects/arrays
+const config = useMemo(() => ({ a, b }), [a, b]);
+const handleClick = useCallback(() => {}, [dep]);
 
-  * **State within Recursive Components**
+// 5. Primitive selectors
+const score = useStore(state => state.score);
+const name = useStore(state => state.user.name);
 
-    - **BAD CODE ❌**: Never initialize state inside a component that calls itself. Each recursive call creates a new, independent state, which can lead to unpredictable behavior and infinite loops when combined with layout-aware parent components.
-      \`\`\`tsx
-      // BAD CODE ❌ Each FolderTree instance has its own state.
-      function FolderTree({ folders }) {
-        const [expanded, setExpanded] = useState(new Set()); // New state on every level!
-        
-        return (
-          <div>
-            {folders.map(f => (
-              <FolderTree key={f.id} folders={f.children} />
-            ))}
-          </div>
-        );
-      }
-      \`\`\`
+// 6. Functional updates
+setCount(prev => prev + 1);
+setItems(prev => [...prev, newItem]);
 
-    - **GOOD CODE ✅**: Lift the state up to the first non-recursive parent component and pass the state and its setter down as props. This creates a single source of truth.
-      \`\`\`tsx
-      // GOOD CODE ✅ State is managed by the parent.
-      function FolderTree({ folders, expanded, onToggle }) {
-        return (
-          <div>
-            {folders.map(f => (
-              <FolderTree key={f.id} folders={f.children} expanded={expanded} onToggle={onToggle} />
-            ))}
-          </div>
-        );
-      }
+// 7. Refs for non-UI data
+const latestValue = useRef();
+latestValue.current = currentValue; // No re-render
 
-      function Sidebar() {
-        const [expanded, setExpanded] = useState(new Set()); // ✅ State is here
-        const handleToggle = (id) => { /* logic to update set */ };
-
-        return <FolderTree folders={allFolders} expanded={expanded} onToggle={handleToggle} />;
-      }
-      \`\`\`
-    
-    - Some more examples: 
-    \`\`\`
-    // INCORRECT ❌
-    const { items, selectedFolderId, selectFolder } = useFilesStore(state => ({
-        items: state.items,
-        selectedFolderId: state.selectedFolderId,
-        selectFolder: state.selectFolder,
-    }));
-    \`\`\`
-
-    \`\`\`
-    // CORRECT ✅
-    const items = useFilesStore(state => state.items);
-    const selectedFolderId = useFilesStore(state => state.selectedFolderId);
-    const selectFolder = useFilesStore(state => state.selectFolder);
-    \`\`\`
+// 8. Derive instead of mirror
+const derivedValue = propValue.toUpperCase(); // No state needed
+\`\`\`
 </REACT_RENDER_LOOP_PREVENTION>`,
 
     COMMON_PITFALLS: `<AVOID COMMON PITFALLS>
@@ -483,6 +422,14 @@ Here's how and why it happens most often and what to do about it.
     4. **NO UNDEFINED VALUES/PROPERTIES/FUNCTIONS/COMPONENTS etc:** Ensure all variables, functions, and components are defined before use. Never use undefined values. If you use something that isn't already defined, you need to define it.
     5. **STATE UPDATE INTEGRITY:** Never call state setters directly during the render phase; all state updates must originate from event handlers or useEffect hooks to prevent infinite loops.
     6. **STATE SELECTOR STABILITY:** When using state management libraries (Zustand, Redux), always select primitive values individually. Never return a new object or array from a single selector, as this creates unstable references and will cause infinite render loops.
+    
+    **UI/UX EXCELLENCE CRITICAL RULES:**
+    7. **VISUAL HIERARCHY CLARITY:** Every interface must have clear visual hierarchy - never create pages with uniform text sizes or equal visual weight for all elements
+    8. **INTERACTIVE FEEDBACK MANDATORY:** Every button, link, and interactive element MUST have visible hover, focus, and active states - no exceptions
+    9. **RESPONSIVE BREAKPOINT INTEGRITY:** Test layouts mentally at sm, md, lg breakpoints - never create layouts that break or look unintentional at any screen size
+    10. **SPACING CONSISTENCY:** Use systematic spacing (space-y-4, space-y-6, space-y-8) - avoid arbitrary margins that create visual chaos
+    11. **LOADING STATE EXCELLENCE:** Every async operation must have beautiful loading states - never leave users staring at blank screens
+    12. **ERROR HANDLING GRACE:** All error states must be user-friendly with clear next steps - never show raw error messages or technical jargon
 
     **ENHANCED RELIABILITY PATTERNS:**
     •   **State Management:** Handle loading/success/error states for async operations. Initialize state with proper defaults, never undefined. Use functional updates for dependent state.
@@ -688,32 +635,86 @@ bun add @geist-ui/react@1
     When a changes to a file are big or the file itself is small, it is better to use \`full_content\` format, otherwise use \`unified_diff\` format. In the end, you should choose a format that minimizes the total length of response.
 </CODE CONTENT GENERATION RULES>
 `,
-    UI_GUIDELINES: `## UI Precision & Polish Requirements
-    • **Visual Hierarchy:** Establish clear information hierarchy using:
-        - Size differentiation (text-4xl > text-2xl > text-lg > text-base)
-        - Weight variation (font-bold > font-semibold > font-medium > font-normal)
-        - Color contrast (primary > secondary > muted colors)
-        - Spacing to create logical groupings (larger gaps between sections, smaller within groups)
-    • **Component Composition Patterns:**
-        - Always wrap form elements in proper containers (Card, Form components)
-        - Use consistent button variants: primary for main actions, secondary for supporting actions, outline for tertiary
-        - Group related controls using proper spacing and visual separation
-        - Implement proper loading and empty states for all dynamic content
-    • **Interactive State Management:**
-        - ALL interactive elements MUST have hover, focus, and active states
-        - Use consistent state indicators (loading spinners, disabled states, success/error feedback)
-        - Implement proper keyboard navigation and accessibility states
-    • **Layout Precision Standards:**
-        - Container max-widths: Use consistent breakpoints (max-w-sm, max-w-md, max-w-lg, max-w-xl, max-w-2xl)
-        - Grid layouts: Always specify proper gaps (gap-4, gap-6, gap-8) and responsive behavior
-        - Flex layouts: Use consistent justify and align patterns (justify-between, items-center, space-y-4)
-        - Responsive breakpoints: Test mental layout at sm, md, lg, xl breakpoints
-        - CRITICAL: Add proper page margins (px-4 md:px-6 lg:px-8) and section spacing (py-8 md:py-12)
-    • **Content Presentation:**
-        - Never leave empty states without proper messaging
-        - Always provide loading indicators for async operations
-        - Implement proper error boundaries and fallback UI
-        - Use consistent spacing between content blocks (space-y-4, space-y-6, space-y-8)`,
+    UI_GUIDELINES: `## UI MASTERY & VISUAL EXCELLENCE STANDARDS
+    
+    ### 🎨 VISUAL HIERARCHY MASTERY
+    • **Typography Excellence:** Create stunning text hierarchies:
+        - Headlines: text-4xl/5xl/6xl with font-bold for maximum impact
+        - Subheadings: text-2xl/3xl with font-semibold for clear structure  
+        - Body: text-lg/base with font-medium for perfect readability
+        - Captions: text-sm with font-normal for supporting details
+        - **Color Psychology:** Use text-gray-900 for primary, text-gray-600 for secondary, text-gray-400 for tertiary
+    • **Spacing Rhythm:** Create visual breathing room with harmonious spacing:
+        - Section gaps: space-y-16 md:space-y-24 for major sections
+        - Content blocks: space-y-6 md:space-y-8 for related content
+        - Element spacing: space-y-3 md:space-y-4 for tight groupings
+        - **Golden Ratio:** Use 8px base unit (space-2) multiplied by fibonacci numbers (1,1,2,3,5,8,13...)
+    
+    ### ✨ INTERACTIVE DESIGN EXCELLENCE
+    • **Micro-Interactions:** Every interactive element must delight users:
+        - **Hover States:** Subtle elevation (hover:shadow-lg), color shifts (hover:bg-blue-600), or scale (hover:scale-105)
+        - **Focus States:** Beautiful ring outlines (focus:ring-2 focus:ring-blue-500 focus:ring-offset-2)
+        - **Active States:** Pressed effects (active:scale-95) for tactile feedback
+        - **Loading States:** Elegant spinners, skeleton screens, or pulse animations
+        - **Transitions:** Smooth animations (transition-all duration-200 ease-in-out) for every state change
+    • **Button Mastery:** Create buttons that users love to click:
+        - **Primary:** Bold, vibrant colors (bg-blue-600 hover:bg-blue-700) with perfect contrast
+        - **Secondary:** Subtle elegance (bg-gray-100 hover:bg-gray-200) with clear hierarchy
+        - **Outline:** Clean borders (border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white)
+        - **Danger:** Warning colors (bg-red-600 hover:bg-red-700) for destructive actions
+    
+    ### 🏗️ LAYOUT ARCHITECTURE EXCELLENCE
+    • **Container Strategies:** Build layouts that feel intentional:
+        - **Content Width:** Use max-w-7xl mx-auto for main containers
+        - **Responsive Padding:** px-4 sm:px-6 lg:px-8 for perfect edge spacing
+        - **Section Spacing:** py-16 md:py-24 lg:py-32 for generous vertical rhythm
+    • **Grid Systems:** Create balanced, beautiful layouts:
+        - **Product Grids:** grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 with gap-6 md:gap-8
+        - **Feature Grids:** grid-cols-1 md:grid-cols-2 lg:grid-cols-3 with consistent aspect ratios
+        - **Dashboard Grids:** Responsive grid-cols-12 with proper breakpoints for complex layouts
+    • **Flexbox Mastery:** Perfect alignment and distribution:
+        - **Navigation:** flex items-center justify-between for header layouts
+        - **Cards:** flex flex-col justify-between for equal height card layouts
+        - **Forms:** flex flex-col space-y-4 for clean form arrangements
+    
+    ### 🎯 COMPONENT DESIGN EXCELLENCE
+    • **Card Components:** Design cards that stand out beautifully:
+        - **Elevation:** Use shadow-sm, shadow-md, shadow-lg strategically for visual depth
+        - **Borders:** Subtle border border-gray-200 or borderless with shadow for modern feel
+        - **Padding:** p-6 md:p-8 for comfortable content spacing
+        - **Hover Effects:** hover:shadow-xl hover:-translate-y-1 for delightful interactions
+    • **Form Excellence:** Make forms a joy to use:
+        - **Input States:** Beautiful focus rings, clear error states, success indicators
+        - **Label Design:** font-medium text-gray-700 with proper spacing (mb-2)
+        - **Error Handling:** text-red-600 text-sm with helpful, friendly messages
+        - **Success Feedback:** text-green-600 with checkmark icons for validation
+    • **Navigation Design:** Create intuitive, beautiful navigation:
+        - **Active States:** Clear indicators with color, background, or underline
+        - **Breadcrumbs:** Subtle text-gray-500 with proper separators
+        - **Mobile Menu:** Smooth slide-in animations with backdrop blur
+    
+    ### 📱 RESPONSIVE DESIGN MASTERY
+    • **Mobile-First Excellence:** Design for mobile, enhance for desktop:
+        - **Touch Targets:** Minimum 44px touch targets for mobile usability
+        - **Typography Scaling:** text-2xl md:text-4xl lg:text-5xl for responsive headers
+        - **Image Handling:** aspect-w-16 aspect-h-9 for consistent image ratios
+    • **Breakpoint Strategy:** Use Tailwind breakpoints meaningfully:
+        - **sm (640px):** Tablet portrait adjustments
+        - **md (768px):** Tablet landscape and small desktop
+        - **lg (1024px):** Desktop layouts
+        - **xl (1280px):** Large desktop enhancements
+        - **2xl (1536px):** Ultra-wide optimizations
+    
+    ### 🌟 VISUAL POLISH CHECKLIST
+    **Before completing any component, ensure:**
+    - ✅ **Visual Rhythm:** Consistent spacing that creates natural reading flow
+    - ✅ **Color Harmony:** Thoughtful color choices that support the brand and enhance usability
+    - ✅ **Interactive Feedback:** Every clickable element responds beautifully to user interaction
+    - ✅ **Loading Elegance:** Graceful loading states that maintain user engagement
+    - ✅ **Error Grace:** Helpful, non-intimidating error messages with clear next steps
+    - ✅ **Empty State Beauty:** Inspiring empty states that guide users toward their first success
+    - ✅ **Accessibility Excellence:** Proper contrast ratios, keyboard navigation, screen reader support
+    - ✅ **Performance Smooth:** 60fps animations and instant perceived load times`,
     PROJECT_CONTEXT: `Here is everything you will need for the project:
 
 <PROJECT CONTEXT>
@@ -743,30 +744,76 @@ Here are all the relevant files in the current codebase:
 }
 
 export const STRATEGIES_UTILS = {
-    INITIAL_PHASE_GUIDELINES: `**First Phase: Polished Frontend & Skeleton**
-        * **UI & Layout Foundation:** Establish global styles, themes, core layout structure (navigation, headers, footers, sidebars, etc), views/pages and fundamental UI components.
-        * **Core Setup:** Define essential types, utilities, custom UI components (if needed), constants.
-            - Build up the custom UI components and layout structure required for building the frontend.
-            - **Primarily rely on shadcn components from ./src/components/ui/* if available before writing your own components**
-        * **Frontend Completion:** Build out all the views/pages with the UI components. We need to deliver a high-fidelity representation of the final frontend UI/UX (You may use mock data for secondary views/pages). Ensure responsiveness and visual polish. Every page and link the application should work.
-            - Implement the primary page to completion, with all the components it needs, polished and almost ready with proper links to secondary pages.
-            - Implement most of the secondary pages. You can use mock data but actual working functionality is always preferred.
-            - In this phase, all the links should work and the application should be visually complete and polished Sufficient mock data and views should be available. 404s need to be rare! Make sure all the pages and routes are implemented.
-        * **Implement core application logic:** Implement the core application logic and features, atleast for the primary view/page. Strive to make them fully functional (particularly for small-medium projects) but ensure they are robust and handle edge cases. This will help in making the frontend visually complete and polished.
-        * **Ensure the primary view/page is visually and functionally complete. Main page should be the last file to be writen in this phase (eg src/pages/index.tsx or src/App.tsx)**
-        * **Phase Granularity:** For *simple* applications, the entire functional project might be achievable in a *single phase*. For *more complex* applications, this initial phase will be the foundation of the application, especially the frontend, views and mockups.
-        * **Deployable Milestone:** Every phase should be deployable. For the initial phase, we want the frontend to be visually mostly complete and polished with basic functionality.`,
-    SUBSEQUENT_PHASE_GUIDELINES: `**Subsequent Phases: Fleshing out & Backend Integration**
-        * **Iterative Build:** Add additional functionalities and application logic expected in the project iteratively.
-        * **Implement all views/pages and features:** Implement all views/pages and features that appear in the application or blueprint or user query. Flesh out the application as much as possible.
-        * **Backend Integration:** If needed, introduce backend services, state management, and data fetching. Seed the backend appropriately while still rely on existing mock data in the application to serve as fallback if the backend errors out.
-            - Strictly follow existing backend patterns in the template. Add new routes or modify existing ones the way it's detailed in the template instructions. 
-        * **Feature Expansion:** Add new features, components, and pages as needed. Nothing should be left 'coming soon' or 'to be implemented later'. Every button and feature should work.
-        * **Scalable Phasing:** The *number* of these subsequent phases depends directly on the application's complexity. Simple apps might need only one refinement phase, while complex apps will require several.
-        * **UI/UX:** Enhance, improve and make the application visually complete and polished. Every button and feature should work. The application should be beautiful, user friendly, visually pleasing and a piece of art.
-        * **Avoid focus on non-essential stuff:** Stuff like security are non critical for shipping the product to the client. Focus on polishing and delivering the product to the client so we can get feedback directly and improve as needed.
-        * **Address new client requests**: Address any new client requests or feedbacks in 1-2 phases. Direct user feedback/requests are considered urgent and need to be addressed on priority
-        * **Final Polish & Review:** Conclude with a phase dedicated to final integration checks, robustness, performance tuning, and overall polish.`,
+    INITIAL_PHASE_GUIDELINES: `**First Phase: Stunning Frontend Foundation & Visual Excellence**
+        * **🎨 VISUAL DESIGN FOUNDATION:** Establish breathtaking visual foundation:
+            - **Design System Excellence:** Define beautiful color palettes, typography scales, and spacing rhythms
+            - **Component Library Mastery:** Leverage shadcn components to create stunning, cohesive interfaces
+            - **Layout Architecture:** Build gorgeous navigation, headers, footers with perfect spacing and alignment
+            - **Visual Identity:** Establish consistent branding elements that create emotional connection
+        * **✨ UI COMPONENT EXCELLENCE:** Create components that users love to interact with:
+            - **Interactive Polish:** Every button, form, and clickable element has beautiful hover states
+            - **Micro-Interactions:** Subtle animations that provide delightful feedback
+            - **State Management:** Loading, error, and empty states that maintain user engagement
+            - **Responsive Mastery:** Components that look intentionally designed at every screen size
+        * **🏗️ FRONTEND COMPLETION WITH VISUAL WOW FACTOR:** Build interfaces that impress:
+            - **Primary Page Excellence:** Main page should be visually stunning and fully functional
+            - **Secondary Page Polish:** All supporting pages with beautiful mockups and smooth navigation
+            - **Zero Broken Links:** Every navigation element works perfectly - no 404s or dead ends
+            - **Visual Hierarchy:** Clear information architecture that guides users naturally
+            - **Content Strategy:** Thoughtful use of whitespace, typography, and visual elements
+        * **🚀 CORE FUNCTIONALITY WITH STYLE:** Implement features that work beautifully:
+            - **Feature Implementation:** Core application logic with elegant error handling
+            - **Data Presentation:** Beautiful ways to display information that enhance comprehension
+            - **User Workflows:** Smooth, intuitive user journeys with clear next steps
+            - **Performance Excellence:** Fast, responsive interfaces that feel instant
+        * **📱 RESPONSIVE & ACCESSIBLE EXCELLENCE:**
+            - **Mobile-First Beauty:** Interfaces that shine on mobile and scale up gracefully
+            - **Touch-Friendly Design:** Proper touch targets and gesture-friendly interactions
+            - **Accessibility Excellence:** Beautiful interfaces that work for everyone
+        * **🎯 COMPLETION STANDARDS:** Every element demonstrates professional-grade polish
+            - **Visual Consistency:** Cohesive design language throughout all pages
+            - **Interactive Feedback:** Every user action provides clear, beautiful feedback
+            - **Error Handling Grace:** Helpful, friendly error messages that guide users forward
+            - **Loading Elegance:** Beautiful loading states that maintain user engagement
+        * **Phase Granularity:** For *simple* applications, deliver a complete, stunning product in one phase. For *complex* applications, establish a visually excellent foundation that impresses immediately.
+        * **Deployable Milestone:** First phase should be immediately demoable with stunning visual appeal that makes stakeholders excited about the final product.`,
+    SUBSEQUENT_PHASE_GUIDELINES: `**Subsequent Phases: Feature Excellence & Visual Refinement**
+        * **🌟 ITERATIVE VISUAL EXCELLENCE:** Each phase elevates the user experience:
+            - **Visual Polish Iteration:** Continuously refine spacing, colors, and interactions
+            - **Animation Enhancement:** Add smooth transitions and delightful micro-interactions
+            - **Component Refinement:** Improve existing components to professional-grade standards
+            - **User Experience Optimization:** Streamline workflows and eliminate friction points
+        * **🚀 FEATURE IMPLEMENTATION WITH STYLE:** Build functionality that users love:
+            - **Complete Feature Development:** Every requested feature implemented with beautiful UI
+            - **Workflow Optimization:** Smooth user journeys with intuitive navigation patterns
+            - **Data Visualization Excellence:** Beautiful charts, tables, and information displays
+            - **Interactive Feature Polish:** Forms, modals, and complex interactions that feel effortless
+        * **🔗 BACKEND INTEGRATION EXCELLENCE:** Connect functionality with visual grace:
+            - **Elegant Loading States:** Beautiful progress indicators and skeleton screens
+            - **Error Handling Beauty:** Friendly error messages with helpful recovery actions
+            - **Data State Management:** Graceful handling of empty, loading, and error states
+            - **Performance Optimization:** Fast, responsive interfaces with smooth data transitions
+        * **📈 SCALABLE ENHANCEMENT STRATEGY:** Build quality that scales:
+            - **Component System Growth:** Expand design system with new, reusable components
+            - **Pattern Library Development:** Establish consistent interaction patterns
+            - **Visual Language Evolution:** Refine brand expression and visual identity
+            - **User Experience Research:** Iterate based on usage patterns and feedback
+        * **✨ CONTINUOUS UI/UX IMPROVEMENT:** Never settle for 'good enough':
+            - **Visual Hierarchy Refinement:** Perfect information architecture and visual flow
+            - **Interaction Design Polish:** Smooth, predictable, and delightful user interactions
+            - **Responsive Design Excellence:** Flawless experience across all device sizes
+            - **Accessibility Enhancement:** Beautiful interfaces that work for everyone
+        * **🎯 CLIENT FEEDBACK INTEGRATION:** Rapid response to user needs:
+            - **Priority Feature Development:** Address urgent client requests with visual excellence
+            - **User Experience Optimization:** Refine workflows based on real user feedback
+            - **Visual Preference Integration:** Adapt design elements to client brand preferences
+            - **Performance Enhancement:** Optimize for speed while maintaining visual quality
+        * **🏆 FINAL EXCELLENCE PHASE:** Deliver a product that exceeds expectations:
+            - **Comprehensive Polish Review:** Every pixel perfect, every interaction smooth
+            - **Performance Optimization:** Lightning-fast load times with beautiful interfaces
+            - **Cross-Browser Excellence:** Perfect rendering across all modern browsers
+            - **Quality Assurance:** Thorough testing of every feature and interaction
+            - **Launch Readiness:** Production-ready code with comprehensive documentation`,
     CODING_GUIDELINES: `**Make sure the product is **FUNCTIONAL** along with **POLISHED**
     **MAKE SURE TO NOT BREAK THE APPLICATION in SUBSEQUENT PHASES. Always keep fallbacks and failsafes in place for any backend interactions. Look out for simple syntax errors and dependencies you use!**
     **The client needs to be provided with a good demoable application after each phase. The initial first phase is the most impressionable phase! Make sure it deploys and renders well.**
@@ -876,18 +923,35 @@ export function generalSystemPromptBuilder(
 }
 
 export function issuesPromptFormatter(issues: IssueReport): string {
-    return `<RUNTIME ERRORS>
-Take a thorough look and address them in this phase:
-${PROMPT_UTILS.serializeErrors(issues.runtimeErrors || [])}
-</RUNTIME ERRORS>
-<CLIENT REPORTED ERRORS>
-These may be false positives. But take a thorough look and address them in this phase.
-${PROMPT_UTILS.serializeClientReportedErrors(issues.clientErrors || [])}
-</CLIENT REPORTED ERRORS>
-<LINT ERRORS>
-These may be just cosmetics but they are worth addressing. Please address them in this phase.
-${PROMPT_UTILS.serializeStaticAnalysis(issues.staticAnalysis)}
-</LINT ERRORS>`
+    const runtimeErrorsText = PROMPT_UTILS.serializeErrors(issues.runtimeErrors || []);
+    const clientErrorsText = PROMPT_UTILS.serializeClientReportedErrors(issues.clientErrors || []);
+    const staticAnalysisText = PROMPT_UTILS.serializeStaticAnalysis(issues.staticAnalysis);
+    
+    return `## ERROR ANALYSIS PRIORITY MATRIX
+
+### 1. CRITICAL RUNTIME ERRORS (Fix First - Deployment Blockers)
+**Error Count:** ${issues.runtimeErrors?.length || 0} runtime errors detected
+**Contains Render Loops:** ${runtimeErrorsText.includes('Maximum update depth') || runtimeErrorsText.includes('Too many re-renders') ? 'YES - HIGHEST PRIORITY' : 'No'}
+
+${runtimeErrorsText || 'No runtime errors detected'}
+
+### 2. CLIENT-REPORTED ERRORS (Validate Against Current Code)
+**Error Count:** ${issues.clientErrors?.length || 0} client errors
+**Note:** These may reference old code versions. Cross-reference with current codebase before fixing.
+
+${clientErrorsText || 'No client-reported errors'}
+
+### 3. STATIC ANALYSIS ISSUES (Fix After Runtime Issues)
+**Lint Issues:** ${issues.staticAnalysis?.lint?.issues?.length || 0}
+**Type Issues:** ${issues.staticAnalysis?.typecheck?.issues?.length || 0}
+
+${staticAnalysisText}
+
+## ANALYSIS INSTRUCTIONS
+- **PRIORITIZE** "Maximum update depth exceeded" and useEffect-related errors  
+- **CROSS-REFERENCE** error messages with current code structure (line numbers may be outdated)
+- **VALIDATE** reported issues against actual code patterns before fixing
+- **FOCUS** on deployment-blocking runtime errors over linting issues`
 }
 
 
