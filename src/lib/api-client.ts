@@ -15,7 +15,6 @@ import type {
   AppDetailsData,
   AppStarToggleData,
   ForkAppData,
-  DashboardData,
   UserAppsData,
   ProfileUpdateData,
   UserTeamsData,
@@ -356,12 +355,6 @@ class ApiClient {
   // User API Methods
   // ===============================
 
-  /**
-   * Get user dashboard data
-   */
-  async getDashboard(): Promise<ApiResponse<DashboardData>> {
-    return this.request<DashboardData>('/api/user/dashboard');
-  }
 
   /**
    * Get user apps with pagination

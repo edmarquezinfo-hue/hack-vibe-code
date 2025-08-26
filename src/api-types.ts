@@ -41,7 +41,6 @@ export type {
 
 // User-related API Types
 export type {
-  DashboardData,
   UserAppsData,
   ProfileUpdateData,
   UserTeamsData
