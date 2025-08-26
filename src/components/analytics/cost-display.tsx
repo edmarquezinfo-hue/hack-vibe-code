@@ -36,7 +36,7 @@ export function CostDisplay({
   if (variant === 'inline') {
     return (
       <div className={cn(
-        'flex items-center gap-1.5 text-sm text-muted-foreground',
+        'flex items-center gap-1.5 text-sm text-text-secondary',
         'hover:text-foreground transition-colors duration-200',
         className
       )}>

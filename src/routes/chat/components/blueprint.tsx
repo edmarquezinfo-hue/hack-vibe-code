@@ -13,7 +13,7 @@ export function Blueprint({
 
 	return (
 		<div className={clsx('w-full flex flex-col', className)} {...props}>
-			<div className="bg-bg-bright-dim/80 p-6 rounded-t-xl flex items-center bg-graph-paper">
+			<div className="bg-accent p-6 rounded-t-xl flex items-center bg-graph-paper">
 				<div className="flex flex-col gap-1">
 					<div className="uppercase text-xs tracking-wider text-text-on-brand/90">
 						Blueprint
@@ -23,7 +23,7 @@ export function Blueprint({
 					</div>
 				</div>
 			</div>
-			<div className="flex flex-col px-6 py-4 bg-bg rounded-b-xl space-y-8">
+			<div className="flex flex-col px-6 py-4 bg-bg-2 rounded-b-xl space-y-8">
 				{/* Basic Info */}
 				<div className="grid grid-cols-[120px_1fr] gap-4 text-sm">
 					<div className="text-text-50/70 font-mono">Description</div>
@@ -71,11 +71,11 @@ export function Blueprint({
 								return (
 									<span
 										key={`framework-${framework}-${index}`}
-										className="flex items-center text-xs border border-text/20 rounded-full px-2 py-0.5 text-text/90 hover:border-white/40 transition-colors"
+										className="flex items-center text-xs border border-text/20 rounded-full px-2 py-0.5 text-text-primary/90 hover:border-white/40 transition-colors"
 									>
 										<span className="font-medium">{name}</span>
 										{version && (
-											<span className="text-text/50">@{version}</span>
+											<span className="text-text-primary/50">@{version}</span>
 										)}
 									</span>
 								);

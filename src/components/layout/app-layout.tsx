@@ -21,7 +21,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         } as React.CSSProperties}
       >
         <AppSidebar />
-        <SidebarInset className="bg-bg-light flex flex-col h-screen">
+        <SidebarInset className="bg-bg-3 flex flex-col h-screen">
           <GlobalHeader />
           <div className="flex-1 overflow-auto bg-bg-3">
             {children || <Outlet />}

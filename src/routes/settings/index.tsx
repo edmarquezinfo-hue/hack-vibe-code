@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 // import { useNavigate } from 'react-router';
 import {
-	Shield,
 	Key,
 	Plus,
 	Eye,
@@ -11,16 +10,21 @@ import {
 	Link,
 	Github,
 	Settings,
-	ExternalLink,
 	Unlink,
 	Lock,
+	Info,
 } from 'lucide-react';
 import { ModelConfigTabs } from '@/components/model-config-tabs';
-import type { ModelConfigsData, ModelConfigUpdate, EncryptedSecret, ActiveSessionsData, SecretTemplate } from '@/api-types';
+import type {
+	ModelConfigsData,
+	ModelConfigUpdate,
+	EncryptedSecret,
+	ActiveSessionsData,
+	SecretTemplate,
+} from '@/api-types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -74,8 +78,8 @@ export default function SettingsPage() {
 	// 	timezone: user?.timezone || 'UTC',
 	// });
 	// const [isSaving, setIsSaving] = useState(false);
-	const [profileVisibility, setProfileVisibility] = useState('public');
-	const [appDefaultVisibility, setAppDefaultVisibility] = useState('private');
+	// const [profileVisibility, setProfileVisibility] = useState('public');
+	// const [appDefaultVisibility, setAppDefaultVisibility] = useState('private');
 
 	// GitHub integration state
 	const [githubIntegration, setGithubIntegration] = useState<{
@@ -85,7 +89,9 @@ export default function SettingsPage() {
 	}>({ hasIntegration: false, loading: true });
 
 	// Active sessions state
-	const [activeSessions, setActiveSessions] = useState<ActiveSessionsData & { loading: boolean }>({ sessions: [], loading: true });
+	const [activeSessions, setActiveSessions] = useState<
+		ActiveSessionsData & { loading: boolean }
+	>({ sessions: [], loading: true });
 
 	// API Keys state - commented out since not used
 	// const [apiKeys, setApiKeys] = useState<ApiKeysData & { loading: boolean }>({ keys: [], loading: true });
@@ -97,7 +103,9 @@ export default function SettingsPage() {
 	}>({ secrets: [], loading: true });
 
 	// Templates state
-	const [secretTemplates, setSecretTemplates] = useState<SecretTemplate[]>([]);
+	const [secretTemplates, setSecretTemplates] = useState<SecretTemplate[]>(
+		[],
+	);
 
 	const [secretDialog, setSecretDialog] = useState(false);
 	const [selectedTemplate, setSelectedTemplate] = useState<string | null>(
@@ -116,16 +124,22 @@ export default function SettingsPage() {
 	const [isSavingSecret, setIsSavingSecret] = useState(false);
 
 	// Model configurations state
-	const [agentConfigs, setAgentConfigs] = useState<Array<{key: string, name: string, description: string}>>([]);
-	const [modelConfigs, setModelConfigs] = useState<ModelConfigsData['configs']>({} as ModelConfigsData['configs']);
-	const [defaultConfigs, setDefaultConfigs] = useState<ModelConfigsData['defaults']>({} as ModelConfigsData['defaults']);
+	const [agentConfigs, setAgentConfigs] = useState<
+		Array<{ key: string; name: string; description: string }>
+	>([]);
+	const [modelConfigs, setModelConfigs] = useState<
+		ModelConfigsData['configs']
+	>({} as ModelConfigsData['configs']);
+	const [defaultConfigs, setDefaultConfigs] = useState<
+		ModelConfigsData['defaults']
+	>({} as ModelConfigsData['defaults']);
 	const [loadingConfigs, setLoadingConfigs] = useState(true);
 	const [savingConfigs, setSavingConfigs] = useState(false);
 	const [testingConfig, setTestingConfig] = useState<string | null>(null);
 
 	// BYOK modal state
 	const [byokModalOpen, setByokModalOpen] = useState(false);
-	
+
 	// Handle BYOK key added/removed - refresh both secrets and model configs
 	const handleByokKeyAdded = () => {
 		loadUserSecrets();
@@ -174,40 +188,62 @@ export default function SettingsPage() {
 	const formatAgentConfigName = React.useCallback((key: string) => {
 		return key
 			.replace(/([A-Z])/g, ' $1')
-			.replace(/^./, str => str.toUpperCase())
+			.replace(/^./, (str) => str.toUpperCase())
 			.trim();
 	}, []);
 
 	// Helper function to provide descriptions based on key patterns
-	const getAgentConfigDescription = React.useCallback((key: string) => {
-		const descriptions: Record<string, string> = {
-			templateSelection: 'Quick template selection - Needs to be extremely fast with low latency. Intelligence level is less important than speed for rapid project bootstrapping.',
-			blueprint: 'Project architecture & UI design - Requires strong design thinking, UI/UX understanding, and architectural planning skills. Speed is important but coding ability is not critical.',
-			projectSetup: 'Technical scaffolding setup - Must excel at following technical instructions precisely and setting up proper project structure. Reliability and instruction-following are key.',
-			phaseGeneration: 'Development phase planning - Needs rapid planning abilities with large context windows for understanding project scope. Quick thinking is essential, coding skills are not required.',
-			firstPhaseImplementation: 'Initial development phase - Requires large context windows and excellent coding skills for implementing the foundation. Deep thinking is less critical than execution.',
-			phaseImplementation: 'Subsequent development phases - Needs large context windows and superior coding abilities for complex feature implementation. Focus is on execution rather than reasoning.',
-			realtimeCodeFixer: 'Real-time bug detection - Must be extremely fast at identifying and fixing code issues with strong debugging skills. Large context windows are not needed, speed is crucial.',
-			fastCodeFixer: 'Ultra-fast code fixes - Optimized for maximum speed with decent coding ability. No deep thinking or large context required, pure speed and basic bug fixing.',
-			conversationalResponse: 'User chat interactions - Handles natural conversation flow and user communication. Balanced capabilities for engaging dialogue and helpful responses.',
-			codeReview: 'Code quality analysis - Needs large context windows, strong analytical thinking, and good speed for thorough code review. Must identify issues and suggest improvements.',
-			fileRegeneration: 'File recreation - Focused on pure coding ability to regenerate or rewrite files. No context window or deep thinking required, just excellent code generation.',
-			screenshotAnalysis: 'UI/design analysis - Analyzes visual designs and screenshots to understand UI requirements. Requires visual understanding and design interpretation skills.'
-		};
-		return descriptions[key] || `AI model configuration for ${formatAgentConfigName(key)}`;
-	}, [formatAgentConfigName]);
+	const getAgentConfigDescription = React.useCallback(
+		(key: string) => {
+			const descriptions: Record<string, string> = {
+				templateSelection:
+					'Quick template selection - Needs to be extremely fast with low latency. Intelligence level is less important than speed for rapid project bootstrapping.',
+				blueprint:
+					'Project architecture & UI design - Requires strong design thinking, UI/UX understanding, and architectural planning skills. Speed is important but coding ability is not critical.',
+				projectSetup:
+					'Technical scaffolding setup - Must excel at following technical instructions precisely and setting up proper project structure. Reliability and instruction-following are key.',
+				phaseGeneration:
+					'Development phase planning - Needs rapid planning abilities with large context windows for understanding project scope. Quick thinking is essential, coding skills are not required.',
+				firstPhaseImplementation:
+					'Initial development phase - Requires large context windows and excellent coding skills for implementing the foundation. Deep thinking is less critical than execution.',
+				phaseImplementation:
+					'Subsequent development phases - Needs large context windows and superior coding abilities for complex feature implementation. Focus is on execution rather than reasoning.',
+				realtimeCodeFixer:
+					'Real-time bug detection - Must be extremely fast at identifying and fixing code issues with strong debugging skills. Large context windows are not needed, speed is crucial.',
+				fastCodeFixer:
+					'Ultra-fast code fixes - Optimized for maximum speed with decent coding ability. No deep thinking or large context required, pure speed and basic bug fixing.',
+				conversationalResponse:
+					'User chat interactions - Handles natural conversation flow and user communication. Balanced capabilities for engaging dialogue and helpful responses.',
+				userSuggestionProcessor:
+					'User feedback processing - Analyzes and implements user suggestions and feedback. Requires understanding user intent and translating to actionable changes.',
+				codeReview:
+					'Code quality analysis - Needs large context windows, strong analytical thinking, and good speed for thorough code review. Must identify issues and suggest improvements.',
+				fileRegeneration:
+					'File recreation - Focused on pure coding ability to regenerate or rewrite files. No context window or deep thinking required, just excellent code generation.',
+				screenshotAnalysis:
+					'UI/design analysis - Analyzes visual designs and screenshots to understand UI requirements. Requires visual understanding and design interpretation skills.',
+			};
+			return (
+				descriptions[key] ||
+				`AI model configuration for ${formatAgentConfigName(key)}`
+			);
+		},
+		[formatAgentConfigName],
+	);
 
 	// Load model configurations
 	const loadModelConfigs = async () => {
 		try {
 			setLoadingConfigs(true);
 			const response = await apiClient.getModelConfigs();
-			
+
 			if (response.success && response.data) {
 				setModelConfigs(response.data.configs || {});
 				setDefaultConfigs(response.data.defaults || {});
 			} else {
-				throw new Error(response.error || 'Failed to load model configurations');
+				throw new Error(
+					response.error || 'Failed to load model configurations',
+				);
 			}
 		} catch (error) {
 			console.error('Error loading model configurations:', error);
@@ -218,10 +254,16 @@ export default function SettingsPage() {
 	};
 
 	// Save model configuration
-	const saveModelConfig = async (agentAction: string, config: ModelConfigUpdate) => {
+	const saveModelConfig = async (
+		agentAction: string,
+		config: ModelConfigUpdate,
+	) => {
 		try {
-			const response = await apiClient.updateModelConfig(agentAction, config);
-			
+			const response = await apiClient.updateModelConfig(
+				agentAction,
+				config,
+			);
+
 			if (response.success) {
 				toast.success('Configuration saved successfully');
 				await loadModelConfigs(); // Reload to get updated data
@@ -235,15 +277,23 @@ export default function SettingsPage() {
 	};
 
 	// Test model configuration
-	const testModelConfig = async (agentAction: string, tempConfig?: ModelConfigUpdate) => {
+	const testModelConfig = async (
+		agentAction: string,
+		tempConfig?: ModelConfigUpdate,
+	) => {
 		try {
 			setTestingConfig(agentAction);
-			const response = await apiClient.testModelConfig(agentAction, tempConfig);
-			
+			const response = await apiClient.testModelConfig(
+				agentAction,
+				tempConfig,
+			);
+
 			if (response.success && response.data) {
 				const result = response.data.testResult;
 				if (result.success) {
-					toast.success(`Test successful! Model: ${result.modelUsed}, Response time: ${result.latencyMs}ms`);
+					toast.success(
+						`Test successful! Model: ${result.modelUsed}, Response time: ${result.latencyMs}ms`,
+					);
 				} else {
 					toast.error(`Test failed: ${result.error}`);
 				}
@@ -275,7 +325,9 @@ export default function SettingsPage() {
 		try {
 			setSavingConfigs(true);
 			const response = await apiClient.resetAllModelConfigs();
-			toast.success(`${response.data?.resetCount} configurations reset to defaults`);
+			toast.success(
+				`${response.data?.resetCount} configurations reset to defaults`,
+			);
 			await loadModelConfigs();
 		} catch (error) {
 			console.error('Error resetting all configurations:', error);
@@ -504,7 +556,10 @@ export default function SettingsPage() {
 	};
 
 	// Provider logo mapping (following existing BYOK modal pattern)
-	const PROVIDER_LOGOS: Record<string, React.ComponentType<{ className?: string }>> = {
+	const PROVIDER_LOGOS: Record<
+		string,
+		React.ComponentType<{ className?: string }>
+	> = {
 		openai: OpenAILogo,
 		anthropic: AnthropicLogo,
 		'google-ai-studio': GoogleLogo,
@@ -513,12 +568,15 @@ export default function SettingsPage() {
 		cloudflare: CloudflareLogo,
 	};
 
-	const getProviderLogo = (provider: string, className: string = "h-5 w-5") => {
+	const getProviderLogo = (
+		provider: string,
+		className: string = 'h-5 w-5',
+	) => {
 		const LogoComponent = PROVIDER_LOGOS[provider];
 		if (LogoComponent) {
 			return <LogoComponent className={className} />;
 		}
-		
+
 		// Fallback to emoji for unknown providers
 		const emojiMap: Record<string, string> = {
 			stripe: '💳',
@@ -527,10 +585,9 @@ export default function SettingsPage() {
 			supabase: '🗄️',
 			custom: '🔑',
 		};
-		
+
 		return <span className="text-lg">{emojiMap[provider] || '🔑'}</span>;
 	};
-
 
 	// Update form data when user changes
 	// React.useEffect(() => {
@@ -548,18 +605,21 @@ export default function SettingsPage() {
 
 	// Load agent configurations dynamically from API
 	React.useEffect(() => {
-		apiClient.getModelDefaults()
-			.then(response => {
+		apiClient
+			.getModelDefaults()
+			.then((response) => {
 				if (response.success && response.data?.defaults) {
-					const configs = Object.keys(response.data.defaults).map(key => ({
-						key,
-						name: formatAgentConfigName(key),
-						description: getAgentConfigDescription(key)
-					}));
+					const configs = Object.keys(response.data.defaults).map(
+						(key) => ({
+							key,
+							name: formatAgentConfigName(key),
+							description: getAgentConfigDescription(key),
+						}),
+					);
 					setAgentConfigs(configs);
 				}
 			})
-			.catch(error => {
+			.catch((error) => {
 				console.error('Failed to load agent configurations:', error);
 			});
 	}, [formatAgentConfigName, getAgentConfigDescription]);
@@ -596,32 +656,34 @@ export default function SettingsPage() {
 	}, []);
 
 	return (
-		<div className="min-h-screen bg-bg-light relative">
+		<div className="min-h-screen bg-bg-3 relative">
 			<main className="container mx-auto px-4 py-8 max-w-4xl">
 				<div className="space-y-8">
 					{/* Page Header */}
 					<div>
-						<h1 className="text-3xl font-bold">Settings</h1>
-						<p className="text-muted-foreground mt-2">
+						<h1 className="text-4xl font-bold font-[departureMono] text-red-500">
+							SETTINGS
+						</h1>
+						<p className="text-text-tertiary mt-2">
 							Manage your account settings and preferences
 						</p>
 					</div>
 
 					{/* Integrations Section */}
 					<Card id="integrations">
-						<CardHeader>
-							<div className="flex items-center gap-3">
-								<Link className="h-5 w-5" />
+						<CardHeader variant="minimal">
+							<div className="flex items-center gap-3 border-b w-full py-3 text-text-primary">
+								<Link className="h-4 w-4" />
 								<div>
 									<CardTitle>Integrations</CardTitle>
 								</div>
 							</div>
 						</CardHeader>
-						<CardContent className="space-y-4">
+						<CardContent className="space-y-4 px-6 mt-6">
 							{githubIntegration.loading ? (
 								<div className="flex items-center gap-3">
-									<Settings className="h-5 w-5 animate-spin text-muted-foreground" />
-									<span className="text-sm text-muted-foreground">
+									<Settings className="h-5 w-5 animate-spin text-text-tertiary" />
+									<span className="text-sm text-text-tertiary">
 										Loading GitHub integration status...
 									</span>
 								</div>
@@ -635,7 +697,7 @@ export default function SettingsPage() {
 											<p className="font-medium">
 												GitHub Connected
 											</p>
-											<p className="text-sm text-muted-foreground">
+											<p className="text-sm text-text-tertiary">
 												@
 												{
 													githubIntegration.githubUsername
@@ -664,14 +726,14 @@ export default function SettingsPage() {
 							) : (
 								<div className="flex items-center justify-between">
 									<div className="flex items-center gap-3">
-										<div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-											<Github className="h-5 w-5 text-muted-foreground" />
+										<div className="h-10 w-10 rounded-full bg-bg-2 border-bg-1 dark:border-bg-4 border flex items-center justify-center">
+											<Github className="h-5 w-5 text-text-tertiary" />
 										</div>
 										<div>
 											<p className="font-medium">
 												GitHub Repository Export
 											</p>
-											<p className="text-sm text-muted-foreground">
+											<p className="text-sm text-text-tertiary">
 												{user?.provider === 'github'
 													? 'Repository integration should be automatic after GitHub login'
 													: 'Connect to export apps to GitHub repositories'}
@@ -680,7 +742,7 @@ export default function SettingsPage() {
 									</div>
 									<Button
 										onClick={handleConnectGithub}
-										className="gap-2 bg-[#24292e] hover:bg-[#1a1e22] text-white"
+										className="gap-2 bg-text-primary hover:bg-[#1a1e22] text-bg-1"
 									>
 										<Github className="h-4 w-4" />
 										Connect GitHub
@@ -690,15 +752,11 @@ export default function SettingsPage() {
 
 							<Separator />
 
-							<div className="rounded-lg bg-muted/50 p-4">
+							<div className="rounded-lg dark:bg-bg-3 bg-bg-2 p-4">
 								<div className="flex items-start gap-2">
-									<ExternalLink className="h-4 w-4 text-muted-foreground mt-0.5" />
 									<div className="space-y-1">
-										<p className="text-sm font-medium">
-											GitHub Integration vs Login
-										</p>
-										<div className="text-xs text-muted-foreground space-y-1">
-											{user?.provider === 'github' && (
+										<div className="text-sm text-text-tertiary space-y-1">
+											{user?.provider === 'github' ? (
 												<div className="space-y-1">
 													<p className="text-green-600 font-medium">
 														✓ You're signed in with
@@ -710,31 +768,37 @@ export default function SettingsPage() {
 														logging out and back in
 													</p>
 												</div>
+											) : (
+												<div className='flex items-start'>
+													<p className="font-medium">
+														<Info className="w-5 h-5 text-yellow-400 dark:text-yellow-200" />{' '}
+													</p>
+													<ul className="space-y-1 ml-2">
+														<li>
+															• Export generated
+															apps directly to
+															your GitHub
+															repositories
+														</li>
+														<li>
+															• Automatically
+															create repositories
+															with proper file
+															structure
+														</li>
+														<li>
+															• Set repository
+															visibility
+															(public/private)
+														</li>
+														<li>
+															• Continue
+															development with
+															full Git history
+														</li>
+													</ul>
+												</div>
 											)}
-											<p className="font-medium">
-												Repository Integration allows
-												you to:
-											</p>
-											<ul className="space-y-1 ml-2">
-												<li>
-													• Export generated apps
-													directly to your GitHub
-													repositories
-												</li>
-												<li>
-													• Automatically create
-													repositories with proper
-													file structure
-												</li>
-												<li>
-													• Set repository visibility
-													(public/private)
-												</li>
-												<li>
-													• Continue development with
-													full Git history
-												</li>
-											</ul>
 										</div>
 									</div>
 								</div>
@@ -744,48 +808,48 @@ export default function SettingsPage() {
 
 					{/* Model Configuration Section */}
 					<Card id="model-configs">
-						<CardHeader>
-							<div className="flex items-center gap-3">
+						<CardHeader variant="minimal">
+							<div className="flex items-center gap-3 border-b w-full py-3 text-text-primary">
+								{' '}
 								<Settings className="h-5 w-5" />
 								<div>
-									<CardTitle>AI Model Configurations</CardTitle>
-									<CardDescription>Customize AI model settings and API keys for different operations</CardDescription>
+									<CardTitle>
+										AI Model Configurations
+									</CardTitle>
 								</div>
 							</div>
 						</CardHeader>
-						<CardContent className="space-y-6">
+						<CardContent className="space-y-6 px-6">
 							{/* Provider API Keys Integration */}
-							<div className="space-y-4">
-								<h4 className="font-medium">Provider API Keys</h4>
-								<p className="text-sm text-muted-foreground">
-									AI provider API keys are managed in the "API Keys & Secrets" section below. Configure your OpenAI, Anthropic, Google AI, and OpenRouter keys there.
+							<div className="space-y-2 mt-6">
+								<h4 className="font-medium">
+									Provider API Keys
+								</h4>
+								<p className="text-sm text-text-tertiary">
+									AI provider API keys are managed in the "API
+									Keys & Secrets" section below. Configure
+									your OpenAI, Anthropic, Google AI, and
+									OpenRouter keys there.
 								</p>
-								
-								<div className="rounded-lg bg-muted/50 p-4">
-									<div className="flex items-center gap-3">
-										<Key className="h-5 w-5 text-muted-foreground" />
-										<div className="flex-1">
-											<p className="font-medium text-sm">Unified API Key Management</p>
-											<p className="text-xs text-muted-foreground mt-1">
-												All AI provider keys are securely stored and managed in the API Keys & Secrets section below. They will automatically be used when you test configurations or run model inference.
-											</p>
-										</div>
-										<Button 
-											variant="outline" 
-											size="sm"
-											onClick={() => {
-												const secretsSection = document.getElementById('secrets');
-												if (secretsSection) {
-													secretsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-												}
-											}}
-											className="gap-2 shrink-0"
-										>
-											<Key className="h-4 w-4" />
-											Manage Keys
-										</Button>
-									</div>
-								</div>
+
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										const secretsSection =
+											document.getElementById('secrets');
+										if (secretsSection) {
+											secretsSection.scrollIntoView({
+												behavior: 'smooth',
+												block: 'start',
+											});
+										}
+									}}
+									className="gap-2 shrink-0"
+								>
+									<Key className="h-4 w-4" />
+									Manage Keys
+								</Button>
 							</div>
 
 							<Separator />
@@ -806,27 +870,25 @@ export default function SettingsPage() {
 						</CardContent>
 					</Card>
 
-
 					{/* User Secrets Section */}
 					<Card id="secrets">
-						<CardHeader>
-							<div className="flex items-center gap-3">
+						<CardHeader variant="minimal">
+							<div className="flex items-center gap-3 border-b w-full py-3 text-text-primary">
 								<Key className="h-5 w-5" />
 								<div>
 									<CardTitle>API Keys & Secrets</CardTitle>
 								</div>
 							</div>
 						</CardHeader>
-						<CardContent className="space-y-6">
-
+						<CardContent className="space-y-3 mt-4 px-6">
 							{/* App Environment Variables Section */}
 							<div className="space-y-4">
 								<div className="flex justify-between items-center">
 									<div>
-										<h4 className="font-medium">App Environment Variables</h4>
-										<p className="text-xs text-muted-foreground">
-											API keys and secrets that will be available to your generated apps
-										</p>
+										<h4 className="font-medium">
+											Environment Variables for the
+											generated apps
+										</h4>
 									</div>
 									<Dialog
 										open={secretDialog}
@@ -857,143 +919,161 @@ export default function SettingsPage() {
 
 								{userSecrets.loading ? (
 									<div className="flex items-center gap-3">
-										<Settings className="h-5 w-5 animate-spin text-muted-foreground" />
-										<span className="text-sm text-muted-foreground">
+										<Settings className="h-5 w-5 animate-spin text-text-tertiary" />
+										<span className="text-sm text-text-tertiary">
 											Loading secrets...
 										</span>
 									</div>
 								) : userSecrets.secrets.length === 0 ? (
-									<div className="text-center py-8 border-2 border-dashed border-muted rounded-lg">
-										<Key className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-										<p className="text-sm text-muted-foreground mb-1">
-											No environment variables configured
-										</p>
-										<p className="text-xs text-muted-foreground">
-											Add API keys and secrets that your generated apps can use
+									<div className="text-center py-8 border-2 border-dashed dark:border-bg-4 rounded-lg">
+										<Key className="h-8 w-8 text-text-tertiary mx-auto mb-2" />
+										<p className="text-sm text-text-tertiary">
+											Add API keys and secrets that your
+											generated apps can use
 										</p>
 									</div>
 								) : (
 									<div className="space-y-3">
 										{userSecrets.secrets
-											.filter((secret) => !secret.secretType.endsWith('_BYOK'))
+											.filter(
+												(secret) =>
+													!secret.secretType.endsWith(
+														'_BYOK',
+													),
+											)
 											.map((secret) => (
-											<div
-												key={secret.id}
-												className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${
-													secret.isActive 
-														? 'bg-card' 
-														: 'bg-muted/20 border-dashed opacity-70'
-												}`}
-											>
-												<div className="flex items-center gap-3">
-													<div className={`flex items-center justify-center w-8 h-8 rounded-md border shadow-sm ${
-														secret.isActive 
-															? 'bg-white' 
-															: 'bg-muted border-dashed opacity-60'
-													}`}>
-														{getProviderLogo(secret.provider, `h-5 w-5 ${secret.isActive ? '' : 'opacity-60'}`)}
-													</div>
-													<div>
-														<p className={`font-medium ${secret.isActive ? '' : 'opacity-60'}`}>
-															{secret.name}
-														</p>
-														<div className="flex items-center gap-2 mt-1">
-															<Badge
-																variant={secret.isActive ? "default" : "outline"}
-																className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
-															>
-																{secret.isActive ? "Active" : "Inactive"}
-															</Badge>
-															<Badge
-																variant="outline"
-																className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
-															>
-																{
-																	secret.provider
-																}
-															</Badge>
-															<Badge
-																variant="secondary"
-																className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
-															>
-																{secret.secretType.replace(
-																	'_',
-																	' ',
-																)}
-															</Badge>
-															<span className="text-xs text-muted-foreground">
-																{
-																	secret.keyPreview
-																}
-															</span>
-														</div>
-														{secret.description && (
-															<p className="text-xs text-muted-foreground mt-1">
-																{
-																	secret.description
-																}
-															</p>
-														)}
-													</div>
-												</div>
-												<div className="flex items-center gap-2">
-													<Badge
-														variant="secondary"
-														className="text-xs"
-													>
-														{secret.environment}
-													</Badge>
-													<AlertDialog>
-														<AlertDialogTrigger
-															asChild
+												<div
+													key={secret.id}
+													className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${
+														secret.isActive
+															? 'bg-bg-4'
+															: 'bg-bg-3/20 border-dashed opacity-70'
+													}`}
+												>
+													<div className="flex items-center gap-3">
+														<div
+															className={`flex items-center justify-center w-8 h-8 rounded-md border shadow-sm ${
+																secret.isActive
+																	? 'bg-white'
+																	: 'bg-bg-3 border-dashed opacity-60'
+															}`}
 														>
-															<Button
-																variant="outline"
-																size="sm"
-																className="text-destructive hover:text-destructive"
+															{getProviderLogo(
+																secret.provider,
+																`h-5 w-5 ${secret.isActive ? '' : 'opacity-60'}`,
+															)}
+														</div>
+														<div>
+															<p
+																className={`font-medium ${secret.isActive ? '' : 'opacity-60'}`}
 															>
-																<Trash2 className="h-4 w-4" />
-															</Button>
-														</AlertDialogTrigger>
-														<AlertDialogContent>
-															<AlertDialogHeader>
-																<AlertDialogTitle>
-																	Delete
-																	Secret
-																</AlertDialogTitle>
-																<AlertDialogDescription>
-																	Are you sure
-																	you want to
-																	delete "
-																	{
-																		secret.name
+																{secret.name}
+															</p>
+															<div className="flex items-center gap-2 mt-1">
+																<Badge
+																	variant={
+																		secret.isActive
+																			? 'default'
+																			: 'outline'
 																	}
-																	"? This
-																	action
-																	cannot be
-																	undone.
-																</AlertDialogDescription>
-															</AlertDialogHeader>
-															<AlertDialogFooter>
-																<AlertDialogCancel>
-																	Cancel
-																</AlertDialogCancel>
-																<AlertDialogAction
-																	onClick={() =>
-																		handleDeleteSecret(
-																			secret.id,
-																		)
-																	}
-																	className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+																	className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
 																>
-																	Delete
-																</AlertDialogAction>
-															</AlertDialogFooter>
-														</AlertDialogContent>
-													</AlertDialog>
+																	{secret.isActive
+																		? 'Active'
+																		: 'Inactive'}
+																</Badge>
+																<Badge
+																	variant="outline"
+																	className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
+																>
+																	{
+																		secret.provider
+																	}
+																</Badge>
+																<Badge
+																	variant="secondary"
+																	className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
+																>
+																	{secret.secretType.replace(
+																		'_',
+																		' ',
+																	)}
+																</Badge>
+																<span className="text-xs text-text-tertiary">
+																	{
+																		secret.keyPreview
+																	}
+																</span>
+															</div>
+															{secret.description && (
+																<p className="text-xs text-text-tertiary mt-1">
+																	{
+																		secret.description
+																	}
+																</p>
+															)}
+														</div>
+													</div>
+													<div className="flex items-center gap-2">
+														<Badge
+															variant="secondary"
+															className="text-xs"
+														>
+															{secret.environment}
+														</Badge>
+														<AlertDialog>
+															<AlertDialogTrigger
+																asChild
+															>
+																<Button
+																	variant="outline"
+																	size="sm"
+																	className="text-destructive hover:text-destructive"
+																>
+																	<Trash2 className="h-4 w-4" />
+																</Button>
+															</AlertDialogTrigger>
+															<AlertDialogContent>
+																<AlertDialogHeader>
+																	<AlertDialogTitle>
+																		Delete
+																		Secret
+																	</AlertDialogTitle>
+																	<AlertDialogDescription>
+																		Are you
+																		sure you
+																		want to
+																		delete "
+																		{
+																			secret.name
+																		}
+																		"? This
+																		action
+																		cannot
+																		be
+																		undone.
+																	</AlertDialogDescription>
+																</AlertDialogHeader>
+																<AlertDialogFooter>
+																	<AlertDialogCancel>
+																		Cancel
+																	</AlertDialogCancel>
+																	<AlertDialogAction
+																		onClick={() =>
+																			handleDeleteSecret(
+																				secret.id,
+																			)
+																		}
+																		className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+																	>
+																		Delete
+																	</AlertDialogAction>
+																</AlertDialogFooter>
+															</AlertDialogContent>
+														</AlertDialog>
+													</div>
 												</div>
-											</div>
-										))}
+											))}
 									</div>
 								)}
 							</div>
@@ -1003,11 +1083,13 @@ export default function SettingsPage() {
 							{/* BYOK API Keys Section */}
 							<div className="space-y-4">
 								<div className="flex justify-between items-center">
-									<h4 className="font-medium">BYOK Provider Keys</h4>
-									<Button 
-										size="sm" 
-										variant="outline" 
-										onClick={() => setByokModalOpen(true)} 
+									<h4 className="font-medium">
+										BYOK Provider Keys
+									</h4>
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() => setByokModalOpen(true)}
 										className="gap-2"
 									>
 										<Key className="h-4 w-4" />
@@ -1017,71 +1099,112 @@ export default function SettingsPage() {
 
 								{/* BYOK Status Display */}
 								{(() => {
-									const byokSecrets = userSecrets.secrets.filter((secret) => secret.secretType.endsWith('_BYOK'));
-									
+									const byokSecrets =
+										userSecrets.secrets.filter((secret) =>
+											secret.secretType.endsWith('_BYOK'),
+										);
+
 									if (byokSecrets.length === 0) {
 										return (
-											<div className="text-center py-6 border-2 border-dashed border-muted rounded-lg">
-												<Key className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-												<p className="text-sm text-muted-foreground mb-1">No BYOK provider keys configured</p>
-												<p className="text-xs text-muted-foreground">
-													Add your OpenAI, Anthropic, Google AI, or Cerebras API keys to use your own billing
+											<div className="text-center py-6 border-2 border-dashed dark:border-bg-4 border-muted rounded-lg">
+												<Key className="h-8 w-8 text-text-tertiary mx-auto mb-2" />
+
+												<p className="text-sm text-text-tertiary">
+													Add your LLM keys to use
+													your own billing
 												</p>
 											</div>
 										);
 									}
 
 									return (
-										<div className="rounded-lg bg-muted/50 p-4">
+										<div className="rounded-lg bg-bg-3/50 p-4">
 											<div className="flex items-center justify-between mb-3">
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 bg-green-500 rounded-full"></div>
 													<span className="text-sm font-medium">
-														{byokSecrets.length} provider{byokSecrets.length !== 1 ? 's' : ''} configured
+														{byokSecrets.length}{' '}
+														provider
+														{byokSecrets.length !==
+														1
+															? 's'
+															: ''}{' '}
+														configured
 													</span>
 												</div>
 											</div>
 											<div className="space-y-3">
 												{byokSecrets.map((secret) => {
-													const providerName = secret.secretType
-														.replace('_API_KEY_BYOK', '')
-														.replace('_', ' ')
-														.toLowerCase()
-														.replace(/\b\w/g, l => l.toUpperCase());
-													
+													const providerName =
+														secret.secretType
+															.replace(
+																'_API_KEY_BYOK',
+																'',
+															)
+															.replace('_', ' ')
+															.toLowerCase()
+															.replace(
+																/\b\w/g,
+																(l) =>
+																	l.toUpperCase(),
+															);
+
 													return (
 														<div
 															key={secret.id}
 															className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
-																secret.isActive 
-																	? 'bg-white/50 dark:bg-gray-800/50' 
-																	: 'bg-muted/20 border-dashed opacity-70'
+																secret.isActive
+																	? 'bg-white/50 dark:bg-gray-800/50'
+																	: 'bg-bg-3/20 border-dashed opacity-70'
 															}`}
 														>
 															<div className="flex items-center gap-3">
-																<div className={`flex items-center justify-center w-8 h-8 rounded-md border shadow-sm ${
-																	secret.isActive 
-																		? 'bg-white' 
-																		: 'bg-muted border-dashed opacity-60'
-																}`}>
-																	{getProviderLogo(secret.provider, `h-5 w-5 ${secret.isActive ? '' : 'opacity-60'}`)}
+																<div
+																	className={`flex items-center justify-center w-8 h-8 rounded-md border shadow-sm ${
+																		secret.isActive
+																			? 'bg-white'
+																			: 'bg-bg-3 border-dashed opacity-60'
+																	}`}
+																>
+																	{getProviderLogo(
+																		secret.provider,
+																		`h-5 w-5 ${secret.isActive ? '' : 'opacity-60'}`,
+																	)}
 																</div>
 																<div>
-																	<span className={`font-medium text-sm ${secret.isActive ? '' : 'opacity-60'}`}>{providerName}</span>
-																	<div className={`text-xs text-muted-foreground ${secret.isActive ? '' : 'opacity-60'}`}>
-																		{secret.keyPreview}
+																	<span
+																		className={`font-medium text-sm ${secret.isActive ? '' : 'opacity-60'}`}
+																	>
+																		{
+																			providerName
+																		}
+																	</span>
+																	<div
+																		className={`text-xs text-text-tertiary ${secret.isActive ? '' : 'opacity-60'}`}
+																	>
+																		{
+																			secret.keyPreview
+																		}
 																	</div>
 																</div>
 															</div>
 															<div className="flex items-center gap-2">
-																<Badge 
-																	variant={secret.isActive ? "default" : "outline"} 
+																<Badge
+																	variant={
+																		secret.isActive
+																			? 'default'
+																			: 'outline'
+																	}
 																	className={`text-xs ${secret.isActive ? '' : 'opacity-60'}`}
 																>
-																	{secret.isActive ? "Active" : "Inactive"}
+																	{secret.isActive
+																		? 'Active'
+																		: 'Inactive'}
 																</Badge>
 																<AlertDialog>
-																	<AlertDialogTrigger asChild>
+																	<AlertDialogTrigger
+																		asChild
+																	>
 																		<Button
 																			variant="outline"
 																			size="sm"
@@ -1093,11 +1216,39 @@ export default function SettingsPage() {
 																	<AlertDialogContent>
 																		<AlertDialogHeader>
 																			<AlertDialogTitle>
-																				Remove {providerName} Key
+																				Remove{' '}
+																				{
+																					providerName
+																				}{' '}
+																				Key
 																			</AlertDialogTitle>
 																			<AlertDialogDescription>
-																				Are you sure you want to remove your {providerName} API key? 
-																				You'll need to add it again to use BYOK mode with this provider.
+																				Are
+																				you
+																				sure
+																				you
+																				want
+																				to
+																				remove
+																				your{' '}
+																				{
+																					providerName
+																				}{' '}
+																				API
+																				key?
+																				You'll
+																				need
+																				to
+																				add
+																				it
+																				again
+																				to
+																				use
+																				BYOK
+																				mode
+																				with
+																				this
+																				provider.
 																			</AlertDialogDescription>
 																		</AlertDialogHeader>
 																		<AlertDialogFooter>
@@ -1105,10 +1256,15 @@ export default function SettingsPage() {
 																				Cancel
 																			</AlertDialogCancel>
 																			<AlertDialogAction
-																				onClick={() => handleDeleteSecret(secret.id)}
+																				onClick={() =>
+																					handleDeleteSecret(
+																						secret.id,
+																					)
+																				}
 																				className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 																			>
-																				Remove Key
+																				Remove
+																				Key
 																			</AlertDialogAction>
 																		</AlertDialogFooter>
 																	</AlertDialogContent>
@@ -1118,16 +1274,30 @@ export default function SettingsPage() {
 													);
 												})}
 											</div>
-											<p className="text-xs text-muted-foreground mt-3">
-												These keys are used automatically when you select BYOK mode in model configurations.
+											<p className="text-xs text-text-tertiary mt-3">
+												These keys are used
+												automatically when you select
+												BYOK mode in model
+												configurations.
 												<Button
 													variant="link"
 													size="sm"
 													className="text-xs p-0 h-auto ml-1"
 													onClick={() => {
-														const modelConfigsSection = document.getElementById('model-configs');
-														if (modelConfigsSection) {
-															modelConfigsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+														const modelConfigsSection =
+															document.getElementById(
+																'model-configs',
+															);
+														if (
+															modelConfigsSection
+														) {
+															modelConfigsSection.scrollIntoView(
+																{
+																	behavior:
+																		'smooth',
+																	block: 'start',
+																},
+															);
 														}
 													}}
 												>
@@ -1225,7 +1395,7 @@ export default function SettingsPage() {
 																							</Badge>
 																						)}
 																					</div>
-																					<p className="text-xs text-muted-foreground mt-1">
+																					<p className="text-xs text-text-tertiary mt-1">
 																						{
 																							template.description
 																						}
@@ -1243,7 +1413,7 @@ export default function SettingsPage() {
 															<span className="w-full border-t" />
 														</div>
 														<div className="relative flex justify-center text-xs uppercase">
-															<span className="bg-background px-2 text-muted-foreground">
+															<span className="bg-bg-3 px-2 text-text-tertiary">
 																Or
 															</span>
 														</div>
@@ -1268,7 +1438,7 @@ export default function SettingsPage() {
 																	Environment
 																	Variable
 																</div>
-																<p className="text-xs text-muted-foreground">
+																<p className="text-xs text-text-tertiary">
 																	Add any
 																	custom API
 																	key or
@@ -1297,7 +1467,7 @@ export default function SettingsPage() {
 
 													return (
 														<>
-															<div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+															<div className="flex items-center gap-3 p-3 bg-bg-3/50 rounded-lg">
 																<span className="text-xl">
 																	{
 																		template.icon
@@ -1309,7 +1479,7 @@ export default function SettingsPage() {
 																			template.displayName
 																		}
 																	</h4>
-																	<p className="text-sm text-muted-foreground">
+																	<p className="text-sm text-text-tertiary">
 																		{
 																			template.description
 																		}
@@ -1350,14 +1520,14 @@ export default function SettingsPage() {
 																			template.envVarName
 																		}
 																		disabled
-																		className="bg-muted"
+																		className="bg-bg-3"
 																	/>
-																	<p className="text-xs text-muted-foreground mt-1">
+																	<p className="text-xs text-text-tertiary mt-1">
 																		This
 																		will be
 																		available
 																		as{' '}
-																		<code className="bg-muted px-1 rounded text-xs">
+																		<code className="bg-bg-3 px-1 rounded text-xs">
 																			{
 																				template.envVarName
 																			}
@@ -1513,7 +1683,7 @@ export default function SettingsPage() {
 															)
 														}
 													/>
-													<p className="text-xs text-muted-foreground mt-1">
+													<p className="text-xs text-text-tertiary mt-1">
 														Must be uppercase
 														letters, numbers, and
 														underscores only
@@ -1666,32 +1836,34 @@ export default function SettingsPage() {
 
 					{/* Security Section */}
 					<Card id="security">
-						<CardHeader>
-							<div className="flex items-center gap-3">
+						<CardHeader variant="minimal">
+							<div className="flex items-center gap-3 border-b w-full py-3 text-text-primary">
 								<Lock className="h-5 w-5" />
 								<div>
-									<CardTitle>Security</CardTitle>
+									<CardTitle className="text-lg">
+										Security
+									</CardTitle>
 								</div>
 							</div>
 						</CardHeader>
-						<CardContent className="space-y-6">
+						<CardContent className="space-y-3 mt-2 px-6">
 							{/* Connected Accounts */}
-							<div className="space-y-4">
+							<div className="space-y-2">
 								<h4 className="font-medium">
 									Connected Accounts
 								</h4>
 								<div className="flex items-center justify-between">
 									<div className="flex items-center gap-3">
-										<div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+										<div className="h-5 w-5 rounded-full bg-bg-3 flex items-center justify-center">
 											{user?.provider === 'google'
 												? '🇬'
 												: '🐙'}
 										</div>
 										<div>
-											<p className="font-medium capitalize">
+											<p className="text-sm font-medium capitalize">
 												{user?.provider}
 											</p>
-											<p className="text-sm text-muted-foreground">
+											<p className="text-sm text-text-tertiary">
 												{user?.email}
 											</p>
 										</div>
@@ -1703,12 +1875,12 @@ export default function SettingsPage() {
 							<Separator />
 
 							{/* Active Sessions */}
-							<div className="space-y-4">
+							<div className="space-y-2">
 								<h4 className="font-medium">Active Sessions</h4>
 								{activeSessions.loading ? (
 									<div className="flex items-center gap-3">
-										<Settings className="h-5 w-5 animate-spin text-muted-foreground" />
-										<span className="text-sm text-muted-foreground">
+										<Settings className="h-5 w-5 animate-spin text-text-tertiary" />
+										<span className="text-sm text-text-tertiary">
 											Loading active sessions...
 										</span>
 									</div>
@@ -1719,14 +1891,14 @@ export default function SettingsPage() {
 											className="flex items-center justify-between"
 										>
 											<div className="flex items-center gap-3">
-												<Smartphone className="h-5 w-5 text-muted-foreground" />
+												<Smartphone className="h-5 w-5 text-text-tertiary" />
 												<div>
-													<p className="font-medium">
+													<p className="font-medium text-sm">
 														{session.isCurrent
 															? 'Current Session'
 															: 'Other Session'}
 													</p>
-													<p className="text-sm text-muted-foreground">
+													<p className="text-sm text-text-tertiary">
 														{session.ipAddress} •{' '}
 														{new Date(
 															session.lastActivity,
@@ -1756,74 +1928,6 @@ export default function SettingsPage() {
 									))
 								)}
 							</div>
-
-						</CardContent>
-					</Card>
-
-					{/* Privacy Section */}
-					<Card id="privacy">
-						<CardHeader>
-							<div className="flex items-center gap-3">
-								<Shield className="h-5 w-5" />
-								<div>
-									<CardTitle>Privacy</CardTitle>
-								</div>
-							</div>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="flex items-center justify-between">
-								<div className="space-y-0.5">
-									<Label htmlFor="profile-public">
-										Public Profile
-									</Label>
-									<p className="text-sm text-muted-foreground">
-										Make your profile visible to other users
-									</p>
-								</div>
-								<Switch
-									id="profile-public"
-									checked={profileVisibility === 'public'}
-									onCheckedChange={(checked) =>
-										setProfileVisibility(
-											checked ? 'public' : 'private',
-										)
-									}
-								/>
-							</div>
-							<Separator />
-							<div className="flex items-center justify-between">
-								<div className="space-y-0.5">
-									<Label htmlFor="app-discovery">
-										App Discovery
-									</Label>
-									<p className="text-sm text-muted-foreground">
-										Allow your public apps to appear in
-										discovery
-									</p>
-								</div>
-								<Switch
-									id="app-discovery"
-									checked={appDefaultVisibility === 'public'}
-									onCheckedChange={(checked) =>
-										setAppDefaultVisibility(
-											checked ? 'public' : 'private',
-										)
-									}
-								/>
-							</div>
-							<Separator />
-							<div className="flex items-center justify-between">
-								<div className="space-y-0.5">
-									<Label htmlFor="analytics">
-										Usage Analytics
-									</Label>
-									<p className="text-sm text-muted-foreground">
-										Help improve the platform by sharing
-										anonymous usage data
-									</p>
-								</div>
-								<Switch id="analytics" defaultChecked={true} />
-							</div>
 						</CardContent>
 					</Card>
 
@@ -1834,8 +1938,8 @@ export default function SettingsPage() {
 
 						<div className="flex items-center justify-between">
 							<div>
-								<p className="font-medium">Delete Account</p>
-								<p className="text-sm text-muted-foreground">
+								<p className="font-medium text-text-primary">Delete Account</p>
+								<p className="text-sm text-text-tertiary">
 									Permanently delete your account and all data
 								</p>
 							</div>

@@ -189,7 +189,7 @@ export function LoginModal({
 						transition={{ type: 'spring', duration: 0.5 }}
 						className="relative z-10 w-full max-w-md mx-auto my-8"
 					>
-						<div className="bg-background/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl overflow-hidden">
+						<div className="bg-bg-3/95 backdrop-blur-xl text-text-primary border border-border-primary/50 rounded-2xl shadow-2xl overflow-hidden">
 							{/* Header */}
 							<div className="relative p-6 pb-0">
 								{showCloseButton && (
@@ -202,9 +202,9 @@ export function LoginModal({
 								)}
 
 								<div className="text-center space-y-2">
-									<div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+									<div className="mx-auto w-12 h-12 rounded-full bg-text-secondary/10 flex items-center justify-center mb-4">
 										<svg
-											className="w-6 h-6 text-primary"
+											className="w-6 h-6 text-text-primary"
 											fill="none"
 											viewBox="0 0 24 24"
 											stroke="currentColor"
@@ -224,7 +224,7 @@ export function LoginModal({
 											? 'Create an account'
 											: 'Welcome back'}
 									</h2>
-									<p className="text-muted-foreground">
+									<p className="text-text-tertiary">
 										{actionContext
 											? 'Authentication required for this action'
 											: hasEmailAuth && mode === 'register'
@@ -252,7 +252,7 @@ export function LoginModal({
 										whileTap={{ scale: 0.98 }}
 										onClick={() => handleOAuthClick('github')}
 										// disabled={isLoading}
-										className="w-full group relative overflow-hidden rounded-xl bg-gray-900 dark:bg-[#24292e] p-4 text-white transition-all hover:bg-gray-800 dark:hover:bg-[#1a1e22] border border-gray-800 dark:border-border disabled:opacity-50 disabled:cursor-not-allowed"
+										className="w-full group relative overflow-hidden rounded-xl bg-gray-900 dark:bg-bg-1 p-4 text-white transition-all hover:bg-gray-800 dark:hover:bg-[#1a1e22] border border-gray-800 dark:border-bg-4 disabled:opacity-50 disabled:cursor-not-allowed"
 									>
 									<div className="relative z-10 flex items-center justify-center gap-3">
 										<svg
@@ -280,7 +280,7 @@ export function LoginModal({
 									whileTap={{ scale: 0.98 }}
 									onClick={() => handleOAuthClick('google')}
 									// disabled={isLoading}
-									className="w-full group relative overflow-hidden rounded-xl bg-white dark:bg-card p-4 text-gray-800 dark:text-foreground transition-all hover:bg-gray-50 dark:hover:bg-card/80 border border-gray-200 dark:border-border disabled:opacity-50 disabled:cursor-not-allowed"
+									className="w-full group relative overflow-hidden rounded-xl bg-white dark:bg-bg-4 p-4 text-gray-800 dark:text-text-primary transition-all hover:bg-gray-50 dark:hover:bg-bg-4/80 border border-gray-200 dark:border-border-primary disabled:opacity-50 disabled:cursor-not-allowed"
 								>
 									<div className="relative z-10 flex items-center justify-center gap-3">
 										<svg
@@ -436,7 +436,7 @@ export function LoginModal({
 														: 'login',
 												)
 											}
-											className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+											className="text-sm text-text-tertiary hover:text-text-primary transition-colors"
 										>
 											{mode === 'login' 
 												? "Don't have an account? Sign up" 
@@ -446,18 +446,18 @@ export function LoginModal({
 									</div>
 								)}
 
-								<p className="text-center text-xs text-muted-foreground">
+								<p className="text-center text-xs text-text-tertiary">
 									By continuing, you agree to our{' '}
 									<a
 										href="#"
-										className="underline hover:text-foreground"
+										className="underline hover:text-text-primary"
 									>
 										Terms of Service
 									</a>{' '}
 									and{' '}
 									<a
 										href="#"
-										className="underline hover:text-foreground"
+										className="underline hover:text-text-primary"
 									>
 										Privacy Policy
 									</a>

@@ -150,7 +150,7 @@ export function ProviderManagement() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-border-primary"></div>
           </div>
         </CardContent>
       </Card>
@@ -184,11 +184,11 @@ export function ProviderManagement() {
       <CardContent>
         {providers.length === 0 ? (
           <div className="text-center py-8">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-              <Settings className="h-6 w-6 text-muted-foreground" />
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-bg-3">
+              <Settings className="h-6 w-6 text-text-tertiary" />
             </div>
             <h3 className="text-sm font-medium">No custom providers</h3>
-            <p className="text-sm text-muted-foreground mb-4">
+            <p className="text-sm text-text-tertiary mb-4">
               Add your first custom OpenAI-compatible provider to get started.
             </p>
             <AddProviderModal 

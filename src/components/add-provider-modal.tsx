@@ -132,7 +132,7 @@ export function AddProviderModal({ trigger, onProviderAdded }: AddProviderModalP
               value={formData.baseUrl}
               onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-text-tertiary">
               OpenAI-compatible API endpoint (should end with /v1)
             </p>
           </div>

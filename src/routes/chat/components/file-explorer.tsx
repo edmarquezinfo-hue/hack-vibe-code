@@ -32,7 +32,7 @@ export function FileTreeItem({
 				className={`flex items-center w-full gap-2 py-1 px-3 transition-colors text-sm ${
 					isCurrentFile
 						? 'text-brand bg-zinc-100'
-						: 'text-text/80 hover:bg-accent hover:text-text'
+						: 'text-text-primary/80 hover:bg-accent hover:text-text-primary'
 				}`}
 				style={{ paddingLeft: `${level * 12 + 12}px` }}
 			>
@@ -55,7 +55,7 @@ export function FileTreeItem({
 		<div>
 			<button
 				onClick={() => setIsExpanded(!isExpanded)}
-				className="flex items-center gap-2 py-1 px-3 transition-colors text-sm text-text/80 hover:bg-accent hover:text-text w-full"
+				className="flex items-center gap-2 py-1 px-3 transition-colors text-sm text-text-primary/80 hover:bg-accent hover:text-text-primary w-full"
 				style={{ paddingLeft: `${level * 12 + 12}px` }}
 			>
 				<ChevronRight
@@ -132,8 +132,8 @@ export function FileExplorer({
 	const fileTree = buildFileTree([...bootstrapFiles, ...files]);
 
 	return (
-		<div className="w-full max-w-[200px] bg-bg-light border-r border-text/10 h-full overflow-y-auto">
-			<div className="p-2 px-3 text-sm flex items-center gap-1 text-text/50 font-medium">
+		<div className="w-full max-w-[200px] bg-bg-3 border-r border-text/10 h-full overflow-y-auto">
+			<div className="p-2 px-3 text-sm flex items-center gap-1 text-text-primary/50 font-medium">
 				<LucideNetwork className="size-4" />
 				Files
 			</div>

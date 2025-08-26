@@ -214,8 +214,8 @@ export function ModelConfigTabs({
   if (loadingConfigs) {
     return (
       <div className="flex items-center gap-3 p-8">
-        <Settings className="h-5 w-5 animate-spin text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Loading model configurations...</span>
+        <Settings className="h-5 w-5 animate-spin text-text-tertiary" />
+        <span className="text-sm text-text-tertiary">Loading model configurations...</span>
       </div>
     );
   }
@@ -226,7 +226,7 @@ export function ModelConfigTabs({
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
         <div className="flex-1">
           <h4 className="font-medium">Model Configuration Overrides</h4>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-text-tertiary">
             Customize AI model settings for different operations. Organized by workflow stage.
           </p>
         </div>
@@ -234,12 +234,12 @@ export function ModelConfigTabs({
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-text-tertiary" />
             <Input
               placeholder="Search configurations..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 w-full sm:w-64"
+              className="pl-9 w-full sm:w-64 dark:bg-bg-1 bg-bg-4"
             />
           </div>
           
@@ -271,7 +271,7 @@ export function ModelConfigTabs({
 
       {/* Tabbed interface */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 h-12 items-center">
+        <TabsList className="grid w-full grid-cols-5 h-12 items-center border-2 border-bg-2 dark:border-bg-4">
           {Object.values(WORKFLOW_TABS).map((tab) => {
             const Icon = tab.icon;
             const customizedCount = getCustomizedCountForTab(tab.id);
@@ -303,10 +303,10 @@ export function ModelConfigTabs({
             <TabsContent key={tab.id} value={tab.id} className="mt-6">
               <div className="space-y-4">
                 {/* Tab description */}
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm text-text-tertiary">
                   {tab.description} • {agents.length} agent{agents.length !== 1 ? 's' : ''}
                   {getCustomizedCountForTab(tab.id) > 0 && (
-                    <span className="ml-2 text-primary font-medium">
+                    <span className="ml-2 text-text-primary font-medium">
                       ({getCustomizedCountForTab(tab.id)} customized)
                     </span>
                   )}
@@ -314,7 +314,7 @@ export function ModelConfigTabs({
 
                 {/* Agent config cards */}
                 {agents.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
+                  <div className="text-center py-8 text-text-tertiary">
                     {searchTerm ? 'No configurations match your search.' : 'No configurations in this category.'}
                   </div>
                 ) : (
