@@ -24,6 +24,7 @@ export function setupAuthRoutes(router: Router): Router {
     };
     
     // Public authentication routes
+    router.get('/api/auth/providers', createHandler('getAuthProviders'));
     router.post('/api/auth/register', createHandler('register'));
     router.post('/api/auth/login', createHandler('login'));
     router.post('/api/auth/refresh', createHandler('refreshToken'));
