@@ -52,12 +52,12 @@ export function MockControls({
   }
 
   return (
-    <div className="fixed top-4 right-4 bg-background dark:bg-card border border-border rounded-lg shadow-lg p-4 z-50 w-80">
+    <div className="fixed top-4 right-4 bg-bg-3 dark:bg-bg-4 border border-border-primary rounded-lg shadow-lg p-4 z-50 w-80">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="font-semibold text-foreground">Phase Timeline Mock Controls</h3>
+        <h3 className="font-semibold text-text-primary">Phase Timeline Mock Controls</h3>
         <button
           onClick={onToggle}
-          className="text-muted-foreground hover:text-foreground text-xs px-2 py-1 transition-colors"
+          className="text-text-tertiary hover:text-text-primary text-xs px-2 py-1 transition-colors"
         >
           Hide
         </button>
@@ -65,7 +65,7 @@ export function MockControls({
       
       <div className="space-y-3">
         <div>
-          <label className="block text-sm font-medium text-foreground mb-2">
+          <label className="block text-sm font-medium text-text-primary mb-2">
             Test Scenario
           </label>
           <div className="space-y-2">
@@ -79,13 +79,13 @@ export function MockControls({
                   onChange={(e) => handleScenarioChange(e.target.value)}
                   className="mr-2 text-purple-600"
                 />
-                <span className="text-sm text-foreground dark:text-foreground">{scenarioName}</span>
+                <span className="text-sm text-text-primary dark:text-text-primary">{scenarioName}</span>
               </label>
             ))}
           </div>
         </div>
 
-        <div className="pt-3 border-t border-border dark:border-border">
+        <div className="pt-3 border-t border-border-primary dark:border-border-primary">
           <button
             onClick={clearAll}
             className="w-full bg-red-600 hover:bg-red-700 text-white text-sm py-2 rounded transition-colors"
@@ -94,7 +94,7 @@ export function MockControls({
           </button>
         </div>
 
-        <div className="text-xs text-muted-foreground dark:text-muted-foreground bg-muted/30 dark:bg-muted/20 p-2 rounded">
+        <div className="text-xs text-text-tertiary dark:text-text-tertiary bg-bg-3/30 dark:bg-bg-3/20 p-2 rounded">
           <p><strong>Dev Mode:</strong> These controls let you test different phase timeline states without running full code generation.</p>
         </div>
       </div>

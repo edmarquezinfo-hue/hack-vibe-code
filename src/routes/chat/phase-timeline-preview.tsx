@@ -37,17 +37,17 @@ export function PhaseTimelinePreview() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <div className="min-h-screen bg-bg-3 p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="bg-card rounded-lg shadow-lg p-6 mb-6">
-          <h1 className="text-2xl font-bold text-foreground mb-2">Phase Timeline Preview</h1>
-          <p className="text-muted-foreground mb-6">
+        <div className="bg-bg-4 rounded-lg shadow-lg p-6 mb-6">
+          <h1 className="text-2xl font-bold text-text-primary mb-2">Phase Timeline Preview</h1>
+          <p className="text-text-tertiary mb-6">
             Test different phase timeline scenarios without running full code generation.
           </p>
 
           {/* Scenario Selector */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-foreground mb-3">
+            <label className="block text-sm font-medium text-text-primary mb-3">
               Test Scenario
             </label>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -61,7 +61,7 @@ export function PhaseTimelinePreview() {
                     onChange={(e) => handleScenarioChange(e.target.value)}
                     className="mr-2 text-blue-600"
                   />
-                  <span className="text-sm text-foreground">{scenarioName}</span>
+                  <span className="text-sm text-text-primary">{scenarioName}</span>
                 </label>
               ))}
             </div>
@@ -71,8 +71,8 @@ export function PhaseTimelinePreview() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Phase Timeline Panel */}
           <div className="lg:col-span-1">
-            <div className="bg-card rounded-lg shadow-lg p-6">
-              <h2 className="text-lg font-semibold text-foreground mb-4">Generating code</h2>
+            <div className="bg-bg-4 rounded-lg shadow-lg p-6">
+              <h2 className="text-lg font-semibold text-text-primary mb-4">Generating code</h2>
               <PhaseTimeline
                 phaseTimeline={phaseTimeline}
                 files={files}
@@ -85,22 +85,22 @@ export function PhaseTimelinePreview() {
 
           {/* File Details Panel */}
           <div className="lg:col-span-2">
-            <div className="bg-card rounded-lg shadow-lg p-6">
-              <h2 className="text-lg font-semibold text-foreground mb-4">
+            <div className="bg-bg-4 rounded-lg shadow-lg p-6">
+              <h2 className="text-lg font-semibold text-text-primary mb-4">
                 {activeFile ? `File: ${activeFile.filePath}` : 'Select a file to view details'}
               </h2>
               
               {activeFile ? (
                 <div className="space-y-4">
-                  <div className="bg-muted rounded-lg p-4">
-                    <h3 className="font-medium text-foreground mb-2">File Details</h3>
+                  <div className="bg-bg-3 rounded-lg p-4">
+                    <h3 className="font-medium text-text-primary mb-2">File Details</h3>
                     <p><span className="font-medium">Path:</span> {activeFile.filePath}</p>
                     <p><span className="font-medium">Status:</span> {activeFile.isGenerating ? 'Generating' : 'Completed'}</p>
                     <p><span className="font-medium">Lines:</span> {activeFile.fileContents.split('\n').length}</p>
                   </div>
                   
                   <div>
-                    <h3 className="font-medium text-foreground mb-2">File Contents Preview</h3>
+                    <h3 className="font-medium text-text-primary mb-2">File Contents Preview</h3>
                     <pre className="bg-zinc-900 dark:bg-zinc-950 text-zinc-100 p-4 rounded-lg overflow-auto text-sm max-h-96">
                       {activeFile.fileContents.slice(0, 1000)}
                       {activeFile.fileContents.length > 1000 && '\n\n... (truncated)'}
@@ -108,7 +108,7 @@ export function PhaseTimelinePreview() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-12 text-muted-foreground">
+                <div className="text-center py-12 text-text-tertiary">
                   <p>Click on a file in the phase timeline to view its details and contents.</p>
                 </div>
               )}
@@ -118,29 +118,29 @@ export function PhaseTimelinePreview() {
 
         {/* Stats Panel */}
         <div className="mt-6 bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Timeline Stats</h2>
+          <h2 className="text-lg font-semibold text-text-primary mb-4">Timeline Stats</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">{phaseTimeline.length}</div>
-              <div className="text-sm text-muted-foreground">Total Phases</div>
+              <div className="text-sm text-text-tertiary">Total Phases</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
                 {phaseTimeline.filter(p => p.status === 'completed').length}
               </div>
-              <div className="text-sm text-muted-foreground">Completed</div>
+              <div className="text-sm text-text-tertiary">Completed</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-orange-600">
                 {phaseTimeline.filter(p => p.status === 'generating').length}
               </div>
-              <div className="text-sm text-muted-foreground">In Progress</div>
+              <div className="text-sm text-text-tertiary">In Progress</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">
                 {phaseTimeline.reduce((acc, p) => acc + p.files.length, 0)}
               </div>
-              <div className="text-sm text-muted-foreground">Total Files</div>
+              <div className="text-sm text-text-tertiary">Total Files</div>
             </div>
           </div>
         </div>

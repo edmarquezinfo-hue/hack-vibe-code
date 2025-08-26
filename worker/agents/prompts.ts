@@ -823,7 +823,11 @@ export const STRATEGIES_UTILS = {
         **Before writing any components of your own, make sure to check the existing components and files in the template, try to use them if possible (for example preinstalled shadcn components)**
         **If auth functionality is required, provide mock auth functionality primarily. Provide real auth functionality ONLY IF template has persistence layer. Remember to seed the persistence layer with mock data AND Always PREFILL the UI with mock credentials. No oauth needed**
 
+<<<<<<< HEAD
         **Applications with single view/page or mostly static content are considered **Simple Projects** and those with multiple views/pages are considered **Complex Projects** and should be designed accordingly.**
+=======
+        **Applications with single view/page or mostly static content are considered **Simple Projects** and those with multiple views/pages should are considered **Complex Projects** and should be designed accordingly.**
+>>>>>>> e4a372c (fix: colors)
         * **Phase Count:** Aim for a maximum of 1 phase for simple applications and 3-7 phases for complex applications. Each phase should be self-contained. Do not exceed more than ${Math.floor(MAX_PHASES * 0.8)} phases unless addressing complex client feedbacks.
         * **File Count:** Aim for a maximum of 1-3 files per phase for simple applications and 8-12 files per phase for complex applications.
         * The number of files in the project should be proportional to the number of views/pages that the project has.

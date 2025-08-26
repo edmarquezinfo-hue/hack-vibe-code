@@ -95,7 +95,7 @@ const getModelDisplayName = (modelValue?: string) => {
 
 // Helper to get provider info
 const getProviderInfo = (modelValue?: string) => {
-  if (!modelValue) return { name: 'Default', color: 'bg-muted text-muted-foreground' };
+  if (!modelValue) return { name: 'Default', color: 'bg-bg-3 text-text-tertiary' };
   
   if (modelValue.includes('cerebras/')) {
     return { name: 'Cerebras', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400' };
@@ -136,17 +136,17 @@ function ConfigInfoCard({
   const reasoningEffort = userConfig?.reasoning_effort ?? defaultConfig?.reasoning_effort;
 
   return (
-    <div className="p-4 border rounded-lg bg-background/50 space-y-3">
+    <div className="p-4 border rounded-lg bg-bg-3/50 space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 min-w-0 flex-1">
-          <div className="p-1 rounded-sm bg-muted">
+          <div className="p-1 rounded-sm bg-bg-3">
             <Settings className="h-3 w-3" />
           </div>
           <div className="min-w-0 flex-1">
             <h6 className="font-medium text-sm mb-1" title={agent.name}>
               {agent.name}
             </h6>
-            <p className="text-xs text-muted-foreground line-clamp-2" title={agent.description}>
+            <p className="text-xs text-text-tertiary line-clamp-2" title={agent.description}>
               {agent.description}
             </p>
           </div>
@@ -249,11 +249,11 @@ export function ModelConfigInfo({ configs, onRequestConfigs, loading }: ModelCon
 
           {loading ? (
             <div className="flex items-center gap-3 p-8">
-              <Settings className="h-5 w-5 animate-spin text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Loading model configurations...</span>
+              <Settings className="h-5 w-5 animate-spin text-text-tertiary" />
+              <span className="text-sm text-text-tertiary">Loading model configurations...</span>
             </div>
           ) : !configs ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-text-tertiary">
               <p>No configuration data available.</p>
               <Button 
                 variant="outline" 
@@ -296,17 +296,17 @@ export function ModelConfigInfo({ configs, onRequestConfigs, loading }: ModelCon
                 return (
                   <TabsContent key={tab.id} value={tab.id} className="mt-6">
                     <div className="space-y-4">
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-sm text-text-tertiary">
                         {tab.description} • {agents.length} agent{agents.length !== 1 ? 's' : ''}
                         {getCustomizedCountForTab(tab.id) > 0 && (
-                          <span className="ml-2 text-primary font-medium">
+                          <span className="ml-2 text-text-primary font-medium">
                             ({getCustomizedCountForTab(tab.id)} customized)
                           </span>
                         )}
                       </div>
 
                       {agents.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
+                        <div className="text-center py-8 text-text-tertiary">
                           No agents in this category.
                         </div>
                       ) : (

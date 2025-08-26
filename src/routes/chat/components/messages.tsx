@@ -8,13 +8,13 @@ export function UserMessage({ message }: { message: string }) {
 	return (
 		<div className="flex gap-3">
 			<div className="align-text-top pl-1">
-				<div className="size-6 flex items-center justify-center rounded-full bg-brand text-text-on-brand">
+				<div className="size-6 flex items-center justify-center rounded-full bg-accent text-text-on-brand">
 					<span className="text-xs">U</span>
 				</div>
 			</div>
 			<div className="flex flex-col gap-2">
 				<div className="font-medium text-text-50">You</div>
-				<Markdown className="text-text/80">{message}</Markdown>
+				<Markdown className="text-text-primary/80">{message}</Markdown>
 			</div>
 		</div>
 	);

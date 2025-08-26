@@ -78,7 +78,13 @@ The project is progressing well! The development team is working through the pha
 {{query}}
 
 ## OUTPUT FORMAT:
+<<<<<<< HEAD
 Always use this exact XML structure:
+=======
+First provide a concise and friendly response to the user. Then write down the enhanced and technical request for the development agent **IFF its a suggestion or change reuqest**. 
+**\`<enhanced_user_request>\` is optional. IF There are no technical suggestions to be made, Leave \`<enhanced_user_request>\` blank as there is nothing to send to the technical agent, but ALWAYS RESPOND BACK WITH \`<user_response>\`!**
+The output format is as follows (Use xml tags):
+>>>>>>> e4a372c (fix: colors)
 
 ---------START---------
 <user_response>

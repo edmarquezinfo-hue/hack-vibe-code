@@ -183,7 +183,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             this.logger.error('Selected template not found');
             throw new Error('Selected template not found');
         }
-
         // Now fetch all the files from the instance
         const templateDetailsResponse = await sandboxClient.getTemplateDetails(selectedTemplate.name);
         if (!templateDetailsResponse.success || !templateDetailsResponse.templateDetails) {
@@ -1190,6 +1189,8 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             
             this.setState(newState);
         }
+
+        
     }
 
     getFileGenerated(filePath: string) {
@@ -1799,13 +1800,13 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         dataOrWithout?: WebSocketMessageData<WebSocketMessageType> | unknown
     ): void {
         // Send the event to the conversational assistant if its a relevant event
-        if (this.operations.processUserMessage.isProjectUpdateType(typeOrMsg)) {
-            const messages = this.operations.processUserMessage.processProjectUpdates(typeOrMsg, dataOrWithout as WebSocketMessageData<WebSocketMessageType>, this.logger);
-            this.setState({
-                ...this.state,
-                conversationMessages: [...this.state.conversationMessages, ...messages]
-            });
-        }
+        // if (this.operations.processUserMessage.isProjectUpdateType(typeOrMsg)) {
+        //     const messages = this.operations.processUserMessage.processProjectUpdates(typeOrMsg, dataOrWithout as WebSocketMessageData<WebSocketMessageType>, this.logger);
+        //     this.setState({
+        //         ...this.state,
+        //         conversationMessages: [...this.state.conversationMessages, ...messages]
+        //     });
+        // }
         broadcastToConnections(this, typeOrMsg as WebSocketMessageType, dataOrWithout as WebSocketMessageData<WebSocketMessageType>);
     }
 

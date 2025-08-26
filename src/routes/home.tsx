@@ -17,12 +17,14 @@ export default function Home() {
 		const encodedQuery = encodeURIComponent(query);
 		const encodedMode = encodeURIComponent(mode);
 		const intendedUrl = `/chat/new?query=${encodedQuery}&agentMode=${encodedMode}`;
-		
-		if (!requireAuth({ 
-			requireFullAuth: true, 
-			actionContext: 'to create applications',
-			intendedUrl: intendedUrl
-		})) {
+
+		if (
+			!requireAuth({
+				requireFullAuth: true,
+				actionContext: 'to create applications',
+				intendedUrl: intendedUrl,
+			})
+		) {
 			return;
 		}
 
@@ -46,56 +48,83 @@ export default function Home() {
 	}, []);
 	return (
 		<div className="flex flex-col items-center size-full">
-			<div className="w-full max-w-2xl px-6 pt-40 lg:pt-56 flex flex-col items-center">
-				<h2 className="text-transparent text-balance text-center font-medium leading-[1.1] tracking-tight text-5xl w-full mb-12 bg-clip-text bg-gradient-to-r from-text-primary to-text-primary/80">
-					What shall I help you build?
-				</h2>
-
-				<form
-					method="POST"
-					onSubmit={(e) => {
-						e.preventDefault();
-						const query = textareaRef.current!.value;
-						handleCreateApp(query, agentMode);
-					}}
-					className="flex flex-col z-10 w-full min-h-[150px] bg-bg-4 justify-between dark:bg-card rounded-[18px] shadow-textarea p-5 transition-all duration-200"
-				>
-					<textarea
-						className="bg-transparent w-full resize-none ring-0 outline-0 placeholder:text-primary/40"
-						name="query"
-						placeholder="Create the 2048 game"
-						ref={textareaRef}
-						onChange={adjustTextareaHeight}
-						onInput={adjustTextareaHeight}
-						onKeyDown={(e) => {
-							if (e.key === 'Enter' && !e.shiftKey) {
-								e.preventDefault();
-								const query = textareaRef.current!.value;
-								handleCreateApp(query, agentMode);
-							}
-						}}
-					/>
-					<div className="flex items-center justify-between mt-4 pt-1">
-						{import.meta.env.VITE_AGENT_MODE_ENABLED ? (
-							<AgentModeToggle
-								value={agentMode}
-								onChange={setAgentMode}
-								className="flex-1"
-							/>
-						) : (
-							<div></div>
-						)}
-
-						<div className="flex items-center justify-end ml-4">
-							<button
-								type="submit"
-								className="bg-gradient-to-br from-[#0092b8b3] to-[#0092b8e6] dark:from-[#f48120] dark:to-[#faae42] hover:from-[#0092b8e6] hover:to-[#0092b8b3] dark:hover:from-[#faae42] dark:hover:to-[#f48120] text-white p-1 rounded-md *:size-5 transition-all duration-200 hover:shadow-md"
+			<div className="rounded-md mt-46 w-full max-w-2xl overflow-hidden">
+				<div className="absolute inset-2 bottom-0 text-accent z-0 opacity-20">
+					<svg width="100%" height="100%">
+						<defs>
+							<pattern
+								id=":S2:"
+								viewBox="-6 -6 12 12"
+								patternUnits="userSpaceOnUse"
+								width="12"
+								height="12"
 							>
-								<ArrowRight />
-							</button>
+								<circle
+									cx="0"
+									cy="0"
+									r="1"
+									fill="currentColor"
+								></circle>
+							</pattern>
+						</defs>
+						<rect
+							width="100%"
+							height="100%"
+							fill="url(#:S2:)"
+						></rect>
+					</svg>
+				</div>
+				<div className="px-6 p-8 flex flex-col items-center z-10">
+					<h1 className="font-[departureMono] text-shadow-sm text-shadow-red-200 dark:text-shadow-red-900 text-accent font-medium leading-[1.1] tracking-tight text-8xl w-full mb-4 bg-clip-text bg-gradient-to-r from-text-primary to-text-primary/90">
+						BUILD
+					</h1>
+
+					<form
+						method="POST"
+						onSubmit={(e) => {
+							e.preventDefault();
+							const query = textareaRef.current!.value;
+							handleCreateApp(query, agentMode);
+						}}
+						className="flex z-10 flex-col w-full min-h-[150px] bg-bg-4 border border-accent/30 dark:border-accent/50 justify-between dark:bg-bg-2 rounded-[18px] shadow-textarea p-5 transition-all duration-200"
+					>
+						<textarea
+							className="w-full resize-none ring-0 z-20 outline-0 placeholder:text-text-primary/60 text-text-primary"
+							name="query"
+							placeholder="Create a todo list app"
+							ref={textareaRef}
+							onChange={adjustTextareaHeight}
+							onInput={adjustTextareaHeight}
+							onKeyDown={(e) => {
+								if (e.key === 'Enter' && !e.shiftKey) {
+									e.preventDefault();
+									const query = textareaRef.current!.value;
+									handleCreateApp(query, agentMode);
+								}
+							}}
+						/>
+						<div className="flex items-center justify-between mt-4 pt-1">
+							{import.meta.env.VITE_AGENT_MODE_ENABLED ? (
+								<AgentModeToggle
+									value={agentMode}
+									onChange={setAgentMode}
+									className="flex-1"
+								/>
+							) : (
+								<div></div>
+							)}
+
+							<div className="flex items-center justify-end ml-4">
+								<button
+									type="submit"
+									className="bg-accent text-white p-1 rounded-md *:size-5 transition-all duration-200 hover:shadow-md"
+								>
+									<ArrowRight />
+								</button>
+							</div>
 						</div>
-					</div>
-				</form>
+					</form>
+				</div>
 			</div>
 		</div>
 	);

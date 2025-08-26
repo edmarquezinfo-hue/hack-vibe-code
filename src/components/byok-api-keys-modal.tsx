@@ -316,7 +316,7 @@ export function ByokApiKeysModal({ isOpen, onClose, onKeyAdded }: ByokApiKeysMod
             <DialogTitle className="flex items-center gap-2">
               <Key className="h-5 w-5" />
               Bring Your Own Key
-              <span className="flex items-center gap-1 text-xs text-muted-foreground font-normal">
+              <span className="flex items-center gap-1 text-xs text-text-tertiary font-normal">
                 via <CloudflareLogo className="h-3 w-3" /> AI Gateway
               </span>
             </DialogTitle>
@@ -433,7 +433,7 @@ export function ByokApiKeysModal({ isOpen, onClose, onKeyAdded }: ByokApiKeysMod
                   ))}
                 </div>
               ) : managedSecrets.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
+                <div className="text-center py-8 text-text-tertiary">
                   <Key className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p className="text-lg font-medium mb-2">No API keys configured</p>
                   <p className="text-sm">Add your first API key using the "Add Keys" tab</p>
@@ -455,14 +455,14 @@ export function ByokApiKeysModal({ isOpen, onClose, onKeyAdded }: ByokApiKeysMod
                       return (
                         <div key={secret.id} className={`flex items-center gap-4 p-4 rounded-lg border transition-colors ${
                           secret.isActive 
-                            ? 'hover:bg-muted/50' 
-                            : 'bg-muted/20 border-dashed hover:bg-muted/30'
+                            ? 'hover:bg-bg-3/50' 
+                            : 'bg-bg-3/20 border-dashed hover:bg-bg-3/30'
                         }`}>
                           {/* Provider Logo */}
                           <div className={`flex items-center justify-center w-8 h-8 rounded-md border shadow-sm ${
                             secret.isActive 
                               ? 'bg-white' 
-                              : 'bg-muted border-dashed opacity-60'
+                              : 'bg-bg-3 border-dashed opacity-60'
                           }`}>
                             <LogoComponent className={`h-5 w-5 ${secret.isActive ? '' : 'opacity-60'}`} />
                           </div>
@@ -482,7 +482,7 @@ export function ByokApiKeysModal({ isOpen, onClose, onKeyAdded }: ByokApiKeysMod
                                 {secret.isActive ? "Active" : "Inactive"}
                               </Badge>
                             </div>
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-3 text-xs text-text-tertiary">
                               <div className="flex items-center gap-1">
                                 <Eye className="h-3 w-3" />
                                 <span>{secret.keyPreview}</span>
@@ -507,7 +507,7 @@ export function ByokApiKeysModal({ isOpen, onClose, onKeyAdded }: ByokApiKeysMod
                                 disabled={isTogglingThis}
                               />
                               {isTogglingThis && (
-                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                <Loader2 className="h-4 w-4 animate-spin text-text-tertiary" />
                               )}
                             </div>
                             

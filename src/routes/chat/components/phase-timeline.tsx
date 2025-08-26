@@ -83,14 +83,14 @@ const getStatusIcon = (status: 'generating' | 'completed' | 'error' | 'validatin
 		case 'error':
 			return <AlertCircle className="w-3 h-3" />;
 		default:
-			return <div className="w-3 h-3 bg-muted-foreground/40 dark:bg-muted-foreground/30 rounded-full" />;
+			return <div className="w-3 h-3 bg-bg-3-foreground/40 dark:bg-bg-3-foreground/30 rounded-full" />;
 	}
 };
 
 const getStatusColor = (status: 'generating' | 'completed' | 'error' | 'validating') => {
 	switch (status) {
 		case 'generating':
-			return 'text-orange-400';
+			return 'text-accent';
 		case 'validating':
 			return 'text-blue-400';
 		case 'completed':
@@ -98,7 +98,7 @@ const getStatusColor = (status: 'generating' | 'completed' | 'error' | 'validati
 		case 'error':
 			return 'text-red-500';
 		default:
-			return 'text-muted-foreground dark:text-muted-foreground';
+			return 'text-text-tertiary dark:text-text-tertiary';
 	}
 };
 
@@ -162,7 +162,7 @@ export function PhaseTimeline({ phaseTimeline, files, view, activeFile, onFileCl
 						
 						<div className="flex-shrink-0 mt-0.5">
 							{phase.status === 'generating' ? (
-								<Loader className="size-3 animate-spin text-orange-400" />
+								<Loader className="size-3 animate-spin text-accent" />
 							) : phase.status === 'validating' ? (
 								<Loader className="size-3 animate-spin text-blue-400" />
 							) : (
@@ -177,7 +177,7 @@ export function PhaseTimeline({ phaseTimeline, files, view, activeFile, onFileCl
 						
 						{/* File count badge for collapsed completed phases */}
 						{phase.status === 'completed' && !expandedPhases.has(phase.id) && (
-							<span className="text-xs text-text/50 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5">
+							<span className="text-xs text-text-primary/50 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5">
 								{phase.files.length} files
 							</span>
 						)}
@@ -211,7 +211,7 @@ export function PhaseTimeline({ phaseTimeline, files, view, activeFile, onFileCl
 													'text-xs text-left block transition-colors break-all leading-tight',
 													isFileActive
 														? 'text-brand font-medium'
-														: globalFile ? 'text-text/80 group-hover:text-text' : 'text-text/50',
+														: globalFile ? 'text-text-primary/80 group-hover:text-text-primary' : 'text-text-primary/50',
 												)}
 												title={phaseFile.path}
 											>
@@ -231,7 +231,7 @@ export function PhaseTimeline({ phaseTimeline, files, view, activeFile, onFileCl
 											
 											return (
 												<span 
-													className="flex-shrink-0 text-zinc-400 text-xs font-mono text-right max-w-16 ml-2 truncate mt-0.5" 
+													className="flex-shrink-0 text-text-tertiary text-xs font-mono text-right max-w-16 ml-2 truncate mt-0.5" 
 													title={`${incrementalLines} lines added in this phase`}
 												>
 													+{displayCount}
@@ -290,20 +290,20 @@ export function PhaseTimeline({ phaseTimeline, files, view, activeFile, onFileCl
 						className="flex items-start gap-2 py-1 font-mono w-full text-left group hover:bg-zinc-50/5 rounded px-2 min-h-0"
 					>
 						{/* Status icon BEFORE filename */}
-						<span className={clsx('flex-shrink-0', file.isGenerating ? 'text-orange-400' : 'text-green-500')}>
+						<span className={clsx('flex-shrink-0', file.isGenerating ? 'text-accent' : 'text-green-500')}>
 							{file.isGenerating ? <Loader className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
 						</span>
 						
 						<div className="flex-1 min-w-0">
 							<span 
-								className={clsx('text-xs block break-all leading-tight', isFileActive ? 'text-brand font-medium' : 'text-text/80')}
+								className={clsx('text-xs block break-all leading-tight', isFileActive ? 'text-brand font-medium' : 'text-text-primary/80')}
 								title={file.filePath}
 							>
 								{truncateFilePath(file.filePath)}
 							</span>
 						</div>
 						
-						<span className="flex-shrink-0 text-zinc-400 text-xs font-mono text-right w-12 ml-2 mt-0.5">
+						<span className="flex-shrink-0 text-text-tertiary text-xs font-mono text-right w-12 ml-2 mt-0.5">
 							+{file.fileContents.split('\n').length}
 						</span>
 					</button>
