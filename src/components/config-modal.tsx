@@ -77,7 +77,6 @@ const getModelRecommendation = (agentAction: string) => {
     realtimeCodeFixer: '🚀 Recommended: Fast debugging models',
     fastCodeFixer: '⚡ Recommended: Ultra-fast models for quick fixes',
     conversationalResponse: '💬 Recommended: Balanced models for natural conversation',
-    userSuggestionProcessor: '🎯 Recommended: Understanding models for user feedback',
     codeReview: '🔍 Recommended: Analytical models with large context',
     fileRegeneration: '📝 Recommended: Pure coding models',
     screenshotAnalysis: '👁️ Recommended: Vision-capable models for image analysis'

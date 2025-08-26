@@ -5,26 +5,24 @@ import {
     PhaseConceptGenerationSchemaType, 
     PhaseConceptType,
     FileOutputType,
-    TechnicalInstructionType,
     PhaseImplementationSchemaType,
 } from '../schemas';
 import { GitHubExportRequest, PreviewType, StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
 import { GitHubExportOptions, GitHubExportResult } from '../../types/github';
 import { CodeGenState, CurrentDevState, MAX_PHASES, FileState } from './state';
-import { AllIssues, AgentSummary, ScreenshotData } from './types';
+import { AllIssues, AgentSummary, ScreenshotData, AgentInitArgs } from './types';
 import { WebSocketMessageResponses } from '../constants';
 import { broadcastToConnections, handleWebSocketClose, handleWebSocketMessage } from './websocket';
 import { createObjectLogger } from '../../logger';
 import { ProjectSetupAssistant } from '../assistants/projectsetup';
 import { UserConversationProcessor } from '../operations/UserConversationProcessor';
-import { UserSuggestionProcessor } from '../operations/UserSuggestionProcessor';
 import { executeAction } from './actions';
 import { FileManager } from '../services/implementations/FileManager';
 import { StateManager } from '../services/implementations/StateManager';
 // import { WebSocketBroadcaster } from '../services/implementations/WebSocketBroadcaster';
 import { GenerationContext } from '../domain/values/GenerationContext';
 import { IssueReport } from '../domain/values/IssueReport';
-import { PhaseImplementationOperation, LAST_PHASE_PROMPT as FINAL_CODE_PHASE_DESCRIPTION } from '../operations/PhaseImplementation';
+import { PhaseImplementationOperation } from '../operations/PhaseImplementation';
 import { CodeReviewOperation } from '../operations/CodeReview';
 import { FileRegenerationOperation } from '../operations/FileRegeneration';
 import { PhaseGenerationOperation } from '../operations/PhaseGeneration';
@@ -37,14 +35,17 @@ import { eq } from 'drizzle-orm';
 import { BaseSandboxService } from '../../services/sandbox/BaseSandboxService';
 import { getSandboxService } from '../../services/sandbox/factory';
 import { WebSocketMessageData, WebSocketMessageType } from '../../api/websocketTypes';
-import { InferenceContext, AgentActionKey, ModelConfig } from '../inferutils/config.types';
+import { InferenceContext, AgentActionKey } from '../inferutils/config.types';
 import { AGENT_CONFIG } from '../inferutils/config';
 import { ModelConfigService } from '../../database/services/ModelConfigService';
-import { SecretsService } from '../../database/services/SecretsService';
 import { FileFetcher, fixProjectIssues } from '../../services/code-fixer';
 import { FastCodeFixerOperation } from '../operations/FastCodeFixer';
 import { getProtocolForHost } from '../../utils/urls';
 import { looksLikeCommand } from '../utils/common';
+import { SandboxSdkClient } from '../../services/sandbox/sandboxSdkClient';
+import { selectTemplate } from '../planning/templateSelector';
+import { generateBlueprint } from '../planning/blueprint';
+import { prepareCloudflareButton } from '../../utils/deployToCf';
 
 interface WebhookPayload {
     event: {
@@ -76,7 +77,6 @@ interface Operations {
     analyzeScreenshot: ScreenshotAnalysisOperation;
     implementPhase: PhaseImplementationOperation;
     fastCodeFixer: FastCodeFixerOperation;
-    processSuggestions: UserSuggestionProcessor;
     processUserMessage: UserConversationProcessor;
 }
 
@@ -107,7 +107,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         analyzeScreenshot: new ScreenshotAnalysisOperation(),
         implementPhase: new PhaseImplementationOperation(),
         fastCodeFixer: new FastCodeFixerOperation(),
-        processSuggestions: new UserSuggestionProcessor(),
         processUserMessage: new UserConversationProcessor()
     };
 
@@ -148,76 +147,76 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
      * Sets up services and begins deployment process
      */
     async initialize(
-        query: string,
-        blueprint: Blueprint,
-        templateDetails: TemplateDetails,
-        sessionId: string,
-        hostname: string,
-        userId: string,
+        initArgs: AgentInitArgs,
         ..._args: unknown[]
-    ): Promise<void> {
+    ): Promise<CodeGenState> {
         this.logger = createObjectLogger(this, 'CodeGeneratorAgent');
-        this.logger.setObjectId(sessionId);
-        this.logger.setFields({
-            sessionId,
-            blueprintPhases: blueprint.implementationRoadmap?.length || 0,
-        });
+        this.logger.setObjectId(initArgs.inferenceContext.agentId);
+
+        const { query, language, frameworks, hostname, inferenceContext } = initArgs;
+        // Fetch available templates
+        const templatesResponse = await SandboxSdkClient.listTemplates();
+        if (!templatesResponse) {
+            throw new Error('Failed to fetch templates from sandbox service');
+        }
         
-        this.logger.info('Initializing CodeGeneratorAgent with enhanced context', {
-            queryLength: query.length,
-            blueprintPhases: blueprint.implementationRoadmap?.length || 0,
-            templateName: templateDetails?.name
-        });
+        const [analyzeQueryResponse, sandboxClient] = await Promise.all([
+            selectTemplate({
+                env: this.env,
+                inferenceContext,
+                query,
+                availableTemplates: templatesResponse.templates,
+            }), 
+            getSandboxService(inferenceContext.agentId, hostname)
+        ]);
+        
+        this.logger.info('Selected template', { selectedTemplate: analyzeQueryResponse });
+            
+        // Find the selected template by name in the available templates
+        if (!analyzeQueryResponse.selectedTemplateName) {
+            this.logger.error('No suitable template found for code generation');
+            throw new Error('No suitable template found for code generation');
+        }
+            
+        const selectedTemplate = templatesResponse.templates.find(template => template.name === analyzeQueryResponse.selectedTemplateName);
+        if (!selectedTemplate) {
+            this.logger.error('Selected template not found');
+            throw new Error('Selected template not found');
+        }
+            
+        // Now fetch all the files from the instance
+        const templateDetailsResponse = await sandboxClient.getTemplateDetails(selectedTemplate.name);
+        if (!templateDetailsResponse.success || !templateDetailsResponse.templateDetails) {
+            this.logger.error('Failed to fetch files', { templateDetailsResponse });
+            throw new Error('Failed to fetch files');
+        }
+            
+        const templateDetails = templateDetailsResponse.templateDetails;
+        initArgs.onTemplateGenerated(templateDetails);
+        
+        // Generate a blueprint
+        this.logger.info('Generating blueprint', { query, queryLength: query.length });
+        this.logger.info(`Using language: ${language}, frameworks: ${frameworks ? frameworks.join(", ") : "none"}`);
+        
+        const blueprint = await generateBlueprint({
+            env: this.env,
+            inferenceContext,
+            query,
+            language: language!,
+            frameworks: frameworks!,
+            templateDetails,
+            templateMetaInfo: analyzeQueryResponse,
+            stream: {
+                chunk_size: 256,
+                onChunk: (chunk) => {
+                    initArgs.onBlueprintChunk(chunk);
+                }
+            }
+        })
 
         const packageJsonFile = templateDetails?.files.find(file => file.filePath === 'package.json');
         const packageJson = packageJsonFile ? packageJsonFile.fileContents : '';
         
-        // Initialize inference context with user configurations
-        const inferenceContext: InferenceContext = {
-            agentId: sessionId,
-            userId: userId,
-        };
-
-        // Fetch user model configurations and API keys if userId is provided
-        if (userId) {
-            try {
-                const db = new DatabaseService(this.env);
-                const modelConfigService = new ModelConfigService(db);
-                const secretsService = new SecretsService(db, this.env);
-                
-                // Fetch all user model configs at once
-                const userConfigsRecord = await modelConfigService.getUserModelConfigs(userId);
-                
-                // Convert Record to Map and extract only ModelConfig properties
-                const userModelConfigs = new Map();
-                for (const [actionKey, mergedConfig] of Object.entries(userConfigsRecord)) {
-                    if (mergedConfig.isUserOverride) {
-                        const modelConfig: ModelConfig = {
-                            name: mergedConfig.name,
-                            max_tokens: mergedConfig.max_tokens,
-                            temperature: mergedConfig.temperature,
-                            reasoning_effort: mergedConfig.reasoning_effort,
-                            fallbackModel: mergedConfig.fallbackModel
-                        };
-                        userModelConfigs.set(actionKey, modelConfig);
-                    }
-                }
-                
-                // Fetch all user API keys at once
-                const userApiKeys = await secretsService.getUserProviderKeysMap(userId);
-                
-                inferenceContext.userModelConfigs = Object.fromEntries(userModelConfigs);
-                inferenceContext.userApiKeys = Object.fromEntries(userApiKeys);
-                
-                this.logger.info(`Initialized inference context for user ${userId}`, {
-                    modelConfigsCount: Object.keys(userModelConfigs).length,
-                    apiKeysCount: Object.keys(inferenceContext.userApiKeys || {}).length
-                });
-            } catch (error) {
-                this.logger.warn('Failed to initialize user configurations for inference context', error);
-            }
-        }
-
         this.setState({
             ...this.initialState,
             query,
@@ -227,15 +226,16 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             generatedPhases: [],
             commandsHistory: [],
             lastPackageJson: packageJson,
-            sessionId,
+            sessionId: inferenceContext.agentId,
             hostname,
             inferenceContext,
         });
 
         // Deploy to sandbox service and generate initial setup commands in parallel
-        Promise.all([this.deployToSandbox(), this.getProjectSetupAssistant().generateSetupCommands()]).then(async ([, setupCommands]) => {
+        Promise.all([this.deployToSandbox(), this.getProjectSetupAssistant().generateSetupCommands(), this.generateReadme()]).then(async ([, setupCommands, _readme]) => {
             this.logger.info("Deployment to sandbox service and initial commands predictions completed successfully");
             await this.executeCommands(setupCommands.commands);
+            this.logger.info("Initial commands executed successfully");
         }).catch(error => {
             this.logger.error("Error during deployment:", error);
             this.broadcast(WebSocketMessageResponses.ERROR, {
@@ -244,6 +244,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         });
 
         this.logger.info(`Agent ${this.state.sessionId} initialized successfully`);
+        return this.state;
     }
 
     async isInitialized() {
@@ -318,7 +319,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     getPhasesCounter(): number {
         return this.state.phasesCounter;
     }
-    
+
     async generateReadme() {
         this.logger.info('Generating README.md');
         // Only generate if it doesn't exist
@@ -326,19 +327,28 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             this.logger.info('README.md already exists');
             return;
         }
+
         this.broadcast(WebSocketMessageResponses.FILE_GENERATING, {
             message: 'Generating README.md',
             filePath: 'README.md',
             filePurpose: 'Project documentation and setup instructions'
         });
-        const readme = await this.getProjectSetupAssistant().generateReadme();
-        this.logger.info('README.md generated successfully');
-        // Save it
+
+        const readme = await this.operations.implementPhase.generateReadme({
+            agentId: this.state.sessionId,
+            env: this.env,
+            logger: this.logger,
+            context:GenerationContext.from(this.state, this.logger),
+            inferenceContext: this.state.inferenceContext,
+        });
+
         this.fileManager.saveGeneratedFile(readme);
+
         this.broadcast(WebSocketMessageResponses.FILE_GENERATED, {
             message: 'README.md generated successfully',
             file: readme
         });
+        this.logger.info('README.md generated successfully');
     }
 
     /**
@@ -423,11 +433,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         } finally {
             await this.updateDatabase({ status: 'completed' });
             this.isGenerating = false;
-            this.setState({
-                ...this.state,
-                mvpGenerated: true
-            });
-
             this.broadcast(WebSocketMessageResponses.GENERATION_COMPLETE, {
                 message: "Code generation and review process completed.",
                 instanceId: this.state.sandboxInstanceId,
@@ -516,7 +521,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             }
             
             // Implement the phase
-            await this.implementPhase(phaseConcept, currentIssues, null);
+            await this.implementPhase(phaseConcept, currentIssues);
     
             this.logger.info(`Phase ${phaseConcept.name} completed, generating next phase`);
 
@@ -582,7 +587,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                     const fileResults = await Promise.allSettled(promises);
                     const files: FileOutputType[] = fileResults.map(result => result.status === "fulfilled" ? result.value : null).filter((result) => result !== null);
 
-                    await this.deployToSandbox(files);
+                    await this.deployToSandbox(files, false, "fix: Applying code review fixes");
 
                     // await this.applyDeterministicCodeFixes();
 
@@ -615,14 +620,18 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         this.logger.info("Executing FINALIZING state - final review and cleanup");
 
         // Only do finalizing stage if it wasn't done before
-        if (this.state.generatedPhases.find(phase => phase.name === "Finalization and Review")) {
+        if (this.state.mvpGenerated) {
             this.logger.info("Finalizing stage already done");
             return CurrentDevState.REVIEWING;
         }
+        this.setState({
+            ...this.state,
+            mvpGenerated: true
+        });
 
-        const phaseConcept = {
+        const phaseConcept: PhaseConceptType = {
             name: "Finalization and Review",
-            description: FINAL_CODE_PHASE_DESCRIPTION,
+            description: "Full polishing and final review of the application",
             files: [],
             lastPhase: true
         }
@@ -642,7 +651,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         this.resetIssues();
         
         // Run final review and cleanup phase
-        await this.implementPhase(phaseConcept, currentIssues, null);
+        await this.implementPhase(phaseConcept, currentIssues);
 
         const numFilesGenerated = this.fileManager.getGeneratedFilePaths().length;
         this.logger.info(`Finalization complete. Generated ${numFilesGenerated}/${this.getTotalFiles()} files.`);
@@ -683,6 +692,11 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         
         if (result.files.length === 0) {
             this.logger.info("No files generated for next phase");
+            // Notify phase generation complete
+            this.broadcast(WebSocketMessageResponses.PHASE_GENERATED, {
+                message: `No files generated for next phase`,
+                phase: undefined
+            });
             return undefined;
         }
         
@@ -707,52 +721,16 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     }
 
     /**
-     * Process user suggestions into technical instructions
-     */
-    async processUserSuggestions(currentIssues: AllIssues): Promise<TechnicalInstructionType | null> {
-        if (this.state.pendingUserInputs.length === 0) {
-            return null;
-        }
-
-        try {
-            const suggestionInputs = {
-                suggestions: this.state.pendingUserInputs,
-                issues: IssueReport.from(currentIssues)
-            };
-
-            const context = GenerationContext.from(this.state, this.logger);
-            const result = await this.operations.processSuggestions.execute(
-                suggestionInputs,
-                {
-                    env: this.env,
-                    agentId: this.state.sessionId,
-                    logger: this.logger,
-                    context,
-                    inferenceContext: this.state.inferenceContext,
-                }
-            );
-
-            return result;
-        } catch (error) {
-            this.logger.error('Error processing user suggestions:', error);
-            return null;
-        }
-    }
-
-    /**
      * Implement a single phase of code generation
      * Streams file generation with real-time updates and incorporates technical instructions
      */
-    async implementPhase(phase: PhaseConceptType, currentIssues: AllIssues, technicalInstructions?: TechnicalInstructionType | null): Promise<PhaseImplementationSchemaType> {
+    async implementPhase(phase: PhaseConceptType, currentIssues: AllIssues, streamChunks: boolean = true): Promise<PhaseImplementationSchemaType> {
         const context = GenerationContext.from(this.state, this.logger);
         const issues = IssueReport.from(currentIssues);
         
         this.broadcast(WebSocketMessageResponses.PHASE_IMPLEMENTING, {
-            message: technicalInstructions 
-                ? `Implementing phase: ${phase.name} with ${technicalInstructions.instructions.length} user instructions`
-                : `Implementing phase: ${phase.name}`,
+            message: `Implementing phase: ${phase.name}`,
             phase: phase,
-            technicalInstructions: technicalInstructions,
             issues: issues,
         });
             
@@ -761,7 +739,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             {
                 phase, 
                 issues, 
-                technicalInstructions, 
                 isFirstPhase: this.state.generatedPhases.filter(p => p.completed).length === 0,
                 fileGeneratingCallback: (filePath: string, filePurpose: string) => {
                     this.broadcast(WebSocketMessageResponses.FILE_GENERATING, {
@@ -770,14 +747,15 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                         filePurpose: filePurpose
                     });
                 },
-                fileChunkGeneratedCallback: (filePath: string, chunk: string, format: 'full_content' | 'unified_diff') => {
+                shouldAutoFix: this.state.inferenceContext.enableRealtimeCodeFix,
+                fileChunkGeneratedCallback: streamChunks ? (filePath: string, chunk: string, format: 'full_content' | 'unified_diff') => {
                     this.broadcast(WebSocketMessageResponses.FILE_CHUNK_GENERATED, {
                         message: `Generating file: ${filePath}`,
                         filePath: filePath,
                         chunk,
                         format,
                     });
-                },
+                } : (_filePath: string, _chunk: string, _format: 'full_content' | 'unified_diff') => {},
                 fileClosedCallback: (file: FileOutputType, message: string) => {
                     this.broadcast(WebSocketMessageResponses.FILE_GENERATED, {
                         message,
@@ -823,7 +801,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     
         // Deploy generated files
         if (finalFiles.length > 0) {
-            await this.deployToSandbox(finalFiles);
+            await this.deployToSandbox(finalFiles, false, phase.name);
             await this.applyDeterministicCodeFixes();
             // await this.applyFastSmartCodeFixes();
         }
@@ -1416,7 +1394,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                     }));
                     this.fileManager.saveGeneratedFiles(fixedFiles);
                     
-                    await this.deployToSandbox(fixedFiles);
+                    await this.deployToSandbox(fixedFiles, false, "fix: applied deterministic fixes");
                     this.logger.info("Deployed deterministic fixes to sandbox");
                 }
 
@@ -1463,7 +1441,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         });
     }
 
-    async deployToSandbox(files: FileOutputType[] = [], redeploy: boolean = false): Promise<PreviewType | null> {
+    async deployToSandbox(files: FileOutputType[] = [], redeploy: boolean = false, commitMessage?: string): Promise<PreviewType | null> {
         // If there's already a deployment in progress, wait for it to complete
         if (this.currentDeploymentPromise) {
             this.logger.info('Deployment already in progress, waiting for completion before starting new deployment');
@@ -1475,7 +1453,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         }
 
         // Start the actual deployment and track it
-        this.currentDeploymentPromise = this.executeDeployment(files, redeploy);
+        this.currentDeploymentPromise = this.executeDeployment(files, redeploy, commitMessage);
         
         try {
             // Add 60-second timeout to the deployment promise
@@ -1534,7 +1512,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         throw new Error(`Failed to create sandbox instance: ${createResponse?.error || 'Unknown error'}`);
     }
 
-    private async executeDeployment(files: FileOutputType[] = [], redeploy: boolean = false): Promise<PreviewType | null> {
+    private async executeDeployment(files: FileOutputType[] = [], redeploy: boolean = false, commitMessage?: string): Promise<PreviewType | null> {
         const { templateDetails, generatedFilesMap } = this.state;
         let { sandboxInstanceId } = this.state;
         let previewURL: string | undefined;
@@ -1615,7 +1593,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 }));
 
             if (filesToWrite.length > 0) {
-                const writeResponse = await this.getSandboxServiceClient().writeFiles(sandboxInstanceId, filesToWrite);
+                const writeResponse = await this.getSandboxServiceClient().writeFiles(sandboxInstanceId, filesToWrite, commitMessage);
                 if (!writeResponse || !writeResponse.success) {
                     this.logger.warn(`File writing failed. Error: ${writeResponse?.error}`);
                 }
@@ -2152,7 +2130,30 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             }
 
             const repositoryUrl = exportResult.repositoryUrl;
+            if (!repositoryUrl) {
+                return ErrorHandler.handleGitHubExportError(
+                    this.logger,
+                    this,
+                    'Failed to export to GitHub repository',
+                    'Repository URL not found'
+                );
+            }
             this.logger.info('GitHub export completed successfully', { repositoryUrl, commitSha: exportResult.commitSha });
+
+            // Commit the readme
+            // First prepare the readme by replacing [cloudflarebutton] placeholder with actual thing
+            const readmeFile = this.fileManager.getFile('README.md');
+            if (readmeFile) {
+                try {
+                    readmeFile.fileContents = readmeFile.fileContents.replaceAll('[cloudflarebutton]', prepareCloudflareButton(repositoryUrl, 'markdown'));
+                    this.fileManager.saveGeneratedFile(readmeFile);
+                    await this.deployToSandbox([readmeFile], false, "feat: README updated with cloudflare deploy button");
+
+                    this.logger.info('Readme committed successfully');
+                } catch (error) {
+                    this.logger.error('Failed to commit readme', error);
+                }
+            }
 
             // Step 3: Finalize
             this.broadcast(WebSocketMessageResponses.GITHUB_EXPORT_PROGRESS, {

@@ -58,7 +58,7 @@ export class AppViewController extends BaseController {
             let previewUrl: string = '';
             
             try {
-                const agentStub = await getAgentStub(env, appResult.id, true);
+                const agentStub = await getAgentStub(env, appResult.id, true, this.logger);
                 agentSummary = await agentStub.getSummary();
 
                 previewUrl = await agentStub.getPreviewUrlCache();
@@ -148,7 +148,7 @@ export class AppViewController extends BaseController {
 
             // Duplicate agent state first
             try {
-                const { newAgentId } = await cloneAgent(env, appId);
+                const { newAgentId } = await cloneAgent(env, appId, this.logger);
                 this.logger.info(`Successfully duplicated agent state from ${appId} to ${newAgentId}`);
 
                 // Create forked app using app service

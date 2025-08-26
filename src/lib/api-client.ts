@@ -21,6 +21,8 @@ import type {
   UserTeamsData,
   UserStatsData,
   UserActivityData,
+  UserAnalyticsResponseData,
+  AgentAnalyticsResponseData,
   ModelConfigsData,
   ModelConfigData,
   ModelConfigUpdateData,
@@ -479,6 +481,26 @@ class ApiClient {
    */
   async getUserActivity(): Promise<ApiResponse<UserActivityData>> {
     return this.request<UserActivityData>('/api/stats/activity');
+  }
+
+  // ===============================
+  // Analytics API Methods
+  // ===============================
+
+  /**
+   * Get user analytics (AI Gateway costs and usage)
+   */
+  async getUserAnalytics(userId: string, days?: number): Promise<ApiResponse<UserAnalyticsResponseData>> {
+    const queryParams = days ? `?days=${days}` : '';
+    return this.request<UserAnalyticsResponseData>(`/api/user/${userId}/analytics${queryParams}`);
+  }
+
+  /**
+   * Get agent analytics (AI Gateway costs and usage for specific app/chat)
+   */
+  async getAgentAnalytics(agentId: string, days?: number): Promise<ApiResponse<AgentAnalyticsResponseData>> {
+    const queryParams = days ? `?days=${days}` : '';
+    return this.request<AgentAnalyticsResponseData>(`/api/agent/${agentId}/analytics${queryParams}`);
   }
 
   // ===============================

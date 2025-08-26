@@ -4,6 +4,7 @@ import { setupAuthRoutes } from './authRoutes';
 import { setupAppRoutes } from './appRoutes';
 import { setupUserRoutes } from './userRoutes';
 import { setupStatsRoutes } from './statsRoutes';
+import { setupAnalyticsRoutes } from './analyticsRoutes';
 import { setupWebhookRoutes } from './webhookRoutes';
 import { setupIntegrationRoutes } from './integrationRoutes';
 import { setupSecretsRoutes } from './secretsRoutes';
@@ -56,6 +57,9 @@ export function setupRouter(): Router {
     
     // Stats routes
     setupStatsRoutes(router);
+    
+    // AI Gateway Analytics routes
+    setupAnalyticsRoutes(router);
     
     // Webhook routes
     setupWebhookRoutes(router);

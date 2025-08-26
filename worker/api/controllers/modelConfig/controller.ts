@@ -27,8 +27,9 @@ import {
 } from './types';
 import { 
     getUserProviderStatus, 
-    getByokModels, 
-    getPlatformModels 
+    getByokModels,
+    getPlatformAvailableModels,
+    validateModelAccessForEnvironment
 } from './byokHelper';
 import { z } from 'zod';
 
@@ -172,6 +173,45 @@ export class ModelConfigController extends BaseController {
             }
             if (validatedData.fallbackModel !== null && validatedData.fallbackModel !== undefined) {
                 modelConfig.fallbackModel = validatedData.fallbackModel;
+            }
+
+            // Validate model access based on environment configuration and user BYOK status
+            if (modelConfig.name || modelConfig.fallbackModel) {
+                const userProviderStatus = await getUserProviderStatus(user.id, env);
+                
+                // Validate primary model
+                if (modelConfig.name) {
+                    const isValidAccess = validateModelAccessForEnvironment(
+                        modelConfig.name, 
+                        env, 
+                        userProviderStatus
+                    );
+                    
+                    if (!isValidAccess) {
+                        const provider = modelConfig.name.split('/')[0];
+                        return this.createErrorResponse<ModelConfigUpdateData>(
+                            `Model requires API key for provider '${provider}'. Please add your API key in the BYOK settings or contact your platform administrator.`,
+                            403
+                        );
+                    }
+                }
+
+                // Validate fallback model
+                if (modelConfig.fallbackModel) {
+                    const isValidAccess = validateModelAccessForEnvironment(
+                        modelConfig.fallbackModel,
+                        env,
+                        userProviderStatus
+                    );
+                    
+                    if (!isValidAccess) {
+                        const provider = modelConfig.fallbackModel.split('/')[0];
+                        return this.createErrorResponse<ModelConfigUpdateData>(
+                            `Fallback model requires API key for provider '${provider}'. Please add your API key in the BYOK settings or contact your platform administrator.`,
+                            403
+                        );
+                    }
+                }
             }
 
             const { modelConfigService } = this.createServices(env);
@@ -366,8 +406,8 @@ export class ModelConfigController extends BaseController {
             // Get models available for providers with valid keys
             const modelsByProvider = getByokModels(providers);
             
-            // Get all platform models
-            const platformModels = getPlatformModels();
+            // Get platform models based on environment configuration
+            const platformModels = getPlatformAvailableModels(env);
             
             const responseData: ByokProvidersData = {
                 providers,

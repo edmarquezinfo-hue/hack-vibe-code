@@ -10,6 +10,7 @@ import { eq, and } from 'drizzle-orm';
 import { generateId } from '../../utils/idGenerator';
 import type { SecretData, EncryptedSecret } from '../types';
 import { DatabaseService } from '../database';
+import { getBYOKTemplates } from '../../types/secretsTemplates';
 
 export class SecretsService extends BaseService {
     constructor(
@@ -249,9 +250,7 @@ export class SecretsService extends BaseService {
     async getUserBYOKKeysMap(userId: string): Promise<Map<string, string>> {
         try {
             // Get BYOK templates dynamically
-            const { SecretsController } = await import('../../api/controllers/secrets/controller');
-            const controller = new SecretsController();
-            const byokTemplates = controller.getBYOKTemplates();
+            const byokTemplates = getBYOKTemplates();
             
             // Get all user secrets
             const secrets = await this.database

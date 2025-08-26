@@ -8,7 +8,8 @@ import Assistant from "./assistant";
 import { applySearchReplaceDiff } from "../diff-formats";
 import { infer } from "../inferutils/core";
 import { MatchingStrategy, FailedBlock } from "../diff-formats/search-replace";
-import { AIModels, ModelConfig, InferenceMetadata } from "../inferutils/config.types";
+import { AIModels, ModelConfig, InferenceContext } from "../inferutils/config.types";
+import { AGENT_CONFIG } from "../inferutils/config";
 // import { analyzeTypeScriptFile } from "../../services/code-fixer/analyzer";
 
 // Constants for magic numbers
@@ -82,7 +83,7 @@ Review Process:
 4. Pay special attention to React hooks, particularly useEffect, to prevent infinite loops or excessive re-renders.
 5. For each issue, provide a fix that addresses the problem without altering existing behavior, definitions, or parameters.
 6. Assume all imports are correct and exist. Do not modify imported code, and assume it's behavior from patterns.
-7. If you lack context to understand a part of the code, do not modify it.
+7. If you lack context about a part of the code, do not modify it.
 8. Ignore indentation, spacing, comments, unused imports/variables/functions, or any code that doesn't affect the functionality of the file. No need to waste time on such things.
 9. If a change wouldn't fix anything or change any behaviour, i.e, its unnecessary, Don't suggest it.
 
@@ -122,6 +123,7 @@ Important reminders:
 - Assume internal imports (like shadcn components or ErrorBoundaries) exist.
 - Please ignore non functional or non critical issues. You are not doing a code quality check, You are performing code validation and issues that can cause runtime errors.
 - Pay extra attention to potential "Maximum update depth exceeded" errors, runtime error causing bugs, JSX/TSX Tag mismatches, logical issues and issues that can cause misalignment of UI components.
+- Do not suggest changes about stuff that you are not given context about, and might break downstream code. 
 
 If no issues are found, return a blank response.
 
@@ -205,14 +207,14 @@ export class RealtimeCodeFixer extends Assistant<Env> {
 
     constructor(
         env: Env,
-        metadata: InferenceMetadata,
+        inferenceContext: InferenceContext,
         lightMode: boolean = false,
         altPassModelOverride?: string,// = AIModels.GEMINI_2_5_FLASH,
         modelConfigOverride?: ModelConfig,
         systemPrompt: string = SYSTEM_PROMPT,
         userPrompt: string = USER_PROMPT
     ) {
-        super(env, metadata);
+        super(env, inferenceContext);
         this.lightMode = lightMode;
         this.altPassModelOverride = altPassModelOverride;
         this.userPrompt = userPrompt;
@@ -230,6 +232,12 @@ export class RealtimeCodeFixer extends Assistant<Env> {
         try {
             // Ignore css or json files or *.config.js
             if (generatedFile.filePath.endsWith('.css') || generatedFile.filePath.endsWith('.json') || generatedFile.filePath.endsWith('.config.js')) {
+                this.logger.info(`Skipping realtime code fixer for file: ${generatedFile.filePath}`);
+                return generatedFile;
+            }
+
+            // Skip files that are less than 30 lines
+            if (generatedFile.fileContents.split('\n').length < 50) {
                 this.logger.info(`Skipping realtime code fixer for file: ${generatedFile.filePath}`);
                 return generatedFile;
             }
@@ -523,3 +531,19 @@ ${block.error}
     }
 
 }
+
+export function IsRealtimeCodeFixerEnabled(inferenceContext: InferenceContext): boolean {
+    if (AGENT_CONFIG.realtimeCodeFixer.name !== AIModels.DISABLED) {
+        console.log("Realtime code fixer enabled");
+        return true;
+    }
+    
+    if (inferenceContext.userModelConfigs?.['realtimeCodeFixer'] && inferenceContext.userModelConfigs['realtimeCodeFixer'].name !== AIModels.DISABLED) {
+        console.log("Realtime code fixer enabled by user");
+        return true;
+    }
+
+    console.log("Realtime code fixer disabled", inferenceContext.userModelConfigs);
+    return false;
+}
+    

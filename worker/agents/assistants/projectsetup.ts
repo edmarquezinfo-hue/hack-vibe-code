@@ -1,5 +1,5 @@
 import { TemplateDetails } from "../../services/sandbox/sandboxTypes";
-import { FileOutputType, SetupCommandsType, type Blueprint } from "../schemas";
+import { SetupCommandsType, type Blueprint } from "../schemas";
 import { createObjectLogger, StructuredLogger } from '../../logger';
 import { generalSystemPromptBuilder, PROMPT_UTILS } from '../prompts';
 import { createAssistantMessage, createSystemMessage, createUserMessage } from "../inferutils/common";
@@ -65,26 +65,6 @@ You need to make sure **ALL THESE** are installed at the least:
 
 </INPUT DATA>`;
 
-const README_GENERATION_PROMPT = `<TASK>
-Generate a comprehensive README.md file for this project based on the provided blueprint and template information.
-The README should be professional, well-structured, and provide clear instructions for users and developers.
-</TASK>
-
-<INSTRUCTIONS>
-- Create a professional README with proper markdown formatting
-- Include project title, description, and key features from the blueprint
-- Add technology stack section based on the template dependencies
-- Include setup/installation instructions using bun (not npm/yarn)
-- Add usage examples and development instructions
-- Include a deployment section with Cloudflare-specific instructions
-- **IMPORTANT**: Add a [CloudflareButton] placeholder in the deployment section for the Cloudflare deploy button
-- Structure the content clearly with appropriate headers and sections
-- Be concise but comprehensive - focus on essential information
-- Use professional tone suitable for open source projects
-</INSTRUCTIONS>
-
-Generate the complete README.md content in markdown format. Do not provide any additional text or explanation. All your would be directly saved in the README.md file.`;
-
 export class ProjectSetupAssistant extends Assistant<Env> {
     private query: string;
     private logger: StructuredLogger;
@@ -141,49 +121,6 @@ ${error}`);
             return { commands: extractCommands(results) };
         } catch (error) {
             this.logger.error("Error generating setup commands:", error);
-            throw error;
-        }
-    }
-
-    async generateReadme(existingReadme?: { filePath: string; fileContents: string }): Promise<FileOutputType> {
-        this.logger.info("Generating README.md for the project");
-
-        try {
-            let readmePrompt = README_GENERATION_PROMPT;
-            
-            if (existingReadme) {
-                // Modify prompt for updating existing README
-                readmePrompt = `Please update the existing README.md file`
-                this.logger.info('Updating existing README.md');
-            } else {
-                this.logger.info('Creating new README.md');
-            }
-
-            const messages = this.save([createUserMessage(readmePrompt)]);
-
-            const results = await executeInference({
-                env: this.env,
-                messages,
-                agentActionName: "projectSetup",
-                context: this.inferenceContext,
-            });
-
-            if (!results || !results.string) {
-                this.logger.error('Failed to generate README.md content');
-                throw new Error('Failed to generate README.md content');
-            }
-
-            this.logger.info('Generated README.md content successfully');
-
-            this.save([createAssistantMessage(results.string)]);
-
-            return {
-                filePath: 'README.md',
-                fileContents: results.string,
-                filePurpose: 'Project documentation and setup instructions'
-            };
-        } catch (error) {
-            this.logger.error("Error generating README:", error);
             throw error;
         }
     }

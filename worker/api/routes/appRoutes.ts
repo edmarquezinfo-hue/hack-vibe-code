@@ -33,9 +33,6 @@ export function setupAppRoutes(router: Router): Router {
     // AUTHENTICATED INTERACTION ROUTES
     // ========================================
     
-    // Create new app - requires authentication
-    router.post('/api/apps', appController.createApp.bind(appController), AuthConfig.authenticated);
-
     // Star/bookmark ANY app - requires authentication (can star others' public apps)
     router.post('/api/apps/:id/star', appViewController.toggleAppStar.bind(appViewController), AuthConfig.authenticated);
     

@@ -251,55 +251,6 @@ export class UserService extends BaseService {
     }
 
     /**
-     * Create app session combining app creation and code generation instance
-     * Abstracts complex session creation logic from controller
-     */
-    async createAppSession(
-        userId: string,
-        sessionData: {
-            agentId: string;
-            prompt: string;
-            title?: string;
-            description?: string;
-            framework?: string;
-        }
-    ): Promise<{
-        app: schema.App;
-        codeGenInstance: schema.CodeGenInstance;
-    }> {
-        // Use AppService for app creation
-        const appService = new AppService(this.db);
-        
-        const app = await appService.createApp({
-            title: sessionData.title || `Generated App ${new Date().toLocaleString()}`,
-            description: sessionData.description || 'Generated from conversation',
-            originalPrompt: sessionData.prompt,
-            userId,
-            status: 'generating',
-            visibility: 'private',
-            framework: sessionData.framework || 'react',
-            createdAt: new Date(),
-            updatedAt: new Date()
-        });
-
-        // Create code generation instance
-        const codeGenInstance = await this.database
-            .insert(schema.codeGenInstances)
-            .values({
-                id: generateId(),
-                appId: app.id,
-                userId,
-                currentPhase: 'planning',
-                isGenerating: true,
-                status: 'active'
-            })
-            .returning()
-            .then(instances => instances[0]);
-
-        return { app, codeGenInstance };
-    }
-
-    /**
      * Update user profile with comprehensive validation
      * Centralizes all validation logic and database updates
      */

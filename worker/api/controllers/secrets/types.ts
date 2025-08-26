@@ -3,6 +3,7 @@
  */
 
 import type { EncryptedSecret } from '../../../database/types';
+import { SecretTemplate } from '../../../types/secretsTemplates';
 
 /**
  * Response data for getSecrets
@@ -26,24 +27,6 @@ export interface SecretStoreData {
  */
 export interface SecretDeleteData {
     message: string;
-}
-
-/**
- * Secret template interface for getTemplates
- * Matches the structure used in the controller
- */
-export interface SecretTemplate {
-    id: string;
-    displayName: string;
-    envVarName: string;
-    provider: string;
-    icon: string;
-    description: string;
-    instructions: string;
-    placeholder: string;
-    validation: string;
-    required: boolean;
-    category: string;
 }
 
 /**

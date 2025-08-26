@@ -81,11 +81,11 @@ export class CodeFixer implements ICodeFixer {
     async validateConfiguration(): Promise<boolean> {
         try {
             // Check for required API keys
-            const requiredKeys = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY'];
+            const requiredKeys = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GOOGLE_AI_STUDIO_API_KEY'];
             const availableKeys = requiredKeys.filter(key => this.env[key]);
             
             if (availableKeys.length === 0) {
-                CLIUtils.log('error', 'No API keys found. At least one of ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY is required.');
+                CLIUtils.log('error', 'No API keys found. At least one of ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_AI_STUDIO_API_KEY is required.');
                 return false;
             }
 

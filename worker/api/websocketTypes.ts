@@ -1,4 +1,4 @@
-import type { ClientReportedErrorType, CodeReviewOutputType, FileConceptType, FileOutputType, TechnicalInstructionType } from "../agents/schemas";
+import type { ClientReportedErrorType, CodeReviewOutputType, FileConceptType, FileOutputType } from "../agents/schemas";
 import type { CodeGenState } from "../agents/core/state";
 import type { CodeIssue, RuntimeError, StaticAnalysisResponse } from "../services/sandbox/sandboxTypes";
 import type { CodeFixResult } from "../services/code-fixer";
@@ -283,11 +283,6 @@ type UserSuggestionsProcessingMessage = {
 	suggestions: string[];
 };
 
-type UserSuggestionsProcessedMessage = {
-	type: 'user_suggestions_processed';
-	message: string;
-} & TechnicalInstructionType;
-
 type ConversationResponseMessage = {
 	type: 'conversation_response';
 	message: string;
@@ -396,7 +391,6 @@ export type WebSocketMessage =
 	| GitHubExportErrorMessage
 	| ErrorMessage
 	| UserSuggestionsProcessingMessage
-	| UserSuggestionsProcessedMessage
 	| ConversationResponseMessage
     | DeterministicCodeFixStartedMessage
     | DeterministicCodeFixCompletedMessage
