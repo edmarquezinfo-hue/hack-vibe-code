@@ -58,7 +58,7 @@ export default function Home() {
 						const query = textareaRef.current!.value;
 						handleCreateApp(query, agentMode);
 					}}
-					className="flex flex-col w-full min-h-[150px] bg-bg-4 justify-between dark:bg-card rounded-[18px] shadow-textarea p-5 transition-all duration-200"
+					className="flex flex-col z-10 w-full min-h-[150px] bg-bg-4 justify-between dark:bg-card rounded-[18px] shadow-textarea p-5 transition-all duration-200"
 				>
 					<textarea
 						className="bg-transparent w-full resize-none ring-0 outline-0 placeholder:text-primary/40"
