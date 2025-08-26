@@ -33,7 +33,7 @@ export function AuthModalProvider({ children }: AuthModalProviderProps) {
   const [modalContext, setModalContext] = useState<string | undefined>();
   const [pendingAction, setPendingAction] = useState<(() => void) | undefined>();
   const [intendedUrl, setIntendedUrlState] = useState<string | undefined>();
-  const { login, loginWithEmail, register, error, clearError, isAuthenticated } = useAuth();
+  const { login, loginWithEmail, register, verifyEmail, resendVerificationOtp, error, clearError, isAuthenticated } = useAuth();
 
   const showAuthModal = useCallback((context?: string, onSuccess?: () => void, intendedUrl?: string) => {
     setModalContext(context);
@@ -88,6 +88,8 @@ export function AuthModalProvider({ children }: AuthModalProviderProps) {
         onOAuthLogin={handleLogin}
         onEmailLogin={loginWithEmail}
         onRegister={register}
+        onVerifyEmail={verifyEmail}
+        onResendVerificationOtp={resendVerificationOtp}
         error={error}
         onClearError={clearError}
         actionContext={modalContext}

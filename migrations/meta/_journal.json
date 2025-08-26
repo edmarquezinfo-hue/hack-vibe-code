@@ -57,6 +57,13 @@
       "when": 1756095321834,
       "tag": "0007_cute_jamie_braddock",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1756249227548,
+      "tag": "0008_special_katie_power",
+      "breakpoints": true
     }
   ]
 }

@@ -141,30 +141,26 @@ export class AuthService {
             const userId = generateId();
             const now = new Date();
             
+            // Store user as unverified initially
             await this.db.db.insert(schema.users).values({
                 id: userId,
                 email: data.email.toLowerCase(),
                 passwordHash,
                 displayName: data.name || data.email.split('@')[0],
-                emailVerified: false, // Email verification can be implemented later
+                emailVerified: false, // Requires email verification
                 provider: 'email',
                 providerId: userId,
                 createdAt: now,
                 updatedAt: now
             });
             
-            // Create session
-            const { accessToken, refreshToken } = await this.sessionService.createSession(
-                userId,
-                request
-            );
+            // Generate and store verification OTP
+            await this.generateAndStoreVerificationOtp(data.email.toLowerCase());
             
-            // Log auth attempt
-            await this.logAuthAttempt(data.email, 'register', true, request);
+            // Don't create session yet - user needs to verify email first
+            logger.info('User registered, verification required', { userId, email: data.email });
             
-            logger.info('User registered', { userId, email: data.email });
-            
-            // Fetch complete user data to return consistent response
+            // Return response indicating verification is required
             const newUser = await this.db.db
                 .select()
                 .from(schema.users)
@@ -179,12 +175,15 @@ export class AuthService {
                 );
             }
             
-            return {
-                user: mapUserResponse(newUser),
-                accessToken,
-                refreshToken,
-                expiresIn: 24 * 3600 // 24 hours
-            };
+            // Log auth attempt
+            await this.logAuthAttempt(data.email, 'register', true, request);
+            
+            // Return a special response indicating verification is needed
+            throw new SecurityError(
+                SecurityErrorType.INVALID_INPUT,
+                'Account created. Please check your email for verification code.',
+                400
+            );
         } catch (error) {
             await this.logAuthAttempt(data.email, 'register', false, request);
             
@@ -626,6 +625,182 @@ export class AuthService {
         } catch (error) {
             logger.warn('Invalid OAuth redirect URL format', { redirectUrl, error });
             return null;
+        }
+    }
+
+    /**
+     * Generate and store verification OTP for email
+     */
+    private async generateAndStoreVerificationOtp(email: string): Promise<void> {
+        const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes expiry
+
+        // Store OTP in database (you may need to create a verification_otps table)
+        await this.db.db.insert(schema.verificationOtps).values({
+            id: generateId(),
+            email: email.toLowerCase(),
+            otp: await this.passwordService.hash(otp), // Hash the OTP for security
+            expiresAt,
+            createdAt: new Date()
+        });
+
+        // TODO: Send email with OTP (integrate with email service)
+        logger.info('Verification OTP generated', { email, otp: otp.slice(0, 2) + '****' });
+        
+        // For development, log the OTP (remove in production)
+        console.log(`[DEV] Verification OTP for ${email}: ${otp}`);
+    }
+
+    /**
+     * Verify email with OTP
+     */
+    async verifyEmailWithOtp(email: string, otp: string, request: Request): Promise<AuthResult> {
+        try {
+            // Find valid OTP
+            const storedOtp = await this.db.db
+                .select()
+                .from(schema.verificationOtps)
+                .where(
+                    and(
+                        eq(schema.verificationOtps.email, email.toLowerCase()),
+                        eq(schema.verificationOtps.used, false),
+                        sql`${schema.verificationOtps.expiresAt} > ${new Date()}`
+                    )
+                )
+                .orderBy(sql`${schema.verificationOtps.createdAt} DESC`)
+                .get();
+
+            if (!storedOtp) {
+                throw new SecurityError(
+                    SecurityErrorType.INVALID_INPUT,
+                    'Invalid or expired verification code',
+                    400
+                );
+            }
+
+            // Verify OTP
+            const otpValid = await this.passwordService.verify(otp, storedOtp.otp);
+            if (!otpValid) {
+                throw new SecurityError(
+                    SecurityErrorType.INVALID_INPUT,
+                    'Invalid verification code',
+                    400
+                );
+            }
+
+            // Mark OTP as used
+            await this.db.db
+                .update(schema.verificationOtps)
+                .set({ used: true, usedAt: new Date() })
+                .where(eq(schema.verificationOtps.id, storedOtp.id));
+
+            // Find and verify the user
+            const user = await this.db.db
+                .select()
+                .from(schema.users)
+                .where(eq(schema.users.email, email.toLowerCase()))
+                .get();
+
+            if (!user) {
+                throw new SecurityError(
+                    SecurityErrorType.INVALID_INPUT,
+                    'User not found',
+                    404
+                );
+            }
+
+            // Update user as verified
+            await this.db.db
+                .update(schema.users)
+                .set({ emailVerified: true, updatedAt: new Date() })
+                .where(eq(schema.users.id, user.id));
+
+            // Create session for verified user
+            const { accessToken, refreshToken } = await this.sessionService.createSession(
+                user.id,
+                request
+            );
+
+            // Log successful verification
+            await this.logAuthAttempt(email, 'email_verification', true, request);
+            logger.info('Email verified successfully', { email, userId: user.id });
+
+            return {
+                user: mapUserResponse({ ...user, emailVerified: true }),
+                accessToken,
+                refreshToken,
+                expiresIn: 24 * 3600 // 24 hours
+            };
+        } catch (error) {
+            await this.logAuthAttempt(email, 'email_verification', false, request);
+            
+            if (error instanceof SecurityError) {
+                throw error;
+            }
+            
+            logger.error('Email verification error', error);
+            throw new SecurityError(
+                SecurityErrorType.INVALID_INPUT,
+                'Email verification failed',
+                500
+            );
+        }
+    }
+
+    /**
+     * Resend verification OTP
+     */
+    async resendVerificationOtp(email: string): Promise<void> {
+        try {
+            // Check if user exists and is unverified
+            const user = await this.db.db
+                .select()
+                .from(schema.users)
+                .where(eq(schema.users.email, email.toLowerCase()))
+                .get();
+
+            if (!user) {
+                throw new SecurityError(
+                    SecurityErrorType.INVALID_INPUT,
+                    'No account found with this email',
+                    404
+                );
+            }
+
+            if (user.emailVerified) {
+                throw new SecurityError(
+                    SecurityErrorType.INVALID_INPUT,
+                    'Email is already verified',
+                    400
+                );
+            }
+
+            // Invalidate existing OTPs
+            await this.db.db
+                .update(schema.verificationOtps)
+                .set({ used: true, usedAt: new Date() })
+                .where(
+                    and(
+                        eq(schema.verificationOtps.email, email.toLowerCase()),
+                        eq(schema.verificationOtps.used, false)
+                    )
+                );
+
+            // Generate new OTP
+            await this.generateAndStoreVerificationOtp(email.toLowerCase());
+            
+            logger.info('Verification OTP resent', { email });
+        } catch (error) {
+            if (error instanceof SecurityError) {
+                throw error;
+            }
+            
+            logger.error('Resend verification OTP error', error);
+            throw new SecurityError(
+                SecurityErrorType.INVALID_INPUT,
+                'Failed to resend verification code',
+                500
+            );
         }
     }
 }

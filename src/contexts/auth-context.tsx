@@ -41,6 +41,11 @@ interface AuthContextType {
   // Email/password login method
   loginWithEmail: (credentials: { email: string; password: string }) => Promise<void>;
   register: (data: { email: string; password: string; name?: string }) => Promise<void>;
+  
+  // Email verification methods
+  verifyEmail: (data: { email: string; otp: string }) => Promise<void>;
+  resendVerificationOtp: (email: string) => Promise<void>;
+  
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   clearError: () => void;
@@ -234,11 +239,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearIntendedUrl();
         navigate(intendedUrl || '/');
       } else {
+        // Set detailed error message and don't navigate
         setError(data.error?.message || 'Login failed');
+        throw new Error(data.error?.message || 'Login failed'); // Throw to prevent navigation
       }
     } catch (error) {
       console.error('Login error:', error);
-      setError('An error occurred during login');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (!errorMessage || errorMessage.includes('fetch')) {
+        setError('Connection error. Please try again.');
+      }
+      // Don't navigate on error - let modal stay open
+      throw error; // Re-throw to inform caller
     } finally {
       setIsLoading(false);
     }
@@ -262,6 +274,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const responseData = await response.json();
 
       if (response.ok && responseData.success) {
+        // Check if email verification is required
+        if (responseData.data.requiresVerification) {
+          setError('Account created! Please check your email and enter the verification code.');
+          throw new Error('verification_required');
+        }
+        
         setUser(responseData.data.user);
         setToken(null); // Using cookies for authentication
         setSession({
@@ -275,11 +293,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearIntendedUrl();
         navigate(intendedUrl || '/');
       } else {
+        // Set detailed error message and don't navigate
         setError(responseData.error?.message || 'Registration failed');
+        throw new Error(responseData.error?.message || 'Registration failed'); // Throw to prevent navigation
       }
     } catch (error) {
       console.error('Registration error:', error);
-      setError('An error occurred during registration');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (errorMessage === 'verification_required') {
+        // This is expected - don't set additional error
+      } else if (!errorMessage || errorMessage.includes('fetch')) {
+        setError('Connection error. Please try again.');
+      }
+      // Don't navigate on error - let modal stay open
+      throw error; // Re-throw to inform caller
     } finally {
       setIsLoading(false);
     }
@@ -310,6 +337,87 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await checkAuth();
   }, [checkAuth]);
 
+  // Email verification
+  const verifyEmail = useCallback(async (data: { email: string; otp: string }) => {
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/auth/verify-email', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const responseData = await response.json();
+
+      if (response.ok && responseData.success) {
+        setUser(responseData.data.user);
+        setToken(null);
+        setSession({
+          id: responseData.data.session?.id || responseData.data.user.id,
+          expiresAt: new Date(Date.now() + (responseData.data.expiresIn || 24 * 60 * 60) * 1000),
+        });
+        setupTokenRefresh();
+        
+        // Navigate to intended URL or default to home
+        const intendedUrl = getIntendedUrl();
+        clearIntendedUrl();
+        navigate(intendedUrl || '/');
+      } else {
+        setError(responseData.error?.message || 'Email verification failed');
+        throw new Error(responseData.error?.message || 'Email verification failed');
+      }
+    } catch (error) {
+      console.error('Email verification error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (!errorMessage || errorMessage.includes('fetch')) {
+        setError('Connection error. Please try again.');
+      }
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [navigate, setupTokenRefresh]);
+
+  // Resend verification OTP
+  const resendVerificationOtp = useCallback(async (email: string) => {
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const responseData = await response.json();
+
+      if (response.ok && responseData.success) {
+        setError('Verification code sent! Please check your email.');
+      } else {
+        setError(responseData.error?.message || 'Failed to resend verification code');
+        throw new Error(responseData.error?.message || 'Failed to resend verification code');
+      }
+    } catch (error) {
+      console.error('Resend verification error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (!errorMessage || errorMessage.includes('fetch')) {
+        setError('Connection error. Please try again.');
+      }
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   // Clear error
   const clearError = useCallback(() => {
     setError(null);
@@ -325,6 +433,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login, // OAuth method with redirect support
     loginWithEmail, // Email/password method
     register,
+    verifyEmail,
+    resendVerificationOtp,
     logout,
     refreshUser,
     clearError,
