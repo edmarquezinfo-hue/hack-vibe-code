@@ -5,6 +5,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
+import { apiClient, ApiError } from '@/lib/api-client';
 
 interface User {
   id: string;
@@ -35,16 +36,21 @@ interface AuthContextType {
   isLoading: boolean;
   error: string | null;
   
+  // Auth provider configuration
+  authProviders: {
+    google: boolean;
+    github: boolean;
+    email: boolean;
+  } | null;
+  hasOAuth: boolean;
+  requiresEmailAuth: boolean;
+  
   // OAuth login method with redirect support
   login: (provider: 'google' | 'github', redirectUrl?: string) => void;
   
   // Email/password login method
   loginWithEmail: (credentials: { email: string; password: string }) => Promise<void>;
   register: (data: { email: string; password: string; name?: string }) => Promise<void>;
-  
-  // Email verification methods
-  verifyEmail: (data: { email: string; otp: string }) => Promise<void>;
-  resendVerificationOtp: (email: string) => Promise<void>;
   
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -67,6 +73,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [authProviders, setAuthProviders] = useState<{ google: boolean; github: boolean; email: boolean; } | null>(null);
+  const [hasOAuth, setHasOAuth] = useState<boolean>(false);
+  const [requiresEmailAuth, setRequiresEmailAuth] = useState<boolean>(true);
   const navigate = useNavigate();
   
   // Ref to store the refresh timer
@@ -100,43 +109,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // API helper for authenticated requests (cookie-based)
-  const apiRequest = useCallback(async (
-    url: string,
-    options: RequestInit = {}
-  ): Promise<Response> => {
-    return fetch(url, {
-      ...options,
-      credentials: 'include', // Always include cookies
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
+
+  // Fetch auth providers configuration
+  const fetchAuthProviders = useCallback(async () => {
+    try {
+      const response = await apiClient.getAuthProviders();
+      if (response.success) {
+        setAuthProviders(response.data.providers);
+        setHasOAuth(response.data.hasOAuth);
+        setRequiresEmailAuth(response.data.requiresEmailAuth);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch auth providers:', error);
+      // Fallback to defaults
+      setAuthProviders({ google: false, github: false, email: true });
+      setHasOAuth(false);
+      setRequiresEmailAuth(true);
+    }
   }, []);
 
-  // Check authentication status (uses existing /api/auth/profile endpoint)
+  // Check authentication status
   const checkAuth = useCallback(async () => {
     try {
-      const response = await apiRequest('/api/auth/profile');
+      const response = await apiClient.getProfile();
       
-      if (response.ok) {
-        const data = await response.json();
-        if (data.data?.user) {
-          setUser(data.data.user);
-          setToken(null); // Profile endpoint doesn't return token, cookies are used
-          setSession({
-            id: data.data.sessionId || data.data.user.id,
-            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours expiry
-          });
-          
-          // Setup token refresh
-          setupTokenRefresh();
-        } else {
-          setUser(null);
-          setToken(null);
-          setSession(null);
-        }
+      if (response.success && response.data?.user) {
+        setUser({ ...response.data.user, isAnonymous: false } as User);
+        setToken(null); // Profile endpoint doesn't return token, cookies are used
+        setSession({
+          id: response.data.sessionId || response.data.user.id,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours expiry
+        });
+        
+        // Setup token refresh
+        setupTokenRefresh();
       } else {
         setUser(null);
         setToken(null);
@@ -150,7 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [apiRequest]);
+  }, []);
 
   // Setup automatic session validation (cookie-based)
   const setupTokenRefresh = useCallback(() => {
@@ -162,12 +168,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Set up session validation timer - less frequent since cookies handle refresh
     refreshTimerRef.current = setInterval(async () => {
       try {
-        const response = await fetch('/api/auth/profile', {
-          method: 'GET',
-          credentials: 'include',
-        });
+        const response = await apiClient.getProfile();
 
-        if (!response.ok) {
+        if (!response.success) {
           // Session invalid, user needs to login again
           setUser(null);
           setToken(null);
@@ -189,10 +192,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Check auth on mount
+  // Initialize auth state on mount
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+    const initAuth = async () => {
+      await fetchAuthProviders();
+      await checkAuth();
+    };
+    initAuth();
+  }, [fetchAuthProviders, checkAuth]);
 
   // OAuth login method with redirect support
   const login = useCallback((provider: 'google' | 'github', redirectUrl?: string) => {
@@ -214,23 +221,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(credentials),
-      });
+      const response = await apiClient.loginWithEmail(credentials);
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setUser(data.data.user);
+      if (response.success && response.data) {
+        setUser({ ...response.data.user, isAnonymous: false } as User);
         setToken(null); // Using cookies for authentication
         setSession({
-          id: data.data.session?.id || data.data.user.id,
-          expiresAt: new Date(Date.now() + (data.data.expiresIn || 24 * 60 * 60) * 1000),
+          id: response.data.session?.id || response.data.user.id,
+          expiresAt: new Date(Date.now() + (response.data.expiresIn || 24 * 60 * 60) * 1000),
         });
         setupTokenRefresh();
         
@@ -238,15 +236,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const intendedUrl = getIntendedUrl();
         clearIntendedUrl();
         navigate(intendedUrl || '/');
-      } else {
-        // Set detailed error message and don't navigate
-        setError(data.error?.message || 'Login failed');
-        throw new Error(data.error?.message || 'Login failed'); // Throw to prevent navigation
       }
     } catch (error) {
       console.error('Login error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      if (!errorMessage || errorMessage.includes('fetch')) {
+      if (error instanceof ApiError) {
+        setError(error.message);
+      } else {
         setError('Connection error. Please try again.');
       }
       // Don't navigate on error - let modal stay open
@@ -254,7 +249,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [navigate, setupTokenRefresh]);
+  }, [navigate, setupTokenRefresh, getIntendedUrl, clearIntendedUrl]);
 
   // Register new user
   const register = useCallback(async (data: { email: string; password: string; name?: string }) => {
@@ -262,29 +257,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
+      const response = await apiClient.register(data);
 
-      const responseData = await response.json();
-
-      if (response.ok && responseData.success) {
-        // Check if email verification is required
-        if (responseData.data.requiresVerification) {
-          setError('Account created! Please check your email and enter the verification code.');
-          throw new Error('verification_required');
-        }
-        
-        setUser(responseData.data.user);
+      if (response.success && response.data) {
+        setUser({ ...response.data.user, isAnonymous: false } as User);
         setToken(null); // Using cookies for authentication
         setSession({
-          id: responseData.data.session?.id || responseData.data.user.id,
-          expiresAt: new Date(Date.now() + (responseData.data.expiresIn || 24 * 60 * 60) * 1000),
+          id: response.data.session?.id || response.data.user.id,
+          expiresAt: new Date(Date.now() + (response.data.expiresIn || 24 * 60 * 60) * 1000),
         });
         setupTokenRefresh();
         
@@ -292,32 +272,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const intendedUrl = getIntendedUrl();
         clearIntendedUrl();
         navigate(intendedUrl || '/');
-      } else {
-        // Set detailed error message and don't navigate
-        setError(responseData.error?.message || 'Registration failed');
-        throw new Error(responseData.error?.message || 'Registration failed'); // Throw to prevent navigation
       }
     } catch (error) {
       console.error('Registration error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      if (errorMessage === 'verification_required') {
-        // This is expected - don't set additional error
-      } else if (!errorMessage || errorMessage.includes('fetch')) {
+      if (error instanceof ApiError) {
+        setError(error.message);
+      } else {
         setError('Connection error. Please try again.');
       }
-      // Don't navigate on error - let modal stay open
       throw error; // Re-throw to inform caller
     } finally {
       setIsLoading(false);
     }
-  }, [navigate, setupTokenRefresh]);
+  }, [navigate, setupTokenRefresh, getIntendedUrl, clearIntendedUrl]);
 
   // Logout
   const logout = useCallback(async () => {
     try {
-      await apiRequest('/api/auth/logout', {
-        method: 'POST',
-      });
+      await apiClient.logout();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -330,93 +302,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       navigate('/');
     }
-  }, [apiRequest, navigate]);
+  }, [navigate]);
 
   // Refresh user profile
   const refreshUser = useCallback(async () => {
     await checkAuth();
   }, [checkAuth]);
 
-  // Email verification
-  const verifyEmail = useCallback(async (data: { email: string; otp: string }) => {
-    setError(null);
-    setIsLoading(true);
-
-    try {
-      const response = await fetch('/api/auth/verify-email', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      const responseData = await response.json();
-
-      if (response.ok && responseData.success) {
-        setUser(responseData.data.user);
-        setToken(null);
-        setSession({
-          id: responseData.data.session?.id || responseData.data.user.id,
-          expiresAt: new Date(Date.now() + (responseData.data.expiresIn || 24 * 60 * 60) * 1000),
-        });
-        setupTokenRefresh();
-        
-        // Navigate to intended URL or default to home
-        const intendedUrl = getIntendedUrl();
-        clearIntendedUrl();
-        navigate(intendedUrl || '/');
-      } else {
-        setError(responseData.error?.message || 'Email verification failed');
-        throw new Error(responseData.error?.message || 'Email verification failed');
-      }
-    } catch (error) {
-      console.error('Email verification error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      if (!errorMessage || errorMessage.includes('fetch')) {
-        setError('Connection error. Please try again.');
-      }
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [navigate, setupTokenRefresh]);
-
-  // Resend verification OTP
-  const resendVerificationOtp = useCallback(async (email: string) => {
-    setError(null);
-    setIsLoading(true);
-
-    try {
-      const response = await fetch('/api/auth/resend-verification', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const responseData = await response.json();
-
-      if (response.ok && responseData.success) {
-        setError('Verification code sent! Please check your email.');
-      } else {
-        setError(responseData.error?.message || 'Failed to resend verification code');
-        throw new Error(responseData.error?.message || 'Failed to resend verification code');
-      }
-    } catch (error) {
-      console.error('Resend verification error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      if (!errorMessage || errorMessage.includes('fetch')) {
-        setError('Connection error. Please try again.');
-      }
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
 
   // Clear error
   const clearError = useCallback(() => {
@@ -430,11 +322,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated: !!user,
     isLoading,
     error,
+    authProviders,
+    hasOAuth,
+    requiresEmailAuth,
     login, // OAuth method with redirect support
     loginWithEmail, // Email/password method
     register,
-    verifyEmail,
-    resendVerificationOtp,
     logout,
     refreshUser,
     clearError,

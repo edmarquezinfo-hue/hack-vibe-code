@@ -3,11 +3,12 @@
  * Supports both OAuth and email/password authentication with backward compatibility
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
+import { useAuth } from '@/contexts/auth-context';
 // import {
 // 	validateEmail,
 // 	validatePassword,
@@ -32,14 +33,6 @@ interface LoginModalProps {
 		password: string;
 		name?: string;
 	}) => Promise<void>;
-	
-	// Email verification interfaces
-	onVerifyEmail?: (data: {
-		email: string;
-		otp: string;
-	}) => Promise<void>;
-	onResendVerificationOtp?: (email: string) => Promise<void>;
-	
 	error?: string | null;
 	onClearError?: () => void;
 	
@@ -48,19 +41,7 @@ interface LoginModalProps {
 	showCloseButton?: boolean;
 }
 
-type AuthMode = 'login' | 'register' | 'verify-email';
-
-interface AuthProviders {
-	google: boolean;
-	github: boolean;
-	email: boolean;
-}
-
-interface AuthProvidersResponse {
-	providers: AuthProviders;
-	hasOAuth: boolean;
-	requiresEmailAuth: boolean;
-}
+type AuthMode = 'login' | 'register';
 
 export function LoginModal({
 	isOpen,
@@ -69,70 +50,38 @@ export function LoginModal({
 	onEmailLogin,
 	onOAuthLogin,
 	onRegister,
-	onVerifyEmail,
-	onResendVerificationOtp,
 	error,
 	onClearError,
 	actionContext,
 	showCloseButton = true,
 }: LoginModalProps) {
+	const { authProviders, hasOAuth, requiresEmailAuth } = useAuth();
 	const [mode, setMode] = useState<AuthMode>('login');
 	const [showPassword, setShowPassword] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
-	const [authProviders, setAuthProviders] = useState<AuthProvidersResponse | null>(null);
 
 	// Form state
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
 	const [name, setName] = useState('');
 	const [confirmPassword, setConfirmPassword] = useState('');
-	const [otp, setOtp] = useState('');
-	const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
 
 	// Validation errors
 	const [validationErrors, setValidationErrors] = useState<
 		Record<string, string>
 	>({});
 
-	// Fetch available auth providers on mount
-	useEffect(() => {
-		const fetchAuthProviders = async () => {
-			try {
-				const response = await fetch('/api/auth/providers');
-				if (response.ok) {
-					const data = await response.json();
-					if (data.success) {
-						setAuthProviders(data.data);
-					}
-				}
-			} catch (error) {
-				console.error('Failed to fetch auth providers:', error);
-				// Fallback to OAuth-only mode
-				setAuthProviders({
-					providers: { google: true, github: true, email: false },
-					hasOAuth: true,
-					requiresEmailAuth: false
-				});
-			}
-		};
-
-		if (isOpen) {
-			fetchAuthProviders();
-		}
-	}, [isOpen]);
-
 	// Determine if enhanced features are available
-	const hasEmailAuth = !!onEmailLogin && authProviders?.providers.email;
-	const hasRegistration = !!onRegister && authProviders?.providers.email;
-	const showOAuth = authProviders?.hasOAuth;
+	const hasEmailAuth = requiresEmailAuth && !!onEmailLogin;
+	const hasRegistration = requiresEmailAuth && !!onRegister;
+	const showGitHub = authProviders?.github && hasOAuth;
+	const showGoogle = authProviders?.google && hasOAuth;
 
 	const resetForm = () => {
 		setEmail('');
 		setPassword('');
 		setName('');
 		setConfirmPassword('');
-		setOtp('');
-		setPendingVerificationEmail('');
 		setValidationErrors({});
 		setShowPassword(false);
 		if (onClearError) onClearError();
@@ -145,14 +94,9 @@ export function LoginModal({
 
 	const switchMode = (newMode: AuthMode) => {
 		setMode(newMode);
-		// Don't reset form when switching to verify-email mode
-		if (newMode !== 'verify-email') {
-			resetForm();
-		} else {
-			setOtp('');
-			setValidationErrors({});
-			if (onClearError) onClearError();
-		}
+		resetForm();
+		setValidationErrors({});
+		if (onClearError) onClearError();
 	};
 
 	const validateForm = (): boolean => {
@@ -188,16 +132,6 @@ export function LoginModal({
 			}
 		}
 
-		// Additional validation for email verification
-		if (mode === 'verify-email') {
-			// OTP validation
-			if (!otp.trim()) {
-				errors.otp = 'Verification code is required';
-			} else if (otp.trim().length !== 6 || !/^\d{6}$/.test(otp.trim())) {
-				errors.otp = 'Please enter a valid 6-digit code';
-			}
-		}
-
 		setValidationErrors(errors);
 		return Object.keys(errors).length === 0;
 	};
@@ -212,21 +146,7 @@ export function LoginModal({
 			if (mode === 'login' && onEmailLogin) {
 				await onEmailLogin({ email, password });
 			} else if (mode === 'register' && onRegister) {
-				try {
-					await onRegister({ email, password, name: name.trim() });
-				} catch (err) {
-					// If registration requires verification, switch to verify mode
-					const errorMessage = err instanceof Error ? err.message : '';
-					if (errorMessage === 'verification_required') {
-						setPendingVerificationEmail(email);
-						setMode('verify-email');
-						return; // Don't re-throw, just switch modes
-					}
-					throw err; // Re-throw other errors
-				}
-			} else if (mode === 'verify-email' && onVerifyEmail) {
-				const emailToVerify = pendingVerificationEmail || email;
-				await onVerifyEmail({ email: emailToVerify, otp: otp.trim() });
+				await onRegister({ email, password, name: name.trim() });
 			}
 			// Don't auto-close here - let the parent handle success/error
 		} catch (err) {
@@ -298,18 +218,14 @@ export function LoginModal({
 										</svg>
 									</div>
 									<h2 className="text-2xl font-semibold mb-2">
-										{mode === 'verify-email' 
-											? 'Verify your email'
-											: actionContext
+										{actionContext
 											? `Sign in ${actionContext}`
 											: hasEmailAuth && mode === 'register'
 											? 'Create an account'
 											: 'Welcome back'}
 									</h2>
 									<p className="text-muted-foreground">
-										{mode === 'verify-email'
-											? 'Enter the 6-digit code we sent to your email address'
-											: actionContext
+										{actionContext
 											? 'Authentication required for this action'
 											: hasEmailAuth && mode === 'register'
 											? 'Join to start building amazing applications'
@@ -330,50 +246,74 @@ export function LoginModal({
 
 							{/* Authentication Options */}
 							<div className={clsx('p-6 space-y-5 pt-12')}>
-								{/* OAuth providers (conditionally shown) */}
-								{showOAuth && mode !== 'verify-email' && (
-									<div className="space-y-4">
-										{/* GitHub */}
-										{authProviders?.providers.github && (
-											<motion.button
-												whileTap={{ scale: 0.98 }}
-												onClick={() => handleOAuthClick('github')}
-												disabled={isLoading}
-												className="w-full group relative overflow-hidden rounded-xl bg-gray-900 dark:bg-[#24292e] p-4 text-white transition-all hover:bg-gray-800 dark:hover:bg-[#1a1e22] border border-gray-800 dark:border-border disabled:opacity-50 disabled:cursor-not-allowed"
-											>
-												<div className="relative z-10 flex items-center justify-center gap-3">
-													<svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-														<path fillRule="evenodd" clipRule="evenodd" d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-													</svg>
-													<span className="font-medium">Continue with GitHub</span>
-												</div>
-											</motion.button>
-										)}
-
-										{/* Google */}
-										{authProviders?.providers.google && (
-											<motion.button
-												whileTap={{ scale: 0.98 }}
-												onClick={() => handleOAuthClick('google')}
-												disabled={isLoading}
-												className="w-full group relative overflow-hidden rounded-xl bg-white dark:bg-card p-4 text-gray-800 dark:text-foreground transition-all hover:bg-gray-50 dark:hover:bg-card/80 border border-gray-200 dark:border-border disabled:opacity-50 disabled:cursor-not-allowed"
-											>
-												<div className="relative z-10 flex items-center justify-center gap-3">
-													<svg className="h-5 w-5" viewBox="0 0 24 24">
-														<path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-														<path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-														<path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-														<path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-													</svg>
-													<span className="font-medium">Continue with Google</span>
-												</div>
-											</motion.button>
-										)}
+								{/* GitHub */}
+								{showGitHub && (
+									<motion.button
+										whileTap={{ scale: 0.98 }}
+										onClick={() => handleOAuthClick('github')}
+										// disabled={isLoading}
+										className="w-full group relative overflow-hidden rounded-xl bg-gray-900 dark:bg-[#24292e] p-4 text-white transition-all hover:bg-gray-800 dark:hover:bg-[#1a1e22] border border-gray-800 dark:border-border disabled:opacity-50 disabled:cursor-not-allowed"
+									>
+									<div className="relative z-10 flex items-center justify-center gap-3">
+										<svg
+											className="h-5 w-5"
+											fill="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												fillRule="evenodd"
+												clipRule="evenodd"
+												d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"
+											/>
+										</svg>
+										<span className="font-medium">
+											Continue with GitHub
+										</span>
 									</div>
+									<div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:translate-x-full transition-transform duration-700" />
+								</motion.button>
+								)}
+
+								{/* Google */}
+								{showGoogle && (
+									<motion.button
+									whileTap={{ scale: 0.98 }}
+									onClick={() => handleOAuthClick('google')}
+									// disabled={isLoading}
+									className="w-full group relative overflow-hidden rounded-xl bg-white dark:bg-card p-4 text-gray-800 dark:text-foreground transition-all hover:bg-gray-50 dark:hover:bg-card/80 border border-gray-200 dark:border-border disabled:opacity-50 disabled:cursor-not-allowed"
+								>
+									<div className="relative z-10 flex items-center justify-center gap-3">
+										<svg
+											className="h-5 w-5"
+											viewBox="0 0 24 24"
+										>
+											<path
+												d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+												fill="#4285F4"
+											/>
+											<path
+												d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+												fill="#34A853"
+											/>
+											<path
+												d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+												fill="#FBBC05"
+											/>
+											<path
+												d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+												fill="#EA4335"
+											/>
+										</svg>
+										<span className="font-medium">
+											Continue with Google
+										</span>
+									</div>
+									<div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-gray-100 dark:via-gray-800 to-transparent group-hover:translate-x-full transition-transform duration-700" />
+								</motion.button>
 								)}
 
 								{/* Divider (only if both OAuth and email are available) */}
-								{showOAuth && hasEmailAuth && mode !== 'verify-email' && (
+								{hasEmailAuth && hasOAuth && (
 									<div className="relative">
 										<div className="absolute inset-0 flex items-center">
 											<div className="w-full border-t border-border" />
@@ -384,8 +324,8 @@ export function LoginModal({
 									</div>
 								)}
 
-								{/* Email/Password Form (conditionally shown) */}
-								{hasEmailAuth && mode !== 'verify-email' && (
+								{/* Email/Password Form */}
+								{hasEmailAuth && (
 									<form onSubmit={handleSubmit} className="space-y-4">
 										{mode === 'register' && (
 											<div>
@@ -473,59 +413,11 @@ export function LoginModal({
 											disabled={isLoading}
 											className="w-full bg-primary hover:bg-primary/90 text-primary-foreground p-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 										>
-											{isLoading ? 'Please wait...' : mode === 'login' ? 'Sign in' : 'Create account'}
+											{isLoading 
+												? (mode === 'register' ? 'Creating account...' : 'Signing in...')
+												: (mode === 'register' ? 'Create account' : 'Sign in')
+											}
 										</motion.button>
-									</form>
-								)}
-
-								{/* Email Verification Form (conditionally shown) */}
-								{mode === 'verify-email' && (
-									<form onSubmit={handleSubmit} className="space-y-4">
-										<div className="text-center">
-											<p className="text-sm text-muted-foreground mb-4">
-												Verification code sent to: {pendingVerificationEmail || email}
-											</p>
-										</div>
-
-										<div>
-											<input
-												type="text"
-												placeholder="Enter 6-digit code"
-												value={otp}
-												onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-												className={clsx(
-													'w-full p-3 rounded-lg border bg-background transition-colors text-center text-lg tracking-wider',
-													validationErrors.otp ? 'border-destructive' : 'border-border focus:border-primary'
-												)}
-												disabled={isLoading}
-												maxLength={6}
-												autoComplete="one-time-code"
-											/>
-											{validationErrors.otp && (
-												<p className="mt-1 text-sm text-destructive">{validationErrors.otp}</p>
-											)}
-										</div>
-
-										<div className="flex gap-3">
-											<motion.button
-												type="submit"
-												whileTap={{ scale: 0.98 }}
-												disabled={isLoading}
-												className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground p-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-											>
-												{isLoading ? 'Verifying...' : 'Verify Email'}
-											</motion.button>
-											
-											<motion.button
-												type="button"
-												whileTap={{ scale: 0.98 }}
-												disabled={isLoading}
-												onClick={() => onResendVerificationOtp && onResendVerificationOtp(pendingVerificationEmail || email)}
-												className="px-4 py-3 rounded-lg border border-border hover:bg-accent text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-											>
-												Resend
-											</motion.button>
-										</div>
 									</form>
 								)}
 							</div>
@@ -533,7 +425,7 @@ export function LoginModal({
 							{/* Footer */}
 							<div className="px-6 pb-6 space-y-4">
 								{/* Mode switching (only if registration is available) */}
-								{hasRegistration && (
+								{hasRegistration && hasEmailAuth && (
 									<div className="text-center">
 										<button
 											type="button"

@@ -48,8 +48,19 @@ export class AuthController extends BaseController {
      * Register a new user
      * POST /api/auth/register
      */
-    async register(request: Request, _env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
+    async register(request: Request, env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
         try {
+            // Check if OAuth providers are configured - if yes, block email/password registration
+            const hasOAuth = (!!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET) || 
+                           (!!env.GITHUB_CLIENT_ID && !!env.GITHUB_CLIENT_SECRET);
+            
+            if (hasOAuth) {
+                return this.createErrorResponse(
+                    'Email/password registration is not available when OAuth providers are configured. Please use OAuth login instead.',
+                    403
+                );
+            }
+
             const bodyResult = await this.parseJsonBody(request);
             if (!bodyResult.success) {
                 return bodyResult.response!;
@@ -83,8 +94,19 @@ export class AuthController extends BaseController {
      * Login with email and password
      * POST /api/auth/login
      */
-    async login(request: Request, _env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
+    async login(request: Request, env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
         try {
+            // Check if OAuth providers are configured - if yes, block email/password login
+            const hasOAuth = (!!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET) || 
+                           (!!env.GITHUB_CLIENT_ID && !!env.GITHUB_CLIENT_SECRET);
+            
+            if (hasOAuth) {
+                return this.createErrorResponse(
+                    'Email/password login is not available when OAuth providers are configured. Please use OAuth login instead.',
+                    403
+                );
+            }
+
             const bodyResult = await this.parseJsonBody(request);
             if (!bodyResult.success) {
                 return bodyResult.response!;
