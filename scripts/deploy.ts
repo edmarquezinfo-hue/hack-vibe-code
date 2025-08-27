@@ -246,7 +246,7 @@ class CloudflareDeploymentManager {
 				this.config.vars?.TEMPLATES_REPOSITORY!,
 			CLOUDFLARE_AI_GATEWAY:
 				process.env.CLOUDFLARE_AI_GATEWAY ||
-				this.config.vars?.CLOUDFLARE_AI_GATEWAY,
+				this.config.vars?.CLOUDFLARE_AI_GATEWAY || "orange-build-gateway",
 			CLOUDFLARE_AI_GATEWAY_TOKEN: aiGatewayToken,
 		};
 	}
