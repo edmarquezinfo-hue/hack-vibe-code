@@ -75,7 +75,7 @@
 			"database_name": "orange-build-db",
 			"database_id": "3085356f-6009-4a75-a478-66c05a5a532f",
 			"migrations_dir": "migrations",
-			"experimental_remote": true
+			"experimental_remote": false
 		}
 	],
 	"durable_objects": {
@@ -102,14 +102,14 @@
       {
         "binding": "TEMPLATES_BUCKET",
         "bucket_name": "orange-build-templates",
-        "experimental_remote": true
+        "experimental_remote": false
       }
     ],
     "kv_namespaces": [
         {
             "binding": "INSTANCE_REGISTRY",
             "id": "801cc1d5758e44f1bd0565985d9d6df0",
-            "experimental_remote": true
+            "experimental_remote": false
         }
     ],
 	"migrations": [

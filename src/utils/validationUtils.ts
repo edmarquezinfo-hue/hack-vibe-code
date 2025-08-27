@@ -84,99 +84,10 @@ export function validatePassword(
     errors.push('Password must be less than 128 characters long');
   }
 
-  // Character type validation
-  const hasLowercase = /[a-z]/.test(password);
-  const hasUppercase = /[A-Z]/.test(password);
-  const hasNumbers = /[0-9]/.test(password);
-  const hasSpecialChars = /[^a-zA-Z0-9]/.test(password);
-
-  if (!hasLowercase) {
-    errors.push('Password must contain at least one lowercase letter');
-  } else {
-    score += 0.5;
-  }
-
-  if (!hasUppercase) {
-    errors.push('Password must contain at least one uppercase letter');
-  } else {
-    score += 0.5;
-  }
-
-  if (!hasNumbers) {
-    errors.push('Password must contain at least one number');
-  } else {
-    score += 0.5;
-  }
-
-  if (hasSpecialChars) {
-    score += 0.5;
-  }
-
-  // Common password check
-  const commonPasswords = [
-    'password', 'password123', '123456', '12345678', '123456789',
-    'qwerty', 'abc123', 'password1', 'admin', 'letmein', 'welcome'
-  ];
-  
-  const lowerPassword = password.toLowerCase();
-  const isCommon = commonPasswords.some(common => lowerPassword.includes(common));
-  
-  if (isCommon) {
-    errors.push('Password is too common or predictable');
-    score = Math.max(0, score - 2);
-  }
-
-  // Sequential character check
-  const sequences = [
-    'abcdefghijklmnopqrstuvwxyz',
-    'qwertyuiop',
-    'asdfghjkl',
-    'zxcvbnm',
-    '0123456789'
-  ];
-
-  const hasSequential = sequences.some(seq => {
-    for (let i = 0; i <= seq.length - 4; i++) {
-      const sequence = seq.substring(i, i + 4);
-      if (lowerPassword.includes(sequence)) {
-        return true;
-      }
-    }
-    return false;
-  });
-
-  if (hasSequential) {
-    errors.push('Password contains sequential characters');
-    score = Math.max(0, score - 1);
-  }
-
-  // User info check
-  if (userInfo) {
-    const userInfoValues = [
-      userInfo.email?.split('@')[0], // Email local part
-      userInfo.name
-    ].filter(Boolean).map(v => v!.toLowerCase());
-
-    const containsUserInfo = userInfoValues.some(info => 
-      info.length > 2 && lowerPassword.includes(info)
-    );
-
-    if (containsUserInfo) {
-      errors.push('Password cannot contain personal information');
-      score = Math.max(0, score - 1);
-    }
-  }
-
   // Generate suggestions
   const suggestions: string[] = [];
   if (password.length < 12) {
     suggestions.push('Use at least 12 characters for better security');
-  }
-  if (!hasSpecialChars) {
-    suggestions.push('Consider adding special characters');
-  }
-  if (password.toLowerCase() === password) {
-    suggestions.push('Mix uppercase and lowercase letters');
   }
 
   return {
