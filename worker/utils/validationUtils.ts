@@ -107,35 +107,12 @@ const DEFAULT_PASSWORD_CONFIG: PasswordValidationConfig = {
 };
 
 /**
- * Common passwords to forbid (subset for performance)
- */
-const COMMON_PASSWORDS = new Set([
-  'password', 'password123', '123456', '12345678', '123456789', '1234567890',
-  'qwerty', 'abc123', 'password1', 'admin', 'letmein', 'welcome', 'monkey',
-  '123123', 'admin123', 'root', 'toor', 'pass', 'test', 'guest', 'master',
-  'login', 'passw0rd', 'p@ssword', 'p@ssw0rd', 'football', 'baseball',
-  'basketball', 'dragon', 'princess', 'shadow', 'superman', 'michael',
-  'computer', 'internet', 'welcome123'
-]);
-
-/**
- * Sequential character patterns
- */
-const SEQUENTIAL_PATTERNS = [
-  'abcdefghijklmnopqrstuvwxyz',
-  'qwertyuiop',
-  'asdfghjkl',
-  'zxcvbnm',
-  '0123456789'
-];
-
-/**
  * Comprehensive password validation
  */
 export function validatePassword(
   password: string,
   config: PasswordValidationConfig = DEFAULT_PASSWORD_CONFIG,
-  userInfo?: { email?: string; username?: string; name?: string }
+  _userInfo?: { email?: string; username?: string; name?: string }
 ): PasswordValidationResult {
   const errors: string[] = [];
   const requirements = {
@@ -174,103 +151,6 @@ export function validatePassword(
     errors.push(`Password must be less than ${maxLength} characters long`);
   }
 
-  // Character type validation
-  const hasLowercase = /[a-z]/.test(password);
-  const hasUppercase = /[A-Z]/.test(password);
-  const hasNumbers = /[0-9]/.test(password);
-  const hasSpecialChars = /[^a-zA-Z0-9]/.test(password);
-
-  if (config.requireLowercase && !hasLowercase) {
-    errors.push('Password must contain at least one lowercase letter');
-  } else if (hasLowercase) {
-    requirements.hasLowercase = true;
-    score += 0.5;
-  }
-
-  if (config.requireUppercase && !hasUppercase) {
-    errors.push('Password must contain at least one uppercase letter');
-  } else if (hasUppercase) {
-    requirements.hasUppercase = true;
-    score += 0.5;
-  }
-
-  if (config.requireNumbers && !hasNumbers) {
-    errors.push('Password must contain at least one number');
-  } else if (hasNumbers) {
-    requirements.hasNumbers = true;
-    score += 0.5;
-  }
-
-  if (config.requireSpecialChars && !hasSpecialChars) {
-    errors.push('Password must contain at least one special character');
-  } else if (hasSpecialChars) {
-    requirements.hasSpecialChars = true;
-    score += 0.5;
-  }
-
-  // Common password check
-  if (config.forbidCommonPasswords) {
-    const lowerPassword = password.toLowerCase();
-    const isCommon = COMMON_PASSWORDS.has(lowerPassword) ||
-                    Array.from(COMMON_PASSWORDS).some(common => lowerPassword.includes(common));
-    
-    if (isCommon) {
-      errors.push('Password is too common or predictable');
-      score = Math.max(0, score - 2);
-    } else {
-      requirements.notCommon = true;
-    }
-  }
-
-  // Sequential character check
-  if (config.forbidSequentialChars) {
-    const hasSequential = SEQUENTIAL_PATTERNS.some(pattern => {
-      for (let i = 0; i <= pattern.length - 4; i++) {
-        const sequence = pattern.substring(i, i + 4);
-        if (password.toLowerCase().includes(sequence) || 
-            password.toLowerCase().includes(sequence.split('').reverse().join(''))) {
-          return true;
-        }
-      }
-      return false;
-    });
-
-    if (hasSequential) {
-      errors.push('Password contains sequential characters');
-      score = Math.max(0, score - 1);
-    } else {
-      requirements.noSequential = true;
-    }
-  }
-
-  // Repeating character check
-  if (config.forbidRepeatingChars) {
-    const hasRepeating = /(.)\1{2,}/.test(password); // 3 or more same chars in a row
-    if (hasRepeating) {
-      errors.push('Password contains too many repeating characters');
-      score = Math.max(0, score - 1);
-    }
-  }
-
-  // User info check
-  if (config.forbidUserInfo && userInfo) {
-    const lowerPassword = password.toLowerCase();
-    const userInfoValues = [
-      userInfo.email?.split('@')[0], // Email local part
-      userInfo.username,
-      userInfo.name
-    ].filter(Boolean).map(v => v!.toLowerCase());
-
-    const containsUserInfo = userInfoValues.some(info => 
-      info.length > 2 && (lowerPassword.includes(info) || info.includes(lowerPassword))
-    );
-
-    if (containsUserInfo) {
-      errors.push('Password cannot contain personal information');
-      score = Math.max(0, score - 1);
-    }
-  }
-
   // Custom rules
   if (config.customRules) {
     for (const rule of config.customRules) {
@@ -284,9 +164,6 @@ export function validatePassword(
   // Generate suggestions
   const suggestions: string[] = [];
   if (password.length < 12) suggestions.push('Use at least 12 characters for better security');
-  if (!hasSpecialChars) suggestions.push('Consider adding special characters');
-  if (password.toLowerCase() === password) suggestions.push('Mix uppercase and lowercase letters');
-  if (!/[0-9]/.test(password)) suggestions.push('Include numbers');
 
   return {
     valid: errors.length === 0,

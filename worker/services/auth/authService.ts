@@ -141,26 +141,20 @@ export class AuthService {
             const userId = generateId();
             const now = new Date();
             
-            // Store user as unverified initially
+            // Store user as verified immediately (no OTP verification required)
             await this.db.db.insert(schema.users).values({
                 id: userId,
                 email: data.email.toLowerCase(),
                 passwordHash,
                 displayName: data.name || data.email.split('@')[0],
-                emailVerified: false, // Requires email verification
+                emailVerified: true, // Set as verified immediately
                 provider: 'email',
                 providerId: userId,
                 createdAt: now,
                 updatedAt: now
             });
             
-            // Generate and store verification OTP
-            await this.generateAndStoreVerificationOtp(data.email.toLowerCase());
-            
-            // Don't create session yet - user needs to verify email first
-            logger.info('User registered, verification required', { userId, email: data.email });
-            
-            // Return response indicating verification is required
+            // Get the created user
             const newUser = await this.db.db
                 .select()
                 .from(schema.users)
@@ -175,15 +169,22 @@ export class AuthService {
                 );
             }
             
-            // Log auth attempt
+            // Log successful registration
             await this.logAuthAttempt(data.email, 'register', true, request);
+            logger.info('User registered and logged in directly', { userId, email: data.email });
             
-            // Return a special response indicating verification is needed
-            throw new SecurityError(
-                SecurityErrorType.INVALID_INPUT,
-                'Account created. Please check your email for verification code.',
-                400
+            // Create session and tokens immediately (log user in after registration)
+            const { accessToken, refreshToken } = await this.sessionService.createSession(
+                userId,
+                request
             );
+            
+            return {
+                user: mapUserResponse(newUser),
+                accessToken,
+                refreshToken,
+                expiresIn: 24 * 60 * 60 // 24 hours in seconds
+            };
         } catch (error) {
             await this.logAuthAttempt(data.email, 'register', false, request);
             

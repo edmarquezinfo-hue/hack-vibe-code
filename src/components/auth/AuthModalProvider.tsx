@@ -50,14 +50,16 @@ export function AuthModalProvider({ children }: AuthModalProviderProps) {
     clearError();
   }, [clearError]);
 
-  // Execute pending action when user becomes authenticated
+  // Close modal and execute pending action when user becomes authenticated
   useEffect(() => {
-    if (isAuthenticated && pendingAction && isAuthModalOpen) {
+    if (isAuthenticated && isAuthModalOpen) {
       hideAuthModal();
       // Execute the pending action after a brief delay to ensure modal is closed
-      setTimeout(() => {
-        pendingAction();
-      }, 100);
+      if (pendingAction) {
+        setTimeout(() => {
+          pendingAction();
+        }, 100);
+      }
     }
   }, [isAuthenticated, pendingAction, isAuthModalOpen, hideAuthModal]);
 
