@@ -50,7 +50,12 @@ import type {
   AgentStreamingResponse,
   App,
   ActiveSessionsData,
-  ApiKeysData
+  ApiKeysData,
+  LoginResponseData,
+  RegisterResponseData,
+  ProfileResponseData,
+  AuthProvidersResponseData,
+  OAuthProvider
 } from '@/api-types';
 import { AgentPreviewResponse } from 'worker/api/controllers/agent/types';
 
@@ -799,6 +804,86 @@ class ApiClient {
     return this.request<{ message: string }>(`/api/auth/api-keys/${keyId}`, {
       method: 'DELETE',
     });
+  }
+
+  // ===============================
+  // Authentication API Methods
+  // ===============================
+
+  /**
+   * Login with email and password
+   */
+  async loginWithEmail(credentials: { email: string; password: string }): Promise<ApiResponse<LoginResponseData>> {
+    return this.request<LoginResponseData>('/api/auth/login', {
+      method: 'POST',
+      body: credentials,
+    });
+  }
+
+  /**
+   * Register a new user
+   */
+  async register(data: { email: string; password: string; name?: string }): Promise<ApiResponse<RegisterResponseData>> {
+    return this.request<RegisterResponseData>('/api/auth/register', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
+  /**
+   * Verify email with OTP
+   */
+  async verifyEmail(data: { email: string; otp: string }): Promise<ApiResponse<LoginResponseData>> {
+    return this.request<LoginResponseData>('/api/auth/verify-email', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
+  /**
+   * Resend verification OTP
+   */
+  async resendVerificationOtp(email: string): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>('/api/auth/resend-verification', {
+      method: 'POST',
+      body: { email },
+    });
+  }
+
+  /**
+   * Get current user profile
+   */
+  async getProfile(): Promise<ApiResponse<ProfileResponseData>> {
+    return this.request<ProfileResponseData>('/api/auth/profile');
+  }
+
+  /**
+   * Logout current user
+   */
+  async logout(): Promise<ApiResponse<{ message: string }>> {
+    return this.request<{ message: string }>('/api/auth/logout', {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * Get available authentication providers
+   */
+  async getAuthProviders(): Promise<ApiResponse<AuthProvidersResponseData>> {
+    return this.request<AuthProvidersResponseData>('/api/auth/providers');
+  }
+
+  /**
+   * Initiate OAuth flow (redirects to provider)
+   */
+  initiateOAuth(provider: OAuthProvider, redirectUrl?: string): void {
+    const oauthUrl = new URL(`/api/auth/oauth/${provider}`, window.location.origin);
+    if (redirectUrl) {
+      oauthUrl.searchParams.set('redirect_url', redirectUrl);
+    }
+    
+    // Redirect to OAuth provider
+    window.location.href = oauthUrl.toString();
   }
 }
 

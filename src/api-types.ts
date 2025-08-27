@@ -2,6 +2,7 @@
  * Centralized API types - imports and re-exports types from worker
  * This file serves as the single source of truth for frontend-worker API communication
  */
+import { SessionResponse, UserResponse } from 'worker/utils/authUtils';
 
 export type { SecretTemplate } from 'worker/types/secretsTemplates';
 
@@ -200,8 +201,39 @@ export interface StreamingError {
 export type AgentStreamingResponse = StreamingResponse | StreamingError;
 
 // Auth types imported from worker
-export type { AuthSession, ApiKeyInfo } from 'worker/types/auth-types';
-export type { UserResponse } from 'worker/utils/authUtils';
+export type { 
+  AuthSession, 
+  ApiKeyInfo, 
+  AuthResult, 
+  AuthUser,
+  OAuthProvider 
+} from 'worker/types/auth-types';
+export type { 
+  UserResponse, 
+  SessionResponse 
+} from 'worker/utils/authUtils';
+
+// Auth API Response Types (using existing worker types)
+export type LoginResponseData = SessionResponse;
+
+export type RegisterResponseData = SessionResponse & {
+  requiresVerification?: boolean;
+};
+
+export type ProfileResponseData = {
+  user: UserResponse;
+  sessionId: string;
+};
+
+export interface AuthProvidersResponseData {
+  providers: {
+    google: boolean;
+    github: boolean;
+    email: boolean;
+  };
+  hasOAuth: boolean;
+  requiresEmailAuth: boolean;
+}
 
 // Active Sessions Response - matches getUserSessions + isCurrent from controller
 export interface ActiveSessionsData {
