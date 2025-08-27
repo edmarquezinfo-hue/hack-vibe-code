@@ -183,7 +183,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             this.logger.error('Selected template not found');
             throw new Error('Selected template not found');
         }
-            
+
         // Now fetch all the files from the instance
         const templateDetailsResponse = await sandboxClient.getTemplateDetails(selectedTemplate.name);
         if (!templateDetailsResponse.success || !templateDetailsResponse.templateDetails) {
