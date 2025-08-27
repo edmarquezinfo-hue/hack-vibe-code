@@ -86,9 +86,8 @@ export class CodingAgentController extends BaseController {
             const secretsService = new SecretsService(db, env);
                                 
             // Fetch all user model configs, api keys and agent instance at once
-            const [userConfigsRecord, userApiKeys, agentInstance] = await Promise.all([
+            const [userConfigsRecord, agentInstance] = await Promise.all([
                 modelConfigService.getUserModelConfigs(user.id),
-                secretsService.getUserProviderKeysMap(user.id),
                 getAgentStub(env, agentId, false, this.codeGenLogger)
             ]);
                                 
@@ -109,7 +108,6 @@ export class CodingAgentController extends BaseController {
 
             const inferenceContext = {
                 userModelConfigs: Object.fromEntries(userModelConfigs),
-                userApiKeys: Object.fromEntries(userApiKeys),
                 agentId: agentId,
                 userId: user.id,
                 enableRealtimeCodeFix: true, // For now disabled from the model configs itself
@@ -117,7 +115,6 @@ export class CodingAgentController extends BaseController {
                                 
             this.logger.info(`Initialized inference context for user ${user.id}`, {
                 modelConfigsCount: Object.keys(userModelConfigs).length,
-                apiKeysCount: Object.keys(inferenceContext.userApiKeys || {}).length
             });
 
             const agentPromise = agentInstance.initialize({

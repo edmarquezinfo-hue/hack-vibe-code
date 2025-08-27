@@ -17,6 +17,7 @@ import { Message, MessageContent, MessageRole } from './common';
 import { ToolCall } from '../tools/types';
 import { executeTool } from '../tools/customTools';
 import { AIModels, InferenceMetadata } from './config.types';
+import { DatabaseService, SecretsService } from '../../database';
 
 function optimizeInputs(messages: Message[]): Message[] {
 	return messages.map((message) => ({
@@ -110,17 +111,23 @@ function isValidApiKey(apiKey: string): boolean {
     return true;
 }
 
-function getApiKey(provider: string, env: Env, userProviderKeys?: Record<string, string>): string {
-    console.log("Getting API key for provider: ", provider, userProviderKeys);
-    // First check if user has a custom API key for this provider
-    if (userProviderKeys && provider in userProviderKeys) {
-        const userKey = userProviderKeys[provider];
-        if (userKey && isValidApiKey(userKey)) {
-            console.log("Found user API key for provider: ", provider, userKey);
-            return userKey;
+async function getApiKey(provider: string, env: Env, userId: string): Promise<string> {
+    console.log("Getting API key for provider: ", provider);
+    try {
+        const db = new DatabaseService(env);
+        const secretsService = new SecretsService(db, env);
+        const userProviderKeys = await secretsService.getUserProviderKeysMap(userId);
+        // First check if user has a custom API key for this provider
+        if (userProviderKeys && provider in userProviderKeys) {
+            const userKey = userProviderKeys.get(provider);
+            if (userKey && isValidApiKey(userKey)) {
+                console.log("Found user API key for provider: ", provider, userKey);
+                return userKey;
+            }
         }
+    } catch (error) {
+        console.error("Error getting API key for provider: ", provider, error);
     }
-    
     // Fallback to environment variables
     const providerKeyString = provider.toUpperCase().replaceAll('-', '_');
     const envKey = `${providerKeyString}_API_KEY` as keyof Env;
@@ -136,7 +143,7 @@ function getApiKey(provider: string, env: Env, userProviderKeys?: Record<string,
 export async function getConfigurationForModel(
     model: AIModels | string, 
     env: Env, 
-    userProviderKeys?: Record<string, string>
+    userId: string,
 ): Promise<{
     baseURL: string,
     apiKey: string,
@@ -172,7 +179,7 @@ export async function getConfigurationForModel(
     const provider = providerForcedOverride || model.split('/')[0];
     // Try to find API key of type <PROVIDER>_API_KEY else default to CLOUDFLARE_AI_GATEWAY_TOKEN
     // `env` is an interface of type `Env`
-    const apiKey = getApiKey(provider, env, userProviderKeys);
+    const apiKey = await getApiKey(provider, env, userId);
     // AI Gateway Wholesaling checks
     const defaultHeaders = env.CLOUDFLARE_AI_GATEWAY_TOKEN && apiKey !== env.CLOUDFLARE_AI_GATEWAY_TOKEN ? {
         'cf-aig-authorization': `Bearer ${env.CLOUDFLARE_AI_GATEWAY_TOKEN}`,
@@ -294,7 +301,6 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 	tools,
 	reasoning_effort,
 	temperature,
-	userApiKeys,
 }: InferArgsBase & {
 	schema?: OutputSchema;
 	schemaName?: string;
@@ -302,7 +308,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 	formatOptions?: FormatterOptions;
 }): Promise<InferResponseObject<OutputSchema> | InferResponseString> {
 	try {
-        const { apiKey, baseURL, defaultHeaders } = await getConfigurationForModel(modelName, env, userApiKeys);
+        const { apiKey, baseURL, defaultHeaders } = await getConfigurationForModel(modelName, env, metadata.userId);
 		console.log(`baseUrl: ${baseURL}, modelName: ${modelName}`);
 
         // Remove [*.] from model name
