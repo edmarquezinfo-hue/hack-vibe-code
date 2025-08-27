@@ -95,12 +95,6 @@ export async function executeInference<T extends z.AnyZodObject>(   {
     maxTokens = maxTokens || finalConf.max_tokens || 16000;
     reasoning_effort = reasoning_effort || finalConf.reasoning_effort;
 
-    // Use user API keys from context cache
-    const userApiKeys = context?.userApiKeys;
-    if (userApiKeys && Object.keys(userApiKeys).length > 0) {
-        logger.info(`Using ${Object.keys(userApiKeys).length} user API keys from context cache for inference`);
-    }
-
     // Exponential backoff for retries
     const backoffMs = (attempt: number) => Math.min(100 * Math.pow(2, attempt), 10000);
 
@@ -126,7 +120,6 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 stream,
                 reasoning_effort: useCheaperModel ? undefined : reasoning_effort,
                 temperature,
-                userApiKeys: useCheaperModel ? undefined : userApiKeys
             }) : await infer({
                 env,
                 metadata: context,
@@ -137,7 +130,6 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 stream,
                 reasoning_effort: useCheaperModel ? undefined : reasoning_effort,
                 temperature,
-                userApiKeys: useCheaperModel ? undefined : userApiKeys
             });
             logger.info(`Successfully completed ${agentActionName} operation`);
             // console.log(result);

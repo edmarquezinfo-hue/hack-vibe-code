@@ -7,7 +7,7 @@ import { getAgentStub } from '../../../agents';
 import { AgentStateData, AgentConnectionData, AgentPreviewResponse } from './types';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
 import { RouteContext } from '../../types/route-context';
-import { AppService, DatabaseService, ModelConfigService, SecretsService } from '../../../database';
+import { AppService, DatabaseService, ModelConfigService } from '../../../database';
 import { ModelConfig } from '../../../agents/inferutils/config.types';
 interface CodeGenArgs {
     query: string;
@@ -83,7 +83,6 @@ export class CodingAgentController extends BaseController {
             const agentId = generateId();
             const db = new DatabaseService(env);
             const modelConfigService = new ModelConfigService(db);
-            const secretsService = new SecretsService(db, env);
                                 
             // Fetch all user model configs, api keys and agent instance at once
             const [userConfigsRecord, agentInstance] = await Promise.all([
