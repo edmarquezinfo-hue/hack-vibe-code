@@ -183,7 +183,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             this.logger.error('Selected template not found');
             throw new Error('Selected template not found');
         }
-            
+
         // Now fetch all the files from the instance
         const templateDetailsResponse = await sandboxClient.getTemplateDetails(selectedTemplate.name);
         if (!templateDetailsResponse.success || !templateDetailsResponse.templateDetails) {
@@ -1149,6 +1149,17 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             }
         }
 
+        let migratedInferenceContext = this.state.inferenceContext;
+        if (migratedInferenceContext && 'userApiKeys' in migratedInferenceContext) {
+            migratedInferenceContext = {
+                ...migratedInferenceContext
+            };
+            
+            // Completely remove the userApiKeys property for security
+            delete (migratedInferenceContext as any).userApiKeys;
+            needsMigration = true;
+        }
+
         // Check for deprecated properties
         const stateHasDeprecatedProps = 'latestScreenshot' in (this.state as any);
         if (stateHasDeprecatedProps) {
@@ -1157,17 +1168,19 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         
         // Apply migration if needed
         if (needsMigration) {
-            this.logger.info('Migrating state format and fixing conversation message bloat', {
+            this.logger.info('Migrating state: schema format, conversation cleanup, and security fixes', {
                 generatedFilesCount: Object.keys(migratedFilesMap).length,
                 templateFilesCount: migratedTemplateDetails?.files?.length || 0,
-                finalConversationCount: migratedConversationMessages?.length || 0
+                finalConversationCount: migratedConversationMessages?.length || 0,
+                removedUserApiKeys: this.state.inferenceContext && 'userApiKeys' in this.state.inferenceContext
             });
             
             const newState = {
                 ...this.state,
                 generatedFilesMap: migratedFilesMap,
                 templateDetails: migratedTemplateDetails,
-                conversationMessages: migratedConversationMessages
+                conversationMessages: migratedConversationMessages,
+                inferenceContext: migratedInferenceContext
             };
             
             // Remove deprecated properties
@@ -1177,8 +1190,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             
             this.setState(newState);
         }
-
-        
     }
 
     getFileGenerated(filePath: string) {

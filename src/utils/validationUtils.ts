@@ -58,7 +58,6 @@ export function validateEmail(email: string): EmailValidationResult {
  */
 export function validatePassword(
   password: string,
-  userInfo?: { email?: string; name?: string }
 ): PasswordValidationResult {
   const errors: string[] = [];
   let score = 0;
