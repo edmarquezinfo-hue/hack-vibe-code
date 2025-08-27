@@ -806,11 +806,93 @@ class CloudflareDeploymentManager {
 		return { zoneName: null, zoneId: null };
 	}
 
+    
 	/**
 	 * Updates wrangler.jsonc routes and deployment settings based on CUSTOM_DOMAIN
 	 */
+	/**
+	 * Standard formatting options for JSONC modifications
+	 */
+	private static readonly JSONC_FORMAT_OPTIONS = {
+		formattingOptions: {
+			insertSpaces: true,
+			keepLines: true,
+			tabSize: 4
+		}
+	};
+
+	/**
+	 * Updates a specific field in wrangler.jsonc configuration
+	 */
+	private updateWranglerField<T>(content: string, field: string, value: T): string {
+		const edits = modify(content, [field], value, CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS);
+		return applyEdits(content, edits);
+	}
+
+	/**
+	 * Updates wrangler.jsonc for workers.dev deployment (no custom domain)
+	 */
+	private updateWranglerForWorkersDev(content: string): string {
+		let updatedContent = content;
+		
+		// Remove routes property if it exists
+		const removeRoutesEdits = modify(content, ['routes'], undefined, CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS);
+		updatedContent = applyEdits(updatedContent, removeRoutesEdits);
+		
+		// Set workers_dev = true and preview_urls = true
+		updatedContent = this.updateWranglerField(updatedContent, 'workers_dev', true);
+		updatedContent = this.updateWranglerField(updatedContent, 'preview_urls', true);
+
+		return updatedContent;
+	}
+
+	/**
+	 * Updates wrangler.jsonc for custom domain deployment
+	 */
+	private updateWranglerForCustomDomain(
+		content: string, 
+		routes: Array<{ pattern: string; custom_domain: boolean; zone_id?: string; zone_name?: string }>,
+		preserveExistingFlags: boolean = false
+	): string {
+		let updatedContent = content;
+
+		// Update routes
+		updatedContent = this.updateWranglerField(updatedContent, 'routes', routes);
+
+		// Only update workers_dev and preview_urls if not preserving existing flags
+		if (!preserveExistingFlags) {
+			updatedContent = this.updateWranglerField(updatedContent, 'workers_dev', false);
+			updatedContent = this.updateWranglerField(updatedContent, 'preview_urls', false);
+		}
+
+		return updatedContent;
+	}
+
+	/**
+	 * Safely detects zone information for a domain, handling failures gracefully
+	 */
+	private async safeDetectZoneForDomain(
+		customDomain: string, 
+		originalCustomDomain: string | null
+	): Promise<{ zoneName: string | null; zoneId: string | null; success: boolean }> {
+		try {
+			if (!originalCustomDomain) {
+				return { zoneName: null, zoneId: null, success: false };
+			}
+
+			const { zoneName, zoneId } = await this.detectZoneForDomain(customDomain, originalCustomDomain);
+			return { zoneName, zoneId, success: true };
+		} catch (error) {
+			console.warn(
+				`⚠️  Zone detection failed for custom domain ${customDomain}: ${error instanceof Error ? error.message : String(error)}`
+			);
+			console.log('   → Continuing without zone-specific routes');
+			return { zoneName: null, zoneId: null, success: false };
+		}
+	}
+
 	private async updateCustomDomainRoutes(): Promise<void> {
-		const customDomain = this.config.vars?.CUSTOM_DOMAIN;
+		const customDomain = this.config.vars?.CUSTOM_DOMAIN || process.env.CUSTOM_DOMAIN;
 
 		try {
 			const wranglerPath = join(PROJECT_ROOT, 'wrangler.jsonc');
@@ -827,40 +909,7 @@ class CloudflareDeploymentManager {
 					'ℹ️  CUSTOM_DOMAIN not set - removing routes and enabling workers.dev',
 				);
 
-				// Remove routes if they exist and set workers_dev=true, preview_urls=true
-				let updatedContent = content;
-				
-				// Remove routes property if it exists
-				const removeRoutesEdits = modify(content, ['routes'], undefined, {
-					formattingOptions: {
-						insertSpaces: true,
-						keepLines: true,
-						tabSize: 4
-					}
-				});
-				updatedContent = applyEdits(updatedContent, removeRoutesEdits);
-				
-				// Set workers_dev = true
-				const workersDevEdits = modify(updatedContent, ['workers_dev'], true, {
-					formattingOptions: {
-						insertSpaces: true,
-						keepLines: true,
-						tabSize: 4
-					}
-				});
-				updatedContent = applyEdits(updatedContent, workersDevEdits);
-				
-				// Set preview_urls = true
-				const previewUrlsEdits = modify(updatedContent, ['preview_urls'], true, {
-					formattingOptions: {
-						insertSpaces: true,
-						keepLines: true,
-						tabSize: 4
-					}
-				});
-				updatedContent = applyEdits(updatedContent, previewUrlsEdits);
-
-				// Write back the updated configuration
+				const updatedContent = this.updateWranglerForWorkersDev(content);
 				writeFileSync(wranglerPath, updatedContent, 'utf-8');
 
 				console.log('✅ Updated wrangler.jsonc for workers.dev deployment:');
@@ -874,12 +923,10 @@ class CloudflareDeploymentManager {
 				`🔧 Updating wrangler.jsonc routes with custom domain: ${customDomain}`,
 			);
 
-			// Detect zone if custom domain is different from original (only if originalCustomDomain was found)
-			const { zoneName, zoneId } = originalCustomDomain 
-				? await this.detectZoneForDomain(customDomain, originalCustomDomain)
-				: { zoneName: null, zoneId: null };
+			// Safely detect zone information
+			const { zoneName, zoneId, success: zoneDetectionSuccess } = await this.safeDetectZoneForDomain(customDomain, originalCustomDomain);
 
-			// Define the expected routes based on custom domain
+			// Define the expected routes based on zone detection success
 			let expectedRoutes: Array<{
 				pattern: string;
 				custom_domain: boolean;
@@ -887,7 +934,7 @@ class CloudflareDeploymentManager {
 				zone_name?: string;
 			}>;
 
-			if (zoneId && zoneName) {
+			if (zoneDetectionSuccess && zoneId && zoneName) {
 				// Custom domain with zone information for wildcard pattern
 				console.log(`📋 Creating routes with zone information:`);
 				console.log(`   Zone Name: ${zoneName}`);
@@ -903,11 +950,10 @@ class CloudflareDeploymentManager {
 					},
 				];
 			} else {
-				// Standard routes without zone information
-				console.log(`📋 Creating standard routes without zone information`);
+				// If zone detection failed, only use basic custom domain route
+				console.log(`📋 Creating basic custom domain route (zone detection ${zoneDetectionSuccess ? 'skipped' : 'failed'})`);
 				expectedRoutes = [
-					{ pattern: customDomain, custom_domain: true },
-					{ pattern: `*${customDomain}/*`, custom_domain: false },
+					{ pattern: customDomain, custom_domain: true }
 				];
 			}
 
@@ -940,50 +986,27 @@ class CloudflareDeploymentManager {
 				return;
 			}
 
-			let updatedContent = content;
-
-			// Update routes using jsonc-parser modify function
-			const routesEdits = modify(content, ['routes'], expectedRoutes, {
-				formattingOptions: {
-					insertSpaces: true,
-					keepLines: true,
-					tabSize: 4
-				}
-			});
-			updatedContent = applyEdits(updatedContent, routesEdits);
-
-			// Set workers_dev = false for custom domain
-			const workersDevEdits = modify(updatedContent, ['workers_dev'], false, {
-				formattingOptions: {
-					insertSpaces: true,
-					keepLines: true,
-					tabSize: 4
-				}
-			});
-			updatedContent = applyEdits(updatedContent, workersDevEdits);
-
-			// Set preview_urls = false for custom domain
-			const previewUrlsEdits = modify(updatedContent, ['preview_urls'], false, {
-				formattingOptions: {
-					insertSpaces: true,
-					keepLines: true,
-					tabSize: 4
-				}
-			});
-			updatedContent = applyEdits(updatedContent, previewUrlsEdits);
-
-			// Write back the updated configuration
+			// Update wrangler configuration
+			// If zone detection failed, preserve existing workers_dev and preview_urls values
+			const preserveExistingFlags = !zoneDetectionSuccess;
+			const updatedContent = this.updateWranglerForCustomDomain(content, expectedRoutes, preserveExistingFlags);
 			writeFileSync(wranglerPath, updatedContent, 'utf-8');
 
+			// Log the changes
 			console.log(`✅ Updated wrangler.jsonc routes:`);
-			console.log(`   Route 1: ${customDomain} (custom_domain: true)`);
-			if (zoneId && zoneName) {
-				console.log(`   Route 2: *${customDomain}/* (custom_domain: false, zone_id: ${zoneId}, zone_name: ${zoneName})`);
+			expectedRoutes.forEach((route, index) => {
+				const routeInfo = route.zone_id 
+					? `(custom_domain: ${route.custom_domain}, zone_id: ${route.zone_id})`
+					: `(custom_domain: ${route.custom_domain})`;
+				console.log(`   Route ${index + 1}: ${route.pattern} ${routeInfo}`);
+			});
+
+			if (!preserveExistingFlags) {
+				console.log('   Set workers_dev: false');
+				console.log('   Set preview_urls: false');
 			} else {
-				console.log(`   Route 2: *${customDomain}/* (custom_domain: false)`);
+				console.log('   Preserved existing workers_dev and preview_urls settings');
 			}
-			console.log('   Set workers_dev: false');
-			console.log('   Set preview_urls: false');
 		} catch (error) {
 			console.warn(
 				`⚠️  Could not update custom domain routes: ${error instanceof Error ? error.message : String(error)}`,
@@ -1062,13 +1085,7 @@ class CloudflareDeploymentManager {
 				content,
 				['containers', sandboxContainerIndex, 'max_instances'],
 				maxInstancesNum,
-				{
-                    formattingOptions: {
-                        insertSpaces: true,
-                        keepLines: true,
-                        tabSize: 4
-                    }
-				},
+				CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS,
 			);
 
 			// Apply the edits to get the updated content
@@ -1169,13 +1186,7 @@ class CloudflareDeploymentManager {
 				updatedContent,
 				['containers', userAppContainerIndex, 'instance_type'],
 				userAppInstanceType,
-				{
-					formattingOptions: {
-						insertSpaces: true,
-						keepLines: true,
-						tabSize: 4
-					}
-				}
+				CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS
 			);
 			updatedContent = applyEdits(updatedContent, userAppInstanceTypeEdits);
 
@@ -1184,13 +1195,7 @@ class CloudflareDeploymentManager {
 				updatedContent,
 				['containers', deployerContainerIndex, 'instance_type'],
 				deployerInstanceType,
-				{
-					formattingOptions: {
-						insertSpaces: true,
-						keepLines: true,
-						tabSize: 4
-					}
-				}
+				CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS
 			);
 			updatedContent = applyEdits(updatedContent, deployerInstanceTypeEdits);
 
@@ -1355,13 +1360,7 @@ class CloudflareDeploymentManager {
 				content,
 				['vars'],
 				updatedVars,
-				{
-                    formattingOptions: {
-                        insertSpaces: true,
-                        keepLines: true,
-                        tabSize: 4
-                    }
-                }
+				CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS
 			);
 
 			const updatedContent = applyEdits(content, edits);
@@ -1401,13 +1400,7 @@ class CloudflareDeploymentManager {
 				content,
 				['vars'],
 				restoredVars,
-				{
-                    formattingOptions: {
-                        insertSpaces: true,
-                        keepLines: true,
-                        tabSize: 4
-                    }
-                }
+				CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS
 			);
 
 			const updatedContent = applyEdits(content, edits);
