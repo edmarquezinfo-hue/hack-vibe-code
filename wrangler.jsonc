@@ -135,7 +135,7 @@
         }
     ],
 	"vars": {
-        "TEMPLATES_REPOSITORY": "https://github.com/AshishKumar4/cloudflare-build-templates",
+        "TEMPLATES_REPOSITORY": "https://github.com/cloudflare/vibesdk-templates",
         "CLOUDFLARE_AI_GATEWAY": "orange-build-gateway",
         "CUSTOM_DOMAIN": "",
         "MAX_SANDBOX_INSTANCES": "10",
