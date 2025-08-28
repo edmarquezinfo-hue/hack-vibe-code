@@ -268,7 +268,7 @@ export async function generateBlueprint({ env, inferenceContext, query, language
         ];
 
         // Log messages to console for debugging
-        logger.info('Blueprint messages:', JSON.stringify(messages, null, 2));
+        // logger.info('Blueprint messages:', JSON.stringify(messages, null, 2));
         
         // let reasoningEffort: "high" | "medium" | "low" | undefined = "medium" as const;
         // if (templateMetaInfo?.complexity === 'simple' || templateMetaInfo?.complexity === 'moderate') {

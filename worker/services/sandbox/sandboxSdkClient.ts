@@ -70,7 +70,6 @@ export interface StreamEvent {
     timestamp: Date;
 }
   
-const NUM_CONTAINER_POOLS = 200;
 function getAutoAllocatedSandbox(sessionId: string): string {
     // We have N containers and we can have M sessionIds at once. M >> N
     // So we algorithmically assign sessionId to containerId
@@ -86,9 +85,14 @@ function getAutoAllocatedSandbox(sessionId: string): string {
     
     // Make hash positive
     hash = Math.abs(hash);
+
+    let max_instances = 10;
+    if (env.MAX_SANDBOX_INSTANCES) {
+        max_instances = Number(env.MAX_SANDBOX_INSTANCES);
+    }
     
     // Consistently map to one of N containers
-    const containerIndex = hash % NUM_CONTAINER_POOLS;
+    const containerIndex = hash % (max_instances);
     
     // Create a deterministic container ID based on the index
     const containerId = `container-pool-${containerIndex}`;
