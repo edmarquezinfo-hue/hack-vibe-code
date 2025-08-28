@@ -22,7 +22,7 @@ export class SmartCodeGeneratorAgent extends SimpleCodeGeneratorAgent {
         initArgs: AgentInitArgs,
         agentMode: 'deterministic' | 'smart'
     ): Promise<CodeGenState> {
-        this.logger.info('🧠 Initializing SmartCodeGeneratorAgent with enhanced AI orchestration', {
+        this.logger().info('🧠 Initializing SmartCodeGeneratorAgent with enhanced AI orchestration', {
             queryLength: initArgs.query.length,
             agentType: agentMode
         });
