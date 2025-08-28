@@ -1,0 +1,296 @@
+{
+  "completeFlow": {
+    "phases": [
+      {
+        "name": "Planning Phase",
+        "description": "Initial system setup and planning",
+        "steps": [
+          {
+            "step": 1,
+            "name": "User Query",
+            "actor": "Client",
+            "target": "CodeGeneratorAgent",
+            "action": "Send generation request",
+            "data": "{ query: string, requirements: object }",
+            "websocket_message": null
+          },
+          {
+            "step": 2,
+            "name": "Template Selection",
+            "actor": "CodeGeneratorAgent",
+            "target": "TemplateSelector",
+            "action": "selectTemplate(query, availableTemplates)",
+            "data": "TemplateSelection schema",
+            "parallel": false
+          },
+          {
+            "step": 3,
+            "name": "Blueprint Generation",
+            "actor": "CodeGeneratorAgent", 
+            "target": "BlueprintGenerator",
+            "action": "generateBlueprint(query, template)",
+            "data": "Blueprint schema with fileStructure",
+            "streaming": true,
+            "streaming_callback": "onChunk → Client updates",
+            "websocket_message": "Real-time blueprint chunks"
+          },
+          {
+            "step": 4,
+            "name": "Agent Initialization",
+            "actor": "CodeGeneratorAgent",
+            "target": "Self",
+            "action": "initialize(query, blueprint, templateDetails)",
+            "data": "CodeGenState initialization",
+            "triggers_parallel": true
+          },
+          {
+            "step": 5,
+            "name": "Parallel Setup & Deployment",
+            "actor": "CodeGeneratorAgent",
+            "target": "Multiple",
+            "action": "Promise.all([deployToRunnerService(), generateSetupCommands()])",
+            "parallel_processes": [
+              {
+                "name": "deployToRunnerService",
+                "target": "RunnerService",
+                "action": "Create sandbox instance",
+                "websocket_message": "DEPLOYMENT_COMPLETED"
+              },
+              {
+                "name": "generateSetupCommands",
+                "target": "ProjectSetupAssistant",
+                "action": "Analyze dependencies",
+                "websocket_message": "COMMAND_EXECUTING"
+              }
+            ],
+            "synchronization": "Both complete before executeCommands"
+          },
+          {
+            "step": 6,
+            "name": "Execute Setup Commands",
+            "actor": "CodeGeneratorAgent",
+            "target": "RunnerService",
+            "action": "executeCommands(setupCommands)",
+            "data": "Command execution results",
+            "websocket_message": "COMMAND_EXECUTING"
+          }
+        ]
+      },
+      {
+        "name": "Phase Implementation",
+        "description": "Code generation and deployment cycle",
+        "iterative": true,
+        "steps": [
+          {
+            "step": 1,
+            "name": "Phase Determination",
+            "actor": "CodeGeneratorAgent",
+            "condition": "if (isFirstPhase) use blueprint.fileStructure else generateNextPhase()",
+            "first_phase": {
+              "source": "blueprint.fileStructure",
+              "ai_generation": false
+            },
+            "subsequent_phases": {
+              "source": "LLM generation",
+              "ai_generation": true,
+              "websocket_message": "PHASE_GENERATING → PHASE_GENERATED"
+            }
+          },
+          {
+            "step": 2,
+            "name": "Pre-Implementation Analysis",
+            "actor": "CodeGeneratorAgent",
+            "parallel_actions": [
+              {
+                "name": "fetchRuntimeErrors",
+                "target": "RunnerService",
+                "action": "getInstanceErrors(runnerInstanceId)",
+                "websocket_message": "RUNTIME_ERROR_FOUND"
+              },
+              {
+                "name": "runStaticAnalysisCode", 
+                "target": "RunnerService",
+                "action": "runStaticAnalysis()",
+                "data": "lint.issues, typecheck.issues"
+              }
+            ]
+          },
+          {
+            "step": 3,
+            "name": "Phase Implementation",
+            "actor": "CodeGeneratorAgent",
+            "target": "LLM",
+            "action": "implementPhase(phaseConcept, staticAnalysis, errors)",
+            "websocket_message": "PHASE_IMPLEMENTING",
+            "streaming": true,
+            "streaming_details": {
+              "format": "SCOF (Shell Command Output Format)",
+              "chunk_size": 256,
+              "callbacks": [
+                {
+                  "name": "onFileOpen",
+                  "action": "filePath detected",
+                  "websocket_message": "FILE_GENERATING"
+                },
+                {
+                  "name": "onFileChunk",
+                  "action": "content chunk received",
+                  "websocket_message": "FILE_CHUNK_GENERATED"
+                },
+                {
+                  "name": "onFileClose",
+                  "action": "file completed",
+                  "websocket_message": "FILE_GENERATED"
+                }
+              ]
+            }
+          },
+          {
+            "step": 4,
+            "name": "File Processing",
+            "actor": "CodeGeneratorAgent",
+            "target": "Self",
+            "action": "processGeneratedFile(file)",
+            "processing_types": [
+              {
+                "format": "full_content",
+                "action": "Direct content assignment"
+              },
+              {
+                "format": "unified_diff",
+                "action": "applyDiff(originalContent, diffContent)",
+                "fallback": "Use original content on diff failure"
+              }
+            ]
+          },
+          {
+            "step": 5,
+            "name": "Deployment",
+            "actor": "CodeGeneratorAgent",
+            "target": "RunnerService",
+            "action": "deployToRunnerService()",
+            "data": "writeFiles(runnerInstanceId, filesToWrite)",
+            "websocket_message": "DEPLOYMENT_COMPLETED"
+          },
+          {
+            "step": 6,
+            "name": "State Update",
+            "actor": "CodeGeneratorAgent",
+            "target": "Self",
+            "action": "addCompletedPhase(rawOutput, phaseConcept, generatedFiles)",
+            "state_updates": [
+              "generatedPhases.push(phase)",
+              "generatedFilesMap merge files",
+              "messages.push(assistantMessage)"
+            ],
+            "websocket_message": "PHASE_IMPLEMENTED"
+          }
+        ]
+      },
+      {
+        "name": "Error Handling & Recovery",
+        "description": "Runtime error detection and code regeneration",
+        "steps": [
+          {
+            "step": 1,
+            "name": "Error Detection",
+            "actor": "CodeGeneratorAgent",
+            "target": "RunnerService",
+            "action": "fetchRuntimeErrors(clear: true)",
+            "websocket_message": "RUNTIME_ERROR_FOUND"
+          },
+          {
+            "step": 2,
+            "name": "Code Review",
+            "actor": "CodeGeneratorAgent",
+            "target": "LLM",
+            "action": "reviewCode()",
+            "inputs": ["runtime_errors", "static_analysis", "generated_files"],
+            "outputs": "CodeReviewOutput",
+            "websocket_message": "CODE_REVIEW"
+          },
+          {
+            "step": 3,
+            "name": "File Regeneration",
+            "actor": "CodeGeneratorAgent",
+            "target": "LLM",
+            "action": "regenerateFile(filePath, purpose, issues)",
+            "retry_limit": 3,
+            "websocket_message": "FILE_REGENERATED"
+          }
+        ]
+      }
+    ]
+  },
+  "websocketMessages": {
+    "client_to_server": [
+      {
+        "type": "GENERATE_ALL",
+        "description": "Start complete generation process",
+        "triggers": "generateAllFiles()"
+      },
+      {
+        "type": "CODE_REVIEW", 
+        "description": "Request code review",
+        "triggers": "reviewCode()"
+      },
+      {
+        "type": "DEPLOY",
+        "description": "Deploy to runner service",
+        "triggers": "deployToRunnerService()"
+      }
+    ],
+    "server_to_client": [
+      {
+        "type": "GENERATION_STARTED",
+        "description": "Generation process initiated",
+        "data": "{ message, totalFiles }"
+      },
+      {
+        "type": "PHASE_GENERATING",
+        "description": "Generating next phase concept",
+        "data": "{ message }"
+      },
+      {
+        "type": "PHASE_GENERATED", 
+        "description": "Phase concept generated",
+        "data": "{ message, phase_name }"
+      },
+      {
+        "type": "PHASE_IMPLEMENTING",
+        "description": "Starting phase implementation",
+        "data": "{ message, phase, phase_description, files }"
+      },
+      {
+        "type": "FILE_GENERATING",
+        "description": "Starting file generation",
+        "data": "{ filePath, filePurpose, is_regeneration?, issue? }"
+      },
+      {
+        "type": "FILE_CHUNK_GENERATED",
+        "description": "File content chunk received",
+        "data": "{ filePath, chunk, format }"
+      },
+      {
+        "type": "FILE_GENERATED",
+        "description": "File generation completed",
+        "data": "{ file: { filePath, fileContents, filePurpose }, message }"
+      },
+      {
+        "type": "DEPLOYMENT_COMPLETED",
+        "description": "Deployment to runner completed",
+        "data": "{ message, previewURL, instanceId }"
+      },
+      {
+        "type": "RUNTIME_ERROR_FOUND",
+        "description": "Runtime errors detected",
+        "data": "{ errors, message, count }"
+      },
+      {
+        "type": "COMMAND_EXECUTING",
+        "description": "Executing setup commands",
+        "data": "{ message, commands }"
+      }
+    ]
+  }
+}

@@ -1,0 +1,614 @@
+{
+  "durableObjectLifecycle": {
+    "title": "CodeGeneratorAgent Durable Object Lifecycle & State Management",
+    "lastUpdated": "2025-07-19",
+    "version": "2.0", 
+    "description": "Complete lifecycle management and state persistence patterns for CodeGeneratorAgent Durable Objects in Orange Build"
+  },
+
+  "durableObjectOverview": {
+    "purpose": "Stateful, distributed code generation orchestration with automatic persistence",
+    "benefits": [
+      "Geographic distribution across Cloudflare edge locations",
+      "Automatic state persistence without explicit save operations",
+      "Strong consistency guarantees within single object",
+      "Horizontal scaling through multiple object instances",
+      "Fault tolerance with automatic recovery"
+    ],
+    "uniqueFeatures": [
+      "Each object has guaranteed single-threaded execution",
+      "State persists across deployments and failures",
+      "Objects can be dormant and wake up on demand",
+      "Built-in WebSocket support for real-time communication"
+    ]
+  },
+
+  "objectInstantiation": {
+    "name": "Durable Object Creation and Initialization",
+    "triggers": [
+      "New code generation request from user",
+      "WebSocket connection establishment",
+      "Resume of previously interrupted session",
+      "Administrative operation on existing object"
+    ],
+    "process": [
+      {
+        "step": 1,
+        "name": "Object ID Generation",
+        "actor": "CodingAgentController",
+        "action": "Generate deterministic object ID",
+        "algorithm": {
+          "input": "appId + userContext + timestamp",
+          "method": "Cloudflare Workers ID generation from string",
+          "output": "Unique Durable Object ID",
+          "example": "id = env.CodeGenObject.idFromString(`app-${appId}-${userId || 'anon'}`)"
+        },
+        "idProperties": {
+          "uniqueness": "Globally unique across all edge locations",
+          "deterministic": "Same inputs always generate same ID",
+          "routing": "ID determines which edge location hosts the object"
+        }
+      },
+      {
+        "step": 2,
+        "name": "Object Retrieval or Creation", 
+        "actor": "Cloudflare Runtime",
+        "action": "Get existing object or create new instance",
+        "process": [
+          "Check if object exists in edge location",
+          "If exists: wake up dormant object and restore state",
+          "If not exists: create new object instance",
+          "Route request to appropriate edge location"
+        ],
+        "latency": {
+          "coldStart": "50-200ms for new object creation",
+          "warmStart": "1-10ms for existing object wakeup",
+          "crossRegion": "100-500ms if object in different region"
+        }
+      },
+      {
+        "step": 3,
+        "name": "Constructor Execution",
+        "actor": "CodeGeneratorAgent",
+        "action": "Initialize object instance",
+        "code": "constructor(state: DurableObjectState, env: Env)",
+        "initialization": [
+          "Store reference to state and environment",
+          "Initialize structured logger with context",
+          "Set up service container with dependency injection",
+          "Initialize empty state variables",
+          "Register WebSocket connection handlers"
+        ],
+        "stateAccess": {
+          "available": "Durable Object state storage",
+          "readonly": "Environment bindings and secrets",
+          "writable": "Object instance variables and state"
+        }
+      },
+      {
+        "step": 4,
+        "name": "State Hydration",
+        "actor": "CodeGeneratorAgent", 
+        "action": "Load persisted state from storage",
+        "process": [
+          "Read state from Durable Object storage",
+          "Deserialize JSON state data",
+          "Validate state schema and version",
+          "Initialize state with defaults for missing fields",
+          "Set up derived state and computed properties"
+        ],
+        "stateKeys": [
+          "blueprint - Project architecture and design",
+          "query - Original user query",
+          "generatedFilesMap - All generated files with metadata", 
+          "generatedPhases - Completed development phases",
+          "runnerInstanceId - Active sandbox reference",
+          "isGenerating - Current generation status",
+          "errorHistory - Error tracking and resolution"
+        ],
+        "stateValidation": {
+          "schemaCheck": "Ensure state matches expected structure",
+          "dataIntegrity": "Validate relationships between state fields",
+          "versionMigration": "Handle state schema upgrades"
+        }
+      }
+    ],
+    "failureHandling": {
+      "constructorFailure": "Throw error, prevent object creation",
+      "stateCorruption": "Initialize with default state, log corruption",
+      "networkFailure": "Retry with exponential backoff",
+      "resourceLimits": "Queue request, notify user of delay"
+    }
+  },
+
+  "statePersistence": {
+    "name": "Automatic State Management and Persistence",
+    "mechanism": "Cloudflare's automatic state persistence on every modification",
+    "characteristics": [
+      "No explicit save operations required",
+      "State persisted immediately on modification", 
+      "Atomic updates ensure consistency",
+      "State survives object dormancy and wake-up",
+      "Cross-deployment persistence"
+    ],
+    "stateStructure": {
+      "coreState": {
+        "blueprint": {
+          "type": "Blueprint object",
+          "size": "50-500KB typically",
+          "persistence": "JSON serialization",
+          "description": "Complete project architecture and design"
+        },
+        "query": {
+          "type": "string",
+          "size": "1-10KB",
+          "persistence": "Direct string storage",
+          "description": "Original user query and requirements"
+        },
+        "generatedFilesMap": {
+          "type": "Record<string, FileOutputType>",
+          "size": "100KB - 50MB (varies by project)",
+          "persistence": "JSON with file content",
+          "description": "All generated files with metadata and content"
+        },
+        "generatedPhases": {
+          "type": "Array<PhaseInfo>",
+          "size": "10-100KB",
+          "persistence": "Array of phase objects",
+          "description": "Completed development phases with outcomes"
+        }
+      },
+      "operationalState": {
+        "isGenerating": {
+          "type": "boolean",
+          "persistence": "Direct boolean storage",
+          "description": "Current generation status flag"
+        },
+        "runnerInstanceId": {
+          "type": "string | null",
+          "persistence": "String or null",
+          "description": "Active Runner Service instance reference"
+        },
+        "templateDetails": {
+          "type": "TemplateInfo object",
+          "size": "5-20KB",
+          "persistence": "JSON object",
+          "description": "Selected template configuration and metadata"
+        },
+        "deploymentStatus": {
+          "type": "DeploymentStatus object",
+          "persistence": "JSON object",
+          "description": "Preview and production deployment states"
+        }
+      },
+      "errorState": {
+        "errorHistory": {
+          "type": "Array<ErrorRecord>",
+          "size": "10-500KB",
+          "persistence": "Array of error objects",
+          "description": "Runtime and static analysis error tracking"
+        },
+        "lastCodeReview": {
+          "type": "CodeReviewResult | null",
+          "size": "10-100KB",
+          "persistence": "JSON object or null",
+          "description": "Most recent AI code review results"
+        }
+      },
+      "sessionState": {
+        "messages": {
+          "type": "Array<ChatMessage>",
+          "size": "50-500KB",
+          "persistence": "Array of message objects",
+          "description": "Conversation history with AI agents"
+        },
+        "webSocketConnections": {
+          "type": "Set<WebSocket>",
+          "persistence": "Not persisted (runtime only)",
+          "description": "Active WebSocket connections"
+        }
+      }
+    },
+    "persistenceOperations": {
+      "stateReads": {
+        "frequency": "On every state access",
+        "latency": "1-5ms typically",
+        "caching": "Automatic in-memory caching",
+        "consistency": "Strong consistency within object"
+      },
+      "stateWrites": {
+        "trigger": "Any state modification operation",
+        "atomicity": "Atomic updates ensure consistency",
+        "batching": "Multiple updates in single transaction",
+        "durability": "Immediately persisted to durable storage"
+      },
+      "stateMigration": {
+        "versionDetection": "Check state version on hydration",
+        "migrationLogic": "Transform old state format to new",
+        "fallbackStrategy": "Initialize with defaults if migration fails"
+      }
+    }
+  },
+
+  "webSocketManagement": {
+    "name": "WebSocket Connection Lifecycle within Durable Object",
+    "integration": "Built-in WebSocket support with automatic connection management",
+    "connectionHandling": [
+      {
+        "phase": "Connection Establishment",
+        "process": [
+          "WebSocket upgrade request routed to object",
+          "Connection authentication and validation",
+          "Add connection to active connections set",
+          "Send initial connection acknowledgment",
+          "Register connection event handlers"
+        ],
+        "stateImpact": "Add connection to webSocketConnections set (not persisted)"
+      },
+      {
+        "phase": "Message Broadcasting",
+        "process": [
+          "Generate message for specific event",
+          "Iterate through active connections",
+          "Send message to each connected client",
+          "Handle connection failures gracefully",
+          "Clean up failed connections"
+        ],
+        "reliability": "Best-effort delivery with connection cleanup"
+      },
+      {
+        "phase": "Connection Termination", 
+        "process": [
+          "Detect connection close or error",
+          "Remove connection from active set",
+          "Clean up connection-specific state",
+          "Log connection statistics",
+          "No impact on persistent state"
+        ],
+        "cleanup": "Automatic garbage collection of closed connections"
+      }
+    ],
+    "connectionStates": {
+      "active": "Connection established and responsive",
+      "inactive": "Connection exists but not responsive", 
+      "closed": "Connection terminated, pending cleanup"
+    },
+    "broadcastingPatterns": {
+      "unicast": "Message to specific connection",
+      "multicast": "Message to subset of connections",
+      "broadcast": "Message to all connected clients",
+      "conditional": "Message based on client state or permissions"
+    }
+  },
+
+  "operationsExecution": {
+    "name": "Operation-based Command Execution within Durable Object",
+    "pattern": "Command pattern with operation objects for complex workflows",
+    "operationTypes": [
+      {
+        "name": "PhaseImplementation",
+        "purpose": "Generate files for development phase",
+        "executionModel": "Streaming with real-time updates",
+        "stateModifications": [
+          "Add generated files to generatedFilesMap",
+          "Update isGenerating status",
+          "Broadcast progress via WebSocket",
+          "Record phase completion in generatedPhases"
+        ],
+        "duration": "2-10 minutes",
+        "parallelism": "Single-threaded within object, but concurrent with other objects"
+      },
+      {
+        "name": "CodeReview",
+        "purpose": "AI-powered code analysis and review",
+        "executionModel": "Batch processing with analysis results",
+        "stateModifications": [
+          "Update lastCodeReview with results",
+          "Add review findings to errorHistory",
+          "Broadcast review results via WebSocket"
+        ],
+        "duration": "30 seconds - 2 minutes",
+        "parallelism": "Can run concurrent with file generation"
+      },
+      {
+        "name": "FileRegeneration", 
+        "purpose": "Regenerate specific files to fix issues",
+        "executionModel": "Targeted generation with retry logic",
+        "stateModifications": [
+          "Update file content in generatedFilesMap",
+          "Record regeneration attempt in errorHistory",
+          "Update error resolution status",
+          "Broadcast regeneration completion"
+        ],
+        "duration": "30 seconds - 2 minutes per file",
+        "retryLimit": 3,
+        "fallbackStrategy": "Revert to previous version"
+      }
+    ],
+    "operationCoordination": {
+      "sequencing": "Operations executed in order based on dependencies",
+      "prioritization": "Error recovery operations have higher priority",
+      "concurrency": "Limited concurrency within single object",
+      "synchronization": "State changes are atomic and immediately visible"
+    }
+  },
+
+  "objectDormancy": {
+    "name": "Dormancy and Wake-up Cycle",
+    "description": "Automatic object hibernation and activation based on usage",
+    "dormancyTriggers": [
+      "No active WebSocket connections",
+      "No operations running for extended period",
+      "Inactivity timeout (typically 5-15 minutes)",
+      "Resource optimization by Cloudflare runtime"
+    ],
+    "dormancyProcess": [
+      {
+        "step": 1,
+        "name": "Pre-dormancy Cleanup",
+        "actions": [
+          "Complete any running operations",
+          "Close inactive WebSocket connections",
+          "Flush any pending state writes",
+          "Clean up temporary resources"
+        ]
+      },
+      {
+        "step": 2,
+        "name": "State Persistence Verification",
+        "actions": [
+          "Ensure all state changes are persisted",
+          "Verify state consistency",
+          "Create dormancy checkpoint"
+        ]
+      },
+      {
+        "step": 3,
+        "name": "Object Hibernation",
+        "actions": [
+          "Object instance removed from memory",
+          "Resources released",
+          "State remains in durable storage",
+          "Object ID remains valid for wake-up"
+        ]
+      }
+    ],
+    "wakeUpTriggers": [
+      "New HTTP request to object",
+      "WebSocket connection attempt",
+      "Cross-object communication",
+      "Scheduled task execution"
+    ],
+    "wakeUpProcess": [
+      {
+        "step": 1,
+        "name": "Object Instantiation",
+        "actions": [
+          "Create new object instance",
+          "Run constructor initialization",
+          "Restore service container"
+        ]
+      },
+      {
+        "step": 2, 
+        "name": "State Restoration",
+        "actions": [
+          "Load state from durable storage",
+          "Validate state consistency",
+          "Initialize derived state",
+          "Restore operation context"
+        ]
+      },
+      {
+        "step": 3,
+        "name": "Service Resumption",
+        "actions": [
+          "Re-establish external service connections",
+          "Resume interrupted operations (if applicable)",
+          "Accept new requests"
+        ]
+      }
+    ],
+    "performanceConsiderations": {
+      "coldStartLatency": "50-200ms for full wake-up",
+      "stateLoadTime": "10-100ms depending on state size",
+      "serviceInitialization": "20-100ms for external service setup"
+    }
+  },
+
+  "errorRecovery": {
+    "name": "Error Handling and Recovery Mechanisms",
+    "errorTypes": [
+      {
+        "name": "State Corruption",
+        "detection": "State validation during hydration",
+        "recovery": [
+          "Attempt state repair with known good defaults",
+          "Initialize missing or invalid fields",
+          "Log corruption details for analysis",
+          "Continue with recovered state"
+        ],
+        "prevention": "Schema validation on all state writes"
+      },
+      {
+        "name": "Operation Failures",
+        "detection": "Exception handling in operation execution",
+        "recovery": [
+          "Rollback partial state changes",
+          "Retry operation with exponential backoff",
+          "Escalate to alternative strategy",
+          "Notify user of failure"
+        ],
+        "prevention": "Input validation and pre-condition checks"
+      },
+      {
+        "name": "WebSocket Connection Loss",
+        "detection": "Connection close events",
+        "recovery": [
+          "Remove connection from active set",
+          "Continue operations without broadcasting",
+          "Accept new connections normally",
+          "No state impact"
+        ],
+        "prevention": "Heartbeat monitoring and connection validation"
+      },
+      {
+        "name": "External Service Failures",
+        "detection": "API call timeouts and errors",
+        "recovery": [
+          "Retry with exponential backoff",
+          "Use circuit breaker pattern",
+          "Fallback to cached data or defaults",
+          "Graceful degradation of functionality"
+        ],
+        "prevention": "Health checks and service monitoring"
+      }
+    ],
+    "recoveryStrategies": {
+      "gracefulDegradation": "Continue with reduced functionality",
+      "automaticRetry": "Retry failed operations with backoff",
+      "userNotification": "Inform user of issues and provide options",
+      "administrativeEscalation": "Alert system administrators for critical failures"
+    }
+  },
+
+  "scalabilityPatterns": {
+    "name": "Horizontal Scaling and Load Distribution",
+    "scalingMechanisms": [
+      {
+        "pattern": "Per-User Objects",
+        "description": "Each user or session gets dedicated object instance",
+        "benefits": [
+          "Strong isolation between users",
+          "Predictable performance per user",
+          "Simple state management",
+          "Natural load distribution"
+        ],
+        "limitations": [
+          "Higher memory usage",
+          "Cold start latency for new users",
+          "Uneven load distribution"
+        ]
+      },
+      {
+        "pattern": "Geographic Distribution",
+        "description": "Objects automatically distributed across edge locations",
+        "benefits": [
+          "Reduced latency for global users",
+          "Automatic failover across regions",
+          "Load balancing across data centers",
+          "Compliance with data residency requirements"
+        ],
+        "mechanism": "Object ID routing determines edge location"
+      },
+      {
+        "pattern": "Load-based Partitioning",
+        "description": "Distribute load across multiple objects when needed",
+        "implementation": [
+          "Monitor object resource usage",
+          "Split high-load objects into multiple instances",
+          "Use consistent hashing for object selection",
+          "Migrate state between objects when necessary"
+        ],
+        "complexity": "High - requires careful state management"
+      }
+    ],
+    "performanceOptimizations": [
+      {
+        "technique": "State Size Management",
+        "implementation": [
+          "Regular cleanup of old error history",
+          "Compression of large file content",
+          "Pagination of large arrays",
+          "Archival of completed sessions"
+        ]
+      },
+      {
+        "technique": "Connection Pooling",
+        "implementation": [
+          "Reuse external service connections",
+          "Pool database connections",
+          "Cache frequently accessed data",
+          "Batch external API calls"
+        ]
+      },
+      {
+        "technique": "Operation Optimization",
+        "implementation": [
+          "Parallel execution where safe",
+          "Caching of expensive computations",
+          "Lazy loading of large data structures",
+          "Streaming for large responses"
+        ]
+      }
+    ]
+  },
+
+  "monitoringAndObservability": {
+    "name": "Monitoring, Logging, and Debugging",
+    "loggingStrategy": {
+      "structuredLogging": "JSON-formatted logs with consistent schema",
+      "contextualLogging": "Include object ID, user ID, and operation context",
+      "logLevels": ["ERROR", "WARN", "INFO", "DEBUG"],
+      "logRetention": "30 days for operational logs, longer for audit logs"
+    },
+    "metricsCollection": {
+      "objectMetrics": [
+        "Object creation and wake-up frequency",
+        "State size and growth over time",
+        "Operation execution time and frequency",
+        "WebSocket connection count and duration"
+      ],
+      "performanceMetrics": [
+        "State read/write latency",
+        "Operation execution time",
+        "Error rate and recovery time",
+        "External API call latency"
+      ],
+      "businessMetrics": [
+        "Code generation success rate",
+        "User satisfaction scores",
+        "Feature usage patterns",
+        "Revenue attribution per object"
+      ]
+    },
+    "debugging": {
+      "stateInspection": "Ability to examine object state for debugging",
+      "operationTracing": "Trace operation execution and state changes",
+      "logCorrelation": "Correlate logs across object lifecycle",
+      "errorReplication": "Ability to reproduce errors in development"
+    }
+  },
+
+  "bestPractices": {
+    "name": "Best Practices for Durable Object Management",
+    "stateManagement": [
+      "Keep state size reasonable (< 100MB per object)",
+      "Use immutable data structures where possible",
+      "Validate state schema on hydration",
+      "Clean up old or unused state regularly",
+      "Version state schema for migration support"
+    ],
+    "operationDesign": [
+      "Make operations idempotent when possible",
+      "Use timeouts for all external calls",
+      "Implement retry logic with exponential backoff",
+      "Validate inputs before processing",
+      "Provide clear error messages to users"
+    ],
+    "webSocketManagement": [
+      "Clean up connections promptly",
+      "Handle connection failures gracefully",
+      "Validate message schemas",
+      "Implement rate limiting for messages",
+      "Use heartbeat for connection health"
+    ],
+    "errorHandling": [
+      "Log all errors with sufficient context",
+      "Provide user-friendly error messages",
+      "Implement automatic recovery where possible",
+      "Have escalation paths for critical errors",
+      "Monitor error rates and patterns"
+    ]
+  }
+}

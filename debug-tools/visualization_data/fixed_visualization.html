@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text-to-Web System - Architecture Visualization</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .header {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            text-align: center;
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .control-btn {
+            background: rgba(255,255,255,0.9);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .control-btn:hover {
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+
+        .control-btn.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .visualization-container {
+            max-width: 95%;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .view {
+            display: none;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        .diagram-section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #3498db;
+        }
+
+        .diagram-section h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+
+        .insight-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 Text-to-Web System Architecture</h1>
+        <p>Dynamic Interactive Visualization - Fixed Mermaid Integration</p>
+    </div>
+
+    <div class="controls">
+        <button class="control-btn active" onclick="showView('overview')">System Overview</button>
+        <button class="control-btn" onclick="showView('flow')">Complete Flow</button>
+        <button class="control-btn" onclick="showView('websockets')">WebSocket Messages</button>
+        <button class="control-btn" onclick="showView('parallel')">Parallel Processing</button>
+    </div>
+
+    <div class="visualization-container">
+        <!-- System Overview -->
+        <div id="overview" class="view active">
+            <h2>🏗️ System Architecture</h2>
+            <div class="insight-box">
+                <h3>🎯 Key Architecture Insights</h3>
+                <ul>
+                    <li><strong>Parallel Processing:</strong> Setup commands and deployment run concurrently during initialization</li>
+                    <li><strong>Streaming Communications:</strong> Blueprint and code generation both support real-time streaming</li>
+                    <li><strong>15+ WebSocket Messages:</strong> Comprehensive real-time client updates throughout the process</li>
+                    <li><strong>Phase Strategy:</strong> First phase uses blueprint.fileStructure, subsequent phases are AI-generated</li>
+                </ul>
+            </div>
+
+            <div class="diagram-section">
+                <h3>System Architecture Diagram</h3>
+                <div class="mermaid">
+graph TD
+    A[Client Browser] --> B[Fetch Handler]
+    B --> C[CodeGeneratorAgent]
+    C --> D[TemplateSelector]
+    C --> E[BlueprintGenerator]
+    C --> F[SCOF Parser]
+    C --> G[RunnerService]
+    
+    style C fill:#e1f5fe,stroke:#01579b,stroke-width:3px
+    style D fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    style E fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+                </div>
+            </div>
+
+            <div class="diagram-section">
+                <h3>Parallel Processing Flow</h3>
+                <div class="mermaid">
+graph LR
+    A[Agent Initialize] --> B[Promise.all]
+    B --> C[Deploy Runner]
+    B --> D[Generate Commands]
+    C --> E[Complete]
+    D --> E
+    E --> F[Execute Commands]
+    
+    style B fill:#fff3e0,stroke:#f57c00,stroke-width:3px
+    style E fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+                </div>
+            </div>
+        </div>
+
+        <!-- Complete Flow -->
+        <div id="flow" class="view">
+            <h2>📋 Complete Generation Flow</h2>
+            <div class="insight-box">
+                <h3>💡 Flow Highlights</h3>
+                <p>This shows the complete end-to-end process with parallel processing and streaming patterns.</p>
+            </div>
+
+            <div class="diagram-section">
+                <h3>Planning Phase Sequence</h3>
+                <div class="mermaid">
+sequenceDiagram
+    participant Client
+    participant Agent
+    participant TemplateSelector
+    participant BlueprintGen
+    participant Runner
+
+    Client->>Agent: Generate Request
+    Agent->>TemplateSelector: Select Template
+    TemplateSelector-->>Agent: Template Choice
+    Agent->>BlueprintGen: Generate Blueprint
+    BlueprintGen->>Client: Stream Blueprint
+    BlueprintGen-->>Agent: Complete Blueprint
+    
+    par Parallel Init
+        Agent->>Runner: Deploy Service
+    and
+        Agent->>Agent: Setup Commands
+    end
+    
+    Agent->>Client: Ready to Generate
+                </div>
+            </div>
+
+            <div class="diagram-section">
+                <h3>Phase Implementation Process</h3>
+                <div class="mermaid">
+flowchart TD
+    A[Phase Start] --> B{First Phase?}
+    B -->|Yes| C[Use Blueprint Structure]
+    B -->|No| D[Generate Phase Concept]
+    C --> E[Implement Phase]
+    D --> E
+    E --> F[SCOF Streaming]
+    F --> G[Deploy Files]
+    G --> H{More Phases?}
+    H -->|Yes| D
+    H -->|No| I[Complete]
+    
+    style B fill:#fff3cd,stroke:#856404,stroke-width:2px
+    style F fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+                </div>
+            </div>
+        </div>
+
+        <!-- WebSocket Messages -->
+        <div id="websockets" class="view">
+            <h2>📡 WebSocket Communication</h2>
+            <div class="insight-box">
+                <h3>Real-time Bidirectional Communication</h3>
+                <p>15+ message types enable comprehensive real-time updates between client and server.</p>
+            </div>
+
+            <div class="diagram-section">
+                <h3>Message Flow</h3>
+                <div class="mermaid">
+sequenceDiagram
+    participant Client
+    participant WebSocket
+    participant Agent
+    participant Process
+
+    Client->>WebSocket: GENERATE_ALL
+    WebSocket->>Agent: Forward Command
+    Agent->>Client: GENERATION_STARTED
+    
+    Agent->>Process: Start Generation
+    
+    loop File Generation
+        Process->>Agent: FILE_GENERATING
+        Agent->>Client: FILE_GENERATING
+        Process->>Agent: FILE_GENERATED
+        Agent->>Client: FILE_GENERATED
+    end
+    
+    Process->>Agent: DEPLOYMENT_COMPLETED
+    Agent->>Client: DEPLOYMENT_COMPLETED
+                </div>
+            </div>
+        </div>
+
+        <!-- Parallel Processing -->
+        <div id="parallel" class="view">
+            <h2>⚡ Parallel Processing</h2>
+            <div class="insight-box">
+                <h3>Concurrent Execution for Performance</h3>
+                <p>Key parallel processes that run simultaneously to optimize generation speed.</p>
+            </div>
+
+            <div class="diagram-section">
+                <h3>Concurrent Operations</h3>
+                <div class="mermaid">
+flowchart LR
+    A[Agent Initialize] --> B[Promise.all Start]
+    
+    B --> C[Deploy Runner]
+    B --> D[Setup Commands]
+    
+    C --> E[Runner Ready]
+    D --> F[Commands Ready]
+    
+    E --> G[Promise.all Complete]
+    F --> G
+    
+    G --> H[Execute Commands]
+    H --> I[Initialization Complete]
+    
+    style B fill:#fff3e0,stroke:#f57c00,stroke-width:3px
+    style G fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        // Initialize Mermaid with proper configuration
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            securityLevel: 'loose',
+            themeVariables: {
+                primaryColor: '#4CAF50',
+                primaryTextColor: '#000',
+                primaryBorderColor: '#2E7D32',
+                lineColor: '#757575'
+            }
+        });
+
+        // Helper function to show different views
+        function showView(viewName) {
+            // Hide all views
+            document.querySelectorAll('.view').forEach(view => {
+                view.classList.remove('active');
+            });
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('.control-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected view
+            document.getElementById(viewName).classList.add('active');
+            
+            // Add active class to clicked button
+            event.target.classList.add('active');
+        }
+
+        // Initialize diagrams after page load
+        window.addEventListener('load', () => {
+            console.log('Page loaded, Mermaid initialized:', typeof mermaid !== 'undefined');
+            
+            // Force re-render diagrams
+            setTimeout(() => {
+                mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+            }, 100);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orange Build - System Documentation Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #1a202c;
+        }
+
+        .header {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px 0;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logo {
+            font-size: 2rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #ff6b35, #f7931e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .title {
+            flex: 1;
+        }
+
+        .title h1 {
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
+        .title p {
+            color: #4a5568;
+            font-size: 1.1rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        }
+
+        .card-icon {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            font-weight: bold;
+        }
+
+        .card h3 {
+            font-size: 1.4rem;
+            margin-bottom: 15px;
+            color: #2d3748;
+        }
+
+        .card p {
+            color: #4a5568;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #3182ce, #2b77cb);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            background: linear-gradient(135deg, #2b77cb, #2563eb);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #e2e8f0, #cbd5e0);
+            color: #4a5568;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #cbd5e0, #a0aec0);
+            color: #2d3748;
+        }
+
+        .stats {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 40px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border-left: 4px solid #3182ce;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #3182ce;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        .architecture { background: linear-gradient(135deg, #667eea, #764ba2); }
+        .workflow { background: linear-gradient(135deg, #f093fb, #f5576c); }
+        .dataflow { background: linear-gradient(135deg, #4facfe, #00f2fe); }
+        .websocket { background: linear-gradient(135deg, #43e97b, #38f9d7); }
+        .durable { background: linear-gradient(135deg, #fa709a, #fee140); }
+        .auth { background: linear-gradient(135deg, #a8edea, #fed6e3); }
+
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: rgba(255,255,255,0.8);
+        }
+
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">🍊</div>
+            <div class="title">
+                <h1>Orange Build - System Documentation</h1>
+                <p>Comprehensive visualization of AI-powered webapp generation platform</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="stats">
+            <h2 style="margin-bottom: 20px; text-align: center; color: #2d3748;">Documentation Overview</h2>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number">6</div>
+                    <div class="stat-label">Visualization Files</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">50+</div>
+                    <div class="stat-label">System Components</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">100+</div>
+                    <div class="stat-label">Process Steps</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">2.0</div>
+                    <div class="stat-label">Documentation Version</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-icon architecture">🏗️</div>
+                <h3>System Architecture</h3>
+                <p>Complete system architecture showing all layers from React frontend to Cloudflare Workers, AI agents, and external services. Includes the new Clean Architecture patterns with dependency injection.</p>
+                <div class="card-actions">
+                    <button class="btn" onclick="openFile('system_architecture.json')">View JSON</button>
+                    <a href="system_overview.html" class="btn">Interactive View</a>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-icon workflow">⚡</div>
+                <h3>Code Generation Workflow</h3>
+                <p>Detailed 7-phase workflow from user request to deployed application. Shows parallel processing, real-time streaming, and error recovery mechanisms.</p>
+                <div class="card-actions">
+                    <button class="btn" onclick="openFile('code_generation_workflow.json')">View JSON</button>
+                    <button class="btn-secondary" onclick="showWorkflowSummary()">Quick Summary</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-icon dataflow">🔄</div>
+                <h3>Data Flow Diagrams</h3>
+                <p>Comprehensive data movement analysis across all major processes including authentication, code generation, deployment, and error handling flows.</p>
+                <div class="card-actions">
+                    <button class="btn" onclick="openFile('data_flow_diagrams.json')">View JSON</button>
+                    <button class="btn-secondary" onclick="showDataFlowTypes()">Flow Types</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-icon websocket">🔌</div>
+                <h3>WebSocket Protocol</h3>
+                <p>Real-time communication protocol with 20+ message types, connection resilience, error recovery, and performance optimizations for seamless user experience.</p>
+                <div class="card-actions">
+                    <button class="btn" onclick="openFile('websocket_protocol.json')">View JSON</button>
+                    <button class="btn-secondary" onclick="showMessageTypes()">Message Types</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-icon durable">🏛️</div>
+                <h3>Durable Object Lifecycle</h3>
+                <p>Complete lifecycle management of CodeGeneratorAgent Durable Objects including state persistence, dormancy cycles, and scalability patterns.</p>
+                <div class="card-actions">
+                    <button class="btn" onclick="openFile('durable_object_lifecycle.json')">View JSON</button>
+                    <button class="btn-secondary" onclick="showDurableFeatures()">Key Features</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-icon auth">🔐</div>
+                <h3>Authentication Flows</h3>
+                <p>Multi-provider authentication system with email/password, Google OAuth, GitHub OAuth, anonymous sessions, and JWT token management.</p>
+                <div class="card-actions">
+                    <button class="btn" onclick="openFile('authentication_flows.json')">View JSON</button>
+                    <button class="btn-secondary" onclick="showAuthMethods()">Auth Methods</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>Orange Build System Documentation - Last Updated: July 19, 2025</p>
+        <p>Generated with comprehensive codebase analysis and architectural understanding</p>
+    </footer>
+
+    <script>
+        function openFile(filename) {
+            // Open the JSON file in a new tab
+            window.open(filename, '_blank');
+        }
+
+        function showWorkflowSummary() {
+            alert(`Code Generation Workflow Summary:
+
+Phase 1: User Request & Initial Processing (1-5s)
+Phase 2: AI Planning & Template Selection (10-30s) 
+Phase 3: Agent Initialization with Parallel Setup (5-15s)
+Phase 4: Iterative Code Generation with Real-time Streaming (2-10min)
+Phase 5: Multi-layered Validation & Quality Assurance (1-5min)
+Phase 6: Intelligent Error Recovery & Regeneration (1-10min)
+Phase 7: Finalization & User Handoff (10-30s)
+
+Key Features:
+- Parallel processing throughout
+- Real-time WebSocket streaming  
+- AI-powered error recovery
+- SCOF format for code streaming
+- Automatic deployment to Runner Service`);
+        }
+
+        function showDataFlowTypes() {
+            alert(`Data Flow Types:
+
+1. User Journey Data Flow - End-to-end user experience
+2. Code Generation Data Flow - AI to client streaming
+3. Deployment Data Flow - Runner Service integration
+4. WebSocket Communication Flow - Real-time messaging
+5. Authentication Data Flow - Multi-provider auth
+6. Database Data Flow - D1 + Drizzle operations
+7. Error Handling Data Flow - Detection to recovery
+
+Performance Metrics:
+- API responses: 50-200ms
+- WebSocket messages: Sub-second
+- Code generation: 2-10 minutes
+- Total session data: 100KB - 100MB`);
+        }
+
+        function showMessageTypes() {
+            alert(`WebSocket Message Types:
+
+Client → Server (8 types):
+- generate_all, code_review, deploy
+- runtime_error_found, screenshot_captured
+- update_query, overwrite
+
+Server → Client (15+ types):  
+- generation_started/complete
+- phase_generating/generated/implementing/implemented
+- file_generating/generated/chunk_generated
+- deployment_started/completed
+- runtime_error_found, code_review
+- static_analysis_results
+
+Connection Management:
+- 5-attempt retry with exponential backoff
+- Heartbeat monitoring (30s ping/10s pong timeout)
+- States: idle, connecting, connected, failed, retrying`);
+        }
+
+        function showDurableFeatures() {
+            alert(`Durable Object Key Features:
+
+Lifecycle Management:
+- Automatic state persistence (no explicit saves)
+- Dormancy and wake-up cycles
+- Geographic distribution across edge locations
+
+State Management:
+- Immutable state updates
+- Strong consistency within object
+- Cross-deployment persistence
+
+Scalability:
+- Per-user object isolation
+- Horizontal scaling through multiple objects
+- Load-based partitioning when needed
+
+Performance:
+- Cold start: 50-200ms
+- Warm start: 1-10ms
+- State load: 10-100ms`);
+        }
+
+        function showAuthMethods() {
+            alert(`Authentication Methods:
+
+1. Email/Password
+   - bcrypt hashing (12 salt rounds)
+   - Account lockout protection
+   - Password strength validation
+
+2. Google OAuth 2.0
+   - PKCE for enhanced security
+   - CSRF state validation
+   - Profile sync and linking
+
+3. GitHub OAuth
+   - Organization membership support
+   - Team integration capabilities
+   - Repository access (optional)
+
+4. Anonymous Sessions
+   - localStorage tokens
+   - 24-hour expiration
+   - Seamless upgrade to full account
+
+Session Management:
+- JWT with HttpOnly cookies
+- 15min access + 7day refresh tokens
+- Automatic token rotation`);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1180 @@
+{
+  "workflowName": "Orange Build Code Generation Workflow",
+  "lastUpdated": "2025-07-19",
+  "version": "2.0",
+  "description": "Complete end-to-end workflow for AI-powered webapp generation with real-time streaming, parallel processing, and error recovery",
+
+  "workflowPhases": {
+    "phase1_userRequest": {
+      "name": "User Request & Initial Processing",
+      "duration": "1-5 seconds",
+      "description": "User submits query and system initiates processing pipeline",
+      "steps": [
+        {
+          "step": 1,
+          "name": "User Query Submission",
+          "actor": "User",
+          "action": "Submit webapp generation query via React frontend",
+          "input": "Natural language description of desired webapp",
+          "location": "Frontend (/chat route)",
+          "uiComponents": ["Query input field", "Submit button", "Loading state"]
+        },
+        {
+          "step": 2,
+          "name": "Session Management",
+          "actor": "Frontend (useChat hook)",
+          "action": "Handle user session (authenticated or anonymous)",
+          "details": {
+            "authenticated": "Use existing JWT session",
+            "anonymous": "Retrieve or create session token from localStorage",
+            "tokenGeneration": "POST to worker for anonymous session creation"
+          },
+          "storage": "localStorage: 'anonymous_session_token'"
+        },
+        {
+          "step": 3,
+          "name": "API Request Initiation",
+          "actor": "Frontend",
+          "action": "POST /api/agent",
+          "payload": {
+            "query": "User's natural language request",
+            "sessionToken": "Anonymous session token (if applicable)",
+            "preferences": "User preferences and constraints"
+          },
+          "headers": ["Content-Type: application/json", "Authorization (if authenticated)"]
+        },
+        {
+          "step": 4,
+          "name": "Request Validation & Processing",
+          "actor": "CodingAgentController",
+          "file": "worker/api/controllers/codingAgentController.ts",
+          "action": "startCodeGeneration()",
+          "validations": [
+            "Query length and content validation",
+            "Rate limiting checks",
+            "Session validity verification",
+            "Input sanitization"
+          ],
+          "outputs": ["Validated request", "User context", "Session info"]
+        }
+      ],
+      "parallelProcessing": false,
+      "errorHandling": {
+        "validationFailure": "Return 400 with validation errors",
+        "rateLimitExceeded": "Return 429 with retry-after header",
+        "sessionInvalid": "Create anonymous session and retry"
+      }
+    },
+
+    "phase2_planningAndTemplateSelection": {
+      "name": "AI Planning & Template Selection",
+      "duration": "10-30 seconds",
+      "description": "AI agents analyze requirements and select optimal template",
+      "parallelProcessing": true,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Template Selection Initiation",
+          "actor": "CodingAgentController",
+          "action": "Invoke Template Selector Agent",
+          "file": "worker/agents/planning/templateSelector.ts",
+          "aiModel": "Google Gemini Flash",
+          "reasoning": "Speed-optimized for quick template matching",
+          "inputs": [
+            "User query analysis",
+            "Available template list from Runner Service",
+            "Framework preferences",
+            "Complexity assessment"
+          ]
+        },
+        {
+          "step": 2,
+          "name": "Template Analysis & Matching",
+          "actor": "Template Selector Agent",
+          "action": "AI analysis of query vs available templates",
+          "process": [
+            "Parse user requirements and technical constraints",
+            "Analyze complexity and tech stack preferences", 
+            "Score available templates against requirements",
+            "Select best match with fallback options"
+          ],
+          "outputs": {
+            "selectedTemplateName": "Chosen template identifier",
+            "reasoning": "AI explanation for selection",
+            "useCase": "Identified project category",
+            "complexity": "Assessed difficulty level",
+            "styleSelection": "UI/UX approach recommendation",
+            "fallbackOptions": "Alternative templates if primary fails"
+          }
+        },
+        {
+          "step": 3,
+          "name": "Blueprint Generation Initiation",
+          "actor": "CodingAgentController",
+          "action": "Invoke Blueprint Generator Agent",
+          "file": "worker/agents/planning/blueprint.ts", 
+          "aiModel": "Anthropic Claude",
+          "reasoning": "Superior architectural planning and detailed analysis",
+          "streamingEnabled": true,
+          "inputs": [
+            "User query",
+            "Selected template information",
+            "Technical requirements",
+            "Style preferences"
+          ]
+        },
+        {
+          "step": 4,
+          "name": "Real-time Blueprint Generation",
+          "actor": "Blueprint Generator Agent",
+          "action": "Stream comprehensive project blueprint",
+          "streamingProtocol": "NDJSON over HTTP",
+          "process": [
+            "Analyze project requirements in detail",
+            "Design system architecture and data flow",
+            "Plan file structure and component hierarchy",
+            "Create UI/UX specifications and color schemes",
+            "Generate phase-by-phase implementation roadmap"
+          ],
+          "streamingOutput": {
+            "format": "Incremental JSON chunks",
+            "clientHandling": "Progressive UI updates as sections complete",
+            "chunks": [
+              "Project title and description",
+              "Technology stack and frameworks", 
+              "File structure and organization",
+              "UI design system and color palette",
+              "User flow and interaction patterns",
+              "Implementation phases and priorities"
+            ]
+          },
+          "finalBlueprint": {
+            "title": "Project name and branding",
+            "description": "Comprehensive project overview",
+            "frameworks": "Selected technology stack", 
+            "fileStructure": "Complete file organization",
+            "colorPalette": "UI design system",
+            "userFlow": "User experience design",
+            "implementationRoadmap": "Phase-by-phase development plan",
+            "dataModels": "Data structure and API design"
+          }
+        }
+      ],
+      "parallelCoordination": {
+        "templateSelection": "Completes first (~5 seconds)",
+        "blueprintGeneration": "Uses template results, streams in real-time (~20 seconds)",
+        "clientExperience": "User sees template selection immediately, blueprint builds progressively"
+      },
+      "errorHandling": {
+        "templateSelectionFailure": "Use default template with reasoning",
+        "blueprintGenerationFailure": "Generate basic blueprint from template",
+        "streamingInterruption": "Graceful recovery with partial blueprint"
+      }
+    },
+
+    "phase3_agentInitialization": {
+      "name": "Durable Object Agent Initialization",
+      "duration": "5-15 seconds", 
+      "description": "Initialize stateful CodeGeneratorAgent with parallel setup processes",
+      "parallelProcessing": true,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Database App Record Creation",
+          "actor": "CodingAgentController",
+          "action": "Create app record in D1 database",
+          "table": "apps",
+          "data": {
+            "query": "Original user query",
+            "blueprint": "Generated blueprint JSON",
+            "templateName": "Selected template identifier",
+            "userId": "User ID (if authenticated) or null",
+            "sessionToken": "Anonymous session token",
+            "status": "initializing",
+            "visibility": "private (default)"
+          },
+          "outputs": ["appId", "createdAt timestamp"]
+        },
+        {
+          "step": 2,
+          "name": "Durable Object Instantiation",
+          "actor": "CodingAgentController", 
+          "action": "Get or create CodeGeneratorAgent Durable Object",
+          "durableObjectId": "Generated from appId and user context",
+          "file": "worker/agents/codegen/codeGeneratorAgent.ts",
+          "initialization": [
+            "Create ServiceContainer with dependency injection",
+            "Initialize structured logger with request context",
+            "Set up WebSocket connection management",
+            "Prepare state management system"
+          ]
+        },
+        {
+          "step": 3,
+          "name": "Agent State Initialization",
+          "actor": "CodeGeneratorAgent",
+          "action": "Initialize agent state with generation context",
+          "stateProperties": {
+            "blueprint": "Complete project blueprint from planning phase",
+            "query": "Original user query",
+            "templateDetails": "Selected template information and configuration",
+            "generatedFilesMap": "Empty map to track generated files",
+            "generatedPhases": "Empty array for completed phases",
+            "isGenerating": "false (initial state)",
+            "runnerInstanceId": "null (to be created)",
+            "deploymentStatus": "pending",
+            "errorHistory": "Empty array for error tracking"
+          }
+        },
+        {
+          "step": 4,
+          "name": "WebSocket Connection Establishment", 
+          "actor": "Frontend (useChat hook)",
+          "action": "Connect to /api/agent/:agentId/ws",
+          "connectionLogic": [
+            "Extract WebSocket URL from initial response",
+            "Establish WebSocket connection with retry logic",
+            "Set up message handlers for all message types", 
+            "Initialize connection state tracking"
+          ],
+          "retryStrategy": {
+            "maxAttempts": 5,
+            "delays": ["1s", "2s", "4s", "8s", "16s"],
+            "exponentialBackoff": true
+          },
+          "readyState": "WebSocket connection established for real-time updates"
+        },
+        {
+          "step": 5,
+          "name": "Parallel Infrastructure Setup",
+          "actor": "CodeGeneratorAgent",
+          "action": "Execute parallel initialization processes",
+          "parallelProcesses": [
+            {
+              "name": "Runner Service Deployment",
+              "function": "deployToRunnerService()",
+              "duration": "~30 seconds",
+              "process": [
+                "Request new sandbox instance from Runner Service",
+                "Wait for template cloning and environment setup",
+                "Allocate dedicated port and create Cloudflared tunnel",
+                "Receive instance ID and preview URL"
+              ],
+              "outputs": ["runnerInstanceId", "previewURL", "instanceStatus"]
+            },
+            {
+              "name": "Project Setup Commands Generation",
+              "function": "generateSetupCommands()",
+              "duration": "~10 seconds",
+              "actor": "ProjectSetupAssistant",
+              "process": [
+                "Analyze blueprint dependencies and requirements",
+                "Generate optimized setup command sequence",
+                "Handle environment-specific configurations",
+                "Prepare package.json merging logic"
+              ],
+              "outputs": ["setupCommands array", "dependencies list", "configuration"]
+            }
+          ],
+          "synchronization": "Promise.all - both processes must complete before proceeding"
+        }
+      ],
+      "successCriteria": [
+        "Durable Object agent successfully initialized",
+        "WebSocket connection established and ready",
+        "Runner Service instance created and accessible",
+        "Setup commands generated and validated",
+        "Database app record created with proper status"
+      ],
+      "errorHandling": {
+        "durableObjectFailure": "Retry with exponential backoff",
+        "webSocketFailure": "Frontend graceful degradation with retry",
+        "runnerServiceFailure": "Retry instance creation or fallback mode",
+        "setupCommandFailure": "Use template default commands"
+      }
+    },
+
+    "phase4_codeGeneration": {
+      "name": "Iterative Code Generation with Real-time Streaming",
+      "duration": "2-10 minutes (varies by complexity)",
+      "description": "Phase-by-phase code generation with parallel processing and real-time client updates",
+      "iterative": true,
+      "parallelProcessing": true,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Generation Process Initiation",
+          "actor": "Frontend",
+          "action": "Send 'generate_all' WebSocket message",
+          "trigger": "User clicks generate button or auto-start",
+          "messagePayload": {
+            "type": "generate_all",
+            "data": {
+              "startFromPhase": "1 (typically)",
+              "options": "User preferences and constraints"
+            }
+          },
+          "agentResponse": [
+            "Update isGenerating state to true",
+            "Broadcast 'generation_started' to client",
+            "Initialize phase generation loop"
+          ]
+        },
+        {
+          "step": 2,
+          "name": "Phase Determination & Planning",
+          "actor": "CodeGeneratorAgent",
+          "action": "Determine next phase to implement",
+          "logic": {
+            "firstPhase": {
+              "source": "blueprint.fileStructure",
+              "description": "Use pre-planned file structure from blueprint",
+              "aiGeneration": false
+            },
+            "subsequentPhases": {
+              "source": "AI-powered phase generation",
+              "operation": "PhaseGeneration",
+              "file": "worker/agents/operations/PhaseGeneration.ts",
+              "inputs": [
+                "Current generation state and progress",
+                "Identified issues from previous phases",
+                "Dependency requirements and constraints",
+                "Runtime errors and static analysis results"
+              ],
+              "aiGeneration": true
+            }
+          },
+          "outputs": {
+            "phaseConcept": "Detailed phase description and goals",
+            "filesToGenerate": "List of files to create/modify in this phase", 
+            "dependencies": "Required packages or configurations",
+            "priority": "Implementation priority and sequence"
+          }
+        },
+        {
+          "step": 3,
+          "name": "Pre-Implementation Analysis",
+          "actor": "CodeGeneratorAgent",
+          "action": "Gather current state and error information",
+          "parallelActions": [
+            {
+              "name": "Runtime Error Collection",
+              "function": "fetchRuntimeErrors()",
+              "target": "Runner Service",
+              "endpoint": "GET /instances/:id/errors",
+              "action": "Clear errors after collection",
+              "outputs": ["JavaScript errors", "Build failures", "Network errors"]
+            },
+            {
+              "name": "Static Analysis",
+              "function": "runStaticAnalysisCode()",
+              "target": "Runner Service", 
+              "endpoint": "POST /instances/:id/analysis",
+              "tools": ["ESLint", "TypeScript compiler", "Custom rules"],
+              "outputs": ["lintIssues", "typecheckIssues", "securityIssues"]
+            }
+          ],
+          "webSocketUpdates": [
+            "RUNTIME_ERROR_FOUND (if errors detected)",
+            "STATIC_ANALYSIS_RESULTS (with issue summary)"
+          ]
+        },
+        {
+          "step": 4,
+          "name": "Phase Implementation with Streaming",
+          "actor": "CodeGeneratorAgent",
+          "action": "Execute PhaseImplementation operation",
+          "file": "worker/agents/operations/PhaseImplementation.ts",
+          "streamingEnabled": true,
+          "process": [
+            {
+              "substep": "4.1",
+              "name": "WebSocket Notification",
+              "action": "Broadcast PHASE_IMPLEMENTING message",
+              "data": {
+                "phase": "Phase name and description",
+                "phaseDescription": "Detailed implementation plan",
+                "files": "List of files to be generated"
+              }
+            },
+            {
+              "substep": "4.2", 
+              "name": "AI Code Generation",
+              "action": "Stream file generation using SCOF format",
+              "aiModel": "Anthropic Claude",
+              "format": "SCOF (Shell Command Output Format)",
+              "streamingDetails": {
+                "chunkSize": "256 characters (configurable)",
+                "protocol": "Real-time streaming with arbitrary chunk boundaries",
+                "mixedFormats": "SCOF + Unified Diff patches in single stream"
+              }
+            },
+            {
+              "substep": "4.3",
+              "name": "Real-time Stream Processing",
+              "actor": "SCOF Parser",
+              "file": "worker/agents/code-formats/scof.ts",
+              "callbacks": [
+                {
+                  "name": "onFileOpen",
+                  "trigger": "File path detected in stream",
+                  "action": "Initialize file processing",
+                  "webSocketMessage": {
+                    "type": "FILE_GENERATING",
+                    "data": {
+                      "filePath": "Path to file being generated",
+                      "filePurpose": "Purpose and role of the file",
+                      "is_regeneration": "false (for new files)"
+                    }
+                  }
+                },
+                {
+                  "name": "onFileChunk",
+                  "trigger": "Content chunk received",
+                  "action": "Process and forward chunk to client",
+                  "webSocketMessage": {
+                    "type": "FILE_CHUNK_GENERATED", 
+                    "data": {
+                      "filePath": "File being updated",
+                      "chunk": "Content chunk",
+                      "format": "full_content or unified_diff"
+                    }
+                  }
+                },
+                {
+                  "name": "onFileClose",
+                  "trigger": "File generation completed",
+                  "action": "Finalize file processing and trigger real-time fixing",
+                  "webSocketMessage": {
+                    "type": "FILE_GENERATED",
+                    "data": {
+                      "file": {
+                        "filePath": "Complete file path",
+                        "fileContents": "Full file content",
+                        "filePurpose": "File purpose and description"
+                      },
+                      "message": "Generation completion message"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "step": 5,
+          "name": "Parallel Real-time Code Fixing",
+          "actor": "RealtimeCodeFixer",
+          "file": "worker/agents/assistants/realtimeCodeFixer.ts",
+          "trigger": "onFileClose callback from SCOF parser",
+          "parallelProcessing": "Runs concurrently with ongoing file generation",
+          "process": [
+            {
+              "substep": "5.1",
+              "name": "File Analysis",
+              "action": "Analyze generated file for immediate improvements",
+              "exclusions": ["*.css files (performance optimization)"],
+              "inputs": ["File content", "File purpose", "Generation context"]
+            },
+            {
+              "substep": "5.2",
+              "name": "AI-Powered Improvement",
+              "action": "Generate improvement diffs using search-replace format",
+              "diffFormat": "Search-Replace with fuzzy matching",
+              "strategies": [
+                "EXACT - Character-perfect matching",
+                "WHITESPACE_INSENSITIVE - Ignore formatting differences",
+                "FUZZY - Similarity-based matching with confidence scoring"
+              ]
+            },
+            {
+              "substep": "5.3",
+              "name": "Diff Application with Retry Logic",
+              "action": "Apply improvements with error recovery",
+              "retryLogic": [
+                "Attempt EXACT matching first",
+                "Fallback to WHITESPACE_INSENSITIVE if failed",
+                "Use FUZZY matching as final fallback",
+                "AI error correction if all strategies fail"
+              ],
+              "errorRecovery": "LLM analyzes failed diffs and generates corrections"
+            }
+          ],
+          "outputs": ["Improved file content", "Applied improvements list", "Fix success status"]
+        },
+        {
+          "step": 6,
+          "name": "Deployment Queue Processing",
+          "actor": "CodeGeneratorAgent",
+          "action": "Deploy generated and fixed files to Runner Service",
+          "batching": "Multiple files batched into single deployment for efficiency",
+          "process": [
+            {
+              "substep": "6.1",
+              "name": "File Batching",
+              "action": "Group files for efficient deployment",
+              "logic": "Batch completed files to minimize deployment calls"
+            },
+            {
+              "substep": "6.2",
+              "name": "Runner Service Deployment",
+              "action": "POST /instances/:id/files",
+              "payload": "Batch of files with content and metadata",
+              "webSocketMessage": {
+                "type": "DEPLOYMENT_STARTED",
+                "data": "Deployment initiation notification"
+              }
+            },
+            {
+              "substep": "6.3",
+              "name": "Deployment Completion",
+              "action": "Confirm successful file deployment",
+              "webSocketMessage": {
+                "type": "DEPLOYMENT_COMPLETED",
+                "data": {
+                  "message": "Deployment success message",
+                  "previewURL": "Updated preview URL",
+                  "instanceId": "Runner instance identifier"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "step": 7,
+          "name": "Phase Completion & State Update",
+          "actor": "CodeGeneratorAgent",
+          "action": "Update agent state and prepare for next phase",
+          "stateUpdates": [
+            "Add completed phase to generatedPhases array",
+            "Merge generated files into generatedFilesMap", 
+            "Update progress tracking and completion percentage",
+            "Store phase outcome and any issues encountered"
+          ],
+          "webSocketMessage": {
+            "type": "PHASE_IMPLEMENTED",
+            "data": {
+              "phase": "Completed phase information",
+              "progress": "Overall generation progress percentage",
+              "nextPhase": "Preview of upcoming phase (if applicable)"
+            }
+          }
+        },
+        {
+          "step": 8,
+          "name": "Phase Loop Continuation Check",
+          "actor": "CodeGeneratorAgent", 
+          "action": "Determine if additional phases needed",
+          "conditions": {
+            "continueGeneration": [
+              "More phases identified in blueprint roadmap",
+              "Runtime errors require additional code",
+              "Static analysis suggests missing functionality",
+              "Blueprint indicates incomplete implementation"
+            ],
+            "completeGeneration": [
+              "All planned phases implemented successfully",
+              "No critical errors detected in current state",
+              "Static analysis shows healthy codebase",
+              "User-specified stopping criteria met"
+            ]
+          },
+          "loopLogic": "Return to Step 2 (Phase Determination) if continuation needed"
+        }
+      ],
+      "parallelCoordination": {
+        "fileGeneration": "Streams in real-time with immediate WebSocket broadcasts",
+        "realtimeFixing": "Processes completed files in parallel with ongoing generation",
+        "deploymentQueue": "Batches files asynchronously to prevent conflicts",
+        "errorMonitoring": "Continuous background monitoring during all phases"
+      },
+      "errorHandling": {
+        "generationFailure": "Retry with modified prompt or fallback to template defaults",
+        "streamingInterruption": "Resume from last successful chunk with state recovery", 
+        "fixingFailure": "Continue with original content and log improvement failure",
+        "deploymentFailure": "Retry deployment with exponential backoff"
+      }
+    },
+
+    "phase5_validationAndReview": {
+      "name": "Multi-layered Validation & Quality Assurance",
+      "duration": "1-5 minutes",
+      "description": "Comprehensive code validation with parallel analysis and AI-powered review",
+      "parallelProcessing": true,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Final Deployment & Build Verification",
+          "actor": "CodeGeneratorAgent",
+          "action": "Ensure all files deployed and application building",
+          "process": [
+            "Deploy any remaining files to Runner Service",
+            "Trigger build process and verify completion",
+            "Confirm preview URL accessibility and functionality",
+            "Update deployment status to 'deployed'"
+          ],
+          "webSocketMessage": {
+            "type": "PHASE_VALIDATING",
+            "data": "Starting comprehensive validation phase"
+          }
+        },
+        {
+          "step": 2,
+          "name": "Parallel Comprehensive Analysis",
+          "actor": "CodeGeneratorAgent",
+          "action": "Execute multiple validation processes concurrently",
+          "parallelProcesses": [
+            {
+              "name": "Static Analysis Execution",
+              "duration": "30-60 seconds",
+              "action": "runStaticAnalysisCode()",
+              "target": "Runner Service",
+              "tools": [
+                {
+                  "name": "ESLint",
+                  "purpose": "Code style and quality validation",
+                  "config": "Custom rules optimized for generated code"
+                },
+                {
+                  "name": "TypeScript Compiler",
+                  "purpose": "Type checking and compile-time validation",
+                  "strictMode": "Enabled for robust type safety"
+                },
+                {
+                  "name": "Security Scanner",
+                  "purpose": "Vulnerability detection and security analysis",
+                  "rules": "OWASP security guidelines"
+                }
+              ],
+              "outputs": {
+                "lintIssues": "Style and quality issues with severity levels",
+                "typecheckIssues": "Type errors with precise location info",
+                "securityIssues": "Security vulnerabilities with fix recommendations"
+              }
+            },
+            {
+              "name": "Runtime Error Monitoring",
+              "duration": "Continuous",
+              "action": "fetchRuntimeErrors()",
+              "monitoring": [
+                "JavaScript execution errors with stack traces",
+                "Network request failures and timeout issues", 
+                "Build process errors and dependency conflicts",
+                "Console warnings and performance issues"
+              ],
+              "aggregation": "Categorize errors by severity and frequency"
+            },
+            {
+              "name": "Performance Analysis",
+              "duration": "30 seconds",
+              "action": "Analyze application performance characteristics",
+              "metrics": [
+                "Bundle size analysis and optimization opportunities",
+                "Runtime performance profiling",
+                "Memory usage patterns and potential leaks",
+                "Network request optimization analysis"
+              ]
+            }
+          ],
+          "webSocketMessage": {
+            "type": "STATIC_ANALYSIS_RESULTS",
+            "data": {
+              "lintIssues": "Count and severity breakdown",
+              "typeErrors": "Type checking results summary",
+              "securityIssues": "Security analysis findings",
+              "performanceMetrics": "Performance analysis results"
+            }
+          }
+        },
+        {
+          "step": 3,
+          "name": "AI-Powered Code Review",
+          "actor": "CodeGeneratorAgent",
+          "action": "Execute CodeReview operation for intelligent analysis",
+          "file": "worker/agents/operations/CodeReview.ts",
+          "trigger": "On-demand or when error threshold exceeded",
+          "aiModel": "Anthropic Claude",
+          "inputs": [
+            "All runtime errors collected during generation",
+            "Static analysis results from parallel processes",
+            "Complete generated codebase with file context",
+            "User requirements and blueprint compliance"
+          ],
+          "analysisCapabilities": [
+            "Error root cause analysis with fix prioritization",
+            "Code quality assessment and improvement suggestions", 
+            "Architecture compliance verification against blueprint",
+            "Best practices validation and recommendations",
+            "Security vulnerability assessment and mitigation",
+            "Performance optimization opportunities identification"
+          ],
+          "outputs": {
+            "codeReviewResult": "Comprehensive analysis report",
+            "prioritizedIssues": "Issues ranked by severity and impact",
+            "fixRecommendations": "Specific fixes with implementation guidance",
+            "qualityScore": "Overall code quality assessment",
+            "complianceReport": "Blueprint adherence verification"
+          },
+          "webSocketMessage": {
+            "type": "CODE_REVIEW",
+            "data": {
+              "reviewSummary": "High-level analysis results",
+              "criticalIssues": "Issues requiring immediate attention",
+              "suggestions": "Improvement recommendations",
+              "qualityMetrics": "Code quality assessment"
+            }
+          }
+        },
+        {
+          "step": 4,
+          "name": "Issue Prioritization & Fix Planning",
+          "actor": "CodeGeneratorAgent",
+          "action": "Analyze all detected issues and create fix strategy",
+          "issueClassification": {
+            "critical": [
+              "Blocking runtime errors preventing application function",
+              "Security vulnerabilities with high severity",
+              "Build failures preventing deployment",
+              "Core functionality completely broken"
+            ],
+            "high": [
+              "Non-blocking runtime errors affecting user experience",
+              "Type errors causing potential runtime issues", 
+              "Performance issues significantly impacting usability",
+              "Missing core features specified in requirements"
+            ],
+            "medium": [
+              "Code quality issues affecting maintainability",
+              "Minor performance optimizations",
+              "Non-critical lint warnings",
+              "Accessibility improvements"
+            ],
+            "low": [
+              "Style and formatting inconsistencies",
+              "Documentation improvements",
+              "Code organization enhancements",
+              "Minor optimization opportunities"
+            ]
+          },
+          "fixStrategy": {
+            "immediatelyRequired": "Critical and high priority issues",
+            "optional": "Medium and low priority issues based on time/resources",
+            "userChoice": "Present options for optional fixes to user"
+          }
+        }
+      ],
+      "completionCriteria": {
+        "minimum": [
+          "Application builds successfully without errors",
+          "Preview URL accessible and functional",
+          "No critical runtime errors detected",
+          "Core functionality working as specified"
+        ],
+        "optimal": [
+          "All static analysis issues resolved",
+          "No runtime errors in normal operation",
+          "Performance metrics within acceptable ranges", 
+          "Security scan passes without issues"
+        ]
+      },
+      "webSocketMessage": {
+        "type": "PHASE_VALIDATED",
+        "data": {
+          "validationResults": "Comprehensive validation summary",
+          "issuesFound": "Total issues detected across all categories",
+          "fixesRequired": "Issues requiring immediate resolution",
+          "qualityScore": "Overall application quality assessment"
+        }
+      }
+    },
+
+    "phase6_errorRecoveryAndRegeneration": {
+      "name": "Intelligent Error Recovery & File Regeneration",
+      "duration": "1-10 minutes (varies by issue complexity)",
+      "description": "Automated error resolution with AI-powered file regeneration and retry logic",
+      "conditional": "Executes only when significant issues detected",
+      "parallelProcessing": true,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Error Analysis & Classification",
+          "actor": "CodeGeneratorAgent", 
+          "action": "Categorize and prioritize detected issues",
+          "inputs": [
+            "Runtime errors from continuous monitoring",
+            "Static analysis results from validation phase",
+            "Client-reported errors (if any)",
+            "Code review findings and recommendations"
+          ],
+          "classification": {
+            "bySource": ["runtime", "static_analysis", "client_reported", "ai_review"],
+            "bySeverity": ["critical", "high", "medium", "low"],
+            "byType": ["syntax_error", "type_error", "logic_error", "performance_issue", "security_issue"],
+            "byScope": ["file_specific", "cross_file_dependency", "configuration_issue", "build_system"]
+          },
+          "outputs": ["Categorized issue list", "Fix priority queue", "Affected files mapping"]
+        },
+        {
+          "step": 2,
+          "name": "Fix Strategy Selection",
+          "actor": "CodeGeneratorAgent",
+          "action": "Determine optimal fix approach for each issue category",
+          "strategies": {
+            "fileRegeneration": {
+              "when": "File has multiple issues or fundamental problems",
+              "operation": "FileRegeneration",
+              "file": "worker/agents/operations/FileRegeneration.ts",
+              "approach": "Complete file regeneration with issue-specific context"
+            },
+            "targetedFixes": {
+              "when": "Specific issues with clear fix patterns", 
+              "operation": "RealtimeCodeFixer",
+              "approach": "Search-replace diffs with multi-strategy matching"
+            },
+            "configurationUpdates": {
+              "when": "Build system or dependency issues",
+              "operation": "ProjectSetupAssistant",
+              "approach": "Update configurations and dependencies"
+            },
+            "templateFallback": {
+              "when": "Generated code fundamentally incompatible",
+              "approach": "Revert to template defaults with user modifications"
+            }
+          }
+        },
+        {
+          "step": 3,
+          "name": "Parallel File Regeneration",
+          "actor": "CodeGeneratorAgent",
+          "action": "Execute FileRegeneration operations in parallel",
+          "parallelProcessing": "Multiple files regenerated concurrently with dependency awareness",
+          "process": [
+            {
+              "substep": "3.1",
+              "name": "File Regeneration Initiation",
+              "action": "Start regeneration for prioritized files",
+              "webSocketMessage": {
+                "type": "FILE_GENERATING",
+                "data": {
+                  "filePath": "File being regenerated",
+                  "filePurpose": "Purpose and requirements", 
+                  "is_regeneration": "true",
+                  "issues": "Specific issues being addressed"
+                }
+              }
+            },
+            {
+              "substep": "3.2",
+              "name": "AI-Powered Regeneration",
+              "operation": "FileRegeneration",
+              "inputs": [
+                "File path and current content",
+                "Specific issues to address",
+                "Generation context and requirements",
+                "Related files and dependencies",
+                "Blueprint compliance requirements"
+              ],
+              "aiModel": "Anthropic Claude",
+              "retryLimit": 3,
+              "process": [
+                "Analyze current file and identified issues",
+                "Generate improved file content addressing specific problems",
+                "Validate new content against requirements and context",
+                "Apply improvements with fallback to previous version"
+              ]
+            },
+            {
+              "substep": "3.3",
+              "name": "Regeneration Validation",
+              "action": "Verify regenerated files resolve targeted issues",
+              "validation": [
+                "Syntax and type checking of new content",
+                "Dependency compatibility verification",
+                "Issue resolution confirmation",
+                "Blueprint compliance check"
+              ]
+            }
+          ],
+          "retryLogic": {
+            "maxAttempts": 3,
+            "retryConditions": [
+              "Generated file still contains original issues",
+              "New issues introduced during regeneration",
+              "File doesn't meet blueprint requirements"
+            ],
+            "fallbackStrategy": "Revert to last known good version with issue logging"
+          },
+          "webSocketMessage": {
+            "type": "FILE_REGENERATED", 
+            "data": {
+              "file": "Regenerated file information",
+              "issuesAddressed": "List of resolved issues",
+              "success": "Regeneration success status",
+              "attempts": "Number of attempts required"
+            }
+          }
+        },
+        {
+          "step": 4,
+          "name": "Deployment & Verification",
+          "actor": "CodeGeneratorAgent",
+          "action": "Deploy fixed files and verify issue resolution",
+          "process": [
+            {
+              "substep": "4.1",
+              "name": "Fixed Files Deployment",
+              "action": "Deploy regenerated files to Runner Service",
+              "batching": "Group related files for efficient deployment"
+            },
+            {
+              "substep": "4.2", 
+              "name": "Build Verification",
+              "action": "Trigger build process and confirm success",
+              "timeout": "5 minutes for complex builds"
+            },
+            {
+              "substep": "4.3",
+              "name": "Issue Resolution Verification",
+              "action": "Re-run validation to confirm fixes",
+              "checks": [
+                "Runtime error collection to verify resolution",
+                "Static analysis to confirm issue fixes",
+                "Build process success confirmation",
+                "Preview functionality verification"
+              ]
+            }
+          ]
+        },
+        {
+          "step": 5,
+          "name": "Recovery Loop Management",
+          "actor": "CodeGeneratorAgent",
+          "action": "Determine if additional recovery cycles needed",
+          "loopLogic": {
+            "continueRecovery": [
+              "Critical or high priority issues remain unresolved",
+              "New issues introduced during regeneration process",
+              "Build or runtime functionality still impaired",
+              "Recovery attempts under maximum retry limit"
+            ],
+            "completeRecovery": [
+              "All critical and high priority issues resolved",
+              "Application builds and runs successfully",
+              "No new issues introduced during recovery",
+              "User acceptance criteria met"
+            ]
+          },
+          "maxRecoveryCycles": 5,
+          "fallbackAction": "Present user with summary of unresolved issues and options"
+        }
+      ],
+      "errorHandling": {
+        "regenerationFailure": "Try alternative fix strategies or revert to previous version",
+        "deploymentFailure": "Retry deployment with exponential backoff",
+        "validationFailure": "Continue with partial fixes and user notification",
+        "maxRetriesExceeded": "User notification with manual intervention options"
+      }
+    },
+
+    "phase7_finalizationAndCompletion": {
+      "name": "Generation Finalization & User Handoff", 
+      "duration": "10-30 seconds",
+      "description": "Complete the generation process with final validation and user notification",
+      "steps": [
+        {
+          "step": 1,
+          "name": "Final State Update",
+          "actor": "CodeGeneratorAgent",
+          "action": "Update generation state to completion",
+          "stateUpdates": [
+            "Set isGenerating to false",
+            "Update completion timestamp",
+            "Calculate total generation time",
+            "Finalize generation statistics"
+          ],
+          "databaseUpdate": {
+            "table": "apps",
+            "updates": {
+              "status": "completed",
+              "completedAt": "Current timestamp",
+              "previewURL": "Final preview URL",
+              "generationTime": "Total time in seconds",
+              "filesGenerated": "Count of generated files",
+              "issuesResolved": "Count of issues fixed"
+            }
+          }
+        },
+        {
+          "step": 2,
+          "name": "Final Validation Check",
+          "actor": "CodeGeneratorAgent", 
+          "action": "Perform final health check of generated application",
+          "checks": [
+            "Preview URL accessibility and responsiveness",
+            "No critical runtime errors in error log",
+            "Build process completed successfully",
+            "Core functionality working as expected"
+          ],
+          "fallback": "Mark as completed with warnings if minor issues remain"
+        },
+        {
+          "step": 3,
+          "name": "Generation Summary Creation",
+          "actor": "CodeGeneratorAgent",
+          "action": "Create comprehensive summary of generation process",
+          "summary": {
+            "generationStats": {
+              "totalTime": "Complete generation time",
+              "filesGenerated": "Number of files created",
+              "phasesCompleted": "Number of development phases",
+              "issuesResolved": "Count of issues fixed during process",
+              "codeReviewCycles": "Number of review and fix cycles"
+            },
+            "technicalDetails": {
+              "templateUsed": "Selected template information",
+              "frameworksUsed": "Technology stack implemented", 
+              "dependencies": "Packages and libraries added",
+              "buildConfiguration": "Build setup and configuration"
+            },
+            "qualityMetrics": {
+              "codeQualityScore": "Overall code quality assessment",
+              "testCoverage": "Test coverage percentage (if applicable)",
+              "performanceScore": "Application performance metrics",
+              "securityScore": "Security assessment results"
+            }
+          }
+        },
+        {
+          "step": 4,
+          "name": "User Notification & Handoff",
+          "actor": "CodeGeneratorAgent",
+          "action": "Notify user of completion and provide next steps",
+          "webSocketMessage": {
+            "type": "GENERATION_COMPLETE",
+            "data": {
+              "message": "Generation completed successfully",
+              "previewURL": "Live application preview URL",
+              "summary": "Generation process summary",
+              "nextSteps": "Available actions for user",
+              "downloadOptions": "Code export and download options",
+              "deploymentOptions": "Cloudflare Workers deployment availability"
+            }
+          },
+          "userOptions": [
+            "View live preview of generated application",
+            "Download source code as ZIP file",
+            "Deploy to Cloudflare Workers for production",
+            "Fork application for further development",
+            "Share application publicly",
+            "Request additional features or modifications"
+          ]
+        },
+        {
+          "step": 5,
+          "name": "Resource Cleanup & Optimization",
+          "actor": "CodeGeneratorAgent",
+          "action": "Clean up temporary resources and optimize for storage",
+          "cleanup": [
+            "Archive generation logs and debugging information",
+            "Optimize file storage and compression",
+            "Schedule Runner Service instance cleanup",
+            "Update analytics and usage metrics"
+          ],
+          "retention": {
+            "activeInstance": "Maintain for 10-15 minutes for user interaction",
+            "codeStorage": "Permanent storage with user account association",
+            "logs": "Retain for 30 days for debugging and support",
+            "analytics": "Aggregate for platform improvement insights"
+          }
+        }
+      ],
+      "successMetrics": [
+        "Application successfully generated and deployable",
+        "Preview URL accessible and functional",
+        "No blocking errors preventing usage", 
+        "User satisfied with generated result",
+        "All specified requirements addressed"
+      ],
+      "handoffArtifacts": [
+        "Complete source code with organized file structure",
+        "Live preview URL with instant accessibility",
+        "Deployment instructions and options",
+        "Documentation and code comments",
+        "Generated README with project information"
+      ]
+    }
+  },
+
+  "crossCuttingConcerns": {
+    "realTimeCommunication": {
+      "webSocketManagement": {
+        "connectionResilience": "5-attempt retry with exponential backoff",
+        "messageQueueing": "Queue messages during temporary disconnections",
+        "heartbeat": "Regular ping/pong for connection health monitoring",
+        "gracefulDegradation": "Continue generation even with client disconnections"
+      },
+      "progressTracking": {
+        "phaseProgress": "Real-time phase completion percentage",
+        "fileProgress": "Individual file generation progress",
+        "overallProgress": "Total generation completion estimate",
+        "timeEstimation": "Dynamic time remaining calculation"
+      }
+    },
+
+    "errorHandlingStrategy": {
+      "preventive": [
+        "Input validation and sanitization",
+        "Template compatibility verification",
+        "Dependency conflict detection",
+        "Resource availability checking"
+      ],
+      "reactive": [
+        "Real-time error detection and classification",
+        "Automatic retry with exponential backoff",
+        "AI-powered error analysis and correction",
+        "Graceful degradation and user notification"
+      ],
+      "recovery": [
+        "State rollback to last known good state",
+        "Alternative strategy selection",
+        "User involvement for critical decisions",
+        "Manual intervention escalation"
+      ]
+    },
+
+    "qualityAssurance": {
+      "continuousValidation": "Validation throughout generation process",
+      "multiLayeredAnalysis": "Static analysis, runtime monitoring, AI review",
+      "performanceOptimization": "Real-time performance monitoring and optimization",
+      "securityScanning": "Continuous security vulnerability detection"
+    },
+
+    "scalabilityConsiderations": {
+      "parallelProcessing": "Maximum safe concurrency for operations",
+      "resourceManagement": "Memory and CPU usage optimization",
+      "loadBalancing": "Distribution across Cloudflare edge locations",
+      "queueManagement": "Request queuing during high load periods"
+    }
+  },
+
+  "metricsAndAnalytics": {
+    "generationMetrics": {
+      "timeToFirstFile": "Time from request to first file generation",
+      "timeToPreview": "Time from request to live preview availability",
+      "totalGenerationTime": "Complete end-to-end generation duration",
+      "errorResolutionTime": "Average time to resolve detected issues"
+    },
+    "qualityMetrics": {
+      "successRate": "Percentage of successful generations",
+      "errorRate": "Frequency and types of errors encountered",
+      "userSatisfaction": "User feedback and retention metrics", 
+      "codeQuality": "Automated code quality assessment scores"
+    },
+    "performanceMetrics": {
+      "throughput": "Generations completed per hour",
+      "resourceUtilization": "CPU, memory, and network usage",
+      "responseLatency": "API response times and WebSocket message delays",
+      "scalabilityLimits": "Maximum concurrent generations supported"
+    }
+  }
+}

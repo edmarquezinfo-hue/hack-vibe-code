@@ -1,0 +1,1541 @@
+{
+  "dataFlowDiagrams": {
+    "title": "Orange Build - Comprehensive Data Flow Analysis",
+    "lastUpdated": "2025-07-19",
+    "version": "2.0",
+    "description": "Complete data flow diagrams for all major processes in the Orange Build AI webapp generation platform"
+  },
+
+  "userJourneyDataFlow": {
+    "name": "Complete User Journey Data Flow",
+    "description": "End-to-end data movement from user request to deployed application",
+    "participants": ["User", "React Frontend", "Cloudflare Worker", "CodeGeneratorAgent", "Runner Service", "AI Models", "Database"],
+    "flow": [
+      {
+        "step": 1,
+        "from": "User",
+        "to": "React Frontend",
+        "data": {
+          "type": "User Input",
+          "content": "Natural language webapp description",
+          "size": "1-5KB",
+          "format": "Plain text"
+        },
+        "trigger": "Form submission or voice input",
+        "ui": "Query input field with real-time validation"
+      },
+      {
+        "step": 2,
+        "from": "React Frontend",
+        "to": "React Frontend (localStorage)",
+        "data": {
+          "type": "Session Management",
+          "content": "Anonymous session token (if not authenticated)",
+          "size": "256 bytes",
+          "format": "JWT token string"
+        },
+        "condition": "Only for anonymous users",
+        "storage": "Browser localStorage with expiration"
+      },
+      {
+        "step": 3,
+        "from": "React Frontend",
+        "to": "Cloudflare Worker",
+        "data": {
+          "type": "HTTP Request",
+          "method": "POST",
+          "endpoint": "/api/agent",
+          "payload": {
+            "query": "User webapp description",
+            "sessionToken": "Anonymous session (optional)",
+            "preferences": "User preferences object"
+          },
+          "size": "2-10KB",
+          "headers": ["Content-Type: application/json", "Authorization (if authenticated)"]
+        },
+        "protocol": "HTTPS with TLS 1.3",
+        "validation": "Input sanitization and size limits"
+      },
+      {
+        "step": 4,
+        "from": "Cloudflare Worker",
+        "to": "AI Models (Template Selection)",
+        "data": {
+          "type": "AI Request",
+          "content": {
+            "query": "User requirements analysis",
+            "availableTemplates": "Template metadata from Runner Service",
+            "constraints": "Technical and style preferences"
+          },
+          "size": "5-15KB",
+          "aiModel": "Google Gemini Flash"
+        },
+        "purpose": "Select optimal project template",
+        "latency": "2-5 seconds"
+      },
+      {
+        "step": 5,
+        "from": "AI Models (Template Selection)",
+        "to": "Cloudflare Worker",
+        "data": {
+          "type": "AI Response",
+          "content": {
+            "selectedTemplateName": "Chosen template identifier",
+            "reasoning": "AI explanation for choice",
+            "useCase": "Project category classification",
+            "complexity": "Difficulty assessment",
+            "styleSelection": "UI/UX approach"
+          },
+          "size": "2-5KB",
+          "format": "Structured JSON with confidence scores"
+        }
+      },
+      {
+        "step": 6,
+        "from": "Cloudflare Worker",
+        "to": "AI Models (Blueprint Generation)",
+        "data": {
+          "type": "AI Request (Streaming)",
+          "content": {
+            "query": "Complete user requirements",
+            "selectedTemplate": "Template configuration",
+            "projectContext": "Technical and design context"
+          },
+          "size": "10-30KB",
+          "aiModel": "Anthropic Claude",
+          "streamingEnabled": true
+        },
+        "purpose": "Generate comprehensive project blueprint"
+      },
+      {
+        "step": 7,
+        "from": "AI Models (Blueprint Generation)",
+        "to": "React Frontend",
+        "data": {
+          "type": "NDJSON Stream",
+          "content": "Progressive blueprint generation",
+          "chunks": [
+            "Project title and description",
+            "Technology stack selection",
+            "File structure planning",
+            "UI design system",
+            "Implementation roadmap"
+          ],
+          "totalSize": "20-100KB",
+          "streamingProtocol": "HTTP streaming with incremental JSON parsing"
+        },
+        "realTime": true,
+        "progressiveRendering": "Client UI updates as chunks arrive"
+      },
+      {
+        "step": 8,
+        "from": "Cloudflare Worker",
+        "to": "Database (D1)",
+        "data": {
+          "type": "Database Insert",
+          "table": "apps",
+          "record": {
+            "query": "Original user query",
+            "blueprint": "Complete blueprint JSON",
+            "templateName": "Selected template",
+            "userId": "User ID or null",
+            "sessionToken": "Anonymous session",
+            "status": "initializing",
+            "createdAt": "Timestamp"
+          },
+          "size": "50-200KB"
+        },
+        "purpose": "Persistent app record creation"
+      },
+      {
+        "step": 9,
+        "from": "Cloudflare Worker",
+        "to": "CodeGeneratorAgent (Durable Object)",
+        "data": {
+          "type": "Agent Initialization",
+          "content": {
+            "appId": "Database app record ID",
+            "blueprint": "Complete project blueprint",
+            "query": "Original user query",
+            "templateDetails": "Template configuration",
+            "userContext": "User ID and preferences"
+          },
+          "size": "50-500KB"
+        },
+        "durableObjectId": "Generated from appId + user context",
+        "persistence": "Automatic state persistence in Durable Object storage"
+      },
+      {
+        "step": 10,
+        "from": "React Frontend",
+        "to": "CodeGeneratorAgent (WebSocket)",
+        "data": {
+          "type": "WebSocket Connection",
+          "url": "/api/agent/:agentId/ws",
+          "initialMessage": {
+            "type": "connection_established",
+            "clientInfo": "Browser and session information"
+          }
+        },
+        "protocol": "WebSocket over HTTPS",
+        "retryLogic": "Exponential backoff with 5 attempts"
+      }
+    ]
+  },
+
+  "codeGenerationDataFlow": {
+    "name": "Code Generation Process Data Flow", 
+    "description": "Detailed data movement during the iterative code generation phases",
+    "participants": ["CodeGeneratorAgent", "AI Models", "SCOF Parser", "RealtimeCodeFixer", "Runner Service", "WebSocket"],
+    "iterativeProcess": true,
+    "flow": [
+      {
+        "phase": "Phase Implementation",
+        "steps": [
+          {
+            "step": 1,
+            "from": "CodeGeneratorAgent",
+            "to": "AI Models (Code Generation)",
+            "data": {
+              "type": "Code Generation Request",
+              "content": {
+                "phaseConcept": "Current phase description and goals",
+                "generationContext": {
+                  "blueprint": "Project architecture",
+                  "existingFiles": "Previously generated files",
+                  "dependencies": "Package and framework requirements",
+                  "runtimeErrors": "Current error state",
+                  "staticAnalysis": "Code quality analysis results"
+                }
+              },
+              "size": "100-500KB",
+              "aiModel": "Anthropic Claude",
+              "streamingEnabled": true
+            }
+          },
+          {
+            "step": 2,
+            "from": "AI Models (Code Generation)",
+            "to": "SCOF Parser",
+            "data": {
+              "type": "SCOF Stream",
+              "content": "Mixed format code generation stream",
+              "formats": [
+                "cat > filename << 'EOF' (full file content)",
+                "cat >> filename << 'EOF' (append content)",
+                "cat << 'EOF' | patch filename (diff patches)"
+              ],
+              "chunkSize": "256 bytes (arbitrary boundaries)",
+              "totalSize": "50KB - 2MB per phase"
+            },
+            "streamingDetails": {
+              "protocol": "Real-time streaming with state machine parsing",
+              "resilience": "Handles broken chunks and mixed formats",
+              "callbacks": ["onFileOpen", "onFileChunk", "onFileClose"]
+            }
+          },
+          {
+            "step": 3,
+            "from": "SCOF Parser",
+            "to": "WebSocket (Real-time Updates)",
+            "data": {
+              "type": "File Generation Progress",
+              "messages": [
+                {
+                  "type": "FILE_GENERATING",
+                  "data": {
+                    "filePath": "File being generated",
+                    "filePurpose": "Purpose and role description",
+                    "is_regeneration": "false"
+                  }
+                },
+                {
+                  "type": "FILE_CHUNK_GENERATED", 
+                  "data": {
+                    "filePath": "Current file",
+                    "chunk": "Content chunk (up to 256 bytes)",
+                    "format": "full_content or unified_diff"
+                  }
+                },
+                {
+                  "type": "FILE_GENERATED",
+                  "data": {
+                    "file": {
+                      "filePath": "Complete file path",
+                      "fileContents": "Full file content",
+                      "filePurpose": "File description"
+                    },
+                    "message": "Generation completion notification"
+                  }
+                }
+              ]
+            },
+            "realTime": true,
+            "latency": "Sub-second delivery"
+          },
+          {
+            "step": 4,
+            "from": "SCOF Parser",
+            "to": "RealtimeCodeFixer",
+            "data": {
+              "type": "File Completion Trigger",
+              "content": {
+                "filePath": "Generated file path",
+                "fileContent": "Complete file content",
+                "filePurpose": "File role and description",
+                "generationContext": "Context for improvements"
+              },
+              "size": "1KB - 100KB per file",
+              "trigger": "onFileClose callback"
+            },
+            "parallelProcessing": "Concurrent with ongoing generation"
+          },
+          {
+            "step": 5,
+            "from": "RealtimeCodeFixer",
+            "to": "AI Models (Code Improvement)",
+            "data": {
+              "type": "Code Improvement Request",
+              "content": {
+                "fileContent": "Generated file content",
+                "purpose": "File purpose and requirements",
+                "context": "Surrounding code context",
+                "exclusions": "Files to skip (e.g., CSS)"
+              },
+              "size": "5-50KB per file",
+              "aiModel": "Anthropic Claude"
+            },
+            "condition": "Skip CSS files for performance"
+          },
+          {
+            "step": 6,
+            "from": "AI Models (Code Improvement)",
+            "to": "RealtimeCodeFixer",
+            "data": {
+              "type": "Search-Replace Diffs",
+              "content": {
+                "diffs": [
+                  {
+                    "searchContent": "Code to find and replace",
+                    "replaceContent": "Improved code",
+                    "reason": "Explanation for change"
+                  }
+                ],
+                "format": "<<<SEARCH>>>\n...\n<<<REPLACE>>>\n..."
+              },
+              "size": "1-20KB of diffs"
+            }
+          },
+          {
+            "step": 7,
+            "from": "RealtimeCodeFixer",
+            "to": "CodeGeneratorAgent",
+            "data": {
+              "type": "Improved File Content",
+              "content": {
+                "filePath": "File path",
+                "originalContent": "Pre-improvement content",
+                "improvedContent": "Post-improvement content",
+                "diffsApplied": "List of applied improvements",
+                "success": "Improvement success status"
+              },
+              "size": "1KB - 100KB per file",
+              "matchingStrategies": ["EXACT", "WHITESPACE_INSENSITIVE", "FUZZY"]
+            },
+            "errorRecovery": "AI-powered diff correction on failures"
+          }
+        ]
+      }
+    ]
+  },
+
+  "deploymentDataFlow": {
+    "name": "Deployment and Runner Service Data Flow",
+    "description": "Data movement between CodeGeneratorAgent and Runner Service for deployment",
+    "participants": ["CodeGeneratorAgent", "Runner Service", "Cloudflared Tunnel", "Package Managers", "Build Tools"],
+    "flow": [
+      {
+        "step": 1,
+        "from": "CodeGeneratorAgent",
+        "to": "Runner Service",
+        "data": {
+          "type": "Instance Creation Request",
+          "endpoint": "POST /instances",
+          "payload": {
+            "templateName": "Selected project template",
+            "requirements": "Resource and configuration requirements",
+            "userId": "User identifier for isolation"
+          },
+          "size": "1-5KB"
+        }
+      },
+      {
+        "step": 2,
+        "from": "Runner Service",
+        "to": "Template System",
+        "data": {
+          "type": "Template Cloning",
+          "content": {
+            "sourcePath": "Template directory with pre-installed packages",
+            "destinationPath": "Unique workspace directory",
+            "hardlinks": "Package node_modules with hardlink optimization"
+          },
+          "size": "100MB - 1GB (optimized with hardlinks)",
+          "optimization": "Hardlink sharing prevents duplication"
+        }
+      },
+      {
+        "step": 3,
+        "from": "Runner Service",
+        "to": "CodeGeneratorAgent",
+        "data": {
+          "type": "Instance Creation Response",
+          "content": {
+            "instanceId": "Unique instance identifier",
+            "status": "created",
+            "previewURL": "Preview URL (pending tunnel setup)",
+            "workspacePath": "Isolated workspace directory"
+          },
+          "size": "500 bytes"
+        }
+      },
+      {
+        "step": 4,
+        "from": "CodeGeneratorAgent",
+        "to": "Runner Service",
+        "data": {
+          "type": "File Deployment",
+          "endpoint": "POST /instances/:id/files",
+          "payload": {
+            "files": [
+              {
+                "path": "Relative file path",
+                "content": "Complete file content",
+                "encoding": "utf-8 or base64",
+                "permissions": "File permissions (if needed)"
+              }
+            ],
+            "batchId": "Deployment batch identifier"
+          },
+          "size": "10KB - 10MB per batch",
+          "batching": "Multiple files grouped for efficiency"
+        },
+        "parallelProcessing": "Multiple file deployments concurrent"
+      },
+      {
+        "step": 5,
+        "from": "Runner Service",
+        "to": "Package Manager (Bun)",
+        "data": {
+          "type": "Dependency Installation",
+          "command": "bun install",
+          "workingDirectory": "Instance workspace",
+          "environment": {
+            "NODE_ENV": "development",
+            "optimization": "hardlinks and caching enabled"
+          },
+          "duration": "10-60 seconds"
+        },
+        "parallelProcess": "Runs concurrent with dev server startup"
+      },
+      {
+        "step": 6,
+        "from": "Runner Service", 
+        "to": "Build Tools",
+        "data": {
+          "type": "Development Server Startup",
+          "command": "bun run dev",
+          "configuration": {
+            "port": "Allocated port number",
+            "host": "0.0.0.0 for tunnel access",
+            "hotReload": "enabled"
+          },
+          "duration": "5-30 seconds startup time"
+        }
+      },
+      {
+        "step": 7,
+        "from": "Runner Service",
+        "to": "Cloudflared Tunnel",
+        "data": {
+          "type": "Tunnel Creation",
+          "configuration": {
+            "localPort": "Development server port",
+            "protocol": "HTTP with WebSocket support",
+            "domain": "Generated subdomain",
+            "ssl": "Automatic SSL certificate"
+          },
+          "duration": "5-15 seconds tunnel setup"
+        }
+      },
+      {
+        "step": 8,
+        "from": "Cloudflared Tunnel",
+        "to": "CodeGeneratorAgent",
+        "data": {
+          "type": "Preview URL Notification",
+          "content": {
+            "previewURL": "Public HTTPS URL for preview",
+            "status": "active",
+            "ssl": "Certificate status",
+            "accessibility": "Public internet access ready"
+          },
+          "size": "200 bytes"
+        }
+      },
+      {
+        "step": 9,
+        "from": "Runner Service",
+        "to": "CodeGeneratorAgent",
+        "data": {
+          "type": "Error Monitoring Stream",
+          "content": {
+            "runtimeErrors": [
+              {
+                "type": "JavaScript runtime error",
+                "message": "Error description",
+                "stack": "Stack trace",
+                "timestamp": "Error occurrence time"
+              }
+            ],
+            "buildErrors": "Build process failures",
+            "performanceMetrics": "Resource usage data"
+          },
+          "size": "1KB - 100KB depending on error volume",
+          "frequency": "Real-time as errors occur"
+        },
+        "continuous": true,
+        "monitoring": "24/7 error collection and reporting"
+      }
+    ]
+  },
+
+  "webSocketCommunicationFlow": {
+    "name": "Real-time WebSocket Data Flow",
+    "description": "Bidirectional real-time communication between client and CodeGeneratorAgent",
+    "participants": ["React Frontend", "Cloudflare Worker", "CodeGeneratorAgent", "WebSocket Connection"],
+    "bidirectional": true,
+    "flow": {
+      "clientToServer": [
+        {
+          "messageType": "generate_all",
+          "from": "React Frontend",
+          "to": "CodeGeneratorAgent",
+          "data": {
+            "type": "generation_command",
+            "payload": {
+              "startFromPhase": "Phase number to start from",
+              "options": "User preferences and constraints",
+              "resumeSession": "Resume from previous state (if applicable)"
+            },
+            "size": "500 bytes - 2KB"
+          },
+          "trigger": "User clicks generate button",
+          "response": "generation_started message with progress tracking"
+        },
+        {
+          "messageType": "code_review",
+          "from": "React Frontend", 
+          "to": "CodeGeneratorAgent",
+          "data": {
+            "type": "review_request",
+            "payload": {
+              "reviewType": "comprehensive or targeted",
+              "focusAreas": "Specific areas to review"
+            },
+            "size": "200-500 bytes"
+          },
+          "trigger": "User requests code review",
+          "response": "code_review message with analysis results"
+        },
+        {
+          "messageType": "deploy",
+          "from": "React Frontend",
+          "to": "CodeGeneratorAgent", 
+          "data": {
+            "type": "deployment_request",
+            "payload": {
+              "target": "cloudflare-workers or preview-update",
+              "configuration": "Deployment configuration options"
+            },
+            "size": "300-1KB"
+          },
+          "trigger": "User initiates deployment",
+          "response": "deployment_started and deployment_completed messages"
+        },
+        {
+          "messageType": "runtime_error_found",
+          "from": "React Frontend",
+          "to": "CodeGeneratorAgent",
+          "data": {
+            "type": "client_error_report",
+            "payload": {
+              "error": "Client-side error details",
+              "context": "User action context",
+              "screenshot": "Optional screenshot data (base64)"
+            },
+            "size": "1KB - 10MB (with screenshot)"
+          },
+          "trigger": "Client-side error detection or user report"
+        }
+      ],
+      "serverToClient": [
+        {
+          "messageType": "generation_started",
+          "from": "CodeGeneratorAgent",
+          "to": "React Frontend",
+          "data": {
+            "type": "status_update",
+            "payload": {
+              "message": "Generation process initiated",
+              "totalFiles": "Estimated file count",
+              "estimatedTime": "Estimated completion time",
+              "sessionId": "Generation session identifier"
+            },
+            "size": "300-500 bytes"
+          },
+          "frequency": "Once per generation session"
+        },
+        {
+          "messageType": "file_generating",
+          "from": "CodeGeneratorAgent",
+          "to": "React Frontend",
+          "data": {
+            "type": "file_progress",
+            "payload": {
+              "filePath": "File being generated",
+              "filePurpose": "File purpose description",
+              "is_regeneration": "Boolean indicating if this is a fix",
+              "phase": "Current generation phase",
+              "progress": "Overall progress percentage"
+            },
+            "size": "200-800 bytes"
+          },
+          "frequency": "Once per file start"
+        },
+        {
+          "messageType": "file_chunk_generated",
+          "from": "CodeGeneratorAgent",
+          "to": "React Frontend",
+          "data": {
+            "type": "streaming_content",
+            "payload": {
+              "filePath": "Current file path",
+              "chunk": "Content chunk (up to 256 bytes)",
+              "format": "full_content or unified_diff",
+              "position": "Chunk position in file",
+              "isComplete": "Boolean indicating file completion"
+            },
+            "size": "300-600 bytes per chunk"
+          },
+          "frequency": "Multiple times per file (high frequency)",
+          "realTime": true
+        },
+        {
+          "messageType": "deployment_completed",
+          "from": "CodeGeneratorAgent", 
+          "to": "React Frontend",
+          "data": {
+            "type": "deployment_success",
+            "payload": {
+              "message": "Deployment completion notification",
+              "previewURL": "Updated preview URL",
+              "instanceId": "Runner Service instance ID",
+              "deploymentTime": "Time taken for deployment",
+              "filesDeployed": "Count of deployed files"
+            },
+            "size": "400-800 bytes"
+          },
+          "frequency": "After each deployment batch"
+        },
+        {
+          "messageType": "runtime_error_found",
+          "from": "CodeGeneratorAgent",
+          "to": "React Frontend",
+          "data": {
+            "type": "error_notification",
+            "payload": {
+              "errors": [
+                {
+                  "type": "Error category",
+                  "message": "Error description", 
+                  "file": "Affected file",
+                  "line": "Line number (if applicable)",
+                  "severity": "critical, high, medium, low"
+                }
+              ],
+              "count": "Total error count",
+              "message": "Summary message for user"
+            },
+            "size": "500 bytes - 5KB depending on error count"
+          },
+          "frequency": "As errors are detected"
+        },
+        {
+          "messageType": "generation_complete",
+          "from": "CodeGeneratorAgent",
+          "to": "React Frontend",
+          "data": {
+            "type": "completion_notification",
+            "payload": {
+              "message": "Generation completed successfully",
+              "summary": {
+                "totalTime": "Complete generation duration",
+                "filesGenerated": "Number of files created",
+                "phasesCompleted": "Development phases completed",
+                "issuesResolved": "Issues fixed during process"
+              },
+              "previewURL": "Final preview URL",
+              "nextSteps": "Available user actions",
+              "qualityScore": "Overall code quality assessment"
+            },
+            "size": "1-3KB"
+          },
+          "frequency": "Once per generation completion"
+        }
+      ]
+    },
+    "connectionManagement": {
+      "establishment": {
+        "url": "/api/agent/:agentId/ws",
+        "protocol": "WebSocket over HTTPS (WSS)",
+        "authentication": "JWT token or session validation",
+        "timeout": "30 seconds connection timeout"
+      },
+      "resilience": {
+        "retryAttempts": 5,
+        "backoffDelays": ["1s", "2s", "4s", "8s", "16s"],
+        "reconnectLogic": "Automatic reconnection with state recovery",
+        "messageQueuing": "Queue messages during temporary disconnections"
+      },
+      "healthMonitoring": {
+        "pingInterval": "30 seconds",
+        "pongTimeout": "10 seconds", 
+        "connectionStates": ["idle", "connecting", "connected", "failed", "retrying"]
+      }
+    }
+  },
+
+  "authenticationDataFlow": {
+    "name": "Authentication and Session Management Data Flow",
+    "description": "Data flow for user authentication, session management, and authorization",
+    "participants": ["React Frontend", "AuthContext", "Cloudflare Worker", "Auth Service", "Database", "OAuth Providers"],
+    "flow": {
+      "registration": [
+        {
+          "step": 1,
+          "from": "React Frontend",
+          "to": "Cloudflare Worker",
+          "data": {
+            "type": "Registration Request",
+            "endpoint": "POST /api/auth/register",
+            "payload": {
+              "email": "User email address",
+              "password": "Plaintext password (HTTPS encrypted)",
+              "name": "User display name",
+              "preferences": "User preferences object"
+            },
+            "size": "500 bytes - 2KB",
+            "validation": "Client-side validation before submission"
+          }
+        },
+        {
+          "step": 2,
+          "from": "Auth Service",
+          "to": "Database",
+          "data": {
+            "type": "User Creation",
+            "table": "users",
+            "record": {
+              "email": "Validated email address",
+              "passwordHash": "Bcrypt hashed password",
+              "name": "User display name",
+              "preferences": "Preferences JSON",
+              "createdAt": "Registration timestamp",
+              "emailVerified": "false (pending verification)"
+            },
+            "size": "1-5KB"
+          },
+          "security": "Password hashed with bcrypt, salt rounds: 12"
+        },
+        {
+          "step": 3,
+          "from": "Auth Service",
+          "to": "React Frontend",
+          "data": {
+            "type": "Registration Response",
+            "content": {
+              "success": true,
+              "user": {
+                "id": "User ID",
+                "email": "Email address",
+                "name": "Display name"
+              },
+              "tokens": {
+                "accessToken": "Short-lived JWT (15 minutes)",
+                "refreshToken": "Long-lived JWT (7 days)"
+              }
+            },
+            "cookies": [
+              {
+                "name": "accessToken",
+                "value": "JWT token",
+                "httpOnly": true,
+                "secure": true,
+                "sameSite": "Strict"
+              }
+            ],
+            "size": "2-5KB"
+          }
+        }
+      ],
+      "oauthFlow": [
+        {
+          "step": 1,
+          "from": "React Frontend",
+          "to": "Cloudflare Worker",
+          "data": {
+            "type": "OAuth Initiation",
+            "endpoint": "GET /api/auth/oauth/:provider",
+            "provider": "google or github",
+            "parameters": {
+              "redirect_uri": "Callback URL",
+              "state": "CSRF protection state",
+              "scope": "Requested permissions"
+            }
+          }
+        },
+        {
+          "step": 2,
+          "from": "Cloudflare Worker",
+          "to": "Database",
+          "data": {
+            "type": "OAuth State Storage",
+            "table": "oauth_states",
+            "record": {
+              "state": "Generated CSRF state",
+              "provider": "OAuth provider name",
+              "codeVerifier": "PKCE code verifier",
+              "createdAt": "State creation time",
+              "expiresAt": "State expiration (10 minutes)"
+            },
+            "size": "500 bytes"
+          }
+        },
+        {
+          "step": 3,
+          "from": "Cloudflare Worker",
+          "to": "OAuth Provider",
+          "data": {
+            "type": "Authorization Redirect",
+            "url": "Provider authorization endpoint",
+            "parameters": {
+              "client_id": "OAuth client ID",
+              "redirect_uri": "Callback URL", 
+              "state": "CSRF protection state",
+              "code_challenge": "PKCE code challenge",
+              "scope": "Requested permissions"
+            }
+          }
+        },
+        {
+          "step": 4,
+          "from": "OAuth Provider",
+          "to": "Cloudflare Worker",
+          "data": {
+            "type": "Authorization Callback",
+            "endpoint": "GET /api/auth/callback/:provider",
+            "parameters": {
+              "code": "Authorization code",
+              "state": "CSRF protection state"
+            }
+          }
+        },
+        {
+          "step": 5,
+          "from": "Cloudflare Worker",
+          "to": "OAuth Provider",
+          "data": {
+            "type": "Token Exchange",
+            "method": "POST",
+            "endpoint": "Provider token endpoint",
+            "payload": {
+              "client_id": "OAuth client ID",
+              "client_secret": "OAuth client secret",
+              "code": "Authorization code",
+              "code_verifier": "PKCE code verifier",
+              "grant_type": "authorization_code"
+            },
+            "security": "PKCE for enhanced security"
+          }
+        },
+        {
+          "step": 6,
+          "from": "OAuth Provider",
+          "to": "Cloudflare Worker",
+          "data": {
+            "type": "Token Response",
+            "content": {
+              "access_token": "OAuth access token",
+              "token_type": "Bearer",
+              "expires_in": "Token expiration seconds",
+              "refresh_token": "Refresh token (optional)",
+              "scope": "Granted permissions"
+            }
+          }
+        },
+        {
+          "step": 7,
+          "from": "Cloudflare Worker",
+          "to": "OAuth Provider",
+          "data": {
+            "type": "Profile Request",
+            "method": "GET",
+            "endpoint": "Provider profile endpoint",
+            "headers": {
+              "Authorization": "Bearer {access_token}"
+            }
+          }
+        },
+        {
+          "step": 8,
+          "from": "OAuth Provider", 
+          "to": "Cloudflare Worker",
+          "data": {
+            "type": "Profile Response",
+            "content": {
+              "id": "Provider user ID",
+              "email": "User email address",
+              "name": "User display name",
+              "avatar_url": "Profile picture URL",
+              "verified": "Email verification status"
+            },
+            "size": "1-3KB"
+          }
+        },
+        {
+          "step": 9,
+          "from": "Auth Service",
+          "to": "Database", 
+          "data": {
+            "type": "User Sync",
+            "operation": "Find existing user or create new",
+            "tables": ["users", "oauth_accounts"],
+            "userData": {
+              "email": "From OAuth profile",
+              "name": "From OAuth profile",
+              "avatar": "Profile picture URL",
+              "emailVerified": "true (OAuth verified)"
+            },
+            "oauthData": {
+              "provider": "OAuth provider name",
+              "providerId": "Provider user ID",
+              "accessToken": "Encrypted access token",
+              "refreshToken": "Encrypted refresh token"
+            }
+          }
+        }
+      ],
+      "sessionManagement": [
+        {
+          "step": 1,
+          "from": "React Frontend",
+          "to": "AuthContext",
+          "data": {
+            "type": "Session Check",
+            "trigger": "App initialization or token expiration",
+            "content": {
+              "currentToken": "Access token from cookie",
+              "expiryTime": "Token expiration timestamp"
+            }
+          }
+        },
+        {
+          "step": 2,
+          "from": "AuthContext",
+          "to": "Cloudflare Worker",
+          "data": {
+            "type": "Token Refresh Request",
+            "endpoint": "POST /api/auth/refresh",
+            "condition": "Token expires within 2 minutes",
+            "payload": {
+              "refreshToken": "Current refresh token"
+            },
+            "frequency": "Every 10 minutes (background)"
+          }
+        },
+        {
+          "step": 3,
+          "from": "Auth Service",
+          "to": "Database",
+          "data": {
+            "type": "Session Validation",
+            "query": "SELECT session WHERE refreshToken = ? AND expiresAt > NOW()",
+            "updates": [
+              "Update lastActivity timestamp",
+              "Log access for security monitoring"
+            ]
+          }
+        },
+        {
+          "step": 4,
+          "from": "Auth Service",
+          "to": "React Frontend",
+          "data": {
+            "type": "Refreshed Tokens",
+            "content": {
+              "accessToken": "New short-lived JWT",
+              "refreshToken": "New long-lived JWT (rotated)",
+              "expiresIn": "Token lifetime in seconds"
+            },
+            "cookies": "HttpOnly secure cookies updated",
+            "security": "Token rotation for enhanced security"
+          }
+        }
+      ]
+    }
+  },
+
+  "databaseDataFlow": {
+    "name": "Database Operations and Data Persistence Flow",
+    "description": "Data flow patterns for all database operations using Cloudflare D1 and Drizzle ORM",
+    "participants": ["Application Services", "DatabaseService", "Drizzle ORM", "Cloudflare D1", "Migration System"],
+    "flow": [
+      {
+        "operation": "App Creation and Management",
+        "steps": [
+          {
+            "from": "CodingAgentController",
+            "to": "DatabaseService",
+            "data": {
+              "type": "App Creation",
+              "method": "createApp",
+              "payload": {
+                "query": "User query text",
+                "blueprint": "Project blueprint JSON (up to 500KB)",
+                "templateName": "Selected template",
+                "userId": "User ID (nullable for anonymous)",
+                "sessionToken": "Anonymous session token",
+                "visibility": "private (default)",
+                "metadata": {
+                  "generationStarted": "Timestamp",
+                  "estimatedCompletion": "Estimated time",
+                  "complexity": "Assessed difficulty"
+                }
+              },
+              "size": "100KB - 1MB per app record"
+            }
+          },
+          {
+            "from": "DatabaseService",
+            "to": "Drizzle ORM",
+            "data": {
+              "type": "ORM Insert",
+              "table": "apps",
+              "operation": "db.insert(apps).values(appData).returning()",
+              "transaction": false,
+              "validation": "Zod schema validation before insert"
+            }
+          },
+          {
+            "from": "Drizzle ORM",
+            "to": "Cloudflare D1",
+            "data": {
+              "type": "SQL Insert",
+              "query": "INSERT INTO apps (query, blueprint, template_name, ...) VALUES (?, ?, ?, ...)",
+              "parameters": "Parameterized query with bound values",
+              "size": "100KB - 1MB depending on blueprint size"
+            }
+          },
+          {
+            "from": "Cloudflare D1",
+            "to": "DatabaseService",
+            "data": {
+              "type": "Insert Result",
+              "content": {
+                "insertId": "Auto-generated app ID",
+                "rowsAffected": 1,
+                "appRecord": "Complete app record with generated fields"
+              },
+              "latency": "5-20ms for D1 insert operations"
+            }
+          }
+        ]
+      },
+      {
+        "operation": "User Analytics and Statistics",
+        "steps": [
+          {
+            "from": "StatsController",
+            "to": "DatabaseService",
+            "data": {
+              "type": "Analytics Query",
+              "method": "getUserStats",
+              "queries": [
+                "SELECT COUNT(*) FROM apps WHERE userId = ?",
+                "SELECT COUNT(*) FROM favorites WHERE userId = ?",
+                "SELECT * FROM app_analytics WHERE userId = ? ORDER BY date DESC",
+                "SELECT COUNT(*) FROM stars WHERE userId = ?"
+              ],
+              "aggregations": [
+                "Calculate activity streak",
+                "Compute engagement metrics",
+                "Generate usage patterns"
+              ]
+            }
+          },
+          {
+            "from": "DatabaseService",
+            "to": "Drizzle ORM",
+            "data": {
+              "type": "Complex Query Execution",
+              "operations": [
+                {
+                  "query": "Multi-table joins for comprehensive stats",
+                  "tables": ["apps", "favorites", "stars", "app_analytics"],
+                  "optimization": "Strategic indexing on userId columns"
+                },
+                {
+                  "aggregation": "SUM, COUNT, AVG operations",
+                  "groupBy": "Date-based grouping for timeline data",
+                  "orderBy": "Temporal ordering for trends"
+                }
+              ]
+            }
+          },
+          {
+            "from": "Drizzle ORM",
+            "to": "Cloudflare D1",
+            "data": {
+              "type": "Optimized SQL Queries",
+              "queries": [
+                "SELECT u.*, COUNT(a.id) as app_count FROM users u LEFT JOIN apps a ON u.id = a.user_id WHERE u.id = ?",
+                "SELECT DATE(created_at) as date, COUNT(*) as count FROM apps WHERE user_id = ? GROUP BY DATE(created_at) ORDER BY date DESC LIMIT 30"
+              ],
+              "indexUsage": "Leverages indexed columns for fast retrieval",
+              "resultSize": "1KB - 50KB depending on user activity"
+            }
+          }
+        ]
+      },
+      {
+        "operation": "Social Features Data Flow",
+        "steps": [
+          {
+            "from": "AppController",
+            "to": "DatabaseService",
+            "data": {
+              "type": "Social Action",
+              "operations": {
+                "starring": {
+                  "method": "toggleStar",
+                  "payload": {
+                    "appId": "Target app ID",
+                    "userId": "User performing action"
+                  },
+                  "logic": "Upsert operation (insert or delete)"
+                },
+                "favoriting": {
+                  "method": "toggleFavorite", 
+                  "payload": {
+                    "appId": "Target app ID",
+                    "userId": "User ID"
+                  },
+                  "sideEffect": "Update app popularity metrics"
+                },
+                "forking": {
+                  "method": "forkApp",
+                  "payload": {
+                    "originalAppId": "Source app ID",
+                    "userId": "Forking user ID",
+                    "modifications": "User customizations"
+                  },
+                  "logic": "Create new app record with forked_from reference"
+                }
+              }
+            }
+          },
+          {
+            "from": "DatabaseService",
+            "to": "Drizzle ORM",
+            "data": {
+              "type": "Transactional Operations",
+              "transactions": [
+                {
+                  "operation": "Star Toggle",
+                  "steps": [
+                    "Check if star exists",
+                    "Insert new star or delete existing",
+                    "Update app star_count",
+                    "Log activity for analytics"
+                  ],
+                  "atomicity": "All steps succeed or all rollback"
+                },
+                {
+                  "operation": "App Forking", 
+                  "steps": [
+                    "Copy source app data",
+                    "Create new app record with forked metadata",
+                    "Update original app fork_count",
+                    "Create fork relationship record"
+                  ],
+                  "dataSize": "100KB - 1MB for blueprint copying"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "operation": "Migration and Schema Management",
+        "steps": [
+          {
+            "from": "Migration System",
+            "to": "Cloudflare D1",
+            "data": {
+              "type": "Schema Updates",
+              "operations": [
+                {
+                  "name": "Create Tables",
+                  "sql": "CREATE TABLE IF NOT EXISTS users (...)",
+                  "size": "Multiple DDL statements"
+                },
+                {
+                  "name": "Add Indexes",
+                  "sql": "CREATE INDEX idx_apps_user_id ON apps(user_id)",
+                  "optimization": "Performance optimization for common queries"
+                },
+                {
+                  "name": "Data Migration",
+                  "sql": "INSERT INTO new_table SELECT ... FROM old_table",
+                  "dataSize": "Variable based on existing data volume"
+                }
+              ],
+              "versioning": "Sequential version numbers for rollback capability"
+            }
+          }
+        ]
+      }
+    ],
+    "performanceOptimizations": {
+      "indexStrategy": [
+        "Primary keys on all tables for fast row access",
+        "Foreign key indexes for join performance", 
+        "Composite indexes on frequently filtered column combinations",
+        "Partial indexes for specific query patterns"
+      ],
+      "queryOptimization": [
+        "Prepared statements for repeated queries",
+        "Query result caching for read-heavy operations",
+        "Batch operations to reduce round trips",
+        "Lazy loading for related data"
+      ],
+      "connectionManagement": [
+        "Connection pooling for high concurrency",
+        "Transaction batching for related operations",
+        "Read replicas for query distribution (future)",
+        "Connection health monitoring"
+      ]
+    }
+  },
+
+  "errorHandlingDataFlow": {
+    "name": "Error Detection, Recovery, and Resolution Data Flow",
+    "description": "Complete data flow for error handling across all system components",
+    "participants": ["Runtime Monitors", "Static Analysis", "AI Review Systems", "Error Recovery Services", "User Notification"],
+    "flow": [
+      {
+        "errorDetection": [
+          {
+            "source": "Runner Service Runtime Monitoring",
+            "to": "CodeGeneratorAgent",
+            "data": {
+              "type": "Runtime Error Report",
+              "content": {
+                "errors": [
+                  {
+                    "type": "JavaScript Error",
+                    "message": "Error description",
+                    "stack": "Full stack trace",
+                    "file": "Source file path",
+                    "line": "Line number",
+                    "timestamp": "Error occurrence time",
+                    "frequency": "Error occurrence count"
+                  }
+                ],
+                "buildErrors": "Compilation and build failures",
+                "networkErrors": "Failed requests and timeouts",
+                "performanceIssues": "Performance degradation alerts"
+              },
+              "size": "1KB - 100KB depending on error volume",
+              "frequency": "Real-time as errors occur"
+            }
+          },
+          {
+            "source": "Static Analysis System",
+            "to": "CodeGeneratorAgent", 
+            "data": {
+              "type": "Static Analysis Results",
+              "content": {
+                "lintIssues": [
+                  {
+                    "rule": "ESLint rule name",
+                    "severity": "error, warning, info",
+                    "message": "Issue description",
+                    "file": "File path",
+                    "line": "Line number",
+                    "column": "Column position",
+                    "fix": "Suggested fix (if available)"
+                  }
+                ],
+                "typecheckIssues": "TypeScript compilation errors",
+                "securityIssues": "Security vulnerability findings",
+                "qualityMetrics": "Code quality scores and metrics"
+              },
+              "size": "5KB - 500KB for comprehensive analysis",
+              "tools": ["ESLint", "TypeScript", "Security scanners"]
+            }
+          },
+          {
+            "source": "Client Error Reporting",
+            "to": "CodeGeneratorAgent",
+            "data": {
+              "type": "Client Error Report",
+              "content": {
+                "userAgent": "Browser information",
+                "url": "Page where error occurred", 
+                "error": "JavaScript error details",
+                "userActions": "Actions leading to error",
+                "screenshot": "Optional error screenshot (base64)"
+              },
+              "size": "1KB - 10MB (with screenshot)",
+              "trigger": "User reports issue or automatic error detection"
+            }
+          }
+        ]
+      },
+      {
+        "errorAnalysis": [
+          {
+            "from": "CodeGeneratorAgent",
+            "to": "AI Models (Error Analysis)",
+            "data": {
+              "type": "Error Analysis Request",
+              "content": {
+                "allErrors": "Consolidated error reports from all sources",
+                "codeContext": "Relevant source code context",
+                "generationHistory": "Previous generation attempts and outcomes",
+                "userRequirements": "Original user requirements and constraints"
+              },
+              "size": "50KB - 5MB for comprehensive context",
+              "aiModel": "Anthropic Claude for complex analysis"
+            }
+          },
+          {
+            "from": "AI Models (Error Analysis)",
+            "to": "CodeGeneratorAgent",
+            "data": {
+              "type": "Error Analysis Results",
+              "content": {
+                "rootCauseAnalysis": "Identified underlying causes",
+                "errorClassification": "Categorized by type, severity, and impact",
+                "prioritization": "Ordered list by urgency and importance",
+                "fixStrategies": [
+                  {
+                    "strategy": "File regeneration",
+                    "applicableErrors": "List of errors this strategy addresses",
+                    "estimatedEffort": "Time and complexity estimate",
+                    "successProbability": "Confidence in fix success"
+                  }
+                ],
+                "recommendations": "Specific implementation guidance"
+              },
+              "size": "10KB - 100KB for detailed analysis"
+            }
+          }
+        ]
+      },
+      {
+        "errorRecovery": [
+          {
+            "from": "CodeGeneratorAgent",
+            "to": "FileRegeneration Operation",
+            "data": {
+              "type": "File Regeneration Request",
+              "content": {
+                "filePath": "File requiring regeneration",
+                "specificIssues": "Issues to address in this file",
+                "context": "Related files and dependencies",
+                "requirements": "File requirements and constraints",
+                "previousAttempts": "History of previous fix attempts"
+              },
+              "size": "10KB - 200KB per file",
+              "retryLimit": 3,
+              "fallbackStrategy": "Revert to template or last known good version"
+            }
+          },
+          {
+            "from": "FileRegeneration Operation",
+            "to": "AI Models (Code Generation)",
+            "data": {
+              "type": "Targeted Code Generation",
+              "content": {
+                "fileToRegenerate": "Complete file content and metadata",
+                "issuesContext": "Specific problems to solve",
+                "codebase": "Related files for context",
+                "requirements": "Functional and technical requirements"
+              },
+              "size": "20KB - 500KB depending on file complexity",
+              "approach": "Issue-specific regeneration with improved logic"
+            }
+          },
+          {
+            "from": "AI Models (Code Generation)",
+            "to": "FileRegeneration Operation", 
+            "data": {
+              "type": "Regenerated File Content",
+              "content": {
+                "newContent": "Complete regenerated file",
+                "changesExplained": "Explanation of modifications made",
+                "issuesAddressed": "List of resolved issues",
+                "potentialSideEffects": "Warnings about possible impacts"
+              },
+              "size": "5KB - 200KB per regenerated file",
+              "validation": "Syntax and basic semantic validation included"
+            }
+          }
+        ]
+      },
+      {
+        "recoveryValidation": [
+          {
+            "from": "CodeGeneratorAgent",
+            "to": "Runner Service",
+            "data": {
+              "type": "Recovery Validation Request",
+              "content": {
+                "regeneratedFiles": "List of files that were regenerated",
+                "validationChecks": [
+                  "Runtime error resolution verification",
+                  "Static analysis improvement confirmation",
+                  "Build process success validation",
+                  "Functional requirements verification"
+                ]
+              },
+              "timeout": "5 minutes for validation completion"
+            }
+          },
+          {
+            "from": "Runner Service",
+            "to": "CodeGeneratorAgent",
+            "data": {
+              "type": "Validation Results",
+              "content": {
+                "errorsResolved": "List of successfully fixed errors",
+                "newIssues": "Any new issues introduced during recovery", 
+                "buildSuccess": "Build process completion status",
+                "functionalityTest": "Basic functionality verification results",
+                "performanceImpact": "Performance changes after recovery"
+              },
+              "size": "5KB - 50KB depending on validation scope",
+              "recommendation": "Continue, retry, or escalate decision"
+            }
+          }
+        ]
+      },
+      {
+        "userNotification": [
+          {
+            "from": "CodeGeneratorAgent",
+            "to": "React Frontend (WebSocket)",
+            "data": {
+              "type": "Error Resolution Updates",
+              "messages": [
+                {
+                  "type": "RUNTIME_ERROR_FOUND",
+                  "data": {
+                    "errors": "Detected error summary",
+                    "severity": "Impact assessment", 
+                    "resolution": "Planned fix approach"
+                  }
+                },
+                {
+                  "type": "FILE_REGENERATED",
+                  "data": {
+                    "file": "Regenerated file information",
+                    "issuesFixed": "List of resolved issues",
+                    "success": "Recovery success status"
+                  }
+                },
+                {
+                  "type": "ERROR_RECOVERY_COMPLETE",
+                  "data": {
+                    "summary": "Complete recovery summary",
+                    "resolved": "Count of resolved issues",
+                    "remaining": "Outstanding issues (if any)"
+                  }
+                }
+              ],
+              "size": "500 bytes - 10KB per update",
+              "frequency": "Real-time during recovery process"
+            }
+          }
+        ]
+      }
+    ],
+    "escalationFlow": [
+      {
+        "trigger": "Maximum retry attempts exceeded",
+        "from": "CodeGeneratorAgent",
+        "to": "User Interface",
+        "data": {
+          "type": "Manual Intervention Required",
+          "content": {
+            "unresolvedIssues": "Issues that couldn't be automatically fixed",
+            "attemptedSolutions": "Recovery strategies that were tried",
+            "userOptions": [
+              "Continue with partial fixes",
+              "Request human developer review",
+              "Restart generation with different approach",
+              "Accept current state and proceed"
+            ],
+            "diagnosticInfo": "Complete diagnostic data for support"
+          },
+          "size": "5KB - 50KB for comprehensive diagnostic data"
+        }
+      }
+    ]
+  },
+
+  "performanceMetrics": {
+    "dataTransferVolumes": {
+      "typicalSession": {
+        "userQuery": "1-5KB",
+        "blueprintGeneration": "20-100KB", 
+        "codeGeneration": "50KB - 2MB per phase",
+        "webSocketMessages": "100KB - 5MB total",
+        "fileDeployment": "10KB - 50MB to Runner Service",
+        "totalSessionData": "100KB - 100MB depending on complexity"
+      },
+      "highVolumeScenarios": {
+        "complexApplication": "500KB - 10MB code generation",
+        "multiplePhases": "2MB - 50MB across all phases",
+        "errorRecovery": "10MB - 100MB with multiple regeneration cycles",
+        "mediaAssets": "10MB - 1GB if including images/videos"
+      }
+    },
+    "latencyTargets": {
+      "apiResponses": "50-200ms for standard endpoints",
+      "webSocketMessages": "Sub-second delivery", 
+      "codeGeneration": "2-10 minutes end-to-end",
+      "errorRecovery": "1-5 minutes for standard fixes",
+      "deployment": "30-90 seconds for preview availability"
+    },
+    "throughputCapacity": {
+      "concurrentUsers": "1000+ simultaneous generations",
+      "messageRate": "10,000+ WebSocket messages per second",
+      "databaseOperations": "50,000+ queries per minute",
+      "fileOperations": "100,000+ file reads/writes per hour"
+    }
+  }
+}

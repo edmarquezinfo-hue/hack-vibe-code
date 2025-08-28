@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text-to-Web System - Dynamic Architecture Visualization</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .header {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            text-align: center;
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .control-btn {
+            background: rgba(255,255,255,0.9);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .control-btn:hover {
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+
+        .control-btn.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .visualization-container {
+            max-width: 95%;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+
+        .view {
+            display: none;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        .component-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .component-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 4px solid #3498db;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .component-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .component-card h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .component-card .responsibilities {
+            list-style: none;
+            margin: 10px 0;
+        }
+
+        .component-card .responsibilities li {
+            padding: 3px 0;
+            color: #555;
+        }
+
+        .component-card .responsibilities li:before {
+            content: "→";
+            color: #3498db;
+            margin-right: 8px;
+        }
+
+        .flow-timeline {
+            position: relative;
+            margin: 30px 0;
+        }
+
+        .timeline-step {
+            position: relative;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #3498db;
+            transition: all 0.3s ease;
+        }
+
+        .timeline-step:hover {
+            background: #e3f2fd;
+            border-left-color: #2196f3;
+        }
+
+        .timeline-step.parallel {
+            border-left-color: #ff9800;
+            background: #fff3e0;
+        }
+
+        .timeline-step.streaming {
+            border-left-color: #4caf50;
+            background: #e8f5e8;
+        }
+
+        .step-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .step-number {
+            background: #3498db;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .step-tags {
+            display: flex;
+            gap: 8px;
+        }
+
+        .tag {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+
+        .tag.parallel {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .tag.streaming {
+            background: #e8f5e8;
+            color: #388e3c;
+        }
+
+        .tag.websocket {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .parallel-processes {
+            display: flex;
+            gap: 15px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+
+        .parallel-process {
+            flex: 1;
+            min-width: 200px;
+            background: rgba(255,255,255,0.7);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px dashed #ff9800;
+        }
+
+        .websocket-messages {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .message-group {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .message-group h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .message-item {
+            background: white;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 6px;
+            border-left: 3px solid #3498db;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .streaming-callback {
+            background: rgba(76, 175, 80, 0.1);
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border-left: 3px solid #4caf50;
+        }
+
+        .error-section {
+            background: #fff5f5;
+            border: 1px solid #fed7d7;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .insight-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .component-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .websocket-messages {
+                grid-template-columns: 1fr;
+            }
+            
+            .parallel-processes {
+                flex-direction: column;
+            }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 Text-to-Web System Architecture</h1>
+        <p>Dynamic Interactive Visualization - Loaded from Architecture Data</p>
+    </div>
+
+    <div class="controls">
+        <button class="control-btn active" onclick="showView('overview')">System Overview</button>
+        <button class="control-btn" onclick="showView('flow')">Complete Flow</button>
+        <button class="control-btn" onclick="showView('websockets')">WebSocket Messages</button>
+        <button class="control-btn" onclick="showView('parallel')">Parallel Processing</button>
+        <button class="control-btn" onclick="showView('streaming')">Streaming Patterns</button>
+    </div>
+
+    <div class="visualization-container">
+        <div id="loading" class="loading">
+            <h3>Loading Architecture Data...</h3>
+            <p>Fetching system components and flow definitions...</p>
+        </div>
+
+        <!-- System Overview -->
+        <div id="overview" class="view active">
+            <h2>🏗️ System Components & Architecture</h2>
+            <div class="insight-box">
+                <h3>🎯 Key Architecture Insights</h3>
+                <ul>
+                    <li><strong>Parallel Processing:</strong> Setup commands and deployment run concurrently during initialization</li>
+                    <li><strong>Streaming Communications:</strong> Blueprint and code generation both support real-time streaming</li>
+                    <li><strong>15+ WebSocket Messages:</strong> Comprehensive real-time client updates throughout the process</li>
+                    <li><strong>Phase Strategy:</strong> First phase uses blueprint.fileStructure, subsequent phases are AI-generated</li>
+                </ul>
+            </div>
+            <div id="components-grid" class="component-grid">
+                <!-- Components loaded dynamically -->
+            </div>
+        </div>
+
+        <!-- Complete Flow -->
+        <div id="flow" class="view">
+            <h2>📋 Complete Generation Flow</h2>
+            <div class="insight-box">
+                <h3>💡 Flow Highlights</h3>
+                <p>This shows the complete end-to-end process with accurate parallel processing, streaming patterns, and WebSocket communication flows.</p>
+            </div>
+            <div id="flow-timeline" class="flow-timeline">
+                <!-- Timeline loaded dynamically -->
+            </div>
+        </div>
+
+        <!-- WebSocket Messages -->
+        <div id="websockets" class="view">
+            <h2>📡 WebSocket Communication</h2>
+            <div class="insight-box">
+                <h3>Real-time Bidirectional Communication</h3>
+                <p>15+ message types enable comprehensive real-time updates between client and server during the generation process.</p>
+            </div>
+            <div id="websocket-messages" class="websocket-messages">
+                <!-- Messages loaded dynamically -->
+            </div>
+        </div>
+
+        <!-- Parallel Processing -->
+        <div id="parallel" class="view">
+            <h2>⚡ Parallel Processing Patterns</h2>
+            <div class="insight-box">
+                <h3>Concurrent Execution for Performance</h3>
+                <p>Key parallel processes that run simultaneously to optimize generation speed and system responsiveness.</p>
+            </div>
+            <div id="parallel-content" class="parallel-content">
+                <!-- Parallel processing info loaded dynamically -->
+            </div>
+        </div>
+
+        <!-- Streaming Patterns -->
+        <div id="streaming" class="view">
+            <h2>🌊 Streaming Patterns</h2>
+            <div class="insight-box">
+                <h3>Real-time Data Streaming</h3>
+                <p>Multiple streaming patterns enable real-time updates: Blueprint streaming, SCOF code streaming, and WebSocket broadcasting.</p>
+            </div>
+            <div id="streaming-content" class="streaming-content">
+                <!-- Streaming patterns loaded dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Embedded data - loaded directly instead of fetching
+        const systemData = {
+            "systemComponents": {
+                "clientLayer": {
+                    "browser": {
+                        "name": "Client Browser",
+                        "responsibilities": ["User Interface", "WebSocket Management", "Real-time Updates Display"],
+                        "connections": ["fetch_handler", "websocket_manager"]
+                    },
+                    "websocket": {
+                        "name": "WebSocket Connection",
+                        "responsibilities": ["Real-time Bidirectional Communication", "Progress Updates", "Error Broadcasting"],
+                        "messageTypes": {
+                            "inbound": ["GENERATE_ALL", "CODE_REVIEW", "DEPLOY", "OVERWRITE", "UPDATE_QUERY"],
+                            "outbound": [
+                                "GENERATION_STARTED", "GENERATION_COMPLETE", "PHASE_GENERATING", "PHASE_GENERATED",
+                                "PHASE_IMPLEMENTING", "PHASE_IMPLEMENTED", "FILE_GENERATING", "FILE_CHUNK_GENERATED", 
+                                "FILE_GENERATED", "FILE_REGENERATED", "DEPLOYMENT_COMPLETED", "RUNTIME_ERROR_FOUND",
+                                "CODE_REVIEW", "COMMAND_EXECUTING", "ERROR"
+                            ]
+                        }
+                    }
+                },
+                "workerLayer": {
+                    "fetchHandler": {
+                        "name": "index.ts Fetch Handler",
+                        "responsibilities": ["HTTP Request Routing", "CORS Handling", "Error Handling"],
+                        "connections": ["code_generator_agent"]
+                    },
+                    "codeGeneratorAgent": {
+                        "name": "CodeGeneratorAgent",
+                        "responsibilities": [
+                            "Main Orchestration", "State Management", "WebSocket Broadcasting",
+                            "Phase Management", "Error Handling", "Deployment Coordination"
+                        ],
+                        "key_methods": [
+                            "initialize", "generateAllFiles", "implementPhase", "generateNextPhase",
+                            "deployToRunnerService", "fetchRuntimeErrors", "runStaticAnalysisCode",
+                            "reviewCode", "regenerateFile", "executeCommands"
+                        ],
+                        "state_properties": [
+                            "blueprint", "query", "generatedFilesMap", "generatedPhases", "nextPhase",
+                            "isGenerating", "templateDetails", "runnerInstanceId", "previewURL",
+                            "lastCodeReview", "runtimeErrors", "messages", "commandsHistory"
+                        ]
+                    }
+                },
+                "planningLayer": {
+                    "templateSelector": {
+                        "name": "TemplateSelector",
+                        "responsibilities": ["AI-powered Template Selection", "Use Case Analysis", "Style Selection"],
+                        "aiModel": "GEMINI_2_5_FLASH_LITE",
+                        "outputs": ["selectedTemplateName", "reasoning", "useCase", "complexity", "styleSelection"]
+                    },
+                    "blueprintGenerator": {
+                        "name": "BlueprintGenerator", 
+                        "responsibilities": ["Application Design", "Blueprint Creation", "FileStructure Planning"],
+                        "supports_streaming": true,
+                        "outputs": ["title", "description", "colorPalette", "userFlow", "frameworks", "fileStructure"]
+                    },
+                    "projectSetupAssistant": {
+                        "name": "ProjectSetupAssistant",
+                        "responsibilities": ["Dependency Analysis", "Setup Command Generation", "Package Management"],
+                        "outputs": ["commands"]
+                    }
+                },
+                "codeProcessingLayer": {
+                    "scofParser": {
+                        "name": "SCOF Parser",
+                        "responsibilities": ["Streaming Code Parsing", "File Operation Detection", "Content Extraction"],
+                        "streaming_callbacks": ["onFileOpen", "onFileChunk", "onFileClose"],
+                        "supported_operations": ["cat > filename", "cat >> filename", "cat << EOF | patch"],
+                        "handles_formats": ["full_content", "unified_diff"]
+                    },
+                    "diffApplier": {
+                        "name": "Unified Diff Applier",
+                        "responsibilities": ["Diff Application", "Code Modification", "Fallback Strategies"],
+                        "features": ["Context Reduction", "Whitespace Normalization", "Error Recovery"]
+                    },
+                    "staticAnalysis": {
+                        "name": "Static Analysis",
+                        "responsibilities": ["Code Validation", "Lint Checking", "Type Checking"],
+                        "outputs": ["lint.issues", "typecheck.issues"]
+                    }
+                },
+                "deploymentLayer": {
+                    "runnerService": {
+                        "name": "RunnerService",
+                        "responsibilities": [
+                            "Sandbox Environment", "Code Deployment", "Runtime Error Collection",
+                            "Command Execution", "File Management", "Preview Generation"
+                        ],
+                        "endpoints": [
+                            "createInstance", "writeFiles", "executeCommands", "getInstanceErrors",
+                            "clearInstanceErrors", "getFiles", "runStaticAnalysis"
+                        ]
+                    }
+                }
+            },
+            "dataFlows": {
+                "parallelProcesses": {
+                    "initialization": {
+                        "description": "Parallel execution during agent initialization",
+                        "processes": [
+                            {
+                                "name": "deployToRunnerService",
+                                "type": "deployment",
+                                "timing": "parallel"
+                            },
+                            {
+                                "name": "generateSetupCommands", 
+                                "type": "dependency_analysis",
+                                "timing": "parallel"
+                            }
+                        ],
+                        "synchronization": "Promise.all completion before executeCommands"
+                    }
+                },
+                "streamingFlows": {
+                    "blueprintStreaming": {
+                        "description": "Blueprint generation with real-time streaming to client",
+                        "flow": [
+                            "Client Request → TemplateSelector → BlueprintGenerator",
+                            "BlueprintGenerator streams chunks via onChunk callback",
+                            "Chunks sent to client in real-time",
+                            "Final blueprint stored in agent state"
+                        ]
+                    },
+                    "scofStreaming": {
+                        "description": "Code generation with SCOF format streaming",
+                        "flow": [
+                            "LLM streams SCOF chunks → SCOFParser.parseStreamingChunks",
+                            "Parser triggers onFileOpen callback → WebSocket FILE_GENERATING",
+                            "Content chunks trigger onFileChunk → WebSocket FILE_CHUNK_GENERATED", 
+                            "File completion triggers onFileClose → WebSocket FILE_GENERATED"
+                        ]
+                    }
+                }
+            }
+        };
+
+        const flowData = {
+            "completeFlow": {
+                "phases": [
+                    {
+                        "name": "Planning Phase",
+                        "description": "Initial system setup and planning",
+                        "steps": [
+                            {
+                                "step": 1,
+                                "name": "User Query",
+                                "actor": "Client",
+                                "target": "CodeGeneratorAgent",
+                                "action": "Send generation request",
+                                "data": "{ query: string, requirements: object }",
+                                "websocket_message": null
+                            },
+                            {
+                                "step": 2,
+                                "name": "Template Selection",
+                                "actor": "CodeGeneratorAgent",
+                                "target": "TemplateSelector",
+                                "action": "selectTemplate(query, availableTemplates)",
+                                "data": "TemplateSelection schema",
+                                "parallel": false
+                            },
+                            {
+                                "step": 3,
+                                "name": "Blueprint Generation",
+                                "actor": "CodeGeneratorAgent", 
+                                "target": "BlueprintGenerator",
+                                "action": "generateBlueprint(query, template)",
+                                "data": "Blueprint schema with fileStructure",
+                                "streaming": true,
+                                "streaming_callback": "onChunk → Client updates",
+                                "websocket_message": "Real-time blueprint chunks"
+                            },
+                            {
+                                "step": 4,
+                                "name": "Agent Initialization",
+                                "actor": "CodeGeneratorAgent",
+                                "target": "Self",
+                                "action": "initialize(query, blueprint, templateDetails)",
+                                "data": "CodeGenState initialization",
+                                "triggers_parallel": true
+                            },
+                            {
+                                "step": 5,
+                                "name": "Parallel Setup & Deployment",
+                                "actor": "CodeGeneratorAgent",
+                                "target": "Multiple",
+                                "action": "Promise.all([deployToRunnerService(), generateSetupCommands()])",
+                                "parallel_processes": [
+                                    {
+                                        "name": "deployToRunnerService",
+                                        "target": "RunnerService",
+                                        "action": "Create sandbox instance",
+                                        "websocket_message": "DEPLOYMENT_COMPLETED"
+                                    },
+                                    {
+                                        "name": "generateSetupCommands",
+                                        "target": "ProjectSetupAssistant",
+                                        "action": "Analyze dependencies",
+                                        "websocket_message": "COMMAND_EXECUTING"
+                                    }
+                                ],
+                                "synchronization": "Both complete before executeCommands"
+                            },
+                            {
+                                "step": 6,
+                                "name": "Execute Setup Commands",
+                                "actor": "CodeGeneratorAgent",
+                                "target": "RunnerService",
+                                "action": "executeCommands(setupCommands)",
+                                "data": "Command execution results",
+                                "websocket_message": "COMMAND_EXECUTING"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "Phase Implementation",
+                        "description": "Code generation and deployment cycle",
+                        "iterative": true,
+                        "steps": [
+                            {
+                                "step": 1,
+                                "name": "Phase Determination",
+                                "actor": "CodeGeneratorAgent",
+                                "target": "Self",
+                                "action": "if (isFirstPhase) use blueprint.fileStructure else generateNextPhase()",
+                                "condition": "First phase vs subsequent phases",
+                                "first_phase": {
+                                    "source": "blueprint.fileStructure",
+                                    "ai_generation": false
+                                },
+                                "subsequent_phases": {
+                                    "source": "LLM generation",
+                                    "ai_generation": true,
+                                    "websocket_message": "PHASE_GENERATING → PHASE_GENERATED"
+                                }
+                            },
+                            {
+                                "step": 2,
+                                "name": "Pre-Implementation Analysis",
+                                "actor": "CodeGeneratorAgent",
+                                "target": "RunnerService",
+                                "action": "Parallel error/analysis collection",
+                                "parallel_processes": [
+                                    {
+                                        "name": "fetchRuntimeErrors",
+                                        "action": "getInstanceErrors(runnerInstanceId)",
+                                        "websocket_message": "RUNTIME_ERROR_FOUND"
+                                    },
+                                    {
+                                        "name": "runStaticAnalysisCode", 
+                                        "action": "runStaticAnalysis()",
+                                        "data": "lint.issues, typecheck.issues"
+                                    }
+                                ]
+                            },
+                            {
+                                "step": 3,
+                                "name": "Phase Implementation",
+                                "actor": "CodeGeneratorAgent",
+                                "target": "LLM",
+                                "action": "implementPhase(phaseConcept, staticAnalysis, errors)",
+                                "websocket_message": "PHASE_IMPLEMENTING",
+                                "streaming": true,
+                                "streaming_details": {
+                                    "format": "SCOF (Shell Command Output Format)",
+                                    "chunk_size": 256,
+                                    "callbacks": [
+                                        {
+                                            "name": "onFileOpen",
+                                            "action": "filePath detected",
+                                            "websocket_message": "FILE_GENERATING"
+                                        },
+                                        {
+                                            "name": "onFileChunk",
+                                            "action": "content chunk received",
+                                            "websocket_message": "FILE_CHUNK_GENERATED"
+                                        },
+                                        {
+                                            "name": "onFileClose",
+                                            "action": "file completed",
+                                            "websocket_message": "FILE_GENERATED"
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                "step": 4,
+                                "name": "File Processing",
+                                "actor": "CodeGeneratorAgent",
+                                "target": "Self",
+                                "action": "processGeneratedFile(file)",
+                                "processing_types": [
+                                    {
+                                        "format": "full_content",
+                                        "action": "Direct content assignment"
+                                    },
+                                    {
+                                        "format": "unified_diff",
+                                        "action": "applyDiff(originalContent, diffContent)",
+                                        "fallback": "Use original content on diff failure"
+                                    }
+                                ]
+                            },
+                            {
+                                "step": 5,
+                                "name": "Deployment",
+                                "actor": "CodeGeneratorAgent",
+                                "target": "RunnerService",
+                                "action": "deployToRunnerService()",
+                                "data": "writeFiles(runnerInstanceId, filesToWrite)",
+                                "websocket_message": "DEPLOYMENT_COMPLETED"
+                            },
+                            {
+                                "step": 6,
+                                "name": "State Update",
+                                "actor": "CodeGeneratorAgent",
+                                "target": "Self",
+                                "action": "addCompletedPhase(rawOutput, phaseConcept, generatedFiles)",
+                                "state_updates": [
+                                    "generatedPhases.push(phase)",
+                                    "generatedFilesMap merge files",
+                                    "messages.push(assistantMessage)"
+                                ],
+                                "websocket_message": "PHASE_IMPLEMENTED"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "Error Handling & Recovery",
+                        "description": "Runtime error detection and code regeneration",
+                        "steps": [
+                            {
+                                "step": 1,
+                                "name": "Error Detection",
+                                "actor": "CodeGeneratorAgent",
+                                "target": "RunnerService",
+                                "action": "fetchRuntimeErrors(clear: true)",
+                                "websocket_message": "RUNTIME_ERROR_FOUND"
+                            },
+                            {
+                                "step": 2,
+                                "name": "Code Review",
+                                "actor": "CodeGeneratorAgent",
+                                "target": "LLM",
+                                "action": "reviewCode()",
+                                "inputs": ["runtime_errors", "static_analysis", "generated_files"],
+                                "outputs": "CodeReviewOutput",
+                                "websocket_message": "CODE_REVIEW"
+                            },
+                            {
+                                "step": 3,
+                                "name": "File Regeneration",
+                                "actor": "CodeGeneratorAgent",
+                                "target": "LLM",
+                                "action": "regenerateFile(filePath, purpose, issues)",
+                                "retry_limit": 3,
+                                "websocket_message": "FILE_REGENERATED"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "websocketMessages": {
+                "client_to_server": [
+                    {
+                        "type": "GENERATE_ALL",
+                        "description": "Start complete generation process",
+                        "triggers": "generateAllFiles()"
+                    },
+                    {
+                        "type": "CODE_REVIEW", 
+                        "description": "Request code review",
+                        "triggers": "reviewCode()"
+                    },
+                    {
+                        "type": "DEPLOY",
+                        "description": "Deploy to runner service",
+                        "triggers": "deployToRunnerService()"
+                    }
+                ],
+                "server_to_client": [
+                    {
+                        "type": "GENERATION_STARTED",
+                        "description": "Generation process initiated",
+                        "data": "{ message, totalFiles }"
+                    },
+                    {
+                        "type": "PHASE_GENERATING",
+                        "description": "Generating next phase concept",
+                        "data": "{ message }"
+                    },
+                    {
+                        "type": "PHASE_GENERATED", 
+                        "description": "Phase concept generated",
+                        "data": "{ message, phase_name }"
+                    },
+                    {
+                        "type": "PHASE_IMPLEMENTING",
+                        "description": "Starting phase implementation",
+                        "data": "{ message, phase, phase_description, files }"
+                    },
+                    {
+                        "type": "FILE_GENERATING",
+                        "description": "Starting file generation",
+                        "data": "{ filePath, filePurpose, is_regeneration?, issue? }"
+                    },
+                    {
+                        "type": "FILE_CHUNK_GENERATED",
+                        "description": "File content chunk received",
+                        "data": "{ filePath, chunk, format }"
+                    },
+                    {
+                        "type": "FILE_GENERATED",
+                        "description": "File generation completed",
+                        "data": "{ file: { filePath, fileContents, filePurpose }, message }"
+                    },
+                    {
+                        "type": "DEPLOYMENT_COMPLETED",
+                        "description": "Deployment to runner completed",
+                        "data": "{ message, previewURL, instanceId }"
+                    },
+                    {
+                        "type": "RUNTIME_ERROR_FOUND",
+                        "description": "Runtime errors detected",
+                        "data": "{ errors, message, count }"
+                    },
+                    {
+                        "type": "COMMAND_EXECUTING",
+                        "description": "Executing setup commands",
+                        "data": "{ message, commands }"
+                    }
+                ]
+            }
+        };
+
+        // Initialize visualization with embedded data
+        function loadData() {
+            try {
+                initializeVisualization();
+                document.getElementById('loading').style.display = 'none';
+            } catch (error) {
+                console.error('Error initializing visualization:', error);
+                document.getElementById('loading').innerHTML = '<h3>Error loading visualization</h3><p>Please check the console for details.</p>';
+            }
+        }
+
+        // Initialize all visualization components
+        async function initializeVisualization() {
+            renderSystemOverview();
+            renderCompleteFlow();
+            renderWebSocketMessages();
+            renderParallelProcessing();
+            renderStreamingPatterns();
+        }
+
+        // Render system overview components
+        function renderSystemOverview() {
+            const grid = document.getElementById('components-grid');
+            
+            // Create simple test diagram first
+            const archDiagram = document.createElement('div');
+            archDiagram.innerHTML = `
+                <h3>🏗️ System Architecture Diagram</h3>
+                <div class="mermaid">
+graph TD
+    A[Client Browser] --> B[Fetch Handler]
+    B --> C[CodeGeneratorAgent]
+    C --> D[TemplateSelector]
+    C --> E[BlueprintGenerator]
+    C --> F[SCOF Parser]
+    C --> G[RunnerService]
+    
+    style C fill:#e1f5fe
+    style D fill:#f3e5f5
+    style E fill:#f3e5f5
+                </div>
+            `;
+            
+            // Create parallel processing diagram
+            const parallelDiagram = document.createElement('div');
+            parallelDiagram.innerHTML = `
+                <h3>⚡ Parallel Processing During Initialization</h3>
+                <div class="mermaid">
+graph LR
+    A["🎯 CodeGeneratorAgent.initialize()"] --> B["Promise.all([...])"]
+    
+    B --> C["🚀 deployToRunnerService()"]
+    B --> D["📦 generateSetupCommands()"]
+    
+    C --> E["🏗️ Create Sandbox Instance"]
+    D --> F["📋 Analyze Dependencies"]
+    
+    E --> G["✅ Deployment Complete"]
+    F --> H["✅ Commands Ready"]
+    
+    G --> I["🔄 Promise.all Resolution"]
+    H --> I
+    
+    I --> J["⚙️ executeCommands()"]
+    
+    style B fill:#fff3e0,stroke:#f57c00,stroke-width:3px
+    style C fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style D fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style I fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+                </div>
+            `;
+            
+            grid.appendChild(archDiagram);
+            grid.appendChild(parallelDiagram);
+        }
+
+        // Render complete flow timeline
+        function renderCompleteFlow() {
+            const timeline = document.getElementById('flow-timeline');
+            
+            // Planning Phase Sequence Diagram
+            const planningDiagram = document.createElement('div');
+            planningDiagram.innerHTML = `
+                <h3>📋 Planning Phase - Complete Sequence</h3>
+                <div class="mermaid">
+sequenceDiagram
+    participant Client
+    participant Agent as CodeGeneratorAgent
+    participant TS as TemplateSelector
+    participant BG as BlueprintGenerator
+    participant PS as ProjectSetupAssistant
+    participant RS as RunnerService
+
+    Client->>Agent: Generate App Request
+    activate Agent
+    
+    Note over Agent: PLANNING PHASE
+    Agent->>TS: selectTemplate(query, availableTemplates)
+    activate TS
+    TS->>TS: AI Analysis (GEMINI_2_5_FLASH_LITE)
+    TS-->>Agent: TemplateSelection + reasoning
+    deactivate TS
+    
+    Agent->>BG: generateBlueprint(query, template)
+    activate BG
+    BG->>Client: Stream blueprint chunks
+    BG-->>Agent: Complete Blueprint + fileStructure
+    deactivate BG
+    
+    Note over Agent: PARALLEL INITIALIZATION
+    par Parallel Execution
+        Agent->>RS: deployToRunnerService()
+        activate RS
+        RS-->>Agent: Sandbox Instance Created
+        deactivate RS
+    and
+        Agent->>PS: generateSetupCommands()
+        activate PS
+        PS-->>Agent: Setup Commands
+        deactivate PS
+    end
+    
+    Agent->>RS: executeCommands(setupCommands)
+    activate RS
+    RS-->>Agent: Commands Executed
+    deactivate RS
+    
+    Agent->>Client: Planning Phase Complete
+    deactivate Agent
+                </div>
+            `;
+            
+            // Phase Implementation Flow
+            const implementationDiagram = document.createElement('div');
+            implementationDiagram.innerHTML = `
+                <h3>⚙️ Phase Implementation - Iterative Process</h3>
+                <div class="mermaid">
+flowchart TD
+    A["Phase Ready"] --> B{"Is First Phase?"}
+    
+    B -->|Yes| C["Extract from blueprint.fileStructure"]
+    B -->|No| D["Generate Phase Concept via LLM"]
+    
+    C --> E["Phase Concept Ready"]
+    D --> E
+    
+    E --> F["Parallel Analysis"]
+    F --> G["fetchRuntimeErrors()"]
+    F --> H["runStaticAnalysisCode()"]
+    
+    G --> I["Enhanced Prompt Building"]
+    H --> I
+    
+    I --> J["LLM Phase Implementation"]
+    J --> K["SCOF Streaming"]
+    
+    K --> L["onFileOpen callback"]
+    L --> M["onFileChunk callback"]
+    M --> N["onFileClose callback"]
+    
+    N --> O{"More Files?"}
+    O -->|Yes| L
+    O -->|No| P["Deploy to RunnerService"]
+    
+    P --> Q["Update State"]
+    
+    Q --> R{"More Phases?"}
+    R -->|Yes| D
+    R -->|No| S["Generation Complete"]
+    
+    style B fill:#fff3cd,stroke:#856404,stroke-width:2px
+    style F fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style K fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style P fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+                </div>
+            `;
+
+            // SCOF Streaming Detail
+            const scofDiagram = document.createElement('div');
+            scofDiagram.innerHTML = `
+                <h3>🌊 SCOF Streaming Process</h3>
+                <div class="mermaid">
+sequenceDiagram
+    participant LLM
+    participant SCOF as SCOFParser
+    participant Agent as CodeGeneratorAgent
+    participant Client
+
+    Note over LLM,Client: Real-time Code Generation Streaming
+    
+    LLM->>SCOF: Stream SCOF chunks
+    Note right of SCOF: Parsing cat file commands
+    
+    SCOF->>Agent: onFileOpen(filePath)
+    Agent->>Client: WebSocket FILE_GENERATING
+    
+    loop Content Streaming
+        LLM->>SCOF: Content chunk
+        SCOF->>Agent: onFileChunk(path, chunk, format)
+        Agent->>Client: WebSocket FILE_CHUNK_GENERATED
+    end
+    
+    SCOF->>Agent: onFileClose(filePath)
+    Agent->>Client: WebSocket FILE_GENERATED
+    
+    Note over Agent: File processing and state updates
+                </div>
+            `;
+            
+            timeline.appendChild(planningDiagram);
+            timeline.appendChild(implementationDiagram);
+            timeline.appendChild(scofDiagram);
+        }
+
+        // Render WebSocket messages
+        function renderWebSocketMessages() {
+            const container = document.getElementById('websocket-messages');
+            
+            // WebSocket Communication Flow
+            const wsFlowDiagram = document.createElement('div');
+            wsFlowDiagram.innerHTML = `
+                <h3>📡 WebSocket Communication Flow</h3>
+                <div class="mermaid">
+flowchart LR
+    subgraph "📱 Client Side"
+        A["🌐 Browser"] 
+        B["📡 WebSocket Connection"]
+    end
+    
+    subgraph "☁️ Server Side"
+        C["🎯 CodeGeneratorAgent"]
+        D["⚙️ Processing Engine"]
+    end
+    
+    A --> B
+    B <-->|"📤 Client Commands<br/>• GENERATE_ALL<br/>• CODE_REVIEW<br/>• DEPLOY"| C
+    C <-->|"📥 Server Updates<br/>• GENERATION_STARTED<br/>• FILE_GENERATING<br/>• FILE_GENERATED<br/>• DEPLOYMENT_COMPLETED"| B
+    C --> D
+    D --> C
+    B --> A
+    
+    style B fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
+    style C fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+                </div>
+            `;
+            
+            // Real-time Message Sequence
+            const messageSequence = document.createElement('div');
+            messageSequence.innerHTML = `
+                <h3>🔄 Real-time Message Sequence</h3>
+                <div class="mermaid">
+sequenceDiagram
+    participant Client
+    participant WS as WebSocket
+    participant Agent as CodeGeneratorAgent
+    participant Process as Generation Process
+
+    Client->>WS: GENERATE_ALL
+    WS->>Agent: Forward command
+    Agent->>Client: GENERATION_STARTED
+    
+    Agent->>Process: Start generation
+    activate Process
+    
+    Process->>Agent: PHASE_GENERATING
+    Agent->>Client: PHASE_GENERATING
+    
+    Process->>Agent: PHASE_GENERATED
+    Agent->>Client: PHASE_GENERATED
+    
+    Process->>Agent: PHASE_IMPLEMENTING
+    Agent->>Client: PHASE_IMPLEMENTING
+    
+    loop For Each File
+        Process->>Agent: FILE_GENERATING
+        Agent->>Client: FILE_GENERATING
+        
+        Process->>Agent: FILE_CHUNK_GENERATED
+        Agent->>Client: FILE_CHUNK_GENERATED
+        
+        Process->>Agent: FILE_GENERATED
+        Agent->>Client: FILE_GENERATED
+    end
+    
+    Process->>Agent: DEPLOYMENT_COMPLETED
+    Agent->>Client: DEPLOYMENT_COMPLETED
+    
+    Process->>Agent: GENERATION_COMPLETE
+    Agent->>Client: GENERATION_COMPLETE
+    
+    deactivate Process
+                </div>
+            `;
+            
+            container.appendChild(wsFlowDiagram);
+            container.appendChild(messageSequence);
+        }
+
+        // Render parallel processing
+        function renderParallelProcessing() {
+            const container = document.getElementById('parallel-content');
+            
+            // Parallel Processing Timeline
+            const parallelTimeline = document.createElement('div');
+            parallelTimeline.innerHTML = `
+                <h3>⚡ Parallel Execution Timeline</h3>
+                <div class="mermaid">
+gantt
+    title Parallel Processing During Initialization
+    dateFormat X
+    axisFormat %s
+    
+    section Setup Phase
+    Agent Initialize    :a1, 0, 1s
+    Promise.all Start   :milestone, m1, 1s
+    
+    section Parallel Execution
+    Deploy to Runner    :active, deploy, 1s, 4s
+    Generate Commands   :active, commands, 1s, 3s
+    
+    section Synchronization
+    Promise.all Complete :milestone, m2, 4s
+    Execute Commands     :exec, 4s, 6s
+    Initialization Done  :milestone, m3, 6s
+                </div>
+            `;
+            
+            // Parallel Process Flow
+            const parallelFlow = document.createElement('div');
+            parallelFlow.innerHTML = `
+                <h3>🔄 Concurrent Process Flow</h3>
+                <div class="mermaid">
+flowchart TB
+    A["CodeGeneratorAgent.initialize()"] --> B["Promise.all execution"]
+    
+    B --> C["deployToRunnerService()"]
+    B --> D["generateSetupCommands()"]
+    
+    C --> E["Create Runner Instance"]
+    C --> F["Write Template Files"]
+    C --> G["Get Preview URL"]
+    
+    D --> H["Analyze Blueprint"]
+    D --> I["Generate Dependencies"]
+    D --> J["Create Install Commands"]
+    
+    E --> K["Deployment Complete"]
+    F --> K
+    G --> K
+    
+    H --> L["Commands Ready"]
+    I --> L
+    J --> L
+    
+    K --> M["Promise.all Resolution"]
+    L --> M
+    
+    M --> N["executeCommands()"]
+    N --> O["Initialization Complete"]
+    
+    style B fill:#fff3e0,stroke:#f57c00,stroke-width:3px
+    style M fill:#e1f5fe,stroke:#01579b,stroke-width:3px
+    style C fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style D fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+                </div>
+            `;
+            
+            container.appendChild(parallelTimeline);
+            container.appendChild(parallelFlow);
+        }
+
+        // Render streaming patterns
+        function renderStreamingPatterns() {
+            const container = document.getElementById('streaming-content');
+            
+            // Blueprint Streaming
+            const blueprintStreaming = document.createElement('div');
+            blueprintStreaming.innerHTML = `
+                <h3>📋 Blueprint Streaming Pattern</h3>
+                <div class="mermaid">
+sequenceDiagram
+    participant Client
+    participant Agent as CodeGeneratorAgent
+    participant BG as BlueprintGenerator
+    participant LLM
+
+    Client->>Agent: Generate App Request
+    Agent->>BG: generateBlueprint(query, template, stream)
+    activate BG
+    
+    BG->>LLM: Generate blueprint with streaming
+    activate LLM
+    
+    loop Streaming Blueprint Generation
+        LLM->>BG: Blueprint chunk
+        BG->>Agent: onChunk(chunk)
+        Agent->>Client: Stream blueprint chunk
+        Note over Client: Real-time blueprint updates
+    end
+    
+    LLM-->>BG: Complete blueprint
+    deactivate LLM
+    BG-->>Agent: Final Blueprint + fileStructure
+    deactivate BG
+    Agent->>Agent: Store in state.blueprint
+                </div>
+            `;
+            
+            // SCOF Streaming Architecture
+            const scofArchitecture = document.createElement('div');
+            scofArchitecture.innerHTML = `
+                <h3>🌊 SCOF Streaming Architecture</h3>
+                <div class="mermaid">
+flowchart TD
+    A["LLM Output"] --> B["SCOF Stream"]
+    
+    B --> C["cat > file command"]
+    B --> D["patch file command"]
+    
+    C --> E["onFileOpen callback"]
+    D --> E
+    
+    E --> F["WebSocket FILE_GENERATING"]
+    E --> G["Content Processing"]
+    
+    G --> H["onFileChunk callback"]
+    H --> I["WebSocket FILE_CHUNK_GENERATED"]
+    H --> J{"More Content?"}
+    
+    J -->|Yes| H
+    J -->|No| K["onFileClose callback"]
+    
+    K --> L["WebSocket FILE_GENERATED"]
+    K --> M["processGeneratedFile()"]
+    
+    M --> N{"Format Type?"}
+    N -->|full_content| O["Direct Assignment"]
+    N -->|unified_diff| P["applyDiff()"]
+    
+    O --> Q["Update generatedFilesMap"]
+    P --> Q
+    
+    style B fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
+    style E fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style H fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style K fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+                </div>
+            `;
+            
+            container.appendChild(blueprintStreaming);
+            container.appendChild(scofArchitecture);
+        }
+
+        // Helper functions
+        function getLayerIcon(layerKey) {
+            const icons = {
+                clientLayer: '🌐',
+                workerLayer: '☁️',
+                planningLayer: '🤖',
+                codeProcessingLayer: '🔧',
+                deploymentLayer: '🚀'
+            };
+            return icons[layerKey] || '📦';
+        }
+
+        function showView(viewName) {
+            // Hide all views
+            document.querySelectorAll('.view').forEach(view => {
+                view.classList.remove('active');
+            });
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('.control-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected view
+            document.getElementById(viewName).classList.add('active');
+            
+            // Add active class to clicked button
+            event.target.classList.add('active');
+        }
+
+        // Initialize Mermaid and visualization on load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Mermaid with configuration
+            mermaid.initialize({
+                startOnLoad: true,
+                theme: 'default',
+                themeVariables: {
+                    primaryColor: '#4CAF50',
+                    primaryTextColor: '#000',
+                    primaryBorderColor: '#2E7D32',
+                    lineColor: '#757575',
+                    sectionBkgColor: '#e8f5e8',
+                    altSectionBkgColor: '#f1f8e9',
+                    gridColor: '#e0e0e0'
+                },
+                flowchart: {
+                    htmlLabels: true,
+                    curve: 'basis'
+                },
+                sequence: {
+                    diagramMarginX: 50,
+                    diagramMarginY: 10,
+                    actorMargin: 50,
+                    width: 150,
+                    height: 65,
+                    boxMargin: 10,
+                    boxTextMargin: 5,
+                    noteMargin: 10,
+                    messageMargin: 35
+                }
+            });
+            
+            // Load data and render visualizations
+            loadData();
+        });
+    </script>
+</body>
+</html>

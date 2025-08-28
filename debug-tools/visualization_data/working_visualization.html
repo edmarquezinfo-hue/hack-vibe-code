@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text-to-Web System - Working Visualization</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .control-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .control-btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .control-btn.active {
+            background: #e74c3c;
+        }
+
+        .section {
+            margin: 40px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #3498db;
+        }
+
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+
+        .diagram-container {
+            margin: 30px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .diagram-container h3 {
+            color: #34495e;
+            margin-bottom: 15px;
+        }
+
+        .view {
+            display: none;
+        }
+
+        .view.active {
+            display: block;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Text-to-Web System Architecture</h1>
+            <p>Complete Working Visualization - Step by Step Testing</p>
+        </div>
+
+        <div class="controls">
+            <button class="control-btn active" onclick="showView('basic')">Basic Test</button>
+            <button class="control-btn" onclick="showView('architecture')">Architecture</button>
+            <button class="control-btn" onclick="showView('flow')">Process Flow</button>
+            <button class="control-btn" onclick="showView('realtime')">Real-time</button>
+        </div>
+
+        <!-- Basic Test View -->
+        <div id="basic" class="view active">
+            <div class="section">
+                <h2>🧪 Basic Mermaid Test</h2>
+                <p>Testing the most basic Mermaid diagrams to ensure they work properly.</p>
+                
+                <div class="diagram-container">
+                    <h3>Simple Flow</h3>
+                    <div class="mermaid">
+                        flowchart LR
+                            A[Start] --> B[Process]
+                            B --> C[End]
+                    </div>
+                </div>
+
+                <div class="diagram-container">
+                    <h3>Basic Architecture</h3>
+                    <div class="mermaid">
+                        graph TD
+                            A[Client] --> B[Server]
+                            B --> C[Database]
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Architecture View -->
+        <div id="architecture" class="view">
+            <div class="section">
+                <h2>🏗️ System Architecture</h2>
+                
+                <div class="diagram-container">
+                    <h3>Main Components</h3>
+                    <div class="mermaid">
+                        flowchart LR
+                            A[Client] --> B[Server]
+                            B --> C[Agent]
+                            C --> D[Template]
+                            C --> E[Blueprint]
+                            C --> F[Parser]
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Process Flow View -->
+        <div id="flow" class="view">
+            <div class="section">
+                <h2>📋 Process Flow</h2>
+                
+                <div class="diagram-container">
+                    <h3>Generation Process</h3>
+                    <div class="mermaid">
+                        graph TD
+                            A[Start Generation] --> B[First Phase Check]
+                            B --> C[Use Blueprint]
+                            B --> D[Generate Phase]
+                            C --> E[Implement]
+                            D --> E
+                            E --> F[Deploy]
+                            F --> G[More Phases Check]
+                            G --> D
+                            G --> H[Complete]
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Real-time View -->
+        <div id="realtime" class="view">
+            <div class="section">
+                <h2>📡 Real-time Communication</h2>
+                
+                <div class="diagram-container">
+                    <h3>WebSocket Flow</h3>
+                    <div class="mermaid">
+                        sequenceDiagram
+                            participant Client
+                            participant WebSocket
+                            participant Agent
+                            
+                            Client->>WebSocket: GENERATE_ALL
+                            WebSocket->>Agent: Forward Command
+                            Agent->>WebSocket: GENERATION_STARTED
+                            WebSocket->>Client: Update Client
+                            
+                            Agent->>WebSocket: FILE_GENERATING
+                            WebSocket->>Client: Update Client
+                            
+                            Agent->>WebSocket: FILE_GENERATED
+                            WebSocket->>Client: Update Client
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default'
+        });
+
+        // View switching function
+        function showView(viewName) {
+            // Hide all views
+            document.querySelectorAll('.view').forEach(view => {
+                view.classList.remove('active');
+            });
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('.control-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected view
+            document.getElementById(viewName).classList.add('active');
+            
+            // Add active class to clicked button
+            event.target.classList.add('active');
+        }
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            console.log('Page loaded. Mermaid status:', typeof mermaid !== 'undefined');
+        });
+    </script>
+</body>
+</html>
