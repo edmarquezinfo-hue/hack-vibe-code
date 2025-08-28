@@ -36,7 +36,7 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/auth-context';
 import { toggleFavorite } from '@/hooks/use-apps';
 import { formatDistanceToNow, isValid } from 'date-fns';
@@ -52,7 +52,13 @@ type AppDetails = AppDetailsData;
 type PendingAction = 'favorite' | 'bookmark' | 'star' | 'fork' | 'remix';
 
 // Supported actions constant for validation
-const SUPPORTED_ACTIONS: PendingAction[] = ['favorite', 'bookmark', 'star', 'fork', 'remix'];
+const SUPPORTED_ACTIONS: PendingAction[] = [
+	'favorite',
+	'bookmark',
+	'star',
+	'fork',
+	'remix',
+];
 
 // Action configuration type for reusability
 interface ActionConfig {
@@ -65,10 +71,10 @@ interface ActionConfig {
 // Action mapping for aliases (bookmark -> favorite, remix -> fork)
 const ACTION_MAP: Record<PendingAction, string> = {
 	favorite: 'favorite',
-	bookmark: 'favorite', 
+	bookmark: 'favorite',
 	star: 'star',
 	fork: 'fork',
-	remix: 'fork'
+	remix: 'fork',
 };
 export default function AppView() {
 	const { id } = useParams();
@@ -97,17 +103,19 @@ export default function AppView() {
 		try {
 			setLoading(true);
 			setError(null);
-			
+
 			// Fetch app details using API client
 			const appResponse = await apiClient.getAppDetails(id);
-			
+
 			if (appResponse.success && appResponse.data) {
 				const appData = appResponse.data;
 				setApp(appData);
 				setIsFavorited(appData.userFavorited || false);
 				setIsStarred(appData.userStarred || false);
 			} else {
-				throw new Error(appResponse.error || 'Failed to fetch app details');
+				throw new Error(
+					appResponse.error || 'Failed to fetch app details',
+				);
 			}
 		} catch (err) {
 			console.error('Error fetching app:', err);
@@ -118,7 +126,9 @@ export default function AppView() {
 					setError(`Failed to load app: ${err.message}`);
 				}
 			} else {
-				setError(err instanceof Error ? err.message : 'Failed to load app');
+				setError(
+					err instanceof Error ? err.message : 'Failed to load app',
+				);
 			}
 		} finally {
 			setLoading(false);
@@ -164,120 +174,168 @@ export default function AppView() {
 	}, []);
 
 	// Action configuration for reusability
-	const actionConfigs: Record<string, ActionConfig> = useMemo(() => ({
-		favorite: {
-			action: 'favorite',
-			context: 'to bookmark apps',
-			handler: async () => {
-				if (!app) return;
-				const newState = await toggleFavorite(app.id);
-				setIsFavorited(newState);
-				toast.success(newState ? 'Added to bookmarks' : 'Removed from bookmarks');
-			},
-			errorMessage: 'Failed to update bookmarks'
-		},
-		star: {
-			action: 'star',
-			context: 'to star apps', 
-			handler: async () => {
-				if (!app) return;
-				const response = await apiClient.toggleAppStar(app.id);
-				
-				if (response.success && response.data) {
-					setIsStarred(response.data.isStarred);
-					setApp((prev) =>
-						prev ? { ...prev, starCount: response.data.starCount } : null,
+	const actionConfigs: Record<string, ActionConfig> = useMemo(
+		() => ({
+			favorite: {
+				action: 'favorite',
+				context: 'to bookmark apps',
+				handler: async () => {
+					if (!app) return;
+					const newState = await toggleFavorite(app.id);
+					setIsFavorited(newState);
+					toast.success(
+						newState
+							? 'Added to bookmarks'
+							: 'Removed from bookmarks',
 					);
-					toast.success(response.data.isStarred ? 'Starred!' : 'Unstarred');
-				} else {
-					throw new Error(response.error || 'Failed to star app');
-				}
+				},
+				errorMessage: 'Failed to update bookmarks',
 			},
-			errorMessage: 'Failed to update star'
-		},
-		fork: {
-			action: 'fork',
-			context: 'to remix this app',
-			handler: async () => {
-				if (!app) return;
-				const response = await apiClient.forkApp(app.id);
-				
-				if (response.success && response.data) {
-					toast.success(response.data.message || 'App remixed successfully!');
-					
-					// Emit app-created event for sidebar updates
-					appEvents.emitAppCreated(response.data.forkedAppId, {
-						title: `${app.title} (Remix)`,
-						description: app.description || undefined,
-						isForked: true
-					});
-					
-					navigate(`/chat/${response.data.forkedAppId}`);
-				} else {
-					throw new Error(response.error || 'Failed to remix app');
-				}
+			star: {
+				action: 'star',
+				context: 'to star apps',
+				handler: async () => {
+					if (!app) return;
+					const response = await apiClient.toggleAppStar(app.id);
+
+					if (response.success && response.data) {
+						setIsStarred(response.data.isStarred);
+						setApp((prev) =>
+							prev
+								? {
+										...prev,
+										starCount: response.data.starCount,
+									}
+								: null,
+						);
+						toast.success(
+							response.data.isStarred ? 'Starred!' : 'Unstarred',
+						);
+					} else {
+						throw new Error(response.error || 'Failed to star app');
+					}
+				},
+				errorMessage: 'Failed to update star',
 			},
-			errorMessage: 'Failed to remix app'
-		}
-	}), [app, navigate]);
+			fork: {
+				action: 'fork',
+				context: 'to remix this app',
+				handler: async () => {
+					if (!app) return;
+					const response = await apiClient.forkApp(app.id);
+
+					if (response.success && response.data) {
+						toast.success(
+							response.data.message ||
+								'App remixed successfully!',
+						);
+
+						// Emit app-created event for sidebar updates
+						appEvents.emitAppCreated(response.data.forkedAppId, {
+							title: `${app.title} (Remix)`,
+							description: app.description || undefined,
+							isForked: true,
+						});
+
+						navigate(`/chat/${response.data.forkedAppId}`);
+					} else {
+						throw new Error(
+							response.error || 'Failed to remix app',
+						);
+					}
+				},
+				errorMessage: 'Failed to remix app',
+			},
+		}),
+		[app, navigate],
+	);
 
 	// Reusable authenticated action handler
-	const createAuthenticatedHandler = useCallback((configKey: string) => {
-		return async () => {
+	const createAuthenticatedHandler = useCallback(
+		(configKey: string) => {
+			return async () => {
+				if (!app) return;
+
+				const config = actionConfigs[configKey];
+				if (!config) return;
+
+				const currentUrl = `/app/${app.id}?action=${config.action}`;
+
+				// Use auth guard with action parameter in intended URL
+				if (
+					!requireAuth({
+						requireFullAuth: true,
+						actionContext: config.context,
+						intendedUrl: currentUrl,
+					})
+				) {
+					return;
+				}
+
+				// User is authenticated, execute immediately
+				try {
+					await config.handler();
+				} catch (error) {
+					console.error(`${config.action} error:`, error);
+					toast.error(
+						error instanceof ApiError
+							? error.message
+							: config.errorMessage,
+					);
+				}
+			};
+		},
+		[actionConfigs, app, requireAuth],
+	);
+
+	// Create action handlers using the reusable pattern
+	const handleFavorite = useMemo(
+		() => createAuthenticatedHandler('favorite'),
+		[createAuthenticatedHandler],
+	);
+	const handleStar = useMemo(
+		() => createAuthenticatedHandler('star'),
+		[createAuthenticatedHandler],
+	);
+	const handleFork = useMemo(
+		() => createAuthenticatedHandler('fork'),
+		[createAuthenticatedHandler],
+	);
+
+	// Handle pending actions after OAuth redirect
+	const executePendingAction = useCallback(
+		async (action: PendingAction) => {
 			if (!app) return;
-			
-			const config = actionConfigs[configKey];
-			if (!config) return;
-			
-			const currentUrl = `/app/${app.id}?action=${config.action}`;
-			
-			// Use auth guard with action parameter in intended URL
-			if (!requireAuth({ 
-				requireFullAuth: true, 
-				actionContext: config.context,
-				intendedUrl: currentUrl
-			})) {
+
+			const configKey = ACTION_MAP[action];
+			if (!configKey) {
+				console.warn('Unknown pending action:', action);
 				return;
 			}
 
-			// User is authenticated, execute immediately
+			const config = actionConfigs[configKey];
+			if (!config) {
+				console.warn('No config found for action:', action);
+				return;
+			}
+
 			try {
 				await config.handler();
 			} catch (error) {
-				console.error(`${config.action} error:`, error);
-				toast.error(error instanceof ApiError ? error.message : config.errorMessage);
+				console.error(
+					'Failed to execute pending action:',
+					action,
+					error,
+				);
+				toast.error(
+					error instanceof ApiError
+						? error.message
+						: config.errorMessage,
+				);
 			}
-		};
-	}, [actionConfigs, app, requireAuth]);
-
-	// Create action handlers using the reusable pattern
-	const handleFavorite = useMemo(() => createAuthenticatedHandler('favorite'), [createAuthenticatedHandler]);
-	const handleStar = useMemo(() => createAuthenticatedHandler('star'), [createAuthenticatedHandler]);
-	const handleFork = useMemo(() => createAuthenticatedHandler('fork'), [createAuthenticatedHandler]);
-
-	// Handle pending actions after OAuth redirect
-	const executePendingAction = useCallback(async (action: PendingAction) => {
-		if (!app) return;
-		
-		const configKey = ACTION_MAP[action];
-		if (!configKey) {
-			console.warn('Unknown pending action:', action);
-			return;
-		}
-		
-		const config = actionConfigs[configKey];
-		if (!config) {
-			console.warn('No config found for action:', action);
-			return;
-		}
-		
-		try {
-			await config.handler();
-		} catch (error) {
-			console.error('Failed to execute pending action:', action, error);
-			toast.error(error instanceof ApiError ? error.message : config.errorMessage);
-		}
-	}, [actionConfigs, app]);
+		},
+		[actionConfigs, app],
+	);
 
 	// Effect to handle pending actions after OAuth redirect
 	useEffect(() => {
@@ -287,8 +345,8 @@ export default function AppView() {
 		if (!actionParam) return;
 
 		// Validate action parameter against our supported types
-		const action = SUPPORTED_ACTIONS.find(a => a === actionParam);
-		
+		const action = SUPPORTED_ACTIONS.find((a) => a === actionParam);
+
 		if (!action) {
 			console.warn('Unsupported action parameter:', actionParam);
 			return;
@@ -301,7 +359,14 @@ export default function AppView() {
 
 		// Execute the pending action
 		executePendingAction(action);
-	}, [user, app, loading, searchParams, setSearchParams, executePendingAction]);
+	}, [
+		user,
+		app,
+		loading,
+		searchParams,
+		setSearchParams,
+		executePendingAction,
+	]);
 
 	const handleCopyUrl = () => {
 		if (!app?.cloudflareUrl) return;
@@ -361,7 +426,10 @@ export default function AppView() {
 			const newVisibility =
 				app.visibility === 'private' ? 'public' : 'private';
 
-			const response = await apiClient.updateAppVisibility(app.id, newVisibility);
+			const response = await apiClient.updateAppVisibility(
+				app.id,
+				newVisibility,
+			);
 
 			if (response.success && response.data) {
 				// Update the app state with new visibility
@@ -370,11 +438,13 @@ export default function AppView() {
 				);
 
 				toast.success(
-					response.data.message || 
-					`App is now ${newVisibility === 'private' ? 'private' : 'public'}`,
+					response.data.message ||
+						`App is now ${newVisibility === 'private' ? 'private' : 'public'}`,
 				);
 			} else {
-				throw new Error(response.error || 'Failed to update visibility');
+				throw new Error(
+					response.error || 'Failed to update visibility',
+				);
 			}
 		} catch (error) {
 			console.error('Error updating app visibility:', error);
@@ -390,18 +460,18 @@ export default function AppView() {
 
 	const handleDeleteApp = async () => {
 		if (!app) return;
-		
+
 		try {
 			setIsDeleting(true);
 			const response = await apiClient.deleteApp(app.id);
-			
+
 			if (response.success) {
 				toast.success('App deleted successfully');
 				setIsDeleteDialogOpen(false);
-				
+
 				// Emit global app deleted event
 				appEvents.emitAppDeleted(app.id);
-				
+
 				// Smart navigation after deletion
 				// Use window.history to go back if possible, otherwise navigate to apps page
 				if (window.history.length > 1) {
@@ -426,8 +496,8 @@ export default function AppView() {
 		return (
 			<div className="min-h-screen bg-bg-3 flex items-center justify-center">
 				<div className="text-center">
-					<Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
-					<p className="text-muted-foreground">Loading app...</p>
+					<Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-text-tertiary" />
+					<p className="text-text-tertiary">Loading app...</p>
 				</div>
 			</div>
 		);
@@ -442,7 +512,7 @@ export default function AppView() {
 							<h2 className="text-xl font-semibold mb-2">
 								App not found
 							</h2>
-							<p className="text-muted-foreground mb-4">
+							<p className="text-text-tertiary mb-4">
 								{error ||
 									"The app you're looking for doesn't exist."}
 							</p>
@@ -466,154 +536,151 @@ export default function AppView() {
 			<div className="container mx-auto px-4 pb-6 space-y-6 flex flex-col flex-1">
 				{/* Back button */}
 				<button
-					onClick={() => navigate('/apps')}
-					className="gap-2 flex items-center text-primary/80"
+					onClick={() => history.back()}
+					className="gap-2 flex items-center text-text-primary/80"
 				>
 					<ChevronLeft className="h-4 w-4" />
-					Back to Apps
+					Back
 				</button>
 
 				{/* App Info Section */}
-				<div className="px-3 flex flex-col items-start justify-between gap-4">
+				<div className="flex flex-col items-start justify-between gap-4 text-bg-4 w-fit rounded-lg p-5">
 					<div className="flex-1">
-						<div className="flex items-center gap-3 mb-2">
-							<h1 className="text-4xl font-semibold tracking-tight">
-								{app.title}
-							</h1>
+						<div className="flex rounded w-fit pb-3 pt-2 flex-col mb-6">
+							<div className="flex items-center gap-3 mb-2">
+								<h1 className="text-4xl font-semibold tracking-tight text-text-primary">
+									{app.title}
+								</h1>
 
-							<div className="flex items-center gap-2 border rounded-xl">
-								<Badge variant={'default'}>
-									<Globe />
-									{capitalizeFirstLetter(app.visibility)}
-								</Badge>
-								{isOwner && (
-									<Button
-										variant="ghost"
-										size="sm"
-										onClick={handleToggleVisibility}
-										disabled={isUpdatingVisibility}
-										className="h-6 w-6 p-0 hover:bg-muted/50 -ml-1.5 !mr-1.5"
-										title={`Make ${app.visibility === 'private' ? 'public' : 'private'}`}
-									>
-										{isUpdatingVisibility ? (
-											<Loader2 className="h-3 w-3 animate-spin" />
-										) : app.visibility === 'private' ? (
-											<Unlock className="h-3 w-3" />
-										) : (
-											<Lock className="h-3 w-3" />
-										)}
-									</Button>
-								)}
+								<div className="flex items-center gap-2 border rounded-xl">
+									<Badge variant={'default'}>
+										<Globe />
+										{capitalizeFirstLetter(app.visibility)}
+									</Badge>
+									{isOwner && (
+										<Button
+											variant="ghost"
+											size="sm"
+											onClick={handleToggleVisibility}
+											disabled={isUpdatingVisibility}
+											className="h-6 w-6 p-0 hover:bg-bg-3/50 -ml-1.5 !mr-1.5"
+											title={`Make ${app.visibility === 'private' ? 'public' : 'private'}`}
+										>
+											{isUpdatingVisibility ? (
+												<Loader2 className="h-3 w-3 animate-spin text-text-primary" />
+											) : app.visibility === 'private' ? (
+												<Unlock className="h-3 w-3 text-text-primary" />
+											) : (
+												<Lock className="h-3 w-3 text-text-primary" />
+											)}
+										</Button>
+									)}
+								</div>
 							</div>
-						</div>
-						<div className="flex flex-wrap gap-2 mb-6">
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={handleFavorite}
-								className={cn(
-									'gap-2',
-									isFavorited &&
-										'text-yellow-600 border-yellow-600',
-								)}
-							>
-								<Bookmark
-									className={cn(
-										'h-4 w-4',
-										isFavorited && 'fill-current',
-									)}
-								/>
-								{isFavorited ? 'Bookmarked' : 'Bookmark'}
-							</Button>
-
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={handleStar}
-								className={cn(
-									'gap-2',
-									isStarred &&
-										'text-blue-600 border-blue-600',
-								)}
-							>
-								<Star
-									className={cn(
-										'h-4 w-4',
-										isStarred && 'fill-current',
-									)}
-								/>
-								{isStarred ? 'Starred' : 'Star'}
-							</Button>
-
-							{/* GitHub Repository Button */}
-							{app.githubRepositoryUrl && (
+							<div className="flex flex-wrap gap-2">
 								<Button
 									variant="outline"
 									size="sm"
-									onClick={() => {
-										if (app.githubRepositoryUrl) {
-											window.open(app.githubRepositoryUrl, '_blank', 'noopener,noreferrer');
-										}
-									}}
-									className="gap-2 border-gray-800 text-gray-800 hover:bg-gray-800 hover:text-white transition-colors"
-									title={`View on GitHub (${app.githubRepositoryVisibility || 'public'})`}
-								>
-									<Github className="h-4 w-4" />
-									View on GitHub
-									{app.githubRepositoryVisibility === 'private' && (
-										<Lock className="h-3 w-3 opacity-70" />
+									onClick={handleFavorite}
+									className={cn(
+										'gap-2 text-text-primary',
 									)}
+								>
+									<Bookmark
+										className={cn(
+											'h-4 w-4',
+											isFavorited && 'fill-current',
+										)}
+									/>
+									{isFavorited ? 'Bookmarked' : 'Bookmark'}
 								</Button>
-							)}
 
-							{isOwner ? (
-								<>
-									<Button
-										size="sm"
-										onClick={() => navigate(`/chat/${app.id}`)}
-										className="gap-2"
-									>
-										<Code2 className="h-4 w-4" />
-										Continue Editing
-									</Button>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={handleStar}
+									className={cn('gap-2 text-text-primary')}
+								>
+									<Star
+										className={cn(
+											'h-4 w-4',
+											isStarred && 'fill-current',
+										)}
+									/>
+									{isStarred ? 'Starred' : 'Star'}
+								</Button>
+
+								{/* GitHub Repository Button */}
+								{app.githubRepositoryUrl && (
 									<Button
 										variant="outline"
 										size="sm"
+										onClick={() => {
+											if (app.githubRepositoryUrl) {
+												window.open(
+													app.githubRepositoryUrl,
+													'_blank',
+													'noopener,noreferrer',
+												);
+											}
+										}}
+										className={cn('gap-2 text-text-primary')}
+										title={`View on GitHub (${app.githubRepositoryVisibility || 'public'})`}
+									>
+										<Github className="h-4 w-4" />
+										View on GitHub
+										{app.githubRepositoryVisibility ===
+											'private' && (
+											<Lock className="h-3 w-3 opacity-70" />
+										)}
+									</Button>
+								)}
+
+								{isOwner ? (
+									<>
+										<Button
+											size="sm"
+											onClick={() =>
+												navigate(`/chat/${app.id}`)
+											}
+											className="gap-2 bg-text-primary text-bg-4 border-bg-4 border"
+										>
+											<Code2 className="h-4 w-4" />
+											Continue Editing
+										</Button>
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() =>
+												setIsDeleteDialogOpen(true)
+											}
+											className="gap-2 text-text-on-brand !border-0 bg-destructive hover:opacity-90 transition-colors"
+										>
+											<Trash2 className="h-4 w-4" />
+											Delete App
+										</Button>
+									</>
+								) : (
+									<Button
+										size="sm"
+										variant="secondary"
 										onClick={handleFork}
-										className="gap-2"
+										className="gap-2 bg-text-primary text-bg-1"
 									>
 										<Shuffle className="h-4 w-4" />
 										Remix
 									</Button>
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() => setIsDeleteDialogOpen(true)}
-										className="gap-2 text-destructive border-destructive hover:bg-destructive/10 hover:border-destructive/70 transition-colors"
-									>
-										<Trash2 className="h-4 w-4" />
-										Delete App
-									</Button>
-								</>
-							) : (
-								<Button
-									size="sm"
-									onClick={handleFork}
-									className="gap-2"
-								>
-									<Shuffle className="h-4 w-4" />
-									Remix
-								</Button>
-							)}
+								)}
+							</div>
 						</div>
 
 						{app.description && (
-							<p className="text-gray-600 my-3 max-w-4xl">
+							<p className="text-text-primary my-3 max-w-4xl">
 								{app.description}
 							</p>
 						)}
 
-						<div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+						<div className="flex flex-wrap items-center gap-4 text-sm text-text-secondary">
 							{app.user && (
 								<div className="flex items-center gap-2">
 									<User className="h-4 w-4" />
@@ -641,18 +708,22 @@ export default function AppView() {
 						</div>
 					</div>
 				</div>
-				<Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1">
-					<TabsList className="grid w-full max-w-md grid-cols-3">
+				<Tabs
+					value={activeTab}
+					onValueChange={setActiveTab}
+					className="flex flex-col flex-1"
+				>
+					{/* <TabsList className="grid w-full max-w-md grid-cols-3">
 						<TabsTrigger value="preview">Preview</TabsTrigger>
 						<TabsTrigger value="code">Code</TabsTrigger>
 						<TabsTrigger value="conversation">
 							Conversation
 						</TabsTrigger>
-					</TabsList>
+					</TabsList> */}
 
 					<TabsContent value="preview" className="space-y-4 flex-1">
-						<Card>
-							<CardHeader>
+						<Card className=" px-2">
+							<CardHeader className="overflow-hidden rounded-t">
 								<div className="flex items-center justify-between">
 									<CardTitle className="text-base">
 										Live Preview
@@ -767,7 +838,10 @@ export default function AppView() {
 					</TabsContent>
 
 					<TabsContent value="code" className="flex-1">
-						<Card className="flex flex-col" style={{height: 'calc(100vh - 300px)'}}>
+						<Card
+							className="flex flex-col"
+							style={{ height: 'calc(100vh - 300px)' }}
+						>
 							<CardHeader>
 								<div className="flex items-center justify-between">
 									<div>
@@ -783,8 +857,12 @@ export default function AppView() {
 											variant="ghost"
 											size="sm"
 											onClick={() => {
-												navigator.clipboard.writeText(activeFile.fileContents);
-												toast.success('Code copied to clipboard');
+												navigator.clipboard.writeText(
+													activeFile.fileContents,
+												);
+												toast.success(
+													'Code copied to clipboard',
+												);
 											}}
 											className="gap-2"
 										>
@@ -796,10 +874,10 @@ export default function AppView() {
 							</CardHeader>
 							<CardContent className="p-0 flex-1 flex flex-col">
 								{files.length > 0 ? (
-									<div className="flex-1 relative bg-bg-light overflow-hidden">
+									<div className="flex-1 relative bg-bg-3 overflow-hidden">
 										<div className="absolute inset-0 flex">
-											<div className="w-full max-w-[250px] bg-bg-light border-r border-text/10 h-full overflow-y-auto">
-												<div className="p-2 px-3 text-sm flex items-center gap-1 text-text/50 font-medium border-b bg-background">
+											<div className="w-full max-w-[250px] bg-bg-3 border-r border-text/10 h-full overflow-y-auto">
+												<div className="p-2 px-3 text-sm flex items-center gap-1 text-text-primary/50 font-medium border-b bg-bg-3">
 													<Code2 className="size-4" />
 													Files
 												</div>
@@ -807,12 +885,17 @@ export default function AppView() {
 													{files.map((file) => (
 														<button
 															key={file.filePath}
-															onClick={() => handleFileClick(file)}
+															onClick={() =>
+																handleFileClick(
+																	file,
+																)
+															}
 															className={cn(
-																"flex items-center w-full gap-2 py-2 px-3 text-left text-sm transition-colors",
-																activeFile?.filePath === file.filePath
-																	? "bg-blue-100 text-blue-900 border-r-2 border-blue-500"
-																	: "hover:bg-muted text-muted-foreground hover:text-foreground"
+																'flex items-center w-full gap-2 py-2 px-3 text-left text-sm transition-colors',
+																activeFile?.filePath ===
+																	file.filePath
+																	? 'bg-blue-100 text-blue-900 border-r-2 border-blue-500'
+																	: 'hover:bg-bg-3 text-text-tertiary hover:text-text-primary',
 															)}
 														>
 															<Code2 className="h-4 w-4 flex-shrink-0" />
@@ -823,33 +906,42 @@ export default function AppView() {
 													))}
 												</div>
 											</div>
-											
+
 											<div className="flex-1 flex flex-col">
 												{activeFile ? (
 													<>
-														<div className="flex items-center justify-between p-3 border-b bg-background">
+														<div className="flex items-center justify-between p-3 border-b bg-bg-3">
 															<div className="flex items-center gap-2 flex-1">
 																<Code2 className="h-4 w-4" />
 																<span className="text-sm font-mono">
-																	{activeFile.filePath}
+																	{
+																		activeFile.filePath
+																	}
 																</span>
 																{activeFile.explanation && (
-																	<span className="text-xs text-muted-foreground ml-3">
-																		{activeFile.explanation}
+																	<span className="text-xs text-text-tertiary ml-3">
+																		{
+																			activeFile.explanation
+																		}
 																	</span>
 																)}
 															</div>
 														</div>
-														
+
 														<div className="flex-1 min-h-0">
 															<MonacoEditor
 																className="h-full"
 																createOptions={{
 																	value: activeFile.fileContents,
-																	language: activeFile.language || 'plaintext',
+																	language:
+																		activeFile.language ||
+																		'plaintext',
 																	readOnly: true,
-																	minimap: { enabled: false },
-																	lineNumbers: 'on',
+																	minimap: {
+																		enabled: false,
+																	},
+																	lineNumbers:
+																		'on',
 																	scrollBeyondLastLine: false,
 																	fontSize: 13,
 																	theme: 'v1-dev',
@@ -860,7 +952,10 @@ export default function AppView() {
 													</>
 												) : (
 													<div className="flex-1 flex items-center justify-center">
-														<p className="text-muted-foreground">Select a file to view</p>
+														<p className="text-text-tertiary">
+															Select a file to
+															view
+														</p>
 													</div>
 												)}
 											</div>
@@ -880,12 +975,16 @@ export default function AppView() {
 						</Card>
 					</TabsContent>
 
-					<TabsContent value="conversation" className="space-y-4 flex-1">
+					<TabsContent
+						value="conversation"
+						className="space-y-4 flex-1"
+					>
 						<Card>
 							<CardHeader>
 								<CardTitle>Conversation History</CardTitle>
 								<CardDescription>
-									The prompts and interactions that created this app
+									The prompts and interactions that created
+									this app
 								</CardDescription>
 							</CardHeader>
 							<CardContent>
@@ -896,14 +995,16 @@ export default function AppView() {
 											<div className="border-l-4 border-blue-500 pl-4 py-2">
 												<div className="flex items-center gap-2 mb-2">
 													<User className="h-4 w-4 text-blue-600" />
-													<span className="text-sm font-medium text-blue-600">Original Prompt</span>
+													<span className="text-sm font-medium text-blue-600">
+														Original Prompt
+													</span>
 												</div>
 												<p className="text-sm bg-blue-50 p-3 rounded">
 													{app?.agentSummary?.query}
 												</p>
 											</div>
 										)}
-										
+
 										{/* Conversation Messages */}
 										{app?.agentSummary?.conversation && app?.agentSummary?.conversation.length > 0 && (
 											<div className="space-y-3">
@@ -947,7 +1048,7 @@ export default function AppView() {
 										)}
 									</div>
 								) : (
-									<div className="flex items-center justify-center py-12 text-muted-foreground">
+									<div className="flex items-center justify-center py-12 text-text-tertiary">
 										<MessageSquare className="h-8 w-8 mr-3" />
 										<p>
 											{app?.agentSummary === null 

@@ -117,13 +117,13 @@ export function ModelSelector({
         </PopoverTrigger>
         <PopoverContent className="w-full p-0" style={{ width: 'var(--radix-popover-trigger-width)' }}>
           {/* Search Input */}
-          <div className="flex items-center border-b border-border px-3 py-2">
-            <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="flex items-center border-b border-border-primary px-3 py-2">
+            <Search className="mr-2 h-4 w-4 shrink-0 text-text-tertiary" />
             <Input
               placeholder="Search models..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-8 border-0 bg-transparent p-0 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="h-8 border-0 bg-transparent p-0 placeholder:text-text-tertiary focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
             />
           </div>
           
@@ -138,7 +138,7 @@ export function ModelSelector({
           >
             {/* No results */}
             {filteredModels.length === 0 && !includeDefaultOption && (
-              <div className="py-6 text-center text-sm text-muted-foreground">
+              <div className="py-6 text-center text-sm text-text-tertiary">
                 No models found.
               </div>
             )}
@@ -153,14 +153,14 @@ export function ModelSelector({
                   setSearch('');
                 }}
                 className={cn(
-                  "relative flex cursor-pointer select-none items-center justify-between rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-                  value === 'default' && "bg-accent text-accent-foreground"
+                  "relative flex cursor-pointer select-none items-center justify-between rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-text-secondary focus:bg-accent focus:text-text-secondary",
+                  value === 'default' && "bg-accent text-text-secondary"
                 )}
               >
                 <div className="flex items-center gap-2">
                   <Check
                     className={cn(
-                      "h-4 w-4 text-primary",
+                      "h-4 w-4 text-text-primary",
                       value === 'default' ? "opacity-100" : "opacity-0"
                     )}
                   />
@@ -179,14 +179,14 @@ export function ModelSelector({
                   setSearch('');
                 }}
                 className={cn(
-                  "relative flex cursor-pointer select-none items-center justify-between rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-                  value === model.value && "bg-accent text-accent-foreground"
+                  "relative flex cursor-pointer select-none items-center justify-between rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-text-secondary focus:bg-accent focus:text-text-secondary",
+                  value === model.value && "bg-accent text-text-secondary"
                 )}
               >
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <Check
                     className={cn(
-                      "h-4 w-4 text-primary shrink-0",
+                      "h-4 w-4 text-text-primary shrink-0",
                       value === model.value ? "opacity-100" : "opacity-0"
                     )}
                   />
@@ -203,7 +203,7 @@ export function ModelSelector({
       
       {/* System default display */}
       {systemDefault && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-text-tertiary">
           🔧 System default: {getModelDisplayName(systemDefault)}
         </p>
       )}

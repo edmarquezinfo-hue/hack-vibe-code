@@ -32,7 +32,7 @@ export function Copy({ text }: { text: string }) {
 						initial={{ scale: 0.4 }}
 						animate={{ scale: 1 }}
 						exit={{ scale: 0.4 }}
-						className="size-4 text-text/60"
+						className="size-4 text-text-primary/60"
 					/>
 				)}
 			</AnimatePresence>

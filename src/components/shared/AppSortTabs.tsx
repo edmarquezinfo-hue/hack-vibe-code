@@ -1,6 +1,5 @@
 import React from 'react';
-import { Clock, TrendingUp, Star } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Clock, TrendingUp, ChevronDownIcon } from 'lucide-react';
 import type { AppSortOption } from '@/api-types';
 
 interface SortOption {
@@ -12,12 +11,12 @@ interface SortOption {
 interface AppSortTabsProps {
   value: AppSortOption;
   onValueChange: (value: string) => void;
-  availableSorts?: AppSortOption[];
+  availableSorts?: Exclude<AppSortOption,'starred'>[];
   className?: string;
 }
 
 // Define all possible sort options with their display properties
-const SORT_CONFIGURATIONS: Record<AppSortOption, SortOption> = {
+const SORT_CONFIGURATIONS: Record<Exclude<AppSortOption,'starred'>, SortOption> = {
   recent: {
     value: 'recent',
     label: 'Recent',
@@ -33,35 +32,28 @@ const SORT_CONFIGURATIONS: Record<AppSortOption, SortOption> = {
     label: 'Trending',
     icon: TrendingUp
   },
-  starred: {
-    value: 'starred',
-    label: 'Bookmarked',
-    icon: Star
-  }
 };
 
 export const AppSortTabs: React.FC<AppSortTabsProps> = ({
   value,
   onValueChange,
   availableSorts = ['recent', 'popular', 'trending'],
-  className = ''
 }) => {
   const sortOptions = availableSorts.map(sortKey => SORT_CONFIGURATIONS[sortKey]);
 
-  return (
-    <Tabs value={value} onValueChange={onValueChange} className={`w-full ${className}`}>
-      <TabsList className={`grid w-full grid-cols-${sortOptions.length}`}>
-        {sortOptions.map(({ value: sortValue, label, icon: Icon }) => (
-          <TabsTrigger 
-            key={sortValue} 
-            value={sortValue} 
-            className="flex items-center gap-2"
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-    </Tabs>
-  );
+  return (<div className="grid grid-cols-1">
+        <select
+          id="location"
+          name="location"
+          value={value}
+          onChange={(e) => onValueChange(e.target.value)}
+          className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pl-3 pr-8 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800 dark:focus-visible:outline-indigo-500"
+        >
+          {sortOptions.map((e) => (<option value={e.value}>{e.label}</option>))}
+        </select>
+        <ChevronDownIcon
+          aria-hidden="true"
+          className="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end text-gray-500 sm:size-4 dark:text-gray-400"
+        />
+      </div>);
 };

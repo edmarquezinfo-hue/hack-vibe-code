@@ -1,6 +1,11 @@
 @import 'tailwindcss';
 @import "tw-animate-css";
 
+@font-face{
+  font-family: "departureMono";
+  src:  url('./assets/fonts/DepartureMono-Regular.woff') 
+}
+
 @custom-variant dark (&:is(.dark *));
 @plugin '@tailwindcss/typography';
 @theme inline {
@@ -12,52 +17,14 @@
 		var(--radius);
 	--radius-xl:
 		calc(var(--radius) + 4px);
-	--color-background:
-		var(--background);
-	--color-foreground:
-		var(--foreground);
-	--color-card:
-		var(--card);
-	--color-card-foreground:
-		var(--card-foreground);
-	--color-popover:
-		var(--popover);
-	--color-popover-foreground:
-		var(--popover-foreground);
-	--color-primary:
-		var(--primary);
-	--color-primary-foreground:
-		var(--primary-foreground);
-	--color-secondary:
-		var(--secondary);
-	--color-secondary-foreground:
-		var(--secondary-foreground);
-	--color-muted:
-		var(--muted);
-	--color-muted-foreground:
-		var(--muted-foreground);
 	--color-accent:
-		var(--accent);
-	--color-accent-foreground:
-		var(--accent-foreground);
+		var(--build-accent-color);
 	--color-destructive:
 		var(--destructive);
-	--color-border:
-		var(--border);
 	--color-input:
 		var(--input);
 	--color-ring:
 		var(--ring);
-	--color-chart-1:
-		var(--chart-1);
-	--color-chart-2:
-		var(--chart-2);
-	--color-chart-3:
-		var(--chart-3);
-	--color-chart-4:
-		var(--chart-4);
-	--color-chart-5:
-		var(--chart-5);
 	--shadow-textarea:
 		6px 6px 13px 0px rgba(0, 0, 0, 0.04),
 		24px 24px 24px 0px rgba(0, 0, 0, 0.03),
@@ -92,34 +59,6 @@
 :root {
 	--radius:
 		0.625rem;
-	--background:
-		#fbfbfc;
-	--foreground:
-		oklch(0.145 0 0);
-	--card:
-		#ffffff;
-	--card-foreground:
-		oklch(0.145 0 0);
-	--popover:
-		oklch(1 0 0);
-	--popover-foreground:
-		oklch(0.145 0 0);
-	--primary:
-		oklch(0.205 0 0);
-	--primary-foreground:
-		oklch(0.985 0 0);
-	--secondary:
-		oklch(0.97 0 0);
-	--secondary-foreground:
-		oklch(0.205 0 0);
-	--muted:
-		oklch(0.97 0 0);
-	--muted-foreground:
-		oklch(0.556 0 0);
-	--accent:
-		oklch(0.97 0 0);
-	--accent-foreground:
-		oklch(0.205 0 0);
 	--destructive:
 		oklch(0.577 0.245 27.325);
 	--border:
@@ -128,16 +67,7 @@
 		oklch(0.922 0 0);
 	--ring:
 		oklch(0.708 0 0);
-	--chart-1:
-		oklch(0.646 0.222 41.116);
-	--chart-2:
-		oklch(0.6 0.118 184.704);
-	--chart-3:
-		oklch(0.398 0.07 227.392);
-	--chart-4:
-		oklch(0.828 0.189 84.429);
-	--chart-5:
-		oklch(0.769 0.188 70.08);
+	--build-accent-color: #ff3d00;
 	--build-chat-colors-bg-1: #e7e7e7;
 	--build-chat-colors-bg-2: #f6f6f6;
 	--build-chat-colors-bg-3: #fbfbfc;
@@ -150,72 +80,19 @@
 	--build-chat-colors-brand-primary: #f6821f;
 	--build-chat-colors-brand-subtle: #f6821f;
 	--build-chat-colors-text-inverted: #ffffff;
-	--build-chat-colors-text-primary: #212121;
-	--build-chat-colors-text-secondary: rgba(33, 33, 33, 0.8);
-	--build-chat-colors-text-tertiary: rgba(33, 33, 33, 0.6);
+	--build-chat-colors-text-primary: #0a0a0a;
+	--build-chat-colors-text-secondary: #171717;
+	--build-chat-colors-text-tertiary: #21212199;
 }
 
 .dark {
-	/* Cloudflare-inspired dark theme with improved layering */
-	--background:
-		#1d1e1e; /* Base background - slightly warmer than pure black */
-	--foreground:
-		#ffffff; /* Pure white for primary text */
-	--color-bg-light: #292929; /* Elevated surface (bg-3 from CF) */
-	--color-bg: #1d1e1e; /* Main background */
-	--card:
-		#1f2020; /* Card background (bg-2 from CF) */
-	--card-foreground:
-		#ffffff; /* White text on cards */
-	--popover:
-		#292929; /* Popover background (bg-3) */
-	--popover-foreground:
-		#ffffff; /* White text */
-	--primary:
-		#ffffff; /* Cloudflare blue */
-	--primary-foreground:
-		#ffffff; /* White on primary */
-	--secondary:
-		#3c3c3c; /* Secondary elements (bg-4) */
-	--secondary-foreground:
-		rgba(255, 255, 255, 0.8); /* 80% white */
-	--muted:
-		#393939; /* Muted elements */
-	--muted-foreground:
-		rgba(255, 255, 255, 0.6); /* 60% white for tertiary text */
-	--accent:
-		#292929; /* Accent background */
-	--accent-foreground:
-		#ffffff; /* White text */
 	--destructive:
 		#ef4444; /* Error red */
 	--border:
 		#393939; /* Primary border color */
 	--input:
 		#292929; /* Input background */
-	--ring:
-		#0096ff; /* Focus ring */
-	--chart-1:
-		#0096ff; /* Blue */
-	--chart-2:
-		#10b981; /* Green */
-	--chart-3:
-		#f59e0b; /* Yellow */
-	--chart-4:
-		#8b5cf6; /* Purple */
-	--chart-5:
-		#ef4444; /* Red */
-	
-	/* Override theme colors for dark mode */
-	--color-brand: #0096ff; /* Cloudflare blue */
-	--color-bg: #1d1e1e; /* Main background */
-	--color-text: #ffffff; /* Primary text */
-	--color-text-on-brand: #ffffff; /* White on brand */
-	--color-bg-lighter: #1f2020; /* Slightly elevated */
-	--color-bg-light: #292929; /* More elevated */
-	--color-bg-bright: #f6821f; /* Cloudflare orange */
-	--color-bg-bright-dim: #f48120; /* Slightly dimmer orange */
-	--color-bg-darkest: #1a1b1b; /* Darkest background */
+
 	--build-chat-colors-bg-1: #151515;
 	--build-chat-colors-bg-2: #1f2020;
 	--build-chat-colors-bg-3: #292929;
@@ -228,8 +105,8 @@
 	--build-chat-colors-brand-subtle: #f6821f;
 	--build-chat-colors-text-inverted: #000000;
 	--build-chat-colors-text-primary: #ffffff;
-	--build-chat-colors-text-secondary: rgba(255, 255, 255, 0.8);
-	--build-chat-colors-text-tertiary: rgba(255, 255, 255, 0.6);
+	--build-chat-colors-text-secondary: #cdcaca;
+	--build-chat-colors-text-tertiary: #bcb9b9;
 
 	--shadow-dialog:
 		0px 18px 60px 0px rgba(6, 6, 5, 0.1),
@@ -247,10 +124,10 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border-primary outline-ring/50;
 	}
   body {
-    @apply bg-background text-foreground;
+    @apply bg-bg-3 text-text-primary;
 	}
 }
 
@@ -260,17 +137,9 @@
 		'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
 	--color-brand: #0092b8;
-	--color-bg: #fff;
 	--color-text: #000;
 	--color-text-on-brand: #fff;
 
-	--color-bg-lighter: var(--background);
-	--color-bg-light: #fbfbfc;
-
-	--color-bg-bright: #0092b8;
-	--color-bg-bright-dim: #0092b8;
-
-	--color-bg-darkest: #0a0a0a;
 	--shadow-dialog:
 		0px 18px 60px 0px rgba(6, 6, 5, 0.1),
 		3px 3px 13px 0px rgba(0, 0, 0, 0.04), -3px 3px 13px 0px rgba(0, 0, 0, 0.04),

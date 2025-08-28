@@ -4,10 +4,10 @@ import { ThemeToggle } from '../theme-toggle';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/auth-context';
 import { GithubIcon } from 'lucide-react';
+import { CloudflareLogo } from '../icons/logos';
 
 export function GlobalHeader() {
 	const { user } = useAuth();
-	// const { analytics, loading: analyticsLoading } = useUserAnalytics(user?.id, undefined, true, 30000);
 
 	return (
 		<motion.header
@@ -25,15 +25,25 @@ export function GlobalHeader() {
 					{/* Left section */}
 					{user ? (
 						<motion.div
-							whileHover={{ scale: 1.05 }}
 							whileTap={{ scale: 0.95 }}
 							transition={{
 								type: 'spring',
 								stiffness: 400,
 								damping: 17,
 							}}
+							className='flex items-center'
 						>
-							<SidebarTrigger className="h-8 w-8 rounded-md hover:bg-orange-50/40 transition-colors duration-200" />
+							<SidebarTrigger className="h-8 w-8 text-text-primary rounded-md hover:bg-orange-50/40 transition-colors duration-200" />
+							<CloudflareLogo
+								className="flex-shrink-0 mx-auto transition-all duration-300"
+								style={{
+									width: '28px' ,
+									height: '28px',
+									marginLeft: '8px',
+								}}
+								color1='#e03f0f'
+								color2="#f68d6e"
+							/>
 						</motion.div>
 					) : (
 						<div></div>
@@ -46,35 +56,25 @@ export function GlobalHeader() {
 						transition={{ delay: 0.2 }}
 						className="flex items-center gap-2"
 					>
-						<div className="gap-6 flex flex-col justify-between border px-4 bg-bg-4 dark:bg-bg-2 rounded-md py-2 border-orange-300 dark:border-orange-400 !border-t-transparent rounded-t-none mr-12">
+						<div className="gap-6 flex flex-col justify-between border px-4 bg-bg-4 dark:bg-bg-2 rounded-md py-2 border-accent/50 dark:border-orange-400 !border-t-transparent rounded-t-none mr-12">
 							<div className="flex w-full gap-2 items-center">
-								<div className="text-text-primary">
-									Open source software ♥
+								<div className='text-text-primary/80 mr-4 text-2xl font-medium'>Deploy your own vibe-coding platform</div>
+								<div className="flex font-semibold gap-2 items-center bg-orange-600 dark:bg-orange-500 text-white rounded px-2 hover:opacity-80 cursor-pointer" onClick={() => window.open("https://deploy.workers.cloudflare.com/?url=\"https://github.com/cloudflare/orange-builds\"", "_blank")}>
+									Deploy <CloudflareLogo className='w-5 h-5' color1='#fff'  />
 								</div>
-								<div
-									className="flex font-semibold items-center bg-orange-600 dark:bg-orange-500 text-white rounded px-2 hover:opacity-80 cursor-pointer"
-									onClick={() =>
-										window.open(
-											'https://deploy.workers.cloudflare.com/?url="https://github.com/cloudflare/orange-builds"',
-											'_blank',
-										)
-									}
-								>
-									Deploy
-								</div>
-								<div
-									className="flex font-semibold items-center bg-text-primary text-bg-4 rounded gap-1 px-2 hover:opacity-80 cursor-pointer"
-									onClick={() =>
-										window.open(
-											'https://github.com/cloudflare/orange-builds',
-											'_blank',
-										)
-									}
-								>
+								<div className="flex font-semibold items-center bg-text-primary text-bg-4 rounded gap-1 px-2 hover:opacity-80 cursor-pointer" onClick={() => window.open("https://github.com/cloudflare/orange-builds", "_blank")} >
 									Fork <GithubIcon className="size-4" />
 								</div>
 							</div>
 						</div>
+                        {/* Disable cost display for now */}
+						{/* {user && (
+							<CostDisplay
+								{...extractUserAnalyticsProps(analytics)}
+								loading={analyticsLoading}
+								variant="inline"
+							/>
+						)} */}
 						<ThemeToggle />
 						<AuthButton />
 					</motion.div>

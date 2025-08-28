@@ -395,24 +395,24 @@ export const SmartPreviewIframe = forwardRef<HTMLIFrameElement, SmartPreviewIfra
 		
 		// Show loading/retry state
 		return (
-			<div className={`${className} flex flex-col items-center justify-center bg-bg-light border border-text/10 rounded-lg`}>
+			<div className={`${className} flex flex-col items-center justify-center bg-bg-3 border border-text/10 rounded-lg`}>
 				<div className="text-center p-8 max-w-md">
 					{retryState.isRetrying ? (
 						<>
-							<RefreshCw className="size-8 text-brand animate-spin mx-auto mb-4" />
-							<h3 className="text-lg font-medium text-text mb-2">Loading Preview</h3>
-							<p className="text-text/70 text-sm mb-4">
+							<RefreshCw className="size-8 text-accent animate-spin mx-auto mb-4" />
+							<h3 className="text-lg font-medium text-text-primary mb-2">Loading Preview</h3>
+							<p className="text-text-primary/70 text-sm mb-4">
 								{retryState.lastError || 'Checking if your deployed preview is ready...'}
 							</p>
-							<div className="text-xs text-text/50">
+							<div className="text-xs text-text-primary/50">
 								Preview URLs may take a moment to become available after deployment
 							</div>
 						</>
 					) : retryState.showErrorHandling ? (
 						<>
 							<RefreshCw className="size-8 text-brand animate-spin mx-auto mb-4" />
-							<h3 className="text-lg font-medium text-text mb-2">Application Issues Detected</h3>
-							<p className="text-text/70 text-sm mb-6">
+							<h3 className="text-lg font-medium text-text-primary mb-2">Application Issues Detected</h3>
+							<p className="text-text-primary/70 text-sm mb-6">
 								The Application may not be working yet, I will fix it for you. Please wait...
 							</p>
 							<button
@@ -436,8 +436,8 @@ export const SmartPreviewIframe = forwardRef<HTMLIFrameElement, SmartPreviewIfra
 					//  retryState.lastError ? (
 					// 	<>
 					// 		<AlertCircle className="size-8 text-orange-500 mx-auto mb-4" />
-					// 		<h3 className="text-lg font-medium text-text mb-2">Preview Not Ready</h3>
-					// 		<p className="text-text/70 text-sm mb-4">
+					// 		<h3 className="text-lg font-medium text-text-primary mb-2">Preview Not Ready</h3>
+					// 		<p className="text-text-primary/70 text-sm mb-4">
 					// 			{retryState.lastError}
 					// 		</p>
 					// 		<button
@@ -452,8 +452,8 @@ export const SmartPreviewIframe = forwardRef<HTMLIFrameElement, SmartPreviewIfra
 					(
 						<>
 							<RefreshCw className="size-8 text-brand animate-spin mx-auto mb-4" />
-							<h3 className="text-lg font-medium text-text mb-2">Preparing Preview</h3>
-							<p className="text-text/70 text-sm">
+							<h3 className="text-lg font-medium text-text-primary mb-2">Preparing Preview</h3>
+							<p className="text-text-primary/70 text-sm">
 								Setting up your project preview...
 							</p>
 						</>

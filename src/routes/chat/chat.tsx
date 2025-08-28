@@ -444,7 +444,7 @@ export default function Chat() {
 	}
 
 	return (
-		<div className="size-full flex flex-col">
+		<div className="size-full flex flex-col text-text-primary">
 			<div className="flex-1 flex min-h-0 justify-center">
 				<motion.div
 					layout="position"
@@ -453,7 +453,7 @@ export default function Chat() {
 					<div className="flex-1 overflow-y-auto min-h-0 chat-messages-scroll">
 						<div className="pt-5 px-4 pb-4 text-sm flex flex-col gap-5">
 							{appLoading ? (
-								<div className="flex items-center gap-2 text-muted-foreground">
+								<div className="flex items-center gap-2 text-text-tertiary">
 									<LoaderCircle className="size-4 animate-spin" />
 									Loading app...
 								</div>
@@ -469,7 +469,7 @@ export default function Chat() {
 									/>
 									{import.meta.env
 										.VITE_AGENT_MODE_ENABLED && (
-										<div className="flex justify-between items-center py-2 border-b border-border/50 mb-4">
+										<div className="flex justify-between items-center py-2 border-b border-border-primary/50 mb-4">
 											<AgentModeDisplay
 												mode={
 													agentMode as
@@ -491,9 +491,9 @@ export default function Chat() {
 
 							<motion.div
 								layout="position"
-								className="pl-9 drop-shadow mb-2"
+								className="pl-9 mb-2"
 							>
-								<div className="px-2 pr-3.5 py-3 flex-1 rounded-xl border border-black/12 bg-bg">
+								<div className="px-2 pr-3.5 py-3 flex-1 rounded-xl border border-black/12 bg-bg-4 dark:bg-bg-2">
 									{projectStages.map((stage, index) => {
 										const { id, status, title, metadata } =
 											stage;
@@ -538,9 +538,9 @@ export default function Chat() {
 																	scale: 0.2,
 																	opacity: 0.4,
 																}}
-																className="size-5 bg-bg flex items-center justify-center"
+																className="size-5 bg-bg-4 dark:bg-bg-2 flex items-center justify-center"
 															>
-																<LoaderCircle className="size-3 text-orange-400 animate-spin" />
+																<LoaderCircle className="size-3 text-accent animate-spin" />
 															</motion.div>
 														)}
 
@@ -561,7 +561,7 @@ export default function Chat() {
 																}}
 																className="size-5 flex items-center justify-center"
 															>
-																<div className="size-2 rounded-full bg-orange-400" />
+																<div className="size-2 rounded-full bg-accent" />
 															</motion.div>
 														)}
 													</AnimatePresence>
@@ -573,8 +573,8 @@ export default function Chat() {
 																'font-medium',
 																status ===
 																	'pending'
-																	? 'text-zinc-400'
-																	: 'text-zinc-700',
+																	? 'text-text-tertiary'
+																	: 'text-text-secondary',
 															)}
 														>
 															{title}
@@ -593,7 +593,7 @@ export default function Chat() {
 																	<span className="text-zinc-300 mx-1">
 																		&bull;
 																	</span>
-																	<span className="text-zinc-400">
+																	<span className="text-text-tertiary">
 																		{
 																			progress
 																		}
@@ -618,7 +618,7 @@ export default function Chat() {
 																	view ===
 																	'blueprint'
 																		? 'text-brand underline decoration-dotted'
-																		: 'text-text/80 hover:bg-bg-lighter/50 hover:text-text'
+																		: 'text-text-secondary/80 hover:bg-bg-2/50 hover:text-text-secondary'
 																}`}
 															>
 																<span className="text-xs text-left truncate">
@@ -664,7 +664,7 @@ export default function Chat() {
 															'absolute left-[9.25px] w-px h-full top-2.5 z-10',
 															status ===
 																'completed'
-																? 'bg-orange-400'
+																? 'bg-accent'
 																: 'bg-text/5',
 														)}
 													/>
@@ -743,12 +743,12 @@ export default function Chat() {
 											? 'Chat with AI while generating...'
 											: 'Ask a follow up...'
 								}
-								className="w-full bg-bg-lighter border border-white/10 rounded-xl px-3 pr-10 py-2 text-sm outline-none focus:border-white/20 drop-shadow-2xl text-text placeholder:!text-text/50 disabled:opacity-50 disabled:cursor-not-allowed"
+								className="w-full bg-bg-2 border border-text-primary/10 rounded-xl px-3 pr-10 py-2 text-sm outline-none focus:border-white/20 drop-shadow-2xl text-text-primary placeholder:!text-text-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
 							/>
 							<button
 								type="submit"
 								disabled={!newMessage.trim() || isChatDisabled}
-								className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md bg-brand/90 hover:bg-bg-lighter/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-transparent text-text-on-brands disabled:text-text transition-colors"
+								className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md bg-brand/90 hover:bg-bg-2/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-transparent text-text-on-brands disabled:text-text-primary transition-colors"
 							>
 								<ArrowRight className="size-4" />
 							</button>
@@ -760,14 +760,14 @@ export default function Chat() {
 					{showMainView && (
 						<motion.div
 							layout="position"
-							className="flex-1 flex shrink-0 basis-0 p-4 pl-0 z-30"
+							className="flex-1 flex shrink-0 basis-0 p-4 pl-0 ml-2 z-30"
 							initial={{ opacity: 0, scale: 0.84 }}
 							animate={{ opacity: 1, scale: 1 }}
 							transition={{ duration: 0.3, ease: 'easeInOut' }}
 						>
 							{view === 'preview' && previewUrl && (
-								<div className="flex-1 flex flex-col bg-bg-light rounded-xl shadow-md overflow-hidden border border-text/10">
-									<div className="grid grid-cols-3 px-2 h-10 bg-bg border-b">
+								<div className="flex-1 flex flex-col bg-bg-3 rounded-xl shadow-md shadow-bg-2 overflow-hidden border border-border-primary">
+									<div className="grid grid-cols-3 px-2 h-10 border-b bg-bg-2">
 										<div className="flex items-center">
 											<ViewModeSwitch
 												view={view}
@@ -786,7 +786,7 @@ export default function Chat() {
 												</span>
 												<Copy text={previewUrl} />
 												<button
-													className="p-1 hover:bg-bg-lighter rounded transition-colors"
+													className="p-1 hover:bg-bg-2 rounded transition-colors"
 													onClick={() => {
 														setManualRefreshTrigger(
 															Date.now(),
@@ -794,7 +794,7 @@ export default function Chat() {
 													}}
 													title="Refresh preview"
 												>
-													<RefreshCw className="size-4 text-text/50" />
+													<RefreshCw className="size-4 text-text-primary/50" />
 												</button>
 											</div>
 										</div>
@@ -833,13 +833,13 @@ export default function Chat() {
 												GitHub
 											</button>
 											<button
-												className="p-1 hover:bg-bg-lighter rounded transition-colors"
+												className="p-1 hover:bg-bg-2 rounded transition-colors"
 												onClick={() => {
 													previewRef.current?.requestFullscreen();
 												}}
 												title="Fullscreen"
 											>
-												<Expand className="size-4 text-text/50" />
+												<Expand className="size-4 text-text-primary/50" />
 											</button>
 										</div>
 									</div>
@@ -864,9 +864,9 @@ export default function Chat() {
 							)}
 
 							{view === 'blueprint' && (
-								<div className="flex-1 flex flex-col bg-bg-light rounded-xl shadow-md overflow-hidden border border-text/10">
+								<div className="flex-1 flex flex-col bg-bg-3 rounded-xl shadow-md shadow-bg-2 overflow-hidden border border-border-primary">
 									{/* Toolbar */}
-									<div className="flex items-center justify-center px-2 h-10 bg-bg-lighter border-b">
+									<div className="flex items-center justify-center px-2 h-10 bg-bg-2 border-b">
 										<div className="flex items-center gap-2">
 											<span className="text-sm text-text-50/70 font-mono">
 												Blueprint.md
@@ -876,7 +876,7 @@ export default function Chat() {
 											)}
 										</div>
 									</div>
-									<div className="flex-1 overflow-y-auto bg-bg-light">
+									<div className="flex-1 overflow-y-auto bg-bg-3">
 										<div className="py-12 mx-auto">
 											<Blueprint
 												blueprint={
@@ -891,8 +891,8 @@ export default function Chat() {
 							)}
 
 							{view === 'terminal' && (
-								<div className="flex-1 flex flex-col bg-bg-light rounded-xl shadow-md overflow-hidden border border-text/10">
-									<div className="grid grid-cols-3 px-2 h-10 bg-bg border-b">
+								<div className="flex-1 flex flex-col bg-bg-3 rounded-xl shadow-md shadow-bg-2 overflow-hidden border border-border-primary">
+									<div className="grid grid-cols-3 px-2 h-10 bg-bg-2 border-b">
 										<div className="flex items-center">
 											<ViewModeSwitch
 												view={view}
@@ -960,9 +960,9 @@ export default function Chat() {
 							)}
 
 							{view === 'editor' && (
-								<div className="flex-1 flex flex-col bg-bg-light rounded-xl shadow-md overflow-hidden border border-text/10">
+								<div className="flex-1 flex flex-col bg-bg-3 rounded-xl shadow-md shadow-bg-2 overflow-hidden border border-border-primary">
 									{activeFile && (
-										<div className="grid grid-cols-3 px-2 h-10 bg-bg border-b">
+										<div className="grid grid-cols-3 px-2 h-10 bg-bg-2 border-b">
 											<div className="flex items-center">
 												<ViewModeSwitch
 													view={view}
@@ -1024,13 +1024,13 @@ export default function Chat() {
 													loading={loadingConfigs}
 												/>
 												<button
-													className="p-1 hover:bg-bg-lighter rounded transition-colors"
+													className="p-1 hover:bg-bg-2 rounded transition-colors"
 													onClick={() => {
 														editorRef.current?.requestFullscreen();
 													}}
 													title="Fullscreen"
 												>
-													<Expand className="size-4 text-text/50" />
+													<Expand className="size-4 text-text-primary/50" />
 												</button>
 											</div>
 										</div>
