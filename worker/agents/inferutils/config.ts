@@ -72,6 +72,7 @@ export const AGENT_CONFIG: AgentConfig = {
         name: AIModels.GEMINI_2_5_FLASH_LITE,
         max_tokens: 2000,
         fallbackModel: AIModels.GEMINI_2_5_FLASH,
+        temperature: 0.8,
     },
     blueprint: {
         name: AIModels.GEMINI_2_5_PRO,
@@ -84,7 +85,7 @@ export const AGENT_CONFIG: AgentConfig = {
         name: AIModels.GEMINI_2_5_PRO,
         reasoning_effort: 'low',
         max_tokens: 10000,
-        temperature: 0,
+        temperature: 0.2,
         fallbackModel: AIModels.GEMINI_2_5_PRO,
     },
     phaseGeneration: {

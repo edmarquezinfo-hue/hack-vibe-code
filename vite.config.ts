@@ -10,7 +10,8 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
     optimizeDeps: {
         exclude: ['format', 'editor.all'],
-        include: ['monaco-editor/esm/vs/editor/editor.api']
+        include: ['monaco-editor/esm/vs/editor/editor.api'],
+        force: true // Force re-optimization on every start
     },
     // build: {
     //     rollupOptions: {
@@ -64,4 +65,6 @@ export default defineConfig({
 	server: {
 		allowedHosts: true
 	},
+	// Clear cache more aggressively
+	cacheDir: 'node_modules/.vite'
 });

@@ -188,6 +188,19 @@ class ApiClient {
   }
 
   /**
+   * Check if endpoint should trigger auth modal on 401
+   * Auth checking endpoints should not auto-trigger modals
+   */
+  private shouldTriggerAuthModal(endpoint: string): boolean {
+    // Don't trigger modal for auth state checking endpoints
+    if (endpoint === '/api/auth/profile') return false;
+    if (endpoint === '/api/auth/providers') return false;
+    if (endpoint === '/api/auth/sessions') return false;
+    
+    return true;
+  }
+
+  /**
    * Make HTTP request with proper error handling and type safety
    */
   private async request<T>(
@@ -219,8 +232,8 @@ class ApiClient {
       const data = await response.json();
 
       if (!response.ok) {
-        // Intercept 401 responses and trigger auth modal
-        if (response.status === 401 && globalAuthModalTrigger) {
+        // Intercept 401 responses and trigger auth modal (but not for auth checking endpoints)
+        if (response.status === 401 && globalAuthModalTrigger && this.shouldTriggerAuthModal(endpoint)) {
           // Determine context based on endpoint
           const authContext = this.getAuthContextForEndpoint(endpoint);
           globalAuthModalTrigger(authContext);

@@ -940,7 +940,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         
         // Execute commands if any
         if (reviewResult.commands && reviewResult.commands.length > 0) {
-            this.executeCommands(reviewResult.commands);
+            await this.executeCommands(reviewResult.commands);
         }
         // Notify review completion
         this.broadcast(WebSocketMessageResponses.CODE_REVIEWED, {
@@ -1397,6 +1397,16 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             });
 
             if (fixResult) {
+                // If there are unfixable issues but of type TS2307, Extract the module that wasnt found and maybe try installing it
+                if (fixResult.unfixableIssues.length > 0) {
+                    const modulesNotFound = fixResult.unfixableIssues.filter(issue => issue.issueCode === 'TS2307');
+                    // Reason would be of type `External package \"xyz\" should be handled by package manager`, extract via regex
+                    const moduleNames = modulesNotFound.map(issue => issue.reason.match(/External package "(.+)"/)?.[1]);
+                    
+                    // Execute command
+                    await this.executeCommands(moduleNames.filter(moduleName => moduleName !== undefined).map(moduleName => `bun install ${moduleName}`));
+                    this.logger.info(`Deterministic code fixer installed missing modules: ${moduleNames.join(', ')}`);
+                }
                 if (fixResult.modifiedFiles.length > 0) {
                         this.logger.info("Applying deterministic fixes to files, Fixes: ", JSON.stringify(fixResult, null, 2));
                         const fixedFiles = fixResult.modifiedFiles.map(file => ({
@@ -1409,17 +1419,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                     await this.deployToSandbox(fixedFiles, false, "fix: applied deterministic fixes");
                     this.logger.info("Deployed deterministic fixes to sandbox");
                 }
-
-                // If there are unfixable issues but of type TS2307, Extract the module that wasnt found and maybe try installing it
-                if (fixResult.unfixableIssues.length > 0) {
-                    const modulesNotFound = fixResult.unfixableIssues.filter(issue => issue.issueCode === 'TS2307');
-                    // Reason would be of type `External package \"xyz\" should be handled by package manager`, extract via regex
-                    const moduleNames = modulesNotFound.map(issue => issue.reason.match(/External package "(.+)"/)?.[1]);
-                    
-                    // Execute command
-                    await this.executeCommands(moduleNames.filter(moduleName => moduleName !== undefined).map(moduleName => `bun install ${moduleName}`));
-                    this.logger.info(`Deterministic code fixer installed missing modules: ${moduleNames.join(', ')}`);
-                }
             }
             this.logger.info(`Applied deterministic code fixes: ${JSON.stringify(fixResult, null, 2)}`);
         } catch (error) {
@@ -1430,7 +1429,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         }
         // return undefined;
     }
-
 
     async fetchAllIssues(): Promise<AllIssues> {
         const [runtimeErrors, staticAnalysis] = await Promise.all([
@@ -1577,7 +1575,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 });
 
                 // Run all commands in background
-                this.executeCommands(this.state.commandsHistory || []);
+                this.executeCommands(this.state.commandsHistory || [], 20);
 
                 // Launch a set interval to check the health of the deployment. If it fails, redeploy
                 const checkHealthInterval = setInterval(async () => {
@@ -1934,7 +1932,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
      * Execute commands with retry logic
      * Chunks commands and retries failed ones with AI assistance
      */
-    private async executeCommands(commands: string[]): Promise<void> {
+    private async executeCommands(commands: string[], chunkSize: number = 5): Promise<void> {
         const state = this.state;
         if (!state.sandboxInstanceId) {
             this.logger.warn('No sandbox instance available for executing commands');
@@ -1952,7 +1950,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         this.logger.info(`AI suggested ${commands.length} commands to run: ${commands.join(", ")}`);
 
         // Execute in chunks of 5 for better reliability
-        const chunkSize = 5;
         const commandChunks = [];
         for (let i = 0; i < commands.length; i += chunkSize) {
             commandChunks.push(commands.slice(i, i + chunkSize));

@@ -1098,9 +1098,12 @@ export class SandboxSdkClient extends BaseSandboxService {
             const sandbox = this.getSandbox();
 
             const results = [];
+
+            const writePromises = files.map(file => sandbox.writeFile(`${instanceId}/${file.filePath}`, file.fileContents));
             
-            for (const file of files) {
-                const writeResult = await sandbox.writeFile(`${instanceId}/${file.filePath}`, file.fileContents);
+            const writeResults = await Promise.all(writePromises);
+            
+            for (const writeResult of writeResults) {
                 if (writeResult.success) {
                     results.push({
                         file: writeResult.path,
@@ -1119,6 +1122,11 @@ export class SandboxSdkClient extends BaseSandboxService {
             }
 
             const successCount = results.filter(r => r.success).length;
+
+            // If code files were modified, touch vite.config.ts to trigger a rebuild
+            if (successCount > 0 && files.some(file => file.filePath.endsWith('.ts') || file.filePath.endsWith('.tsx'))) {
+                await sandbox.exec(`touch ${instanceId}/vite.config.ts`);
+            }
 
             // Try to commit
             try {
