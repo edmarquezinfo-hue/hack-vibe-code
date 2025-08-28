@@ -207,24 +207,23 @@ class CloudflareDeploymentManager {
 	 * Safely parses wrangler.jsonc file, handling comments and JSON-like syntax
 	 */
 	private parseWranglerConfig(): WranglerConfig {
-		const wranglerPath = join(PROJECT_ROOT, 'wrangler.jsonc');
+		const wranglerPath = this.getWranglerPath();
 
 		if (!existsSync(wranglerPath)) {
 			throw new DeploymentError(
-				'wrangler.jsonc file not found in project root',
+				'wrangler.jsonc not found',
+				new Error('Please ensure wrangler.jsonc exists in the project root'),
 			);
 		}
 
 		try {
-			const content = readFileSync(wranglerPath, 'utf-8');
-			const config = parse(content) as WranglerConfig;
-
-			console.log(`✅ Parsed wrangler.jsonc - Project: ${config.name}`);
+			const { config } = this.readWranglerConfig();
+			this.logSuccess(`Parsed wrangler.jsonc - Project: ${config.name}`);
 			return config;
 		} catch (error) {
 			throw new DeploymentError(
-				'Failed to parse wrangler.jsonc file',
-				error instanceof Error ? error : new Error(String(error)),
+				'Failed to parse wrangler.jsonc',
+				error instanceof Error ? error : new Error(`Please check your wrangler.jsonc syntax: ${String(error)}`),
 			);
 		}
 	}
@@ -806,18 +805,141 @@ class CloudflareDeploymentManager {
 		return { zoneName: null, zoneId: null };
 	}
 
+    
 	/**
 	 * Updates wrangler.jsonc routes and deployment settings based on CUSTOM_DOMAIN
 	 */
+	/**
+	 * Standard formatting options for JSONC modifications
+	 */
+	private static readonly JSONC_FORMAT_OPTIONS = {
+		formattingOptions: {
+			insertSpaces: true,
+			keepLines: true,
+			tabSize: 4
+		}
+	};
+
+	/**
+	 * Gets the path to wrangler.jsonc
+	 */
+	private getWranglerPath(): string {
+		return join(PROJECT_ROOT, 'wrangler.jsonc');
+	}
+
+	/**
+	 * Reads and parses wrangler.jsonc file
+	 */
+	private readWranglerConfig(): { content: string; config: WranglerConfig } {
+		const wranglerPath = this.getWranglerPath();
+		const content = readFileSync(wranglerPath, 'utf-8');
+		const config = parse(content) as WranglerConfig;
+		return { content, config };
+	}
+
+	/**
+	 * Writes content to wrangler.jsonc file
+	 */
+	private writeWranglerConfig(content: string): void {
+		const wranglerPath = this.getWranglerPath();
+		writeFileSync(wranglerPath, content, 'utf-8');
+	}
+
+	/**
+	 * Standardized success logging
+	 */
+	private logSuccess(message: string, details?: string[]): void {
+		console.log(`✅ ${message}`);
+		if (details) {
+			details.forEach(detail => console.log(`   ${detail}`));
+		}
+	}
+
+	/**
+	 * Standardized warning logging
+	 */
+	private logWarning(message: string, details?: string[]): void {
+		console.warn(`⚠️  ${message}`);
+		if (details) {
+			details.forEach(detail => console.warn(`   ${detail}`));
+		}
+	}
+
+	/**
+	 * Updates a specific field in wrangler.jsonc configuration
+	 */
+	private updateWranglerField<T>(content: string, field: string, value: T): string {
+		const edits = modify(content, [field], value, CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS);
+		return applyEdits(content, edits);
+	}
+
+	/**
+	 * Updates wrangler.jsonc for workers.dev deployment (no custom domain)
+	 */
+	private updateWranglerForWorkersDev(content: string): string {
+		let updatedContent = content;
+		
+		// Remove routes property if it exists
+		const removeRoutesEdits = modify(content, ['routes'], undefined, CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS);
+		updatedContent = applyEdits(updatedContent, removeRoutesEdits);
+		
+		// Set workers_dev = true and preview_urls = true
+		updatedContent = this.updateWranglerField(updatedContent, 'workers_dev', true);
+		updatedContent = this.updateWranglerField(updatedContent, 'preview_urls', true);
+
+		return updatedContent;
+	}
+
+	/**
+	 * Updates wrangler.jsonc for custom domain deployment
+	 */
+	private updateWranglerForCustomDomain(
+		content: string, 
+		routes: Array<{ pattern: string; custom_domain: boolean; zone_id?: string; zone_name?: string }>,
+		preserveExistingFlags: boolean = false
+	): string {
+		let updatedContent = content;
+
+		// Update routes
+		updatedContent = this.updateWranglerField(updatedContent, 'routes', routes);
+
+		// Only update workers_dev and preview_urls if not preserving existing flags
+		if (!preserveExistingFlags) {
+			updatedContent = this.updateWranglerField(updatedContent, 'workers_dev', false);
+			updatedContent = this.updateWranglerField(updatedContent, 'preview_urls', false);
+		}
+
+		return updatedContent;
+	}
+
+	/**
+	 * Safely detects zone information for a domain, handling failures gracefully
+	 */
+	private async safeDetectZoneForDomain(
+		customDomain: string, 
+		originalCustomDomain: string | null
+	): Promise<{ zoneName: string | null; zoneId: string | null; success: boolean }> {
+		try {
+			if (!originalCustomDomain) {
+				return { zoneName: null, zoneId: null, success: false };
+			}
+
+			const { zoneName, zoneId } = await this.detectZoneForDomain(customDomain, originalCustomDomain);
+			return { zoneName, zoneId, success: true };
+		} catch (error) {
+			console.warn(
+				`⚠️  Zone detection failed for custom domain ${customDomain}: ${error instanceof Error ? error.message : String(error)}`
+			);
+			console.log('   → Continuing without zone-specific routes');
+			return { zoneName: null, zoneId: null, success: false };
+		}
+	}
+
 	private async updateCustomDomainRoutes(): Promise<void> {
-		const customDomain = this.config.vars?.CUSTOM_DOMAIN;
+		const customDomain = this.config.vars?.CUSTOM_DOMAIN || process.env.CUSTOM_DOMAIN;
 
 		try {
-			const wranglerPath = join(PROJECT_ROOT, 'wrangler.jsonc');
-			const content = readFileSync(wranglerPath, 'utf-8');
-			
-			// Parse the JSONC file to get current routes
-			const config = parse(content) as WranglerConfig;
+			const { content, config } = this.readWranglerConfig();
 			
 			// Get the original custom domain from existing routes (route with custom_domain: true)
 			const originalCustomDomain = config.routes?.find(route => route.custom_domain)?.pattern || null;
@@ -827,46 +949,14 @@ class CloudflareDeploymentManager {
 					'ℹ️  CUSTOM_DOMAIN not set - removing routes and enabling workers.dev',
 				);
 
-				// Remove routes if they exist and set workers_dev=true, preview_urls=true
-				let updatedContent = content;
-				
-				// Remove routes property if it exists
-				const removeRoutesEdits = modify(content, ['routes'], undefined, {
-					formattingOptions: {
-						insertSpaces: true,
-						keepLines: true,
-						tabSize: 4
-					}
-				});
-				updatedContent = applyEdits(updatedContent, removeRoutesEdits);
-				
-				// Set workers_dev = true
-				const workersDevEdits = modify(updatedContent, ['workers_dev'], true, {
-					formattingOptions: {
-						insertSpaces: true,
-						keepLines: true,
-						tabSize: 4
-					}
-				});
-				updatedContent = applyEdits(updatedContent, workersDevEdits);
-				
-				// Set preview_urls = true
-				const previewUrlsEdits = modify(updatedContent, ['preview_urls'], true, {
-					formattingOptions: {
-						insertSpaces: true,
-						keepLines: true,
-						tabSize: 4
-					}
-				});
-				updatedContent = applyEdits(updatedContent, previewUrlsEdits);
+				const updatedContent = this.updateWranglerForWorkersDev(content);
+				this.writeWranglerConfig(updatedContent);
 
-				// Write back the updated configuration
-				writeFileSync(wranglerPath, updatedContent, 'utf-8');
-
-				console.log('✅ Updated wrangler.jsonc for workers.dev deployment:');
-				console.log('   - Removed routes configuration');
-				console.log('   - Set workers_dev: true');
-				console.log('   - Set preview_urls: true');
+				this.logSuccess('Updated wrangler.jsonc for workers.dev deployment:', [
+					'- Removed routes configuration',
+					'- Set workers_dev: true',
+					'- Set preview_urls: true'
+				]);
 				return;
 			}
 
@@ -874,12 +964,10 @@ class CloudflareDeploymentManager {
 				`🔧 Updating wrangler.jsonc routes with custom domain: ${customDomain}`,
 			);
 
-			// Detect zone if custom domain is different from original (only if originalCustomDomain was found)
-			const { zoneName, zoneId } = originalCustomDomain 
-				? await this.detectZoneForDomain(customDomain, originalCustomDomain)
-				: { zoneName: null, zoneId: null };
+			// Safely detect zone information
+			const { zoneName, zoneId, success: zoneDetectionSuccess } = await this.safeDetectZoneForDomain(customDomain, originalCustomDomain);
 
-			// Define the expected routes based on custom domain
+			// Define the expected routes based on zone detection success
 			let expectedRoutes: Array<{
 				pattern: string;
 				custom_domain: boolean;
@@ -887,7 +975,7 @@ class CloudflareDeploymentManager {
 				zone_name?: string;
 			}>;
 
-			if (zoneId && zoneName) {
+			if (zoneDetectionSuccess && zoneId && zoneName) {
 				// Custom domain with zone information for wildcard pattern
 				console.log(`📋 Creating routes with zone information:`);
 				console.log(`   Zone Name: ${zoneName}`);
@@ -903,11 +991,10 @@ class CloudflareDeploymentManager {
 					},
 				];
 			} else {
-				// Standard routes without zone information
-				console.log(`📋 Creating standard routes without zone information`);
+				// If zone detection failed, only use basic custom domain route
+				console.log(`📋 Creating basic custom domain route (zone detection ${zoneDetectionSuccess ? 'skipped' : 'failed'})`);
 				expectedRoutes = [
-					{ pattern: customDomain, custom_domain: true },
-					{ pattern: `*${customDomain}/*`, custom_domain: false },
+					{ pattern: customDomain, custom_domain: true }
 				];
 			}
 
@@ -940,50 +1027,27 @@ class CloudflareDeploymentManager {
 				return;
 			}
 
-			let updatedContent = content;
+			// Update wrangler configuration
+			// If zone detection failed, preserve existing workers_dev and preview_urls values
+			const preserveExistingFlags = !zoneDetectionSuccess;
+			const updatedContent = this.updateWranglerForCustomDomain(content, expectedRoutes, preserveExistingFlags);
+			this.writeWranglerConfig(updatedContent);
 
-			// Update routes using jsonc-parser modify function
-			const routesEdits = modify(content, ['routes'], expectedRoutes, {
-				formattingOptions: {
-					insertSpaces: true,
-					keepLines: true,
-					tabSize: 4
-				}
+			// Log the changes
+			const routeDetails = expectedRoutes.map((route, index) => {
+				const routeInfo = route.zone_id 
+					? `(custom_domain: ${route.custom_domain}, zone_id: ${route.zone_id})`
+					: `(custom_domain: ${route.custom_domain})`;
+				return `Route ${index + 1}: ${route.pattern} ${routeInfo}`;
 			});
-			updatedContent = applyEdits(updatedContent, routesEdits);
 
-			// Set workers_dev = false for custom domain
-			const workersDevEdits = modify(updatedContent, ['workers_dev'], false, {
-				formattingOptions: {
-					insertSpaces: true,
-					keepLines: true,
-					tabSize: 4
-				}
-			});
-			updatedContent = applyEdits(updatedContent, workersDevEdits);
-
-			// Set preview_urls = false for custom domain
-			const previewUrlsEdits = modify(updatedContent, ['preview_urls'], false, {
-				formattingOptions: {
-					insertSpaces: true,
-					keepLines: true,
-					tabSize: 4
-				}
-			});
-			updatedContent = applyEdits(updatedContent, previewUrlsEdits);
-
-			// Write back the updated configuration
-			writeFileSync(wranglerPath, updatedContent, 'utf-8');
-
-			console.log(`✅ Updated wrangler.jsonc routes:`);
-			console.log(`   Route 1: ${customDomain} (custom_domain: true)`);
-			if (zoneId && zoneName) {
-				console.log(`   Route 2: *${customDomain}/* (custom_domain: false, zone_id: ${zoneId}, zone_name: ${zoneName})`);
+			if (!preserveExistingFlags) {
+				routeDetails.push('Set workers_dev: false', 'Set preview_urls: false');
 			} else {
-				console.log(`   Route 2: *${customDomain}/* (custom_domain: false)`);
+				routeDetails.push('Preserved existing workers_dev and preview_urls settings');
 			}
-			console.log('   Set workers_dev: false');
-			console.log('   Set preview_urls: false');
+
+			this.logSuccess('Updated wrangler.jsonc routes:', routeDetails);
 		} catch (error) {
 			console.warn(
 				`⚠️  Could not update custom domain routes: ${error instanceof Error ? error.message : String(error)}`,
@@ -1028,11 +1092,7 @@ class CloudflareDeploymentManager {
 		);
 
 		try {
-			const wranglerPath = join(PROJECT_ROOT, 'wrangler.jsonc');
-			const content = readFileSync(wranglerPath, 'utf-8');
-
-			// Parse the JSONC file to validate structure and find container index
-			const config = parse(content) as WranglerConfig;
+			const { content, config } = this.readWranglerConfig();
 
 			if (!config.containers || !Array.isArray(config.containers)) {
 				console.warn(
@@ -1062,23 +1122,17 @@ class CloudflareDeploymentManager {
 				content,
 				['containers', sandboxContainerIndex, 'max_instances'],
 				maxInstancesNum,
-				{
-                    formattingOptions: {
-                        insertSpaces: true,
-                        keepLines: true,
-                        tabSize: 4
-                    }
-				},
+				CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS,
 			);
 
 			// Apply the edits to get the updated content
 			const updatedContent = applyEdits(content, edits);
 
 			// Write back the updated configuration
-			writeFileSync(wranglerPath, updatedContent, 'utf-8');
+			this.writeWranglerConfig(updatedContent);
 
-			console.log(
-				`✅ Updated UserAppSandboxService max_instances: ${oldMaxInstances} → ${maxInstancesNum}`,
+			this.logSuccess(
+				`Updated UserAppSandboxService max_instances: ${oldMaxInstances} → ${maxInstancesNum}`
 			);
 		} catch (error) {
 			throw new DeploymentError(
@@ -1103,11 +1157,7 @@ class CloudflareDeploymentManager {
 		);
 
 		try {
-			const wranglerPath = join(PROJECT_ROOT, 'wrangler.jsonc');
-			const content = readFileSync(wranglerPath, 'utf-8');
-
-			// Parse the JSONC file to validate structure and find container indices
-			const config = parse(content) as WranglerConfig;
+			const { content, config } = this.readWranglerConfig();
 
 			if (!config.containers || !Array.isArray(config.containers)) {
 				console.warn(
@@ -1169,13 +1219,7 @@ class CloudflareDeploymentManager {
 				updatedContent,
 				['containers', userAppContainerIndex, 'instance_type'],
 				userAppInstanceType,
-				{
-					formattingOptions: {
-						insertSpaces: true,
-						keepLines: true,
-						tabSize: 4
-					}
-				}
+				CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS
 			);
 			updatedContent = applyEdits(updatedContent, userAppInstanceTypeEdits);
 
@@ -1184,34 +1228,23 @@ class CloudflareDeploymentManager {
 				updatedContent,
 				['containers', deployerContainerIndex, 'instance_type'],
 				deployerInstanceType,
-				{
-					formattingOptions: {
-						insertSpaces: true,
-						keepLines: true,
-						tabSize: 4
-					}
-				}
+				CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS
 			);
 			updatedContent = applyEdits(updatedContent, deployerInstanceTypeEdits);
 
 			// Write back the updated configuration
-			writeFileSync(wranglerPath, updatedContent, 'utf-8');
+			this.writeWranglerConfig(updatedContent);
 
-			console.log(
-				`✅ Updated container instance types for SANDBOX_INSTANCE_TYPE: ${sandboxInstanceType}`,
-			);
-			console.log(
-				`   UserAppSandboxService: ${JSON.stringify(userAppInstanceType)}`,
-			);
-			console.log(
-				`   DeployerService: ${JSON.stringify(deployerInstanceType)}`,
-			);
+			this.logSuccess(`Updated container instance types for SANDBOX_INSTANCE_TYPE: ${sandboxInstanceType}`, [
+				`UserAppSandboxService: ${JSON.stringify(userAppInstanceType)}`,
+				`DeployerService: ${JSON.stringify(deployerInstanceType)}`
+			]);
 
 		} catch (error) {
-			console.warn(
-				`⚠️  Could not update container instance types: ${error instanceof Error ? error.message : String(error)}`,
+			this.logWarning(
+				`Could not update container instance types: ${error instanceof Error ? error.message : String(error)}`,
+				['Continuing with current configuration...']
 			);
-			console.warn('   Continuing with current configuration...');
 			// Non-blocking - continue deployment
 		}
 	}
@@ -1342,8 +1375,7 @@ class CloudflareDeploymentManager {
 			console.log(`⚠️  Temporarily removing ${Object.keys(conflictingVars).length} conflicting vars from wrangler.jsonc`);
 
 			// Remove conflicting vars from wrangler.jsonc
-			const wranglerPath = join(PROJECT_ROOT, 'wrangler.jsonc');
-			const content = readFileSync(wranglerPath, 'utf-8');
+			const { content } = this.readWranglerConfig();
 			
 			const updatedVars = { ...originalVars };
 			Object.keys(conflictingVars).forEach(varName => {
@@ -1355,23 +1387,17 @@ class CloudflareDeploymentManager {
 				content,
 				['vars'],
 				updatedVars,
-				{
-                    formattingOptions: {
-                        insertSpaces: true,
-                        keepLines: true,
-                        tabSize: 4
-                    }
-                }
+				CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS
 			);
 
 			const updatedContent = applyEdits(content, edits);
-			writeFileSync(wranglerPath, updatedContent, 'utf-8');
+			this.writeWranglerConfig(updatedContent);
 
-			console.log('✅ Temporarily removed conflicting vars from wrangler.jsonc');
+			this.logSuccess('Temporarily removed conflicting vars from wrangler.jsonc');
 			return conflictingVars;
 
 		} catch (error) {
-			console.warn(`⚠️  Could not remove conflicting vars: ${error instanceof Error ? error.message : String(error)}`);
+			this.logWarning(`Could not remove conflicting vars: ${error instanceof Error ? error.message : String(error)}`);
 			return null;
 		}
 	}
@@ -1387,9 +1413,7 @@ class CloudflareDeploymentManager {
 		try {
 			console.log('🔄 Restoring original vars to wrangler.jsonc...');
 			
-			const wranglerPath = join(PROJECT_ROOT, 'wrangler.jsonc');
-			const content = readFileSync(wranglerPath, 'utf-8');
-			const config = parse(content) as WranglerConfig;
+			const { content, config } = this.readWranglerConfig();
 			
 			// Merge back the conflicting vars
 			const restoredVars = {
@@ -1401,23 +1425,18 @@ class CloudflareDeploymentManager {
 				content,
 				['vars'],
 				restoredVars,
-				{
-                    formattingOptions: {
-                        insertSpaces: true,
-                        keepLines: true,
-                        tabSize: 4
-                    }
-                }
+				CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS
 			);
 
 			const updatedContent = applyEdits(content, edits);
-			writeFileSync(wranglerPath, updatedContent, 'utf-8');
+			this.writeWranglerConfig(updatedContent);
 
-			console.log(`✅ Restored ${Object.keys(originalConflictingVars).length} original vars to wrangler.jsonc`);
+			this.logSuccess(`Restored ${Object.keys(originalConflictingVars).length} original vars to wrangler.jsonc`);
 			
 		} catch (error) {
-			console.warn(`⚠️  Could not restore original vars: ${error instanceof Error ? error.message : String(error)}`);
-			console.warn('   You may need to manually restore wrangler.jsonc vars');
+			this.logWarning(`Could not restore original vars: ${error instanceof Error ? error.message : String(error)}`, [
+				'You may need to manually restore wrangler.jsonc vars'
+			]);
 		}
 	}
 
@@ -1616,15 +1635,16 @@ class CloudflareDeploymentManager {
 			);
 
 			if (commentedContent !== content) {
-				writeFileSync(wranglerPath, commentedContent, 'utf-8');
-				console.log('✅ Successfully commented out dispatch_namespaces in wrangler.jsonc');
+				this.writeWranglerConfig(commentedContent);
+				this.logSuccess('Successfully commented out dispatch_namespaces in wrangler.jsonc');
 			} else {
 				console.log('ℹ️  No changes needed for dispatch_namespaces');
 			}
 
 		} catch (error) {
-			console.warn(`⚠️  Could not comment out dispatch_namespaces: ${error instanceof Error ? error.message : String(error)}`);
-			console.warn('   Continuing with deployment...');
+			this.logWarning(`Could not comment out dispatch_namespaces: ${error instanceof Error ? error.message : String(error)}`, [
+				'Continuing with deployment...'
+			]);
 		}
 	}
 
