@@ -39,7 +39,7 @@
         {
             "binding": "DISPATCHER",
             "namespace": "orange-build-default-namespace",
-            // "experimental_remote": true
+            "experimental_remote": true
         }
     ],
 	"containers": [
@@ -75,7 +75,7 @@
 			"database_name": "orange-build-db",
 			"database_id": "3085356f-6009-4a75-a478-66c05a5a532f",
 			"migrations_dir": "migrations",
-			"experimental_remote": false
+			"experimental_remote": true
 		}
 	],
 	"durable_objects": {
@@ -102,14 +102,14 @@
       {
         "binding": "TEMPLATES_BUCKET",
         "bucket_name": "orange-build-templates",
-        "experimental_remote": false
+        "experimental_remote": true
       }
     ],
     "kv_namespaces": [
         {
             "binding": "INSTANCE_REGISTRY",
             "id": "801cc1d5758e44f1bd0565985d9d6df0",
-            "experimental_remote": false
+            "experimental_remote": true
         }
     ],
 	"migrations": [
@@ -132,19 +132,14 @@
         {
             "pattern": "build.cloudflare.dev",
             "custom_domain": true
-        },
-        {
-            "pattern": "*build.cloudflare.dev/*",
-            "custom_domain": false,
-            "zone_id": "11eff4ca128ddc1d11dee256e64ca0a9"
         }
     ],
 	"vars": {
         "TEMPLATES_REPOSITORY": "https://github.com/AshishKumar4/cloudflare-build-templates",
-        "CUSTOM_DOMAIN": "build.cloudflare.dev",
+        "CLOUDFLARE_AI_GATEWAY": "orange-build-gateway",
+        "CUSTOM_DOMAIN": "",
         "MAX_SANDBOX_INSTANCES": "10",
-        "SANDBOX_INSTANCE_TYPE": "standard",
-        "CLOUDFLARE_AI_GATEWAY": "orange-build-gateway"
+        "SANDBOX_INSTANCE_TYPE": "standard"
     },
 	"workers_dev": false,
 	"preview_urls": false
