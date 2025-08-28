@@ -1800,13 +1800,13 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         dataOrWithout?: WebSocketMessageData<WebSocketMessageType> | unknown
     ): void {
         // Send the event to the conversational assistant if its a relevant event
-        // if (this.operations.processUserMessage.isProjectUpdateType(typeOrMsg)) {
-        //     const messages = this.operations.processUserMessage.processProjectUpdates(typeOrMsg, dataOrWithout as WebSocketMessageData<WebSocketMessageType>, this.logger);
-        //     this.setState({
-        //         ...this.state,
-        //         conversationMessages: [...this.state.conversationMessages, ...messages]
-        //     });
-        // }
+        if (this.operations.processUserMessage.isProjectUpdateType(typeOrMsg)) {
+            const messages = this.operations.processUserMessage.processProjectUpdates(typeOrMsg, dataOrWithout as WebSocketMessageData<WebSocketMessageType>, this.logger);
+            this.setState({
+                ...this.state,
+                conversationMessages: [...this.state.conversationMessages, ...messages]
+            });
+        }
         broadcastToConnections(this, typeOrMsg as WebSocketMessageType, dataOrWithout as WebSocketMessageData<WebSocketMessageType>);
     }
 
