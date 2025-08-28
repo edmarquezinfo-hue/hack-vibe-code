@@ -13,7 +13,7 @@ import { CodeGenState, CurrentDevState, MAX_PHASES, FileState } from './state';
 import { AllIssues, AgentSummary, ScreenshotData, AgentInitArgs } from './types';
 import { WebSocketMessageResponses } from '../constants';
 import { broadcastToConnections, handleWebSocketClose, handleWebSocketMessage } from './websocket';
-import { createObjectLogger } from '../../logger';
+import { createObjectLogger, StructuredLogger } from '../../logger';
 import { ProjectSetupAssistant } from '../assistants/projectsetup';
 import { UserConversationProcessor } from '../operations/UserConversationProcessor';
 import { executeAction } from './actions';
@@ -115,7 +115,20 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
     // Deployment queue management to prevent concurrent deployments
     private currentDeploymentPromise: Promise<PreviewType | null> | null = null;
     
-    public logger = createObjectLogger(this, 'CodeGeneratorAgent');
+    public _logger: StructuredLogger | undefined;
+
+    get logger(): StructuredLogger {
+        if (!this._logger) {
+            this._logger = createObjectLogger(this, 'CodeGeneratorAgent');
+            this._logger.setObjectId(this.state.sessionId);
+            this._logger.setFields({
+                sessionId: this.state.sessionId,
+                agentId: this.state.inferenceContext.agentId,
+                userId: this.state.inferenceContext.userId,
+            });
+        }
+        return this._logger;
+    }
 
     initialState: CodeGenState = {
         blueprint: {} as Blueprint, 
@@ -150,8 +163,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         initArgs: AgentInitArgs,
         ..._args: unknown[]
     ): Promise<CodeGenState> {
-        this.logger = createObjectLogger(this, 'CodeGeneratorAgent');
-        this.logger.setObjectId(initArgs.inferenceContext.agentId);
 
         const { query, language, frameworks, hostname, inferenceContext } = initArgs;
         // Fetch available templates
