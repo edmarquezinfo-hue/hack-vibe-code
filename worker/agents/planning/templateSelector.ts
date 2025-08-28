@@ -55,18 +55,21 @@ export async function selectTemplate({ env, query, availableTemplates, inference
 User: "Build a 2D puzzle game with scoring"
 Templates: ["react-dashboard", "react-game-starter", "vue-blog"]
 Selection: "react-game-starter"
+complexity: "simple"
 Reasoning: "Game starter template provides canvas setup, state management, and scoring systems"
 
 **Example 2 - Business Dashboard:**
 User: "Create an analytics dashboard with charts"
 Templates: ["react-dashboard", "nextjs-blog", "vanilla-js"]
 Selection: "react-dashboard"
+complexity: "simple" // Because single page application
 Reasoning: "Dashboard template includes chart components, grid layouts, and data visualization setup"
 
 **Example 3 - No Perfect Match:**
 User: "Build a recipe sharing app"
 Templates: ["react-social", "vue-blog", "angular-todo"]
 Selection: "react-social"
+complexity: "simple" // Because single page application
 Reasoning: "Social template provides user interactions, content sharing, and community features closest to recipe sharing needs"
 
 ## SELECTION CRITERIA:
@@ -96,7 +99,7 @@ ${templateDescriptions}
 **Task:** Select the most suitable template and provide:
 1. Template name (exact match from list)
 2. Clear reasoning for why it fits the user's needs
-3. Appropriate style for the project type
+3. Appropriate style for the project type. Try to come up with unique styles that might look nice and unique
 4. Descriptive project name
 
 Analyze each template's features, frameworks, and architecture to make the best match.`;
