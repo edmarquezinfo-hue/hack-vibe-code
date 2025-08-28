@@ -59,10 +59,10 @@ export function GlobalHeader() {
 						<div className="gap-6 flex flex-col justify-between border px-4 bg-bg-4 dark:bg-bg-2 rounded-md py-2 border-accent/50 dark:border-orange-400 !border-t-transparent rounded-t-none mr-12">
 							<div className="flex w-full gap-2 items-center">
 								<div className='text-text-primary/80 mr-4 text-2xl font-medium'>Deploy your own vibe-coding platform</div>
-								<div className="flex font-semibold gap-2 items-center bg-orange-600 dark:bg-orange-500 text-white rounded px-2 hover:opacity-80 cursor-pointer" onClick={() => window.open("https://deploy.workers.cloudflare.com/?url=\"https://github.com/cloudflare/orange-builds\"", "_blank")}>
+								<div className="flex font-semibold gap-2 items-center bg-orange-600 dark:bg-orange-500 text-white rounded px-2 hover:opacity-80 cursor-pointer" onClick={() => window.open("https://deploy.workers.cloudflare.com/?url=\"https://github.com/cloudflare/vibesdk\"", "_blank")}>
 									Deploy <CloudflareLogo className='w-5 h-5' color1='#fff'  />
 								</div>
-								<div className="flex font-semibold items-center bg-text-primary text-bg-4 rounded gap-1 px-2 hover:opacity-80 cursor-pointer" onClick={() => window.open("https://github.com/cloudflare/orange-builds", "_blank")} >
+								<div className="flex font-semibold items-center bg-text-primary text-bg-4 rounded gap-1 px-2 hover:opacity-80 cursor-pointer" onClick={() => window.open("https://github.com/cloudflare/vibesdk", "_blank")} >
 									Fork <GithubIcon className="size-4" />
 								</div>
 							</div>
