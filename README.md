@@ -64,15 +64,7 @@ Before clicking "Deploy to Cloudflare", have these ready:
 
 ### ✅ Required API Keys
 Get these API keys from each provider:
-- **Anthropic API Key** - Get from [console.anthropic.com](https://console.anthropic.com)
-- **OpenAI API Key** - Get from [platform.openai.com](https://platform.openai.com) 
 - **Google Gemini API Key** - Get from [ai.google.dev](https://ai.google.dev)
-
-### ✅ AI Gateway Token 
-1. Go to [AI Gateway Dashboard](https://dash.cloudflare.com/ai/ai-gateway)
-2. Create or use existing gateway → Authentication tokens → Create token
-3. Enable permissions: **Read**, **Edit**, and **Run**
-4. Copy the token - you'll add it in **both** Worker Secrets and Build Variables
 
 Once you click "Deploy to Cloudflare", you'll be taken to your Cloudflare dashboard where you can configure your Orange Build deployment with these variables. 
 
@@ -80,21 +72,13 @@ Once you click "Deploy to Cloudflare", you'll be taken to your Cloudflare dashbo
 
 ### 🔑 What you'll configure
 
-#### API Keys from AI Providers & AI Gateway Token
-- `CLOUDFLARE_AI_GATEWAY_TOKEN` - Your AI Gateway token 
-- `ANTHROPIC_API_KEY` - Your Anthropic API key for Claude models
-- `OPENAI_API_KEY` - Your OpenAI API key for GPT models  
 - `GOOGLE_AI_STUDIO_API_KEY` - Your Google Gemini API key for Gemini models
 - `JWT_SECRET` - Secure random string for session management (use default: `default`)
 - `WEBHOOK_SECRET` - Webhook authentication secret (use default: `default`)
-
-#### Build Variables
-In the "Build Variables" dropdown, add:
-
-- `CLOUDFLARE_AI_GATEWAY_TOKEN` - **Same token as above** (needed for automatic AI Gateway creation)
+- `SECRETS_ENCRYPTION_KEY` - Encryption key for secrets (use default: `default`)
 - `SANDBOX_INSTANCE_TYPE` - Container performance tier (optional, see section below)
-
-> **💡 Why Both Places?** The AI Gateway token is needed in **both** Worker Secrets (for runtime) and Build Variables (for automatic setup during deployment).
+- `ALLOWED_EMAIL` - Email address of the user allowed to use the app. This is used to verify the user's identity and prevent unauthorized access.
+- `CUSTOM_DOMAIN` - Custom domain for your app that you have configured in Cloudflare (**Required**). This is needed for the app to work.
 
 ### 🏗️ Sandbox Instance Configuration (Optional)
 

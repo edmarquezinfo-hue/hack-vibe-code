@@ -6,7 +6,6 @@ import { setupUserRoutes } from './userRoutes';
 import { setupStatsRoutes } from './statsRoutes';
 import { setupAnalyticsRoutes } from './analyticsRoutes';
 import { setupWebhookRoutes } from './webhookRoutes';
-import { setupGitHubExportRoutes } from './githubExportRoutes';
 import { setupSecretsRoutes } from './secretsRoutes';
 import { setupModelConfigRoutes } from './modelConfigRoutes';
 import { setupModelProviderRoutes } from './modelProviderRoutes';
@@ -59,9 +58,6 @@ export function setupRouter(): Router {
     
     // Webhook routes
     setupWebhookRoutes(router);
-    
-    // GitHub export routes (just-in-time auth)
-    setupGitHubExportRoutes(router);
     
     // Secrets management routes
     setupSecretsRoutes(router);
