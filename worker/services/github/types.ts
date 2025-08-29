@@ -101,8 +101,6 @@ export interface GitHubExportResult {
 export type GitHubTokenType = 'installation' | 'user_access' | 'oauth';
 
 export interface GitHubServiceConfig {
-    appId: string;
-    privateKey: string;
     clientId?: string;
     clientSecret?: string;
 }

@@ -11,7 +11,6 @@ import {
     CreateRepositoryResult,
     GitHubTokenResult,
     GitHubServiceConfig,
-    GitHubServiceError
 } from './types';
 
 export class GitHubService {
@@ -23,16 +22,8 @@ export class GitHubService {
      * Get GitHub service configuration from environment
      */
     private getConfig(): GitHubServiceConfig {
-        if (!this.env.GITHUB_APP_ID || !this.env.GITHUB_APP_PRIVATE_KEY) {
-            throw new GitHubServiceError(
-                'GitHub App not configured',
-                'GITHUB_APP_NOT_CONFIGURED'
-            );
-        }
 
         return {
-            appId: this.env.GITHUB_APP_ID,
-            privateKey: this.env.GITHUB_APP_PRIVATE_KEY,
             clientId: this.env.GITHUB_APP_CLIENT_ID,
             clientSecret: this.env.GITHUB_APP_CLIENT_SECRET,
         };
