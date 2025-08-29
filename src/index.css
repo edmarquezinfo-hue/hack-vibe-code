@@ -254,6 +254,10 @@
 	--tw-prose-th-headers: --value(var(--color-text));
 	--tw-prose-body: --value(var(--color-text));
 	--tw-prose-headings: --value(var(--color-text));
+	--tw-prose-code: --value(var(--color-text));
+	--tw-prose-bold: --value(var(--color-text));
+	--tw-prose-quotes: --value(var(--color-text));
+	--tw-prose-counters: --value(var(--color-text));
 }
 
 /* Chat messages custom scrollbar */

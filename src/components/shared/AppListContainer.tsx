@@ -136,7 +136,7 @@ export const AppListContainer: React.FC<AppListContainerProps> = ({
     return (
       <div className="text-center py-20">
         <Code2 className="h-16 w-16 mx-auto mb-4 text-text-tertiary" />
-        <h3 className="text-xl font-semibold mb-2">
+        <h3 className="text-xl font-semibold mb-2 text-text-secondary">
           {emptyStateContent.title}
         </h3>
         <p className="text-text-tertiary mb-6">
