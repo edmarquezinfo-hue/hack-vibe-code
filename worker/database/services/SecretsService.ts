@@ -7,59 +7,65 @@
 import { BaseService } from './BaseService';
 import * as schema from '../schema';
 import { eq, and } from 'drizzle-orm';
-import { generateId } from '../../utils/idGenerator';
-import type { SecretData, EncryptedSecret } from '../types';
+import { xchacha20poly1305 } from '@noble/ciphers/chacha.js';
 import { DatabaseService } from '../database';
 import { getBYOKTemplates } from '../../types/secretsTemplates';
+import { generateId } from '../../utils/idGenerator';
+import type { SecretData, EncryptedSecret } from '../types';
 
 export class SecretsService extends BaseService {
     constructor(
         db: DatabaseService,
-        private env: Env
+        private env: { SECRETS_ENCRYPTION_KEY: string }
     ) {
         super(db);
     }
 
     /**
-     * Encrypt a secret value using AES-256-GCM
+     * Encrypt a secret value using XChaCha20-Poly1305
      */
     private async encryptSecret(value: string): Promise<{ encryptedValue: string; keyPreview: string }> {
         try {
-            // Use JWT_SECRET as encryption key for simplicity
-            // In production, you'd want a separate encryption key
-            const key = await crypto.subtle.importKey(
-                'raw',
-                new TextEncoder().encode(this.env.JWT_SECRET.substring(0, 32)),
-                { name: 'AES-GCM' },
-                false,
-                ['encrypt']
-            );
+            if (!this.env.SECRETS_ENCRYPTION_KEY) {
+                throw new Error('SECRETS_ENCRYPTION_KEY environment variable not set');
+            }
 
-            const iv = crypto.getRandomValues(new Uint8Array(12));
-            const encodedValue = new TextEncoder().encode(value);
-
-            const encrypted = await crypto.subtle.encrypt(
-                { name: 'AES-GCM', iv },
-                key,
-                encodedValue
-            );
-
-            // Combine IV and encrypted data
-            const combined = new Uint8Array(iv.length + encrypted.byteLength);
-            combined.set(iv);
-            combined.set(new Uint8Array(encrypted), iv.length);
-
+            const encoder = new TextEncoder();
+            const keyMaterial = encoder.encode(this.env.SECRETS_ENCRYPTION_KEY);
+            
+            // Create 32-byte key from environment variable
+            const key = keyMaterial.length >= 32 
+                ? keyMaterial.slice(0, 32)
+                : (() => {
+                    const padded = new Uint8Array(32);
+                    padded.set(keyMaterial);
+                    return padded;
+                })();
+            
+            // Generate random 24-byte nonce for XChaCha20-Poly1305
+            const nonce = crypto.getRandomValues(new Uint8Array(24));
+            
+            // Create cipher and encrypt
+            const cipher = xchacha20poly1305(key, nonce);
+            const data = encoder.encode(value);
+            const encrypted = cipher.encrypt(data);
+            
+            // Combine nonce + encrypted data
+            const combined = new Uint8Array(nonce.length + encrypted.length);
+            combined.set(nonce, 0);
+            combined.set(encrypted, nonce.length);
+            
             const encryptedValue = btoa(String.fromCharCode(...combined));
             
             // Create preview (first 4 + last 4 characters, masked middle)
             const keyPreview = value.length > 8 
-                ? `${value.substring(0, 4)}...${value.substring(value.length - 4)}`
-                : `${value.substring(0, 2)}***${value.substring(value.length - 2)}`;
-
+                ? `${value.slice(0, 4)}${'*'.repeat(Math.max(0, value.length - 8))}${value.slice(-4)}`
+                : '*'.repeat(value.length);
+            
             return { encryptedValue, keyPreview };
         } catch (error) {
-            this.logger.error('Failed to encrypt secret', error);
-            throw new Error('Encryption failed');
+            this.logger.error('Error encrypting secret:', error);
+            throw new Error('Failed to encrypt secret');
         }
     }
 
@@ -68,31 +74,39 @@ export class SecretsService extends BaseService {
      */
     private async decryptSecret(encryptedValue: string): Promise<string> {
         try {
-            const key = await crypto.subtle.importKey(
-                'raw',
-                new TextEncoder().encode(this.env.JWT_SECRET.substring(0, 32)),
-                { name: 'AES-GCM' },
-                false,
-                ['decrypt']
-            );
+            if (!this.env.SECRETS_ENCRYPTION_KEY) {
+                throw new Error('SECRETS_ENCRYPTION_KEY environment variable not set');
+            }
 
+            // Decode the base64 encrypted data
             const combined = new Uint8Array(
-                atob(encryptedValue).split('').map(char => char.charCodeAt(0))
+                Array.from(atob(encryptedValue), c => c.charCodeAt(0))
             );
-
-            const iv = combined.slice(0, 12);
-            const encrypted = combined.slice(12);
-
-            const decrypted = await crypto.subtle.decrypt(
-                { name: 'AES-GCM', iv },
-                key,
-                encrypted
-            );
-
+            
+            // Extract nonce (first 24 bytes) and encrypted data (rest)
+            const nonce = combined.slice(0, 24);
+            const encrypted = combined.slice(24);
+            
+            // Prepare the same key used for encryption
+            const encoder = new TextEncoder();
+            const keyMaterial = encoder.encode(this.env.SECRETS_ENCRYPTION_KEY);
+            
+            const key = keyMaterial.length >= 32 
+                ? keyMaterial.slice(0, 32)
+                : (() => {
+                    const padded = new Uint8Array(32);
+                    padded.set(keyMaterial);
+                    return padded;
+                })();
+            
+            // Create cipher and decrypt
+            const cipher = xchacha20poly1305(key, nonce);
+            const decrypted = cipher.decrypt(encrypted);
+            
             return new TextDecoder().decode(decrypted);
         } catch (error) {
-            this.logger.error('Failed to decrypt secret', error);
-            throw new Error('Decryption failed');
+            this.logger.error('Error decrypting secret:', error);
+            throw new Error('Failed to decrypt secret');
         }
     }
 

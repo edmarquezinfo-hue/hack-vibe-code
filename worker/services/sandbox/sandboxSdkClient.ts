@@ -69,6 +69,11 @@ export interface StreamEvent {
     error?: string;
     timestamp: Date;
 }
+
+export enum AllocationStrategy {
+    MANY_TO_ONE = 'many_to_one',
+    ONE_TO_ONE = 'one_to_one',
+}
   
 function getAutoAllocatedSandbox(sessionId: string): string {
     // We have N containers and we can have M sessionIds at once. M >> N
@@ -109,7 +114,10 @@ export class SandboxSdkClient extends BaseSandboxService {
     private envVars?: Record<string, string>;
 
     constructor(sandboxId: string, hostname: string, envVars?: Record<string, string>) {
-        super(getAutoAllocatedSandbox(sandboxId));
+        if (env.ALLOCATION_STRATEGY === AllocationStrategy.MANY_TO_ONE) {
+            sandboxId = getAutoAllocatedSandbox(sandboxId);
+        }
+        super(sandboxId);
         this.sandbox = this.getSandbox();
         this.hostname = hostname;
         this.envVars = envVars;

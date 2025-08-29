@@ -6,7 +6,6 @@ import { setupUserRoutes } from './userRoutes';
 import { setupStatsRoutes } from './statsRoutes';
 import { setupAnalyticsRoutes } from './analyticsRoutes';
 import { setupWebhookRoutes } from './webhookRoutes';
-import { setupIntegrationRoutes } from './integrationRoutes';
 import { setupSecretsRoutes } from './secretsRoutes';
 import { setupModelConfigRoutes } from './modelConfigRoutes';
 import { setupModelProviderRoutes } from './modelProviderRoutes';
@@ -27,10 +26,6 @@ export function setupRouter(): Router {
     
     // CRITICAL: Create new app - requires full authentication
     router.post('/api/agent', codingAgentController.startCodeGeneration.bind(codingAgentController), AuthConfig.authenticated);
-    
-    // Get agent state - PUBLIC for app viewing (/app/:id frontend route)
-    // Allows unauthenticated users to view app details and generated code
-    router.get('/api/agent/:agentId', codingAgentController.getAgentState.bind(codingAgentController), AuthConfig.public);
     
     // ========================================
     // APP EDITING ROUTES (/chat/:id frontend)
@@ -63,9 +58,6 @@ export function setupRouter(): Router {
     
     // Webhook routes
     setupWebhookRoutes(router);
-    
-    // Integration routes
-    setupIntegrationRoutes(router);
     
     // Secrets management routes
     setupSecretsRoutes(router);
