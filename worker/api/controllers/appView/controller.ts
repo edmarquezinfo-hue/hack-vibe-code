@@ -1,7 +1,7 @@
 
 import { BaseController } from '../BaseController';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
-import { RouteContext } from '../../types/route-context';
+import type { RouteContext } from '../../types/route-context';
 import { cloneAgent, getAgentStub } from '../../../agents';
 import { AppService } from '../../../database/services/AppService';
 import { 
@@ -10,6 +10,7 @@ import {
     ForkAppData, 
 } from './types';
 import { AgentSummary } from '../../../agents/core/types';
+import { Cacheable } from '../../../services/cache/decorators';
 
 export class AppViewController extends BaseController {
     constructor() {
@@ -17,6 +18,14 @@ export class AppViewController extends BaseController {
     }
 
     // Get single app details (public endpoint, auth optional for ownership check)
+    @Cacheable({ 
+        ttlSeconds: 3 * 60 * 60, 
+        keyGenerator: (request: Request, _context: RouteContext, userId?: string) => {
+            const url = new URL(request.url);
+            return `${url.pathname}:user:${userId || 'anonymous'}`;
+        },
+        tags: ['app-details']
+    })
     async getAppDetails(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppDetailsData>>> {
         try {
             const appId = context.pathParams.id;

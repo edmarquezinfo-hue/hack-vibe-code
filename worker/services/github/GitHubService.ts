@@ -24,8 +24,8 @@ export class GitHubService {
     private getConfig(): GitHubServiceConfig {
 
         return {
-            clientId: this.env.GITHUB_CLIENT_ID,
-            clientSecret: this.env.GITHUB_CLIENT_SECRET,
+            clientId: this.env.GITHUB_APP_CLIENT_ID,
+            clientSecret: this.env.GITHUB_APP_CLIENT_SECRET,
         };
     }
 

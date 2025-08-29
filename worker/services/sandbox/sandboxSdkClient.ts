@@ -780,22 +780,22 @@ export class SandboxSdkClient extends BaseSandboxService {
         }
     }  
     
-    // TODO: REMOVE BEFORE PRODUCTION, SECURITY THREAT! Only for testing and demo
-    private async setLocalEnvVars(instanceId: string, localEnvVars: Record<string, string>): Promise<void> {
-        try {
-            const sandbox = this.getSandbox();
-            // Simply save all env vars in '.dev.vars' file
-            const envVarsContent = Object.entries(localEnvVars)
-                .map(([key, value]) => `${key}=${value}`)
-                .join('\n');
-            await sandbox.writeFile(`${instanceId}/.dev.vars`, envVarsContent);
-        } catch (error) {
-            this.logger.error(`Error setting local environment variables: ${error}`);
-            throw error;
-        }
-    }
+    // // TODO: REMOVE BEFORE PRODUCTION, SECURITY THREAT! Only for testing and demo
+    // private async setLocalEnvVars(instanceId: string, localEnvVars: Record<string, string>): Promise<void> {
+    //     try {
+    //         const sandbox = this.getSandbox();
+    //         // Simply save all env vars in '.dev.vars' file
+    //         const envVarsContent = Object.entries(localEnvVars)
+    //             .map(([key, value]) => `${key}=${value}`)
+    //             .join('\n');
+    //         await sandbox.writeFile(`${instanceId}/.dev.vars`, envVarsContent);
+    //     } catch (error) {
+    //         this.logger.error(`Error setting local environment variables: ${error}`);
+    //         throw error;
+    //     }
+    // }
 
-    private async setupInstance(instanceId: string, projectName: string, localEnvVars?: Record<string, string>): Promise<{previewURL: string, tunnelURL: string, processId: string, allocatedPort: number} | undefined> {
+    private async setupInstance(instanceId: string, projectName: string, _localEnvVars?: Record<string, string>): Promise<{previewURL: string, tunnelURL: string, processId: string, allocatedPort: number} | undefined> {
         try {
             const sandbox = this.getSandbox();
             // Update project configuration with the specified project name
@@ -821,9 +821,9 @@ export class SandboxSdkClient extends BaseSandboxService {
                 // Try to start development server in background
                 try {
                     // Set local environment variables if provided
-                    if (localEnvVars) {
-                        await this.setLocalEnvVars(instanceId, localEnvVars);
-                    }
+                    // if (localEnvVars) {
+                    //     await this.setLocalEnvVars(instanceId, localEnvVars);
+                    // }
                     // Setup git
                     const gitSetupResult = await this.executeCommand(instanceId, `git init`);
                     this.logger.info(`Git setup result: ${gitSetupResult.stdout}`);

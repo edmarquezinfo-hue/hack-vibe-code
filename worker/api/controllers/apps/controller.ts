@@ -4,7 +4,7 @@ import type { BatchAppStats, AppSortOption, SortOrder, TimePeriod } from '../../
 import { formatRelativeTime } from '../../../utils/timeFormatter';
 import { BaseController } from '../BaseController';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
-import { RouteContext } from '../../types/route-context';
+import type { RouteContext } from '../../types/route-context';
 import { 
     AppsListData,
     PublicAppsData,
@@ -13,6 +13,7 @@ import {
     UpdateAppVisibilityData,
     AppDeleteData
 } from './types';
+import { Cacheable } from '../../../services/cache/decorators';
 
 export class AppController extends BaseController {
     constructor() {
@@ -20,6 +21,11 @@ export class AppController extends BaseController {
     }
 
     // Get all apps for the current user
+    @Cacheable({ 
+        ttlSeconds: 12 * 60, 
+        tags: ['user-apps'],
+        keyGenerator: (_request: Request, context: RouteContext) => `user-apps:${context.user?.id}`
+    })
     async getUserApps(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
         try {
             const user = this.extractAuthUser(context);
@@ -130,6 +136,7 @@ export class AppController extends BaseController {
     }
 
     // Get public apps feed (like a global board)
+    @Cacheable({ ttlSeconds: 45 * 60, tags: ['public-apps'] })
     async getPublicApps(request: Request, env: Env, _ctx: ExecutionContext, _context: RouteContext): Promise<ControllerResponse<ApiResponse<PublicAppsData>>> {
         try {
             const dbService = this.createDbService(env);
