@@ -19,10 +19,11 @@ export class GitHubOAuthProvider extends BaseOAuthProvider {
     protected readonly tokenUrl = 'https://github.com/login/oauth/access_token';
     protected readonly userInfoUrl = 'https://api.github.com/user';
     protected readonly emailsUrl = 'https://api.github.com/user/emails';
+    
+    // Minimal scopes for authentication only - NO repo access
     protected readonly scopes = [
         'read:user',
-        'user:email',
-        'repo' // Required for creating both public and private repositories
+        'user:email'
     ];
     
     /**

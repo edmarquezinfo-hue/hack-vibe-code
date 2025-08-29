@@ -178,7 +178,7 @@ export function createSecureCookie(options: CookieOptions): string {
     value,
     maxAge = 7 * 24 * 60 * 60, // 7 days default
     httpOnly = true,
-    secure = process.env.NODE_ENV === 'production',
+    secure = true,
     sameSite = 'Lax',
     path = '/',
     domain
@@ -477,25 +477,4 @@ export async function extractGitHubErrorText(response: Response): Promise<string
     // If parsing fails, return generic error
     return `HTTP ${response.status}`;
   }
-}
-
-// ==========================================
-// GITHUB SCOPES VALIDATION
-// ==========================================
-
-/**
- * Valid GitHub OAuth scopes with proper TypeScript typing
- */
-export type GitHubScope = 'repo' | 'user:email' | 'read:user' | 'user' | 'gist' | 'admin:org';
-
-/**
- * Validate GitHub scopes array with proper TypeScript typing
- * Consolidates scopes validation to eliminate duplication and ensure type safety
- */
-export function validateGitHubScopes(scopes: string[]): GitHubScope[] {
-  const validScopes: GitHubScope[] = ['repo', 'user:email', 'read:user', 'user', 'gist', 'admin:org'];
-  
-  return scopes.filter((scope): scope is GitHubScope => {
-    return validScopes.includes(scope as GitHubScope);
-  });
 }

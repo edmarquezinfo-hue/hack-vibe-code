@@ -26,6 +26,11 @@ declare namespace Cloudflare {
 		GOOGLE_CLIENT_ID: string;
 		GITHUB_CLIENT_ID: string;
 		GITHUB_CLIENT_SECRET: string;
+		GITHUB_APP_ID: string;
+		GITHUB_APP_NAME: string;
+		GITHUB_APP_PRIVATE_KEY: string;
+		GITHUB_APP_CLIENT_ID: string;
+		GITHUB_APP_CLIENT_SECRET: string;
 		JWT_SECRET: string;
 		WEBHOOK_SECRET: string;
 		AI_GATEWAY_PROXY_FOR_TEMPLATES_JWT_SECRET: string;

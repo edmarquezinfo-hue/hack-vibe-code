@@ -9,6 +9,7 @@ import { setupWebhookRoutes } from './webhookRoutes';
 import { setupSecretsRoutes } from './secretsRoutes';
 import { setupModelConfigRoutes } from './modelConfigRoutes';
 import { setupModelProviderRoutes } from './modelProviderRoutes';
+import { setupGitHubAppRoutes } from './githubAppRoutes';
 // import { handleInsertRag, handleQueryRag } from "./rag";
 
 // Export the CodeGenerator Agent as a Durable Object class named CodeGen
@@ -67,6 +68,9 @@ export function setupRouter(): Router {
     
     // Model provider routes
     setupModelProviderRoutes(router);
+    
+    // GitHub App routes
+    setupGitHubAppRoutes(router);
     
     return router;
 }

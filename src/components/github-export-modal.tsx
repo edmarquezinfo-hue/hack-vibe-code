@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, 
@@ -10,8 +10,6 @@ import {
     AlertCircle, 
     Loader
 } from 'lucide-react';
-import { useAuth } from '@/contexts/auth-context';
-import { apiClient } from '@/lib/api-client';
 
 interface GitHubExportModalProps {
     isOpen: boolean;
@@ -32,6 +30,7 @@ interface GitHubExportModalProps {
         repositoryUrl?: string;
         error?: string;
     };
+    onRetry?: () => void;
 }
 
 export function GitHubExportModal({
@@ -40,58 +39,27 @@ export function GitHubExportModal({
     onExport,
     isExporting = false,
     exportProgress,
-    exportResult
+    exportResult,
+    onRetry
 }: GitHubExportModalProps) {
-    const { isAuthenticated } = useAuth();
     const [repositoryName, setRepositoryName] = useState('');
     const [description, setDescription] = useState('');
     const [isPrivate, setIsPrivate] = useState(false);
-    const [hasGitHubIntegration, setHasGitHubIntegration] = useState<boolean | null>(null);
-    const [checkingIntegration, setCheckingIntegration] = useState(false);
-
-    // Check GitHub integration status when modal opens and user is authenticated
-    useEffect(() => {
-        if (!isOpen || !isAuthenticated) {
-            setHasGitHubIntegration(null);
-            return;
-        }
-
-        const checkIntegration = async () => {
-            setCheckingIntegration(true);
-            try {
-                const response = await apiClient.getGitHubIntegrationStatus();
-                console.log('GitHub integration API response:', response);
-                setHasGitHubIntegration(response.data?.hasIntegration || false);
-            } catch (error) {
-                console.error('Error checking GitHub integration:', error);
-                setHasGitHubIntegration(false);
-            } finally {
-                setCheckingIntegration(false);
-            }
-        };
-
-        checkIntegration();
-    }, [isOpen, isAuthenticated]);
 
     const handleSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
         
-        if (!isAuthenticated || !hasGitHubIntegration) {
-            // Redirect to GitHub integration
-            window.location.href = '/api/integrations/github/connect';
-            return;
-        }
-
         if (!repositoryName.trim()) {
             return;
         }
 
+        // Always call onExport - the parent component will handle OAuth flow
         onExport({
             repositoryName: repositoryName.trim(),
             isPrivate,
             description: description.trim() || undefined
         });
-    }, [repositoryName, description, isPrivate, onExport, isAuthenticated, hasGitHubIntegration]);
+    }, [repositoryName, description, isPrivate, onExport]);
 
     const handleClose = useCallback(() => {
         if (!isExporting) {
@@ -147,52 +115,7 @@ export function GitHubExportModal({
                     </div>
 
                     {/* Content */}
-                    {!isAuthenticated || (isAuthenticated && checkingIntegration) ? (
-                        /* Authentication/Loading State */
-                        <div className="text-center py-8">
-                            {!isAuthenticated ? (
-                                <>
-                                    <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg mb-4">
-                                        <Github className="w-8 h-8 text-orange-600 mx-auto mb-2" />
-                                        <p className="text-sm text-orange-800 dark:text-orange-200">
-                                            Authentication required to export your code
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => window.location.href = '/api/integrations/github/connect'}
-                                        className="w-full bg-[#24292e] hover:bg-[#1a1e22] text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        <Github className="w-4 h-4" />
-                                        Connect GitHub Account
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                                    <Loader className="w-8 h-8 text-text-primary/60 mx-auto mb-2 animate-spin" />
-                                    <p className="text-sm text-text-primary/60">
-                                        Checking GitHub integration...
-                                    </p>
-                                </>
-                            )}
-                        </div>
-                    ) : isAuthenticated && hasGitHubIntegration === false ? (
-                        /* GitHub Integration Required */
-                        <div className="text-center py-8">
-                            <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg mb-4">
-                                <Github className="w-8 h-8 text-orange-600 mx-auto mb-2" />
-                                <p className="text-sm text-orange-800 dark:text-orange-200">
-                                    GitHub integration required to export your code
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => window.location.href = '/api/integrations/github/connect'}
-                                className="w-full bg-[#24292e] hover:bg-[#1a1e22] text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                            >
-                                <Github className="w-4 h-4" />
-                                Connect GitHub Account
-                            </button>
-                        </div>
-                    ) : exportResult ? (
+                    {exportResult ? (
                         /* Export Result */
                         <div className="text-center py-8">
                             {exportResult.success ? (
@@ -219,12 +142,20 @@ export function GitHubExportModal({
                                     <p className="text-sm text-text-primary/60 mb-4">
                                         {exportResult.error || 'An error occurred during export'}
                                     </p>
-                                    <button
-                                        onClick={() => window.location.reload()}
-                                        className="bg-bg-2 hover:bg-border text-text-primary py-2 px-4 rounded-lg transition-colors"
-                                    >
-                                        Try Again
-                                    </button>
+                                    <div className="space-x-2">
+                                        <button
+                                            onClick={onRetry || (() => window.location.reload())}
+                                            className="bg-bg-2 hover:bg-border text-text-primary py-2 px-4 rounded-lg transition-colors"
+                                        >
+                                            Try Again
+                                        </button>
+                                        <button
+                                            onClick={onClose}
+                                            className="bg-transparent hover:bg-bg-2 text-text-primary/60 hover:text-text-primary py-2 px-4 rounded-lg transition-colors"
+                                        >
+                                            Close
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>

@@ -495,6 +495,29 @@ export const GitHubExportResponseSchema = z.object({
 })
 export type GitHubExportResponse = z.infer<typeof GitHubExportResponseSchema>
 
+// New simplified git push operation (for separated concerns)
+export interface GitHubPushRequest {
+    cloneUrl: string;
+    token: string;
+    email: string;
+    username: string;
+    commitMessage?: string;
+    repositoryHtmlUrl: string;
+    isPrivate: boolean;
+}
+
+export const GitHubPushResponseSchema = z.object({
+    success: z.boolean(),
+    commitSha: z.string().optional(),
+    error: z.string().optional(),
+    details: z.object({
+        operation: z.string().optional(),
+        exitCode: z.number().optional(),
+        stderr: z.string().optional(),
+    }).optional(),
+})
+export type GitHubPushResponse = z.infer<typeof GitHubPushResponseSchema>
+
 
 // --- Save/Resume Instance Types ---
 

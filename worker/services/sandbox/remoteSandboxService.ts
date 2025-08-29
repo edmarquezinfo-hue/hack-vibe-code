@@ -34,6 +34,9 @@ import {
     GitHubExportResponse,
     GitHubExportRequest,
     GitHubExportResponseSchema,
+    GitHubPushRequest,
+    GitHubPushResponse,
+    GitHubPushResponseSchema,
 } from './sandboxTypes';
 import { BaseSandboxService } from "./BaseSandboxService";
 import { env } from 'cloudflare:workers'
@@ -233,10 +236,17 @@ export class RemoteSandboxServiceClient extends BaseSandboxService{
     }
 
     /**
-     * Initialize GitHub repository for an instance
+     * Initialize GitHub repository for an instance (DEPRECATED - use pushToGitHub)
      */
     async exportToGitHub(instanceId: string, request: GitHubExportRequest): Promise<GitHubExportResponse> {
         return this.makeRequest(`/instances/${instanceId}/github/export`, 'POST', GitHubExportResponseSchema, request);
+    }
+
+    /**
+     * Push instance files to existing GitHub repository (NEW - separated concerns)
+     */
+    async pushToGitHub(instanceId: string, request: GitHubPushRequest): Promise<GitHubPushResponse> {
+        return this.makeRequest(`/instances/${instanceId}/github/push`, 'POST', GitHubPushResponseSchema, request);
     }
 
     /**

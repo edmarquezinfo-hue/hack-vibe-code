@@ -17,6 +17,7 @@ export class GoogleOAuthProvider extends BaseOAuthProvider {
     protected readonly authorizationUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
     protected readonly tokenUrl = 'https://oauth2.googleapis.com/token';
     protected readonly userInfoUrl = 'https://www.googleapis.com/oauth2/v2/userinfo';
+    // Minimal scopes for authentication only
     protected readonly scopes = [
         'openid',
         'email',

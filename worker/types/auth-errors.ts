@@ -556,7 +556,7 @@ export class AuthErrorUtils {
    */
   static getSafeErrorDetails(error: BaseAuthError): Partial<AuthErrorResponse['error']> {
     // For security, don't expose internal details in production
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = true;
     
     if (isProduction && error.statusCode >= 500) {
       return {
