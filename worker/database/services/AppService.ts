@@ -1037,21 +1037,47 @@ export class AppService extends BaseService {
         
         const total = totalQuery[0]?.count || 0;
 
-        // Convert to EnhancedAppData format
-        const enhancedApps: EnhancedAppData[] = await Promise.all(
-            basicApps.map(async (app: any) => {
-                const enhancedApp: EnhancedAppData = {
-                    ...app,
-                    starCount: app.starCount || 0,
-                    userStarred: userId ? await this.isAppStarredByUser(app.id, userId) : false,
-                    userFavorited: userId ? await this.isAppFavoritedByUser(app.id, userId) : false,
-                    viewCount: app.viewCount || 0,
-                    forkCount: app.forkCount || 0,
-                    likeCount: 0
-                };
-                return enhancedApp;
-            })
-        );
+        // Batch fetch user interactions to avoid N+1 queries
+        let userStarredSet = new Set<string>();
+        let userFavoritedSet = new Set<string>();
+        
+        if (userId && basicApps.length > 0) {
+            const appIds = basicApps.map(app => app.id);
+            
+            const [userStars, userFavorites] = await Promise.all([
+                // Batch query for user stars
+                this.database
+                    .select({ appId: schema.stars.appId })
+                    .from(schema.stars)
+                    .where(and(
+                        eq(schema.stars.userId, userId),
+                        inArray(schema.stars.appId, appIds)
+                    )),
+                
+                // Batch query for user favorites
+                this.database
+                    .select({ appId: schema.favorites.appId })
+                    .from(schema.favorites)
+                    .where(and(
+                        eq(schema.favorites.userId, userId),
+                        inArray(schema.favorites.appId, appIds)
+                    ))
+            ]);
+            
+            userStarredSet = new Set(userStars.map(s => s.appId));
+            userFavoritedSet = new Set(userFavorites.map(f => f.appId));
+        }
+
+        // Convert to EnhancedAppData format with O(1) lookups
+        const enhancedApps: EnhancedAppData[] = basicApps.map((app: any) => ({
+            ...app,
+            starCount: app.starCount || 0,
+            userStarred: userStarredSet.has(app.id),
+            userFavorited: userFavoritedSet.has(app.id),
+            viewCount: app.viewCount || 0,
+            forkCount: app.forkCount || 0,
+            likeCount: app.likeCount || 0
+        }));
 
         return {
             data: enhancedApps,
@@ -1163,29 +1189,6 @@ export class AppService extends BaseService {
         return enhancedApps;
     }
 
-    /**
-     * Check if app is starred by user (for enhanced app data)
-     */
-    private async isAppStarredByUser(appId: string, userId: string): Promise<boolean> {
-        const result = await this.database
-            .select({ count: sql<number>`COUNT(*)` })
-            .from(schema.stars)
-            .where(and(eq(schema.stars.appId, appId), eq(schema.stars.userId, userId)));
-        
-        return (result[0]?.count || 0) > 0;
-    }
-
-    /**
-     * Check if app is favorited by user (for enhanced app data)
-     */
-    private async isAppFavoritedByUser(appId: string, userId: string): Promise<boolean> {
-        const result = await this.database
-            .select({ count: sql<number>`COUNT(*)` })
-            .from(schema.favorites)
-            .where(and(eq(schema.favorites.appId, appId), eq(schema.favorites.userId, userId)));
-        
-        return (result[0]?.count || 0) > 0;
-    }
 
     // ========================================
     // INDUSTRY-STANDARD RANKING ALGORITHMS
