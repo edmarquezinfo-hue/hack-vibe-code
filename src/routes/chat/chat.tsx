@@ -126,8 +126,8 @@ export default function Chat() {
 		},
 	});
 
-	// GitHub export functionality
-	const githubExport = useGitHubExport(websocket);
+	// GitHub export functionality - use urlChatId directly from URL params
+	const githubExport = useGitHubExport(websocket, urlChatId);
 
 	const navigate = useNavigate();
 
@@ -286,6 +286,10 @@ export default function Chat() {
 	const isPhase1Complete = useMemo(() => {
 		return phaseTimeline.length > 0 && phaseTimeline[0].status === 'completed';
 	}, [phaseTimeline]);
+
+	const isGitHubExportReady = useMemo(() => {
+		return isPhase1Complete && !!urlChatId;
+	}, [isPhase1Complete, urlChatId]);
 
 	const showMainView = useMemo(
 		() =>
@@ -820,14 +824,26 @@ export default function Chat() {
 											/>
 											<button
 												className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-all duration-200 text-xs font-medium shadow-sm ${
-													isPhase1Complete 
+													isGitHubExportReady 
 														? 'bg-gray-800 hover:bg-gray-900 text-white' 
 														: 'bg-gray-600 text-gray-400 cursor-not-allowed'
 												}`}
-												onClick={isPhase1Complete ? githubExport.openModal : undefined}
-												disabled={!isPhase1Complete}
-												title={isPhase1Complete ? "Export to GitHub" : "Complete Phase 1 to enable GitHub export"}
-												aria-label={isPhase1Complete ? "Export to GitHub" : "GitHub export disabled - complete Phase 1 first"}
+												onClick={isGitHubExportReady ? githubExport.openModal : undefined}
+												disabled={!isGitHubExportReady}
+												title={
+													isGitHubExportReady 
+														? "Export to GitHub" 
+														: !isPhase1Complete 
+															? "Complete Phase 1 to enable GitHub export"
+															: "Waiting for chat session to initialize..."
+												}
+												aria-label={
+													isGitHubExportReady 
+														? "Export to GitHub" 
+														: !isPhase1Complete
+															? "GitHub export disabled - complete Phase 1 first"
+															: "GitHub export disabled - waiting for chat session"
+												}
 											>
 												<Github className="size-3" />
 												GitHub
@@ -1108,6 +1124,7 @@ export default function Chat() {
 				isExporting={githubExport.isExporting}
 				exportProgress={githubExport.progress}
 				exportResult={githubExport.result}
+				onRetry={githubExport.retry}
 			/>
 		</div>
 	);

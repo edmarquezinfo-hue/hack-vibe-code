@@ -99,7 +99,7 @@ ${templateDescriptions}
 **Task:** Select the most suitable template and provide:
 1. Template name (exact match from list)
 2. Clear reasoning for why it fits the user's needs
-3. Appropriate style for the project type. Try to come up with unique styles that might look nice and unique
+3. Appropriate style for the project type. Try to come up with unique styles that might look nice and unique. Be creative about your choices.
 4. Descriptive project name
 
 Analyze each template's features, frameworks, and architecture to make the best match.`;

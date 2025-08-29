@@ -25,7 +25,6 @@ import { mapUserResponse } from '../../utils/authUtils';
 import { createLogger } from '../../logger';
 import { validateEmail, validatePassword } from '../../utils/validationUtils';
 import { extractRequestMetadata } from '../../utils/authUtils';
-import { GitHubIntegrationController } from '../../api/controllers/githubIntegration/controller';
 
 const logger = createLogger('AuthService');
 
@@ -68,7 +67,7 @@ export class AuthService {
     
     constructor(
         private db: DatabaseService,
-        private env: Env,
+        env: Env,
         baseUrl: string
     ) {
         this.tokenService = new TokenService(env);
@@ -424,26 +423,6 @@ export class AuthService {
             
             // Find or create user
             const user = await this.findOrCreateOAuthUser(provider, oauthUserInfo);
-            
-            // Store GitHub integration if this is GitHub OAuth
-            if (provider === 'github') {
-                try {
-                    await GitHubIntegrationController.storeIntegration(
-                        user.id,
-                        {
-                            githubUserId: oauthUserInfo.id,
-                            githubUsername: oauthUserInfo.name || oauthUserInfo.email.split('@')[0],
-                            accessToken: tokens.accessToken,
-                            refreshToken: tokens.refreshToken,
-                            scopes: ['repo', 'user:email', 'read:user']
-                        },
-                        this.env
-                    );
-                } catch (error) {
-                    logger.error('Failed to store GitHub integration', error);
-                    // Don't fail the OAuth flow if GitHub integration storage fails
-                }
-            }
             
             // Create session
             const { accessToken: sessionAccessToken, refreshToken: sessionRefreshToken } = await this.sessionService.createSession(

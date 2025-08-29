@@ -165,37 +165,11 @@ export function handleWebSocketMessage(agent: SimpleCodeGeneratorAgent, connecti
                 }
                 break;
             case WebSocketMessageRequests.GITHUB_EXPORT:
-                // Handle GitHub export request
-                sendToConnection(connection, WebSocketMessageResponses.GITHUB_EXPORT_STARTED, {
-                    message: 'Starting GitHub export...'
-                });
-                
-                const exportOptions = {
-                    repositoryName: parsedMessage.repositoryName || 'generated-app',
-                    isPrivate: parsedMessage.isPrivate || false,
-                    description: parsedMessage.description,
-                    userId: parsedMessage.userId
-                };
-                
-                agent.exportToGithub(exportOptions).then((result) => {
-                    if (!result.success) {
-                        sendToConnection(connection, WebSocketMessageResponses.GITHUB_EXPORT_ERROR, {
-                            message: 'GitHub export failed',
-                            error: result.error || 'Unknown error'
-                        });
-                        return;
-                    }
-                    
-                    sendToConnection(connection, WebSocketMessageResponses.GITHUB_EXPORT_COMPLETED, {
-                        message: `Successfully exported to GitHub: ${result.repositoryUrl}`,
-                        repositoryUrl: result.repositoryUrl
-                    });
-                }).catch((error: unknown) => {
-                    logger.error('Error during GitHub export:', error);
-                    sendToConnection(connection, WebSocketMessageResponses.GITHUB_EXPORT_ERROR, {
-                        message: 'GitHub export failed due to an unexpected error',
-                        error: error instanceof Error ? error.message : String(error)
-                    });
+                // DEPRECATED: WebSocket-based GitHub export replaced with OAuth flow
+                // GitHub Apps require OAuth user access tokens for user repository creation
+                sendToConnection(connection, WebSocketMessageResponses.GITHUB_EXPORT_ERROR, {
+                    message: 'GitHub export via WebSocket is deprecated',
+                    error: 'Please use the GitHub export button which will redirect you to authorize with GitHub OAuth'
                 });
                 break;
             case WebSocketMessageRequests.USER_SUGGESTION:

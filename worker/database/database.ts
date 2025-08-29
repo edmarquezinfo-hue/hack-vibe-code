@@ -5,9 +5,13 @@
  */
 
 import { drizzle } from 'drizzle-orm/d1';
-import { eq , sql } from 'drizzle-orm';
+import { sql, eq } from 'drizzle-orm';
+import { nanoid } from 'nanoid';
 import * as schema from './schema';
-import { generateId } from '../utils/idGenerator';
+
+// Generate unique IDs
+const generateId = () => nanoid();
+ // Removed the extra import statement
 
 // Import centralized types
 import type { HealthStatusResult } from './types';
@@ -28,7 +32,6 @@ export type {
     App, NewApp,
     Board, NewBoard, BoardMember, NewBoardMember,
     CloudflareAccount, NewCloudflareAccount,
-    GitHubIntegration, NewGitHubIntegration,
     AppLike, NewAppLike, AppComment, NewAppComment,
     AppView, NewAppView, OAuthState, NewOAuthState,
     SystemSetting, NewSystemSetting,
@@ -36,6 +39,7 @@ export type {
     UserModelConfig, NewUserModelConfig,
     UserProviderKey, NewUserProviderKey
 } from './schema';
+
 
 /**
  * Core Database Service - Connection and Base Operations
@@ -126,119 +130,6 @@ export class DatabaseService {
             .where(eq(schema.boards.visibility, 'public'))
             .orderBy(sql`popularityScore DESC`)
             .limit(limit);
-    }
-
-    // ========================================
-    // GITHUB INTEGRATION OPERATIONS (Core Operations)
-    // ========================================
-
-    /**
-     * Get GitHub integration for a user with proper typing
-     * Returns formatted data ready for API response
-     */
-    async getGitHubIntegration(userId: string): Promise<schema.GitHubIntegration | null> {
-        const integration = await this.db
-            .select()
-            .from(schema.githubIntegrations)
-            .where(eq(schema.githubIntegrations.userId, userId))
-            .get();
-
-        return integration || null;
-    }
-
-    /**
-     * Upsert GitHub integration with validation and proper error handling
-     * Handles both create and update operations efficiently
-     */
-    async upsertGitHubIntegration(
-        userId: string,
-        githubData: {
-            githubUserId: string;
-            githubUsername: string;
-            accessToken: string;
-            refreshToken?: string;
-            scopes: string[];
-        }
-    ): Promise<schema.GitHubIntegration> {
-        // Input validation
-        if (!userId?.trim()) {
-            throw new Error('User ID is required');
-        }
-        
-        // Validate GitHub user ID format (must be numeric)
-        if (!/^\d+$/.test(githubData.githubUserId)) {
-            throw new Error('Invalid GitHub user ID format');
-        }
-        
-        // Sanitize GitHub username (remove potentially dangerous characters)
-        const sanitizedUsername = githubData.githubUsername
-            .replace(/[<>"'&]/g, '')
-            .trim();
-        
-        if (!sanitizedUsername || sanitizedUsername.length > 39) { // GitHub max username length
-            throw new Error('Invalid GitHub username');
-        }
-        
-        // Basic access token validation
-        if (!githubData.accessToken || typeof githubData.accessToken !== 'string') {
-            throw new Error('Invalid GitHub access token format');
-        }
-
-        // Check if integration already exists
-        const existing = await this.db
-            .select()
-            .from(schema.githubIntegrations)
-            .where(eq(schema.githubIntegrations.userId, userId))
-            .get();
-
-        const integrationData = {
-            githubUserId: githubData.githubUserId,
-            githubUsername: sanitizedUsername,
-            accessTokenHash: githubData.accessToken,
-            refreshTokenHash: githubData.refreshToken || null,
-            scopes: JSON.stringify(githubData.scopes),
-            isActive: true,
-            lastValidated: new Date(),
-            updatedAt: new Date()
-        };
-
-        if (existing) {
-            // Update existing integration
-            const [updated] = await this.db
-                .update(schema.githubIntegrations)
-                .set(integrationData)
-                .where(eq(schema.githubIntegrations.userId, userId))
-                .returning();
-            
-            return updated;
-        } else {
-            // Create new integration
-            const [created] = await this.db
-                .insert(schema.githubIntegrations)
-                .values({
-                    ...integrationData,
-                    id: generateId(),
-                    userId,
-                    createdAt: new Date()
-                })
-                .returning();
-
-            return created;
-        }
-    }
-
-    /**
-     * Deactivate GitHub integration (soft delete)
-     * Follows existing database service patterns
-     */
-    async deactivateGitHubIntegration(userId: string): Promise<void> {
-        await this.db
-            .update(schema.githubIntegrations)
-            .set({
-                isActive: false,
-                updatedAt: new Date()
-            })
-            .where(eq(schema.githubIntegrations.userId, userId));
     }
 
     // ========================================

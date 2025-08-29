@@ -16,17 +16,17 @@ import {
 } from '../../../services/auth/validators/authSchemas';
 import { SecurityError } from '../../../types/security';
 import { 
-    setSecureAuthCookies, 
-    clearAuthCookies, 
     extractRefreshToken,
-    formatAuthResponse,
-    mapUserResponse
+    formatAuthResponse
 } from '../../../utils/authUtils';
-import { OAuthIntegrationService } from '../../../services/auth/OAuthIntegrationService';
+import { 
+    mapUserResponse, 
+    setSecureAuthCookies, 
+    clearAuthCookies 
+} from '../../../utils/authUtils';
 import { UserService } from '../../../database/services/UserService';
 import * as schema from '../../../database/schema';
 import { eq, and, desc, ne } from 'drizzle-orm';
-import { GitHubIntegrationController } from '../githubIntegration/controller';
 import { RouteContext } from '../../types/route-context';
 import { authMiddleware } from '../../../middleware/security/auth';
 
@@ -359,15 +359,7 @@ export class AuthController extends BaseController {
                 return Response.redirect(`${baseUrl}/?error=missing_params`, 302);
             }
 
-            // Check if this is an integration flow using OAuth service
-            const oauthService = new OAuthIntegrationService(this.env);
-            const stateData = oauthService.parseOAuthState(state);
-            const isIntegrationFlow = stateData?.type === 'integration' && stateData.userId;
-
-            if (isIntegrationFlow && validatedProvider === 'github') {
-                // Handle GitHub integration for existing user
-                return await this.handleGitHubIntegration(code, stateData!.userId!, request);
-            }
+            // GitHub integration flow removed - using zero-storage OAuth for exports
             
             const result = await this.authService.handleOAuthCallback(
                 validatedProvider,
@@ -417,34 +409,7 @@ export class AuthController extends BaseController {
         }
     }
 
-    /**
-     * Handle GitHub integration for existing authenticated user
-     */
-    private async handleGitHubIntegration(code: string, userId: string, request: Request): Promise<Response> {
-        try {
-            const baseUrl = new URL(request.url).origin;
-
-            // Use OAuth integration service to process the integration
-            const oauthService = new OAuthIntegrationService(this.env);
-            const integrationData = await oauthService.processIntegration(code, 'github');
-
-            // Store the integration using GitHubIntegrationController
-            await GitHubIntegrationController.storeIntegration(userId, integrationData, this.env);
-
-            this.logger.info('GitHub integration completed', { 
-                userId, 
-                githubUsername: integrationData.githubUsername 
-            });
-
-            // Redirect to settings with success message
-            return Response.redirect(`${baseUrl}/settings?integration=github&status=success`, 302);
-
-        } catch (error) {
-            this.logger.error('GitHub integration failed', error);
-            const baseUrl = new URL(request.url).origin;
-            return Response.redirect(`${baseUrl}/settings?integration=github&status=error`, 302);
-        }
-    }
+    // GitHub integration method removed - using zero-storage OAuth flow for exports
     
     /**
      * Refresh access token

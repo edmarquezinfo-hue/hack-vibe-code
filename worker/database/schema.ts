@@ -228,43 +228,6 @@ export const cloudflareAccounts = sqliteTable('cloudflare_accounts', {
 }));
 
 // ========================================
-// GITHUB INTEGRATION (Future Support)
-// ========================================
-
-/**
- * GitHubIntegrations table - Store GitHub account integrations for export feature
- */
-export const githubIntegrations = sqliteTable('github_integrations', {
-    id: text('id').primaryKey(),
-    
-    // GitHub Account Details
-    githubUserId: text('github_user_id').notNull(),
-    githubUsername: text('github_username').notNull(),
-    accessTokenHash: text('access_token_hash').notNull(), // Encrypted GitHub access token
-    refreshTokenHash: text('refresh_token_hash'), // If using OAuth apps
-    
-    // Ownership - either user or team
-    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
-    teamId: text('team_id').references(() => teams.id, { onDelete: 'cascade' }),
-    
-    // Integration Settings
-    defaultOrganization: text('default_organization'), // Default GitHub org for exports
-    isActive: integer('is_active', { mode: 'boolean' }).default(true),
-    
-    // Token Management
-    scopes: text('scopes', { mode: 'json' }).default('[]'), // GitHub scopes granted
-    lastValidated: integer('last_validated', { mode: 'timestamp' }),
-    
-    // Metadata
-    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-}, (table) => ({
-    userIdx: index('github_integrations_user_idx').on(table.userId),
-    teamIdx: index('github_integrations_team_idx').on(table.teamId),
-    githubUserIdx: index('github_integrations_github_user_idx').on(table.githubUserId),
-}));
-
-// ========================================
 // COMMUNITY AND BOARDS
 // ========================================
 
@@ -859,9 +822,6 @@ export type NewBoardMember = typeof boardMembers.$inferInsert;
 
 export type CloudflareAccount = typeof cloudflareAccounts.$inferSelect;
 export type NewCloudflareAccount = typeof cloudflareAccounts.$inferInsert;
-
-export type GitHubIntegration = typeof githubIntegrations.$inferSelect;
-export type NewGitHubIntegration = typeof githubIntegrations.$inferInsert;
 
 export type AppLike = typeof appLikes.$inferSelect;
 export type NewAppLike = typeof appLikes.$inferInsert;

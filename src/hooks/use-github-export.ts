@@ -2,25 +2,15 @@ import { useState, useCallback, useEffect } from 'react';
 import { WebSocket } from 'partysocket';
 import { useAuth } from '@/contexts/auth-context';
 import { apiClient } from '@/lib/api-client';
-import type { WebSocketMessage } from '@/api-types';
+import type {
+    GitHubExportOptions,
+    GitHubExportResult
+} from '../api-types';
+import type { User } from '@/contexts/auth-context';
+import type { WebSocketMessageData } from '@/api-types';
 
-export interface GitHubExportOptions {
-    repositoryName: string;
-    isPrivate: boolean;
-    description?: string;
-}
-
-export interface GitHubExportProgress {
-    message: string;
-    step: 'creating_repository' | 'uploading_files' | 'finalizing';
-    progress: number;
-}
-
-export interface GitHubExportResult {
-    success: boolean;
-    repositoryUrl?: string;
-    error?: string;
-}
+// Use existing backend WebSocket types
+type GitHubExportProgress = WebSocketMessageData<'github_export_progress'>;
 
 export interface GitHubExportState {
     isExporting: boolean;
@@ -29,78 +19,32 @@ export interface GitHubExportState {
     isModalOpen: boolean;
 }
 
-export function useGitHubExport(websocket?: WebSocket | null) {
+export interface GitHubInstallationData {
+    installationId: number;
+    username: string;
+    repositories?: string[];
+}
+
+export function useGitHubExport(_websocket?: WebSocket | null, agentId?: string): {
+    isExporting: boolean;
+    progress?: GitHubExportProgress;
+    result?: GitHubExportResult;
+    isModalOpen: boolean;
+    openModal: () => void;
+    closeModal: () => void;
+    startExport: (options: GitHubExportOptions) => Promise<void>;
+    isAuthenticated: boolean;
+    user: User | null;
+    retry: () => void;
+} {
     const { user, isAuthenticated } = useAuth();
     const [state, setState] = useState<GitHubExportState>({
         isExporting: false,
         isModalOpen: false
     });
 
-    // Handle WebSocket messages for GitHub export
-    const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
-        switch (message.type) {
-            case 'github_export_started':
-                setState(prev => ({
-                    ...prev,
-                    isExporting: true,
-                    progress: undefined,
-                    result: undefined
-                }));
-                break;
-            
-            case 'github_export_progress':
-                setState(prev => ({
-                    ...prev,
-                    progress: {
-                        message: message.message,
-                        step: message.step,
-                        progress: message.progress
-                    }
-                }));
-                break;
-            
-            case 'github_export_completed':
-                setState(prev => ({
-                    ...prev,
-                    isExporting: false,
-                    progress: undefined,
-                    result: {
-                        success: true,
-                        repositoryUrl: message.repositoryUrl
-                    }
-                }));
-                break;
-            
-            case 'github_export_error':
-                setState(prev => ({
-                    ...prev,
-                    isExporting: false,
-                    progress: undefined,
-                    result: {
-                        success: false,
-                        error: message.error
-                    }
-                }));
-                break;
-        }
-    }, []);
-
-    // Set up WebSocket message listener
-    useEffect(() => {
-        if (!websocket) return;
-
-        const handleMessage = (event: MessageEvent) => {
-            try {
-                const message: WebSocketMessage = JSON.parse(event.data);
-                handleWebSocketMessage(message);
-            } catch (error) {
-                console.error('Error parsing WebSocket message:', error);
-            }
-        };
-
-        websocket.addEventListener('message', handleMessage);
-        return () => websocket.removeEventListener('message', handleMessage);
-    }, [websocket, handleWebSocketMessage]);
+    // NOTE: WebSocket-based GitHub export has been replaced with secure OAuth flow
+    // All GitHub export now happens via HTTP API with proper OAuth authorization
 
     // Open the export modal
     const openModal = useCallback(() => {
@@ -122,54 +66,120 @@ export function useGitHubExport(websocket?: WebSocket | null) {
         }));
     }, []);
 
-    // Start GitHub export
-    const startExport = useCallback((options: GitHubExportOptions) => {
-        if (!websocket || websocket.readyState !== WebSocket.OPEN) {
-            console.error('WebSocket is not connected');
+    // Check for GitHub export callback results on component mount
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const githubExport = urlParams.get('github_export');
+        
+        if (githubExport === 'success') {
+            const repositoryUrl = urlParams.get('repository_url');
             setState(prev => ({
                 ...prev,
+                isExporting: false,
+                isModalOpen: true, // Auto-open modal to show success result
                 result: {
-                    success: false,
-                    error: 'Connection to server lost. Please refresh the page.'
+                    success: true,
+                    repositoryUrl: repositoryUrl || undefined
                 }
             }));
-            return;
+            
+            // Clean up URL
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete('github_export');
+            newUrl.searchParams.delete('repository_url');
+            window.history.replaceState({}, '', newUrl.toString());
+            
+        } else if (githubExport === 'error') {
+            const reason = urlParams.get('reason') || 'Unknown error';
+            setState(prev => ({
+                ...prev,
+                isExporting: false,
+                isModalOpen: true, // Auto-open modal to show error result
+                result: {
+                    success: false,
+                    error: `GitHub export failed: ${reason}`
+                }
+            }));
+            
+            // Clean up URL
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete('github_export');
+            newUrl.searchParams.delete('reason');
+            window.history.replaceState({}, '', newUrl.toString());
         }
+    }, []);
 
-        // Send export request via WebSocket
-        websocket.send(JSON.stringify({
-            type: 'github_export',
-            repositoryName: options.repositoryName,
-            isPrivate: options.isPrivate,
-            description: options.description,
-            userId: user?.id
-        }));
-
+    // Start GitHub export with secure backend flow
+    const startExport = useCallback(async (options: GitHubExportOptions) => {
         setState(prev => ({
             ...prev,
             isExporting: true,
-            progress: undefined,
+            progress: { message: 'Initiating GitHub authorization...', step: 'creating_repository', progress: 10 },
             result: undefined
         }));
-    }, [websocket, user?.id]);
-
-    // Check if user has GitHub integration
-    const checkGitHubIntegration = useCallback(async (): Promise<boolean> => {
-        if (!isAuthenticated) return false;
 
         try {
-            const response = await apiClient.getGitHubIntegrationStatus();
-            return response.data?.hasIntegration || false;
-        } catch (error) {
-            console.error('Error checking GitHub integration:', error);
-            return false;
-        }
-    }, [isAuthenticated]);
+            // Validate agentId is available (should be from URL params)
+            if (!agentId) {
+                setState(prev => ({
+                    ...prev,
+                    isExporting: false,
+                    result: {
+                        success: false,
+                        error: 'Invalid chat session. Please ensure you are on a valid chat page.'
+                    }
+                }));
+                return;
+            }
 
-    // Connect GitHub account
-    const connectGitHub = useCallback(() => {
-        // Redirect to GitHub integration endpoint for authenticated users
-        window.location.href = '/api/integrations/github/connect';
+            // Initiate GitHub export with OAuth flow
+            const response = await apiClient.initiateGitHubExport({
+                repositoryName: options.repositoryName,
+                description: options.description,
+                isPrivate: options.isPrivate,
+                agentId: agentId
+            });
+
+            if (response.data?.authUrl) {
+                setState(prev => ({
+                    ...prev,
+                    progress: { message: 'Redirecting to GitHub...', step: 'creating_repository', progress: 25 }
+                }));
+                
+                // Small delay for user feedback, then redirect
+                setTimeout(() => {
+                    window.location.href = response.data.authUrl;
+                }, 500);
+            } else {
+                setState(prev => ({
+                    ...prev,
+                    isExporting: false,
+                    result: {
+                        success: false,
+                        error: 'Failed to initiate GitHub authorization'
+                    }
+                }));
+            }
+        } catch (error: any) {
+            setState(prev => ({
+                ...prev,
+                isExporting: false,
+                result: {
+                    success: false,
+                    error: error?.message || 'Failed to initiate GitHub export'
+                }
+            }));
+        }
+    }, [agentId]);
+
+    // Retry function that resets state and allows a new export attempt
+    const retry = useCallback(() => {
+        setState(prev => ({
+            ...prev,
+            result: undefined,
+            progress: undefined,
+            isExporting: false
+        }));
     }, []);
 
     return {
@@ -177,9 +187,8 @@ export function useGitHubExport(websocket?: WebSocket | null) {
         openModal,
         closeModal,
         startExport,
-        checkGitHubIntegration,
-        connectGitHub,
         isAuthenticated,
-        user
+        user,
+        retry
     };
 }

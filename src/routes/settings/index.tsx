@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
 // import { useNavigate } from 'react-router';
 import {
-	Key,
-	Plus,
 	Eye,
 	EyeOff,
-	Smartphone,
-	Trash2,
-	Link,
 	Github,
-	Settings,
-	Unlink,
+    Smartphone,
+	Plus,
+	Trash2,
+	Key,
 	Lock,
-	Info,
+    Link,
+    Settings,
+    Unlink,
+	RefreshCw,
 } from 'lucide-react';
 import { ModelConfigTabs } from '@/components/model-config-tabs';
 import type {
@@ -341,38 +341,20 @@ export default function SettingsPage() {
 		toast.error('Account deletion is not yet implemented');
 	};
 
-	// Load GitHub integration status
-	const loadGithubIntegration = async () => {
-		try {
-			const response = await apiClient.getGitHubIntegrationStatus();
-			setGithubIntegration({
-				hasIntegration: response.data?.hasIntegration || false,
-				githubUsername: response.data?.githubUsername || undefined,
-				loading: false,
-			});
-		} catch (error) {
-			console.error('Error loading GitHub integration:', error);
-			setGithubIntegration((prev) => ({ ...prev, loading: false }));
-		}
-	};
-
 	const handleConnectGithub = () => {
-		window.location.href = '/api/integrations/github/connect';
+		// Redirect to GitHub App installation flow
+		window.location.href = '/api/github-app/install';
 	};
 
 	const handleDisconnectGithub = async () => {
-		try {
-			await apiClient.removeGitHubIntegration();
-			setGithubIntegration({
-				hasIntegration: false,
-				githubUsername: undefined,
-				loading: false,
-			});
-			toast.success('GitHub account disconnected');
-		} catch (error) {
-			console.error('Error disconnecting GitHub:', error);
-			toast.error('Failed to disconnect GitHub account');
-		}
+		// GitHub Apps can be uninstalled from GitHub directly
+		// Just update local state
+		setGithubIntegration({
+			hasIntegration: false,
+			githubUsername: undefined,
+			loading: false,
+		});
+		toast.info('To fully uninstall, visit your GitHub Settings > Applications');
 	};
 
 	// Load active sessions
@@ -420,53 +402,6 @@ export default function SettingsPage() {
 			toast.error('Failed to revoke session');
 		}
 	};
-
-	// Commented out unused function
-	/*const loadApiKeys = async () => {
-		try {
-			const response = await apiClient.getApiKeys();
-			setApiKeys({
-				keys: response.data?.keys || [],
-				loading: false,
-			});
-		} catch (error) {
-			console.error('Error loading API keys:', error);
-			setApiKeys({
-				keys: [],
-				loading: false,
-			});
-		}
-	};*/
-
-	// Commented out unused function
-	/*const handleCreateApiKey = async () => {
-		try {
-			const keyName = prompt('Enter a name for your API key:');
-			if (!keyName) return;
-
-			const response = await apiClient.createApiKey({ name: keyName });
-			toast.success('API key created successfully');
-			alert(
-				`Your API key: ${response.data?.key}\n\nPlease save this key - you won't be able to see it again!`,
-			);
-			loadApiKeys();
-		} catch (error) {
-			console.error('Error creating API key:', error);
-			toast.error('Failed to create API key');
-		}
-	};*/
-
-	// Commented out unused function
-	/*const handleRevokeApiKey = async (keyId: string) => {
-		try {
-			await apiClient.revokeApiKey(keyId);
-			toast.success('API key revoked successfully');
-			loadApiKeys();
-		} catch (error) {
-			console.error('Error revoking API key:', error);
-			toast.error('Failed to revoke API key');
-		}
-	};*/
 
 	// Load user secrets
 	const loadUserSecrets = async () => {
@@ -589,20 +524,6 @@ export default function SettingsPage() {
 		return <span className="text-lg">{emojiMap[provider] || '🔑'}</span>;
 	};
 
-	// Update form data when user changes
-	// React.useEffect(() => {
-	// 	if (user) {
-	// 		setProfileData({
-	// 			displayName: user.displayName || '',
-	// 			username: user.username || '',
-	// 			bio: user.bio || '',
-	// 			timezone: user.timezone || 'UTC',
-	// 		});
-	// 		// Don't override theme context with user.theme - theme context (localStorage) is the source of truth
-	// 		// Theme changes are handled by the theme context and persisted on profile save
-	// 	}
-	// }, [user]);
-
 	// Load agent configurations dynamically from API
 	React.useEffect(() => {
 		apiClient
@@ -626,34 +547,12 @@ export default function SettingsPage() {
 
 	// Load GitHub integration, sessions, API keys, user secrets, and model configs on component mount
 	React.useEffect(() => {
-		loadGithubIntegration();
-		loadActiveSessions();
-		// loadApiKeys(); // Commented out unused function call
-		loadUserSecrets();
-		loadSecretTemplates();
-		loadModelConfigs();
-
-		// Check for integration status from URL params
-		const urlParams = new URLSearchParams(window.location.search);
-		const integration = urlParams.get('integration');
-		const status = urlParams.get('status');
-
-		if (integration === 'github' && status) {
-			if (status === 'success') {
-				toast.success('GitHub account connected successfully!');
-				// Reload integration status to reflect changes
-				setTimeout(() => loadGithubIntegration(), 1000);
-			} else if (status === 'error') {
-				toast.error(
-					'Failed to connect GitHub account. Please try again.',
-				);
-			}
-
-			// Clean up URL params
-			const newUrl = window.location.pathname;
-			window.history.replaceState({}, document.title, newUrl);
+		if (user) {
+			loadActiveSessions();
+			loadModelConfigs();
+            loadSecretTemplates();
 		}
-	}, []);
+	}, [user]);
 
 	return (
 		<div className="min-h-screen bg-bg-3 relative">
@@ -731,13 +630,17 @@ export default function SettingsPage() {
 										</div>
 										<div>
 											<p className="font-medium">
-												GitHub Repository Export
+												GitHub App for Exports
 											</p>
-											<p className="text-sm text-text-tertiary">
-												{user?.provider === 'github'
-													? 'Repository integration should be automatic after GitHub login'
-													: 'Connect to export apps to GitHub repositories'}
-											</p>
+											<div className="flex items-center justify-between">
+												<span className="text-text-primary text-xs">
+													Connect your GitHub account to export generated code directly to
+													repositories
+												</span>
+												{githubIntegration.loading && (
+													<RefreshCw className="w-3 h-3 text-text-primary/60 animate-spin" />
+												)}
+											</div>
 										</div>
 									</div>
 									<Button
@@ -745,64 +648,10 @@ export default function SettingsPage() {
 										className="gap-2 bg-text-primary hover:bg-[#1a1e22] text-bg-1"
 									>
 										<Github className="h-4 w-4" />
-										Connect GitHub
+										Install GitHub App
 									</Button>
 								</div>
 							)}
-
-							<Separator />
-
-							<div className="rounded-lg dark:bg-bg-3 bg-bg-2 p-4">
-								<div className="flex items-start gap-2">
-									<div className="space-y-1">
-										<div className="text-sm text-text-tertiary space-y-1">
-											{user?.provider === 'github' ? (
-												<div className="space-y-1">
-													<p className="text-green-600 font-medium">
-														✓ You're signed in with
-														GitHub OAuth
-													</p>
-													<p className="text-amber-600 font-medium">
-														ℹ️ If integration shows
-														as disconnected, try
-														logging out and back in
-													</p>
-												</div>
-											) : (
-												<div className='flex items-start'>
-													<p className="font-medium">
-														<Info className="w-5 h-5 text-yellow-400 dark:text-yellow-200" />{' '}
-													</p>
-													<ul className="space-y-1 ml-2">
-														<li>
-															• Export generated
-															apps directly to
-															your GitHub
-															repositories
-														</li>
-														<li>
-															• Automatically
-															create repositories
-															with proper file
-															structure
-														</li>
-														<li>
-															• Set repository
-															visibility
-															(public/private)
-														</li>
-														<li>
-															• Continue
-															development with
-															full Git history
-														</li>
-													</ul>
-												</div>
-											)}
-										</div>
-									</div>
-								</div>
-							</div>
 						</CardContent>
 					</Card>
 
@@ -1373,33 +1222,65 @@ export default function SettingsPage() {
 																				);
 																			}}
 																		>
-																			<div className="flex items-center gap-3 w-full">
+																			<div className="flex items-start">
 																				<span className="text-lg">
 																					{
 																						template.icon
 																					}
 																				</span>
-																				<div className="flex-1">
-																					<div className="flex items-center gap-2">
-																						<span className="font-medium">
-																							{
-																								template.displayName
-																							}
-																						</span>
-																						{template.required && (
-																							<Badge
-																								variant="secondary"
-																								className="text-xs"
-																							>
-																								Required
-																							</Badge>
-																						)}
-																					</div>
-																					<p className="text-xs text-text-tertiary mt-1">
-																						{
-																							template.description
-																						}
-																					</p>
+																				<div className="flex items-start">
+																					<Github className="w-5 h-5 text-yellow-400 dark:text-yellow-200 mr-2" />
+																					<ul className="space-y-1">
+																						<li>
+																							•{' '}
+																							<strong>
+																								More
+																								secure:
+																							</strong>{' '}
+																							Uses
+																							short-lived
+																							tokens
+																							(1
+																							hour
+																							expiry)
+																						</li>
+																						<li>
+																							•{' '}
+																							<strong>
+																								Fine-grained
+																								permissions:
+																							</strong>{' '}
+																							Only
+																							accesses
+																							repositories
+																							you
+																							choose
+																						</li>
+																						<li>
+																							•{' '}
+																							<strong>
+																								One-time
+																								setup:
+																							</strong>{' '}
+																							Install
+																							once,
+																							export
+																							anytime
+																						</li>
+																						<li>
+																							•{' '}
+																							<strong>
+																								GitHub
+																								recommended:
+																							</strong>{' '}
+																							Apps
+																							are
+																							the
+																							preferred
+																							integration
+																							method
+																						</li>
+																					</ul>
 																				</div>
 																			</div>
 																		</Button>
