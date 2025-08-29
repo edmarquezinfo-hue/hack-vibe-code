@@ -120,7 +120,7 @@ export const AppListContainer: React.FC<AppListContainerProps> = ({
         <div className="rounded-full bg-destructive/10 p-3 mb-4 inline-flex">
           <X className="h-6 w-6 text-destructive" />
         </div>
-        <h3 className="text-xl font-semibold mb-2">Failed to load apps</h3>
+        <h3 className="text-xl text-text-secondary font-semibold mb-2">Failed to load apps</h3>
         <p className="text-text-tertiary mb-6">{error}</p>
         <Button onClick={onRetry} variant="outline">
           <RefreshCw className="h-4 w-4 mr-2" />
@@ -136,7 +136,7 @@ export const AppListContainer: React.FC<AppListContainerProps> = ({
     return (
       <div className="text-center py-20">
         <Code2 className="h-16 w-16 mx-auto mb-4 text-text-tertiary" />
-        <h3 className="text-xl font-semibold mb-2">
+        <h3 className="text-xl font-semibold mb-2 text-text-secondary">
           {emptyStateContent.title}
         </h3>
         <p className="text-text-tertiary mb-6">

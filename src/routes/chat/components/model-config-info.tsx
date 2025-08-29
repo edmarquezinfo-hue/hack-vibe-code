@@ -143,7 +143,7 @@ function ConfigInfoCard({
             <Settings className="h-3 w-3" />
           </div>
           <div className="min-w-0 flex-1">
-            <h6 className="font-medium text-sm mb-1" title={agent.name}>
+            <h6 className="font-medium text-sm mb-1 text-text-secondary" title={agent.name}>
               {agent.name}
             </h6>
             <p className="text-xs text-text-tertiary line-clamp-2" title={agent.description}>
@@ -159,7 +159,7 @@ function ConfigInfoCard({
       
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium" title={modelDisplayName}>
+          <span className="text-sm font-medium text-text-secondary" title={modelDisplayName}>
             {modelDisplayName}
           </span>
           <Badge variant="secondary" className={`text-xs shrink-0 ${providerInfo.color}`}>

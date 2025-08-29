@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import { ArrowRight } from 'react-feather';
 import { useNavigate } from 'react-router';
 import {
@@ -12,6 +12,16 @@ export default function Home() {
 	const { requireAuth } = useAuthGuard();
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const [agentMode, setAgentMode] = useState<AgentMode>('deterministic');
+	
+	
+	const placeholderPhrases = useMemo(() => [
+		"Todo list app",
+		"F1 fantasy game",
+		"Financial manager"
+	], []);
+	const [currentPlaceholderPhraseIndex, setCurrentPlaceholderPhraseIndex] = useState(0);
+	const [currentPlaceholderText, setCurrentPlaceholderText] = useState("");
+	const [isPlaceholderTyping, setIsPlaceholderTyping] = useState(true);
 
 	const handleCreateApp = (query: string, mode: AgentMode) => {
 		const encodedQuery = encodeURIComponent(query);
@@ -46,6 +56,37 @@ export default function Home() {
 	useEffect(() => {
 		adjustTextareaHeight();
 	}, []);
+	
+	// Typewriter effect
+	useEffect(() => {
+		const currentPhrase = placeholderPhrases[currentPlaceholderPhraseIndex];
+		
+		if (isPlaceholderTyping) {
+			if (currentPlaceholderText.length < currentPhrase.length) {
+				const timeout = setTimeout(() => {
+					setCurrentPlaceholderText(currentPhrase.slice(0, currentPlaceholderText.length + 1));
+				}, 100); // Typing speed
+				return () => clearTimeout(timeout);
+			} else {
+				// Pause before erasing
+				const timeout = setTimeout(() => {
+					setIsPlaceholderTyping(false);
+				}, 2000); // Pause duration
+				return () => clearTimeout(timeout);
+			}
+		} else {
+			if (currentPlaceholderText.length > 0) {
+				const timeout = setTimeout(() => {
+					setCurrentPlaceholderText(currentPlaceholderText.slice(0, -1));
+				}, 50); // Erasing speed
+				return () => clearTimeout(timeout);
+			} else {
+				// Move to next phrase
+				setCurrentPlaceholderPhraseIndex((prev) => (prev + 1) % placeholderPhrases.length);
+				setIsPlaceholderTyping(true);
+			}
+		}
+	}, [currentPlaceholderText, currentPlaceholderPhraseIndex, isPlaceholderTyping, placeholderPhrases]);
 	return (
 		<div className="flex flex-col items-center size-full">
 			<div className="rounded-md mt-46 w-full max-w-2xl overflow-hidden">
@@ -91,7 +132,7 @@ export default function Home() {
 						<textarea
 							className="w-full resize-none ring-0 z-20 outline-0 placeholder:text-text-primary/60 text-text-primary"
 							name="query"
-							placeholder="Create a todo list app"
+							placeholder={`Create a ${currentPlaceholderText}`}
 							ref={textareaRef}
 							onChange={adjustTextareaHeight}
 							onInput={adjustTextareaHeight}
