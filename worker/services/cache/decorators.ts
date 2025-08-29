@@ -12,7 +12,7 @@ interface CacheableOptions {
 		request: Request,
 		context: RouteContext,
 		userId?: string,
-	) => string | Promise<string>;
+	) => string | Request | Promise<string | Request>;
 }
 
 /**
@@ -34,7 +34,7 @@ export function Cacheable(options: CacheableOptions) {
 			ctx: ExecutionContext,
 			context: RouteContext,
 		): Promise<Response> {
-			// Generate cache key
+			// Generate cache key or use request directly
 			let userId = context?.user?.id;
 
 			// For public endpoints, try to get optional user if not already available
@@ -47,13 +47,13 @@ export function Cacheable(options: CacheableOptions) {
 				}
 			}
 
-			const cacheKey = options.keyGenerator
+			const cacheKeyOrRequest = options.keyGenerator
 				? await options.keyGenerator(request, context, userId)
-				: cacheService.generateKey(request, userId);
+				: request; // Just use the request directly
 
 			// Use cache wrapper
 			return cacheService.withCache(
-				cacheKey,
+				cacheKeyOrRequest,
 				() => originalMethod.call(this, request, env, ctx, context),
 				{ ttlSeconds: options.ttlSeconds, tags: options.tags },
 			);

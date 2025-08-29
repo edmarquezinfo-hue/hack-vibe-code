@@ -20,10 +20,6 @@ export class AppViewController extends BaseController {
     // Get single app details (public endpoint, auth optional for ownership check)
     @Cacheable({ 
         ttlSeconds: 3 * 60 * 60, 
-        keyGenerator: (request: Request, _context: RouteContext, userId?: string) => {
-            const url = new URL(request.url);
-            return `${url.pathname}:user:${userId || 'anonymous'}`;
-        },
         tags: ['app-details']
     })
     async getAppDetails(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppDetailsData>>> {

@@ -11,25 +11,20 @@ export class CacheService {
 	/**
 	 * Get cached response
 	 */
-	async get(key: string): Promise<Response | undefined> {
-		const cache = await caches.open('v1');
-		// Use a proper URL for cache keys
-		const cacheUrl = `https://cache.internal/${encodeURIComponent(key)}`;
-		const cacheKey = new Request(cacheUrl);
-		return await cache.match(cacheKey);
+	async get(keyOrRequest: string | Request): Promise<Response | undefined> {
+		// Use caches.default for Cloudflare Workers
+		const cache = (caches as any).default;
+		return await cache.match(keyOrRequest);
 	}
 
 	/**
 	 * Store response in cache
 	 */
 	async put(
-		key: string,
+		keyOrRequest: string | Request,
 		response: Response,
 		options: CacheOptions,
 	): Promise<void> {
-		// Use a proper URL for cache keys
-		const cacheUrl = `https://cache.internal/${encodeURIComponent(key)}`;
-		const cacheKey = new Request(cacheUrl);
 
 		// Convert Headers to a plain object
 		const headersObj: Record<string, string> = {};
@@ -49,8 +44,9 @@ export class CacheService {
 			},
 		});
 
-		const cache = await caches.open('v1');
-		await cache.put(cacheKey, responseToCache);
+		// Use caches.default for Cloudflare Workers
+		const cache = (caches as any).default;
+		await cache.put(keyOrRequest, responseToCache);
 	}
 
 	/**
@@ -66,12 +62,12 @@ export class CacheService {
 	 * Simple wrapper for caching controller responses
 	 */
 	async withCache(
-		cacheKey: string,
+		cacheKeyOrRequest: string | Request,
 		operation: () => Promise<Response>,
 		options: CacheOptions,
 	): Promise<Response> {
 		// Try to get from cache first
-		const cached = await this.get(cacheKey);
+		const cached = await this.get(cacheKeyOrRequest);
 		if (cached) {
 			return cached;
 		}
@@ -79,7 +75,7 @@ export class CacheService {
 		// Execute operation and cache result
 		const response = await operation();
 		if (response.ok) {
-			await this.put(cacheKey, response.clone(), options);
+			await this.put(cacheKeyOrRequest, response.clone(), options);
 		}
 
 		return response;

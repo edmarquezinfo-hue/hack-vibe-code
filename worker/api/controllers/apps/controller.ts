@@ -23,8 +23,7 @@ export class AppController extends BaseController {
     // Get all apps for the current user
     @Cacheable({ 
         ttlSeconds: 12 * 60, 
-        tags: ['user-apps'],
-        keyGenerator: (_request: Request, context: RouteContext) => `user-apps:${context.user?.id}`
+        tags: ['user-apps']
     })
     async getUserApps(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
         try {
