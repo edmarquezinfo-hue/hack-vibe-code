@@ -7,8 +7,8 @@ import {
     FileOutputType,
     PhaseImplementationSchemaType,
 } from '../schemas';
-import { GitHubExportRequest, PreviewType, StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
-import { GitHubExportOptions, GitHubExportResult } from '../../types/github';
+import { GitHubPushRequest, PreviewType, StaticAnalysisResponse, TemplateDetails } from '../../services/sandbox/sandboxTypes';
+import {  GitHubExportResult } from '../../services/github/types';
 import { CodeGenState, CurrentDevState, MAX_PHASES, FileState } from './state';
 import { AllIssues, AgentSummary, ScreenshotData, AgentInitArgs } from './types';
 import { WebSocketMessageResponses } from '../constants';
@@ -29,8 +29,7 @@ import { ScreenshotAnalysisOperation } from '../operations/ScreenshotAnalysis';
 import { ErrorHandler } from './utilities/ErrorHandler';
 import { DatabaseOperations } from './utilities/DatabaseOperations';
 import { DatabaseService } from '../../database/database';
-import * as schema from '../../database/schema';
-import { eq } from 'drizzle-orm';
+// Database schema imports removed - using zero-storage OAuth flow
 import { BaseSandboxService } from '../../services/sandbox/BaseSandboxService';
 import { getSandboxService } from '../../services/sandbox/factory';
 import { WebSocketMessageData, WebSocketMessageType } from '../../api/websocketTypes';
@@ -2056,11 +2055,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
      * Export generated code to a GitHub repository
      * Creates repository and pushes all generated files
      */
-    async exportToGithub(options: GitHubExportOptions): Promise<GitHubExportResult> {
+    async pushToGitHub(options: GitHubPushRequest): Promise<GitHubExportResult> {
         try {
             this.logger().info('Starting GitHub export', {
-                repositoryName: options.repositoryName,
-                isPrivate: options.isPrivate,
                 fileCount: Object.keys(this.state.generatedFilesMap).length
             });
 
@@ -2074,67 +2071,23 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 );
             }
 
-            // Check if we have a sandbox instance
-            if (!ErrorHandler.validateRunnerInstance(
-                this.state.sandboxInstanceId,
-                this.logger(),
-                this,
-                'GitHub export'
-            )) {
-                return ErrorHandler.handleGitHubExportError(
-                    this.logger(),
-                    this,
-                    'Export failed: Runner service not available',
-                    'No sandbox instance available for GitHub export'
-                );
-            }
-
             // Broadcast export started
             this.broadcast(WebSocketMessageResponses.GITHUB_EXPORT_STARTED, {
-                message: `Starting GitHub export to repository "${options.repositoryName}"`,
-                repositoryName: options.repositoryName,
+                message: `Starting GitHub export to repository "${options.cloneUrl}"`,
+                repositoryName: options.repositoryHtmlUrl,
                 isPrivate: options.isPrivate
             });
 
-            // Step 1: Create GitHub repository
-            this.broadcast(WebSocketMessageResponses.GITHUB_EXPORT_PROGRESS, {
-                message: 'Creating GitHub repository...',
-                step: 'creating_repository',
-                progress: 10
-            });
-
-            // Get GitHub integration data for the user
-            const githubIntegration = await this.getGitHubIntegration(options.userId);
-            if (!githubIntegration) {
-                return ErrorHandler.handleGitHubExportError(
-                    this.logger(),
-                    this,
-                    'GitHub integration not found',
-                    'User must connect GitHub account first'
-                );
-            }
-
-            const exportRequest: GitHubExportRequest = {
-                token: githubIntegration.accessToken,
-                repositoryName: options.repositoryName,
-                description: options.description || `Generated web application: ${this.state.blueprint?.title || options.repositoryName}`,
-                isPrivate: options.isPrivate,
-                email: githubIntegration.email,
-                username: githubIntegration.username,
-                commitMessage: `Export ready\n\n🤖 Generated with Orange Build\n${this.state.blueprint?.title ? `Blueprint: ${this.state.blueprint.title}` : ''}`
-            };
-
-            this.logger().info('Exporting to GitHub repository', { exportRequest });
 
             // Update progress for creating repository
             this.broadcast(WebSocketMessageResponses.GITHUB_EXPORT_PROGRESS, {
-                message: 'Creating GitHub repository and uploading files...',
+                message: 'Uploading to GitHub repository...',
                 step: 'uploading_files',
                 progress: 30
             });
 
             // Use consolidated export method that handles the complete flow
-            const exportResult = await this.getSandboxServiceClient().exportToGitHub(this.state.sandboxInstanceId!, exportRequest);
+            const exportResult = await this.getSandboxServiceClient().pushToGitHub(this.state.sandboxInstanceId!, options);
 
             if (!exportResult?.success) {
                 return ErrorHandler.handleGitHubExportError(
@@ -2145,27 +2098,18 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 );
             }
 
-            const repositoryUrl = exportResult.repositoryUrl;
-            if (!repositoryUrl) {
-                return ErrorHandler.handleGitHubExportError(
-                    this.logger(),
-                    this,
-                    'Failed to export to GitHub repository',
-                    'Repository URL not found'
-                );
-            }
-            this.logger().info('GitHub export completed successfully', { repositoryUrl, commitSha: exportResult.commitSha });
+            this.logger().info('GitHub export completed successfully', { options, commitSha: exportResult.commitSha });
 
             // Commit the readme
             // First prepare the readme by replacing [cloudflarebutton] placeholder with actual thing
             const readmeFile = this.fileManager.getFile('README.md');
             if (readmeFile) {
                 try {
-                    readmeFile.fileContents = readmeFile.fileContents.replaceAll('[cloudflarebutton]', prepareCloudflareButton(repositoryUrl, 'markdown'));
+                    readmeFile.fileContents = readmeFile.fileContents.replaceAll('[cloudflarebutton]', prepareCloudflareButton(options.repositoryHtmlUrl, 'markdown'));
                     this.fileManager.saveGeneratedFile(readmeFile);
                     await this.deployToSandbox([readmeFile], false, "feat: README updated with cloudflare deploy button");
                     // Export again
-                    await this.getSandboxServiceClient().exportToGitHub(this.state.sandboxInstanceId!, exportRequest);
+                    await this.getSandboxServiceClient().pushToGitHub(this.state.sandboxInstanceId!, options);
                     this.logger().info('Readme committed successfully');
                 } catch (error) {
                     this.logger().error('Failed to commit readme', error);
@@ -2186,18 +2130,18 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 this.env,
                 this.state.sessionId || '',
                 this.logger(),
-                repositoryUrl || '',
+                options.repositoryHtmlUrl || '',
                 options.isPrivate ? 'private' : 'public'
             );
 
             // Broadcast success
             this.broadcast(WebSocketMessageResponses.GITHUB_EXPORT_COMPLETED, {
-                message: `Successfully exported to GitHub repository: ${repositoryUrl}`,
-                repositoryUrl
+                message: `Successfully exported to GitHub repository: ${options.repositoryHtmlUrl}`,
+                repositoryUrl: options.repositoryHtmlUrl
             });
 
-            this.logger().info('GitHub export completed successfully', { repositoryUrl });
-            return { success: true, repositoryUrl };
+            this.logger().info('GitHub export completed successfully', { repositoryUrl: options.repositoryHtmlUrl });
+            return { success: true, repositoryUrl: options.repositoryHtmlUrl };
 
         } catch (error) {
             return ErrorHandler.handleGitHubExportError(
@@ -2209,59 +2153,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         }
     }
 
-    /**
-     * Get GitHub integration data for a user
-     */
-    private async getGitHubIntegration(userId?: string): Promise<{ accessToken: string; username: string; email: string } | null> {
-        if (!this.env.DB || !userId) {
-            this.logger().warn('No database or userId provided for GitHub integration lookup');
-            return null;
-        }
-
-        try {
-            const dbService = new DatabaseService({ DB: this.env.DB });
-            
-            // Get both GitHub integration data and user email in a single query with join
-            const result = await dbService.db
-                .select({
-                    accessTokenHash: schema.githubIntegrations.accessTokenHash,
-                    githubUsername: schema.githubIntegrations.githubUsername,
-                    userEmail: schema.users.email
-                })
-                .from(schema.githubIntegrations)
-                .innerJoin(schema.users, eq(schema.githubIntegrations.userId, schema.users.id))
-                .where(eq(schema.githubIntegrations.userId, userId))
-                .limit(1);
-
-            if (!result[0]) {
-                this.logger().warn('No GitHub integration found for user', { userId });
-                return null;
-            }
-
-            const integration = result[0];
-            this.logger().info('Retrieved GitHub integration with real email', { 
-                userId, 
-                username: integration.githubUsername,
-                email: integration.userEmail 
-            });
-
-            // For now, we'll use the stored token directly
-            // In production, you'd want to decrypt the token hash
-            return {
-                accessToken: integration.accessTokenHash, // This should be decrypted in production
-                username: integration.githubUsername,
-                email: integration.userEmail // Real user email from users table
-            };
-        } catch (error) {
-            this.logger().error('Error fetching GitHub integration', error);
-            return null;
-        }
-    }
-
-
-    /**
-     * Update database with generation status
-     */
     /**
      * Handle user input during conversational code generation
      * Processes user messages and updates pendingUserInputs state

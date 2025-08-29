@@ -23,6 +23,7 @@ import {
     TemplateInfo,
     TemplateDetails,
     GitHubExportRequest, GitHubExportResponse,
+    GitHubPushRequest, GitHubPushResponse,
     GetLogsResponse,
     ListInstancesResponse,
     SaveInstanceResponse,
@@ -34,7 +35,6 @@ import { env } from 'cloudflare:workers'
 import { BaseSandboxService } from './BaseSandboxService';
 
 import { deployToCloudflareWorkers } from './deploymentService';
-import { TokenService } from '../auth/tokenService';
 import { CodeFixResult, FileFetcher, fixProjectIssues } from '../code-fixer';
 import { FileObject } from '../code-fixer/types';
 import { createGitHubHeaders } from '../../utils/authUtils';
@@ -863,14 +863,14 @@ export class SandboxSdkClient extends BaseSandboxService {
             const instanceId = `${projectName}-${generateId()}`;
             this.logger.info(`Creating sandbox instance: ${instanceId}`, { templateName: templateName, projectName: projectName });
             
-            // Generate JWT bearer token for templates gateway authentication
-            const jwtToken = await this.generateTemplatesGatewayToken(this.sandboxId, instanceId);
+            // // Generate JWT bearer token for templates gateway authentication
+            // const jwtToken = await this.generateTemplatesGatewayToken(this.sandboxId, instanceId);
             
-            // Register JWT token in KV for authentication
-            await this.registerAuthToken(jwtToken, instanceId);
+            // // Register JWT token in KV for authentication
+            // await this.registerAuthToken(jwtToken, instanceId);
             
-            // Set authentication environment variables for sandbox
-            await this.setAuthEnvironmentVariables(jwtToken);
+            // // Set authentication environment variables for sandbox
+            // await this.setAuthEnvironmentVariables(jwtToken);
             
             let results: {previewURL: string, tunnelURL: string, processId: string, allocatedPort: number} | undefined;
             await this.ensureTemplateExists(templateName);
@@ -1927,7 +1927,197 @@ export class SandboxSdkClient extends BaseSandboxService {
         }
     }
 
+    /**
+     * Push instance files to existing GitHub repository (NEW - separated concerns)
+     * Only handles git operations - repository must already exist
+     */
+    async pushToGitHub(instanceId: string, request: GitHubPushRequest): Promise<GitHubPushResponse> {
+        // Validate required parameters
+        if (!instanceId?.trim()) {
+            return {
+                success: false,
+                error: 'Instance ID is required'
+            };
+        }
 
+        if (!request?.cloneUrl?.trim()) {
+            return {
+                success: false,
+                error: 'Clone URL is required'
+            };
+        }
+
+        if (!request?.token?.trim()) {
+            return {
+                success: false,
+                error: 'GitHub token is required'
+            };
+        }
+
+        if (!request?.email?.trim() || !request?.username?.trim()) {
+            return {
+                success: false,
+                error: 'Git user email and username are required'
+            };
+        }
+
+        // Validate clone URL format
+        if (!request.cloneUrl.startsWith('https://github.com/') && !request.cloneUrl.startsWith('https://x-access-token:')) {
+            return {
+                success: false,
+                error: 'Invalid GitHub clone URL format'
+            };
+        }
+
+        try {
+            this.logger.info(`Starting git push for instance ${instanceId} to ${request.cloneUrl}`);
+
+            // Step 1: Check if git repository exists, initialize if needed
+            const gitCheckResult = await this.executeCommand(instanceId, `test -d .git && echo "exists" || echo "missing"`);
+            const isGitRepo = gitCheckResult.exitCode === 0 && gitCheckResult.stdout.trim() === "exists";
+
+            if (!isGitRepo) {
+                this.logger.info(`Initializing git repository for instance ${instanceId}`);
+                const initResult = await this.executeCommand(instanceId, `git init`);
+                if (initResult.exitCode !== 0) {
+                    throw new Error(`Git init failed: ${initResult.stderr}`);
+                }
+            }
+
+            // Step 2: Configure git user (required for commits)
+            await this.executeCommand(instanceId, `git config user.name "${request.username}"`);
+            await this.executeCommand(instanceId, `git config user.email "${request.email}"`);
+
+            // Step 3: Add all files and create/update commit
+            const commitMessage = request.commitMessage || 'Update from Orange Build';
+            let commitSha: string = '';
+
+            try {
+                // Check if there are any commits
+                const logCheck = await this.executeCommand(instanceId, `git log --oneline -1`);
+                if (logCheck.exitCode !== 0) {
+                    // No commits exist, create an empty initial commit
+                    const emptyCommitResult = await this.executeCommand(instanceId, `git commit --allow-empty -m "${commitMessage.replace(/"/g, '\\"')}"`);
+                    if (emptyCommitResult.exitCode !== 0) {
+                        throw new Error(`Git empty commit failed: ${emptyCommitResult.stderr}`);
+                    }
+                    this.logger.info(`Created initial empty commit for instance ${instanceId}`);
+                } else {
+                    // Repository already has commits, get the current commit hash
+                    const hashResult = await this.executeCommand(instanceId, `git rev-parse HEAD`);
+                    if (hashResult.exitCode === 0) {
+                        commitSha = hashResult.stdout.trim();
+                    }
+                    this.logger.info(`Repository already has commits, current commit: ${commitSha} for instance ${instanceId}`);
+                }
+            } catch (error) {
+                this.logger.warn(`Git commit check failed, proceeding anyway: ${error}`);
+            }
+
+            // Step 4: Add all files and commit changes
+            const addResult = await this.executeCommand(instanceId, `git add .`);
+            if (addResult.exitCode !== 0) {
+                throw new Error(`Git add failed: ${addResult.stderr}`);
+            }
+
+            const commitResult = await this.executeCommand(instanceId, `git commit -m "${commitMessage.replace(/"/g, '\\"')}"`);
+            if (commitResult.exitCode !== 0) {
+                // Check if it's just "nothing to commit"
+                if (commitResult.stderr.includes('nothing to commit')) {
+                    this.logger.info('No changes to commit, using existing commit');
+                    // Get current commit hash if we don't have it
+                    if (!commitSha) {
+                        const hashResult = await this.executeCommand(instanceId, `git rev-parse HEAD`);
+                        if (hashResult.exitCode === 0) {
+                            commitSha = hashResult.stdout.trim();
+                        }
+                    }
+                } else {
+                    throw new Error(`Git commit failed: ${commitResult.stderr}`);
+                }
+            } else {
+                // Get the new commit hash
+                const hashResult = await this.executeCommand(instanceId, `git rev-parse HEAD`);
+                if (hashResult.exitCode === 0) {
+                    commitSha = hashResult.stdout.trim();
+                }
+            }
+
+            // Step 5: Setup remote origin with token authentication
+            const remoteUrl = request.cloneUrl.replace('https://', `https://x-access-token:${request.token}@`);
+
+            // Check if remote origin already exists
+            const remoteCheckResult = await this.executeCommand(instanceId, `git remote get-url origin`);
+            const remoteExists = remoteCheckResult.exitCode === 0;
+
+            if (!remoteExists) {
+                // Add remote origin
+                const remoteAddResult = await this.executeCommand(instanceId, `git remote add origin "${remoteUrl}"`);
+                if (remoteAddResult.exitCode !== 0) {
+                    throw new Error(`Git remote add failed: ${remoteAddResult.stderr}`);
+                }
+                this.logger.info(`Added remote origin for instance ${instanceId}`);
+            } else {
+                // Update existing remote to use the new URL with token
+                const remoteSetResult = await this.executeCommand(instanceId, `git remote set-url origin "${remoteUrl}"`);
+                if (remoteSetResult.exitCode !== 0) {
+                    throw new Error(`Git remote set-url failed: ${remoteSetResult.stderr}`);
+                }
+                this.logger.info(`Updated remote origin for instance ${instanceId}`);
+            }
+
+            // Step 6: Set main as default branch and push
+            await this.executeCommand(instanceId, `git branch -M main`);
+
+            // Get current branch for push
+            const finalBranchResult = await this.executeCommand(instanceId, `git branch --show-current`);
+            const pushBranch = finalBranchResult.stdout.trim() || 'main';
+
+            const pushResult = await this.executeCommand(instanceId, `git push -f -u origin ${pushBranch}`);
+            if (pushResult.exitCode !== 0) {
+                throw new Error(`Git push failed: ${pushResult.stderr}`);
+            }
+
+            this.logger.info(`Successfully pushed to GitHub repository for instance ${instanceId}`);
+
+            return {
+                success: true,
+                commitSha: commitSha
+            };
+
+        } catch (error) {
+            this.logger.error('pushToGitHub failed', error, { instanceId, cloneUrl: request.cloneUrl });
+            
+            // Provide detailed error information for debugging
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const details: {
+                operation: string;
+                exitCode?: number;
+                stderr?: string;
+            } = {
+                operation: 'unknown'
+            };
+
+            // Extract operation details from error message
+            if (errorMessage.includes('Git init failed')) {
+                details.operation = 'git_init';
+            } else if (errorMessage.includes('Git add failed')) {
+                details.operation = 'git_add';
+            } else if (errorMessage.includes('Git commit failed')) {
+                details.operation = 'git_commit';
+            } else if (errorMessage.includes('Git remote')) {
+                details.operation = 'git_remote';
+            } else if (errorMessage.includes('Git push failed')) {
+                details.operation = 'git_push';
+            }
+
+            return {
+                success: false,
+                error: `Git push operation failed: ${errorMessage}`,
+                details
+            };
+        }
+    }
 
     // ==========================================
     // SAVE/RESUME OPERATIONS
@@ -2241,66 +2431,66 @@ export class SandboxSdkClient extends BaseSandboxService {
         }
     }
 
-    /**
-     * Generate JWT token for templates gateway authentication using existing TokenService
-     */
-    private async generateTemplatesGatewayToken(sessionId: string, instanceId: string): Promise<string> {
-        const tokenService = new TokenService(env);
+    // /**
+    //  * Generate JWT token for templates gateway authentication using existing TokenService
+    //  */
+    // private async generateTemplatesGatewayToken(sessionId: string, instanceId: string): Promise<string> {
+    //     const tokenService = new TokenService(env);
         
-        // Create JWT token with custom payload for templates gateway
-        const token = await tokenService.createToken(
-            {
-                sub: sessionId, // Use sessionId as subject
-                email: `sandbox-${sessionId}@templates.gateway`, // Dummy email for TokenService compatibility
-                type: 'access' as const,
-                sessionId: sessionId,
-                jti: instanceId // Use jti field to store instanceId for validation
-            },
-            86400 // 24 hours in seconds
-        );
+    //     // Create JWT token with custom payload for templates gateway
+    //     const token = await tokenService.createToken(
+    //         {
+    //             sub: sessionId, // Use sessionId as subject
+    //             email: `sandbox-${sessionId}@templates.gateway`, // Dummy email for TokenService compatibility
+    //             type: 'access' as const,
+    //             sessionId: sessionId,
+    //             jti: instanceId // Use jti field to store instanceId for validation
+    //         },
+    //         86400 // 24 hours in seconds
+    //     );
         
-        this.logger.info('Generated JWT token for templates gateway authentication');
-        return token;
-    }
+    //     this.logger.info('Generated JWT token for templates gateway authentication');
+    //     return token;
+    // }
 
-    /**
-     * Register JWT token in KV for authentication
-     */
-    private async registerAuthToken(jwtToken: string, instanceId: string): Promise<void> {
-        try {
-            const kvKey = `agent-orangebuild-${jwtToken}`;
-            await env.INSTANCE_REGISTRY.put(
-                kvKey,
-                instanceId,
-                { expirationTtl: 86400 } // 24 hours TTL
-            );
-            this.logger.info('Registered JWT token in KV registry', { instanceId });
-        } catch (error) {
-            this.logger.error('Failed to register JWT token in KV registry', error);
-            throw new Error('Failed to register authentication token');
-        }
-    }
+    // /**
+    //  * Register JWT token in KV for authentication
+    //  */
+    // private async registerAuthToken(jwtToken: string, instanceId: string): Promise<void> {
+    //     try {
+    //         const kvKey = `agent-orangebuild-${jwtToken}`;
+    //         await env.INSTANCE_REGISTRY.put(
+    //             kvKey,
+    //             instanceId,
+    //             { expirationTtl: 86400 } // 24 hours TTL
+    //         );
+    //         this.logger.info('Registered JWT token in KV registry', { instanceId });
+    //     } catch (error) {
+    //         this.logger.error('Failed to register JWT token in KV registry', error);
+    //         throw new Error('Failed to register authentication token');
+    //     }
+    // }
 
-    /**
-     * Set authentication environment variables for sandbox
-     */
-    private async setAuthEnvironmentVariables(jwtToken: string): Promise<void> {
-        const authEnvVars = {
-            CF_AI_API_KEY: jwtToken,
-            CF_AI_BASE_URL: env.AI_GATEWAY_PROXY_FOR_TEMPLATES_URL || 'https://templates.coder.eti-india.workers.dev'
-        };
+    // /**
+    //  * Set authentication environment variables for sandbox
+    //  */
+    // private async setAuthEnvironmentVariables(jwtToken: string): Promise<void> {
+    //     const authEnvVars = {
+    //         CF_AI_API_KEY: jwtToken,
+    //         CF_AI_BASE_URL: env.AI_GATEWAY_PROXY_FOR_TEMPLATES_URL || 'https://templates.coder.eti-india.workers.dev'
+    //     };
         
-        // Merge with existing environment variables
-        const combinedEnvVars = { ...this.envVars, ...authEnvVars };
+    //     // Merge with existing environment variables
+    //     const combinedEnvVars = { ...this.envVars, ...authEnvVars };
         
-        // Set the combined environment variables on the sandbox
-        this.getSandbox().setEnvVars(combinedEnvVars);
-        this.logger.info('Set authentication environment variables for sandbox', {
-            CF_AI_BASE_URL: authEnvVars.CF_AI_BASE_URL,
-            hasApiKey: !!authEnvVars.CF_AI_API_KEY
-        });
+    //     // Set the combined environment variables on the sandbox
+    //     this.getSandbox().setEnvVars(combinedEnvVars);
+    //     this.logger.info('Set authentication environment variables for sandbox', {
+    //         CF_AI_BASE_URL: authEnvVars.CF_AI_BASE_URL,
+    //         hasApiKey: !!authEnvVars.CF_AI_API_KEY
+    //     });
         
-        // Update the instance's envVars for future use
-        this.envVars = combinedEnvVars;
-    }
+    //     // Update the instance's envVars for future use
+    //     this.envVars = combinedEnvVars;
+    // }
 }

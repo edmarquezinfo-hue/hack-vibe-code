@@ -31,7 +31,9 @@ import {
     SaveInstanceResponse,
     ResumeInstanceResponse,
     GitHubExportRequest,
-    GitHubExportResponse
+    GitHubExportResponse,
+    GitHubPushRequest,
+    GitHubPushResponse
   } from './sandboxTypes';
   
   import { createObjectLogger, StructuredLogger } from '../../logger';
@@ -222,9 +224,14 @@ import {
     // ==========================================
   
     /**
-     * Initialize a GitHub repository for an instance
+     * Initialize a GitHub repository for an instance (DEPRECATED - use pushToGitHub)
      */
     abstract exportToGitHub(instanceId: string, request: GitHubExportRequest): Promise<GitHubExportResponse>
+
+    /**
+     * Push instance files to existing GitHub repository (NEW - separated concerns)
+     */
+    abstract pushToGitHub(instanceId: string, request: GitHubPushRequest): Promise<GitHubPushResponse>
 
     // ==========================================
     // SAVE/RESUME OPERATIONS (Required)

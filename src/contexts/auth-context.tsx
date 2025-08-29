@@ -7,7 +7,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useNavigate } from 'react-router';
 import { apiClient, ApiError } from '@/lib/api-client';
 
-interface User {
+export interface User {
   id: string;
   email: string;
   displayName?: string;

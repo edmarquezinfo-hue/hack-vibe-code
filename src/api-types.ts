@@ -107,13 +107,6 @@ export type {
   SecretTemplatesData
 } from 'worker/api/controllers/secrets/types';
 
-// GitHub Integration API Types
-export type {
-  GitHubIntegrationStatusData,
-  GitHubIntegrationRemovalData,
-  GitHubIntegrationInput
-} from 'worker/api/controllers/githubIntegration/types';
-
 // Agent/CodeGen API Types  
 export type {
   AgentStateData,
@@ -123,6 +116,7 @@ export type {
 // WebSocket Types
 export type { 
   WebSocketMessage, 
+  WebSocketMessageData,
   CodeFixEdits 
 } from 'worker/api/websocketTypes';
 
@@ -258,3 +252,8 @@ export interface ApiKeysData {
     isActive: boolean;
   }>;
 }
+
+export type {
+    GitHubExportOptions,
+    GitHubExportResult,
+} from 'worker/services/github/types';
