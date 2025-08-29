@@ -123,11 +123,17 @@
 }
 
 @layer base {
-  * {
-    @apply border-border-primary outline-ring/50;
+	* {
+		@apply border-border-primary outline-ring/50;
 	}
-  body {
-    @apply bg-bg-3 text-text-primary;
+  	body {
+    	@apply bg-bg-3 text-text-primary h-full;
+	}
+	button {
+		@apply cursor-pointer;
+	}
+	select {
+		@apply cursor-pointer;
 	}
 }
 
@@ -156,25 +162,6 @@
 		3px 3px 13px 0px rgba(0, 0, 0, 0.04), 24px 24px 24px 0px rgba(0, 0, 0, 0.03);
 }
 
-@layer base {
-	* {
-		@apply border-text/10;
-	}
-
-	html,
-	body,
-	#root {
-		height: 100%;
-		@apply text-text;
-		/* @media (prefers-color-scheme: dark) {
-    color-scheme: dark;
-  } */
-	}
-
-	body {
-		background: #fbfbfc;
-	}
-}
 
 /* Hack from https://stackoverflow.com/a/71876526 */
 .monaco-editor {
