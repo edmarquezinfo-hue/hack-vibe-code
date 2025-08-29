@@ -1,7 +1,7 @@
 
 import { BaseController } from '../BaseController';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
-import { RouteContext } from '../../types/route-context';
+import type { RouteContext } from '../../types/route-context';
 import { cloneAgent, getAgentStub } from '../../../agents';
 import { AppService } from '../../../database/services/AppService';
 import { 
@@ -10,6 +10,7 @@ import {
     ForkAppData, 
 } from './types';
 import { AgentSummary } from '../../../agents/core/types';
+import { withCache } from '../../../services/cache/wrapper';
 
 export class AppViewController extends BaseController {
     constructor() {
@@ -17,7 +18,8 @@ export class AppViewController extends BaseController {
     }
 
     // Get single app details (public endpoint, auth optional for ownership check)
-    async getAppDetails(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppDetailsData>>> {
+    getAppDetails = withCache(
+        async function(this: AppViewController, request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppDetailsData>>> {
         try {
             const appId = context.pathParams.id;
             if (!appId) {
@@ -84,7 +86,9 @@ export class AppViewController extends BaseController {
             this.logger.error('Error fetching app details:', error);
             return this.createErrorResponse<AppDetailsData>('Internal server error', 500);
         }
-    }
+    },
+        { ttlSeconds: 3 * 60 * 60, tags: ['app-details'] }
+    );
 
     // Star/unstar an app
     async toggleAppStar(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppStarToggleData>>> {

@@ -599,8 +599,6 @@ export class AuthService {
                 return null;
             }
             
-            // Return the validated URL
-            logger.info('OAuth redirect URL validated', { redirectUrl });
             return redirectUrl;
         } catch (error) {
             logger.warn('Invalid OAuth redirect URL format', { redirectUrl, error });
@@ -626,9 +624,6 @@ export class AuthService {
 
         // TODO: Send email with OTP (integrate with email service)
         logger.info('Verification OTP generated', { email, otp: otp.slice(0, 2) + '****' });
-        
-        // For development, log the OTP (remove in production)
-        console.log(`[DEV] Verification OTP for ${email}: ${otp}`);
     }
 
     /**
