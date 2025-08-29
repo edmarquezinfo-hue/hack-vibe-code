@@ -13,7 +13,7 @@ import {
     UpdateAppVisibilityData,
     AppDeleteData
 } from './types';
-import { Cacheable } from '../../../services/cache/decorators';
+import { withCache } from '../../../services/cache/wrapper';
 
 export class AppController extends BaseController {
     constructor() {
@@ -21,11 +21,8 @@ export class AppController extends BaseController {
     }
 
     // Get all apps for the current user
-    @Cacheable({ 
-        ttlSeconds: 12 * 60, 
-        tags: ['user-apps']
-    })
-    async getUserApps(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
+    getUserApps = withCache(
+        async function(this: AppController, _request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
         try {
             const user = this.extractAuthUser(context);
             if (!user) {
@@ -47,7 +44,9 @@ export class AppController extends BaseController {
             this.logger.error('Error fetching user apps:', error);
             return this.createErrorResponse<AppsListData>('Failed to fetch apps', 500);
         }
-    }
+    },
+        { ttlSeconds: 12 * 60, tags: ['user-apps'] }
+    );
 
     // Get recent apps (last 10)
     async getRecentApps(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
@@ -135,8 +134,8 @@ export class AppController extends BaseController {
     }
 
     // Get public apps feed (like a global board)
-    @Cacheable({ ttlSeconds: 45 * 60, tags: ['public-apps'] })
-    async getPublicApps(request: Request, env: Env, _ctx: ExecutionContext, _context: RouteContext): Promise<ControllerResponse<ApiResponse<PublicAppsData>>> {
+    getPublicApps = withCache(
+        async function(this: AppController, request: Request, env: Env, _ctx: ExecutionContext, _context: RouteContext): Promise<ControllerResponse<ApiResponse<PublicAppsData>>> {
         try {
             const dbService = this.createDbService(env);
             const url = new URL(request.url);
@@ -260,7 +259,9 @@ export class AppController extends BaseController {
             this.logger.error('Error fetching public apps:', error);
             return this.createErrorResponse<PublicAppsData>('Failed to fetch public apps', 500);
         }
-    }
+    },
+        { ttlSeconds: 45 * 60, tags: ['public-apps'] }
+    );
 
     // Get single app
     async getApp(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SingleAppData>>> {
