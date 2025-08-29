@@ -66,6 +66,7 @@ interface WranglerConfig {
 		MAX_SANDBOX_INSTANCES?: string;
 		CUSTOM_DOMAIN?: string;
 		SANDBOX_INSTANCE_TYPE?: string;
+		DISPATCH_NAMESPACE?: string;
 		[key: string]: string | undefined;
 	};
 }
@@ -175,6 +176,7 @@ class CloudflareDeploymentManager {
 		const maxInstances = this.config.vars?.MAX_SANDBOX_INSTANCES;
 		const templatesRepo = this.config.vars?.TEMPLATES_REPOSITORY;
 		const aiGateway = this.config.vars?.CLOUDFLARE_AI_GATEWAY;
+		const dispatchNamespace = this.config.vars?.DISPATCH_NAMESPACE;
 
 		console.log('📊 Configuration Summary:');
 		console.log(`   Database Name: ${databaseName || 'Not configured'}`);
@@ -186,6 +188,7 @@ class CloudflareDeploymentManager {
 			`   Templates Repository: ${templatesRepo || 'Not configured'}`,
 		);
 		console.log(`   AI Gateway: ${aiGateway || 'Not configured'}`);
+		console.log(`   Dispatch Namespace: ${dispatchNamespace || 'Not configured'}`);
 
 		// Validate critical configuration
 		if (!databaseName) {
@@ -1250,6 +1253,152 @@ class CloudflareDeploymentManager {
 	}
 
 	/**
+	 * Updates dispatch namespace configuration based on DISPATCH_NAMESPACE (env var overrides wrangler.jsonc)
+	 * If dispatch namespaces are not available, clears the DISPATCH_NAMESPACE var
+	 */
+	private updateDispatchNamespace(dispatchNamespacesAvailable: boolean): void {
+		// If dispatch namespaces are not available, clear the DISPATCH_NAMESPACE var
+		if (!dispatchNamespacesAvailable) {
+			console.log('🔧 Dispatch namespaces not available - clearing DISPATCH_NAMESPACE var');
+			try {
+				const { content } = this.readWranglerConfig();
+				
+				// Clear the DISPATCH_NAMESPACE var
+				const varsEdits = modify(
+					content,
+					['vars', 'DISPATCH_NAMESPACE'],
+					'',
+					CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS,
+				);
+				const updatedContent = applyEdits(content, varsEdits);
+				
+				this.writeWranglerConfig(updatedContent);
+				this.logSuccess('Cleared DISPATCH_NAMESPACE var (dispatch namespaces not available)');
+				
+				// Update internal config
+				if (this.config.vars) {
+					this.config.vars.DISPATCH_NAMESPACE = '';
+				}
+			} catch (error) {
+				this.logWarning(
+					`Could not clear DISPATCH_NAMESPACE var: ${error instanceof Error ? error.message : String(error)}`,
+					['Continuing with deployment...']
+				);
+			}
+			return;
+		}
+
+		// Environment variable takes priority over wrangler.jsonc vars
+		const dispatchNamespace =
+			process.env.DISPATCH_NAMESPACE ||
+			this.config.vars?.DISPATCH_NAMESPACE || 
+			"orange-build-default-namespace";
+
+		const source = process.env.DISPATCH_NAMESPACE
+			? 'environment variable'
+			: this.config.vars?.DISPATCH_NAMESPACE
+				? 'wrangler.jsonc vars'
+				: 'default value';
+		console.log(
+			`🔧 Using DISPATCH_NAMESPACE from ${source}: ${dispatchNamespace}`,
+		);
+
+		// Validate namespace name
+		if (!dispatchNamespace || dispatchNamespace.trim() === '') {
+			console.warn(
+				'⚠️  Invalid DISPATCH_NAMESPACE value: empty string, using default',
+			);
+			return;
+		}
+
+		// Basic format validation (alphanumeric, hyphens, underscores)
+		const namespacePattern = /^[a-zA-Z0-9_-]+$/;
+		if (!namespacePattern.test(dispatchNamespace)) {
+			console.warn(
+				`⚠️  Invalid DISPATCH_NAMESPACE format: ${dispatchNamespace}, must contain only letters, numbers, hyphens, and underscores`,
+			);
+			return;
+		}
+
+		console.log(
+			`🔧 Updating dispatch namespace configuration: DISPATCH_NAMESPACE=${dispatchNamespace}`,
+		);
+
+		try {
+			const { content, config } = this.readWranglerConfig();
+
+			if (!config.dispatch_namespaces || !Array.isArray(config.dispatch_namespaces)) {
+				console.warn(
+					'⚠️  No dispatch_namespaces configuration found in wrangler.jsonc',
+				);
+				return;
+			}
+
+			if (config.dispatch_namespaces.length === 0) {
+				console.warn(
+					'⚠️  Empty dispatch_namespaces array in wrangler.jsonc',
+				);
+				return;
+			}
+
+			const currentNamespace = config.dispatch_namespaces[0].namespace;
+
+			// Check if update is needed
+			if (currentNamespace === dispatchNamespace) {
+				console.log(
+					`ℹ️  Dispatch namespace already set to: ${dispatchNamespace}`,
+				);
+				return;
+			}
+
+			let updatedContent = content;
+
+			// Update dispatch_namespaces[0].namespace
+			const namespaceEdits = modify(
+				updatedContent,
+				['dispatch_namespaces', 0, 'namespace'],
+				dispatchNamespace,
+				CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS,
+			);
+			updatedContent = applyEdits(updatedContent, namespaceEdits);
+
+			// Update vars.DISPATCH_NAMESPACE for consistency
+			const varsEdits = modify(
+				updatedContent,
+				['vars', 'DISPATCH_NAMESPACE'],
+				dispatchNamespace,
+				CloudflareDeploymentManager.JSONC_FORMAT_OPTIONS,
+			);
+			updatedContent = applyEdits(updatedContent, varsEdits);
+
+			// Write back the updated configuration
+			this.writeWranglerConfig(updatedContent);
+
+			this.logSuccess(
+				`Updated dispatch namespace: ${currentNamespace} → ${dispatchNamespace}`,
+				[
+					'Updated dispatch_namespaces[0].namespace',
+					'Updated vars.DISPATCH_NAMESPACE for consistency'
+				]
+			);
+
+			// Update internal config to reflect changes
+			this.config.dispatch_namespaces[0].namespace = dispatchNamespace;
+			if (!this.config.vars) {
+				this.config.vars = {};
+			}
+			this.config.vars.DISPATCH_NAMESPACE = dispatchNamespace;
+
+		} catch (error) {
+			this.logWarning(
+				`Could not update dispatch namespace configuration: ${error instanceof Error ? error.message : String(error)}`,
+				['Continuing with current configuration...']
+			);
+			// Non-blocking - continue deployment
+		}
+	}
+
+	/**
 	 * Cleans Wrangler cache and build artifacts
 	 */
 	private cleanWranglerCache(): void {
@@ -1686,6 +1835,7 @@ class CloudflareDeploymentManager {
 			// Step 2: Update container configuration if needed
 			console.log('\n📋 Step 2: Updating container configuration...');
 			this.updateContainerConfiguration();
+			this.updateDispatchNamespace(dispatchNamespacesAvailable);
 
 			// Step 3: Resolve var/secret conflicts before deployment
 			console.log('\n📋 Step 3: Resolving var/secret conflicts...');

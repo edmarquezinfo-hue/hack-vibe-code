@@ -34,7 +34,14 @@ import { createObjectLogger } from '../../logger';
 import { env } from 'cloudflare:workers'
 import { BaseSandboxService } from './BaseSandboxService';
 
-import { deployToCloudflareWorkers } from './deploymentService';
+import { 
+    buildDeploymentConfig, 
+    parseWranglerConfig, 
+    deployToDispatch 
+} from '../deployer/deploy';
+import { 
+    createAssetManifest 
+} from '../deployer/utils/index';
 import { CodeFixResult, FileFetcher, fixProjectIssues } from '../code-fixer';
 import { FileObject } from '../code-fixer/types';
 import { createGitHubHeaders } from '../../utils/authUtils';
@@ -1709,14 +1716,129 @@ export class SandboxSdkClient extends BaseSandboxService {
 
     async deployToCloudflareWorkers(instanceId: string): Promise<DeploymentResult> {
         try {
-            const base64Data = await this.packInstance(instanceId, true);
-            return deployToCloudflareWorkers({
-                instanceId,
-                base64encodedArchive: base64Data,
-                logger: this.logger,
-                projectName: (await this.getInstanceMetadata(instanceId))?.projectName || '',
-                hostname: this.hostname
+            this.logger.info(`Starting secure deployment for instance: ${instanceId}`);
+            
+            // Get project metadata
+            const metadata = await this.getInstanceMetadata(instanceId);
+            const projectName = metadata?.projectName || instanceId;
+            
+            // Get credentials from environment (secure - no exposure to external processes)
+            const accountId = env.CLOUDFLARE_ACCOUNT_ID;
+            const apiToken = env.CLOUDFLARE_API_TOKEN;
+            
+            if (!accountId || !apiToken) {
+                throw new Error('CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN must be set in environment');
+            }
+            
+            // Get dispatch namespace from env or use default
+            const dispatchNamespace = env.DISPATCH_NAMESPACE;
+            this.logger.info(`Dispatch Namespace: ${dispatchNamespace}`);
+            
+            const sandbox = this.getSandbox();
+            this.logger.info(`Working with instance: ${instanceId}`);
+            
+            // Step 1: Run build commands (bun run build && bunx wrangler build)
+            this.logger.info(`🔨 Building project...`);
+            const buildResult = await this.executeCommand(instanceId, 'bun run build');
+            if (buildResult.exitCode !== 0) {
+                this.logger.warn('Build step failed or not available', buildResult.stdout, buildResult.stderr);
+                throw new Error(`Build failed: ${buildResult.stderr}`);
+            }
+            
+            const wranglerBuildResult = await this.executeCommand(instanceId, 'bunx wrangler build');
+            if (wranglerBuildResult.exitCode !== 0) {
+                this.logger.warn('Wrangler build failed', wranglerBuildResult.stdout, wranglerBuildResult.stderr);
+                // Continue anyway - some projects might not need wrangler build
+            }
+            
+            // Step 2: Parse wrangler config
+            this.logger.info(`Reading wrangler configuration...`);
+            const wranglerConfigFile = await sandbox.readFile(`${instanceId}/wrangler.jsonc`);
+            if (!wranglerConfigFile.success) {
+                throw new Error(`Could not read wrangler.jsonc from ${instanceId}`);
+            }
+            
+            const config = parseWranglerConfig(wranglerConfigFile.content);
+            
+            // Override script name for dispatch deployment
+            const scriptName = `${config.name}-dispatch`;
+            this.logger.info(`Worker name: ${scriptName}`);
+            this.logger.info(`Compatibility date: ${config.compatibility_date}`);
+            
+            // Step 3: Read worker script from dist
+            this.logger.info(`Reading worker script from dist...`);
+            const workerPath = `${instanceId}/dist/index.js`;
+            const workerFile = await sandbox.readFile(workerPath);
+            if (!workerFile.success) {
+                throw new Error(`Worker script not found at ${workerPath}. Please build the project first.`);
+            }
+            
+            const workerContent = workerFile.content;
+            this.logger.info(`Worker script loaded (${(workerContent.length / 1024).toFixed(2)} KB)`);
+            
+            // Step 4: Check for assets and process them
+            const assetsPath = `${instanceId}/dist/client`;
+            let assetsManifest: Record<string, { hash: string; size: number }> | undefined;
+            let fileContents: Map<string, Buffer> | undefined;
+            
+            const assetDirResult = await sandbox.exec(`test -d ${assetsPath} && echo "exists" || echo "missing"`);
+            const hasAssets = assetDirResult.exitCode === 0 && assetDirResult.stdout.trim() === "exists";
+            
+            if (hasAssets) {
+                this.logger.info(`Processing assets from: ${assetsPath}`);
+                const assetProcessResult = await this.processAssetsInSandbox(instanceId, assetsPath);
+                assetsManifest = assetProcessResult.assetsManifest;
+                fileContents = assetProcessResult.fileContents;
+            } else {
+                this.logger.info('No assets directory found, deploying worker only');
+            }
+            
+            // Step 5: Override config for dispatch deployment
+            const dispatchConfig = {
+                ...config,
+                name: scriptName
+            };
+            
+            // Step 6: Build deployment config using pure function
+            const deployConfig = {
+                ...buildDeploymentConfig(
+                    dispatchConfig,
+                    workerContent,
+                    accountId,
+                    apiToken,
+                    assetsManifest,
+                    config.compatibility_flags
+                ),
+                dispatchNamespace
+            };
+            
+            // Step 7: Deploy using pure function
+            this.logger.info(`Deploying to Cloudflare...`);
+            await deployToDispatch(
+                deployConfig,
+                fileContents,
+                undefined, // additionalModules
+                config.migrations,
+                config.assets
+            );
+            
+            // Step 8: Determine deployment URL
+            const deployedUrl = `${this.getProtocolForHost()}://${projectName}.${this.hostname}`;
+            const deploymentId = `deploy-${instanceId}-${Date.now()}`;
+            
+            this.logger.info(`Successfully deployed instance ${instanceId}`, { 
+                deployedUrl, 
+                deploymentId,
+                deploymentMode: 'dispatch-namespace'
             });
+            
+            return {
+                success: true,
+                message: `Successfully deployed ${instanceId} using secure API deployment`,
+                deployedUrl,
+                deploymentId,
+                output: `Deployed to dispatch namespace: ${dispatchNamespace}`
+            };
             
         } catch (error) {
             this.logger.error('deployToCloudflareWorkers', error, { instanceId });
@@ -1726,6 +1848,72 @@ export class SandboxSdkClient extends BaseSandboxService {
                 error: error instanceof Error ? error.message : 'Unknown error'
             };
         }
+    }
+
+    /**
+     * Process assets in sandbox and create manifest for deployment
+     */
+    private async processAssetsInSandbox(_instanceId: string, assetsPath: string): Promise<{
+        assetsManifest: Record<string, { hash: string; size: number }>;
+        fileContents: Map<string, Buffer>;
+    }> {
+        const sandbox = this.getSandbox();
+        
+        // Get list of all files in assets directory
+        const findResult = await sandbox.exec(`find ${assetsPath} -type f`);
+        if (findResult.exitCode !== 0) {
+            throw new Error(`Failed to list assets: ${findResult.stderr}`);
+        }
+        
+        const filePaths = findResult.stdout.trim().split('\n').filter(path => path);
+        this.logger.info(`Found ${filePaths.length} asset files`);
+        
+        const fileContents = new Map<string, Buffer>();
+        const filesAsArrayBuffer = new Map<string, ArrayBuffer>();
+        
+        // Read each file and calculate hashes
+        for (const fullPath of filePaths) {
+            const relativePath = fullPath.replace(`${assetsPath}/`, '/');
+            
+            try {
+                const fileResult = await sandbox.readFile(fullPath);
+                if (fileResult.success) {
+                    // Convert string content to Buffer (assuming binary safe encoding)
+                    const buffer = Buffer.from(fileResult.content, 'binary');
+                    fileContents.set(relativePath, buffer);
+                    
+                    // Convert to ArrayBuffer for hash calculation
+                    const arrayBuffer = new ArrayBuffer(buffer.length);
+                    const view = new Uint8Array(arrayBuffer);
+                    for (let i = 0; i < buffer.length; i++) {
+                        view[i] = buffer[i];
+                    }
+                    filesAsArrayBuffer.set(relativePath, arrayBuffer);
+                    
+                    this.logger.info(`  📄 ${relativePath} (${buffer.length} bytes)`);
+                }
+            } catch (error) {
+                this.logger.warn(`Failed to read asset file ${fullPath}:`, error);
+            }
+        }
+        
+        // Create asset manifest using pure function
+        const assetsManifest = await createAssetManifest(filesAsArrayBuffer);
+        const assetCount = Object.keys(assetsManifest).length;
+        this.logger.info(`✅ Created manifest for ${assetCount} asset files`);
+        
+        return { assetsManifest, fileContents };
+    }
+
+    /**
+     * Get protocol for host (utility method)
+     */
+    private getProtocolForHost(): string {
+        // Simple heuristic - use https for production-like domains
+        if (this.hostname.includes('localhost') || this.hostname.includes('127.0.0.1')) {
+            return 'http';
+        }
+        return 'https';
     }
 
     // ==========================================
