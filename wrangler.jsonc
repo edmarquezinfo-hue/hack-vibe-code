@@ -47,7 +47,7 @@
 			"class_name": "UserAppSandboxService",
 			"image": "./SandboxDockerfile",
             // Altering max_instances value will have no effect. Please use the MAX_SANDBOX_INSTANCES var instead.
-			"max_instances": 200,
+			"max_instances": 2900,
             // ATTENTION: Altering instance_type value will have no effect. Please use the SANDBOX_INSTANCE_TYPE var instead.
             "instance_type": {
                 "vcpu": 4,
@@ -136,12 +136,12 @@
     ],
 	"vars": {
         "TEMPLATES_REPOSITORY": "https://github.com/cloudflare/vibesdk-templates",
+        "ALLOWED_EMAIL": "your-email@example.com",
         "CLOUDFLARE_AI_GATEWAY": "orange-build-gateway",
         "CUSTOM_DOMAIN": "",
         "MAX_SANDBOX_INSTANCES": "10",
         "SANDBOX_INSTANCE_TYPE": "standard",
-        "ALLOWED_EMAIL": "your-email@example.com",
-        "ALLOCATION_STRATEGY": "many_to_one", //Leave as is
+        "ALLOCATION_STRATEGY": "many_to_one",
         "SECRETS_ENCRYPTION_KEY": "your-32-byte-base64-key-here-replace-in-production"
     },
 	"workers_dev": false,
