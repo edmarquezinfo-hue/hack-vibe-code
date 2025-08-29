@@ -141,6 +141,7 @@
         "MAX_SANDBOX_INSTANCES": "10",
         "SANDBOX_INSTANCE_TYPE": "standard",
         "ALLOWED_EMAIL": "your-email@example.com",
+        "ALLOCATION_STRATEGY": "load_balanced", //Leave as is
         "SECRETS_ENCRYPTION_KEY": "your-32-byte-base64-key-here-replace-in-production"
     },
 	"workers_dev": false,

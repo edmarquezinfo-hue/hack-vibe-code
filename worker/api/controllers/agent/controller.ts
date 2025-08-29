@@ -4,7 +4,7 @@ import { BaseController } from '../BaseController';
 import { generateId } from '../../../utils/idGenerator';
 import { CodeGenState } from '../../../agents/core/state';
 import { getAgentStub } from '../../../agents';
-import { AgentStateData, AgentConnectionData, AgentPreviewResponse } from './types';
+import { AgentConnectionData, AgentPreviewResponse } from './types';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
 import { RouteContext } from '../../types/route-context';
 import { AppService, DatabaseService, ModelConfigService } from '../../../database';
@@ -292,66 +292,6 @@ export class CodingAgentController extends BaseController {
         } catch (error) {
             this.codeGenLogger.error('Error connecting to existing agent', error);
             return this.handleError(error, 'connect to existing agent') as ControllerResponse<ApiResponse<AgentConnectionData>>;
-        }
-    }
-    /**
-     * Get comprehensive agent state for app viewing
-     * Returns strictly typed response matching AgentStateData interface
-     */
-    async getAgentState(
-        request: Request, 
-        env: Env, 
-        _ctx: ExecutionContext, 
-        context: RouteContext
-    ): Promise<ControllerResponse<ApiResponse<AgentStateData>>> {
-        try {
-            const agentId = context.pathParams.agentId;
-            if (!agentId) {
-                return this.createErrorResponse<AgentStateData>('Missing agent ID parameter', 400);
-            }
-
-            this.codeGenLogger.info(`Fetching agent state: ${agentId}`);
-
-            try {
-                // Get the agent instance
-                const agentInstance = await getAgentStub(env, agentId, true, this.codeGenLogger);
-                
-                // Get the full agent state to access conversation messages and other details
-                const fullState = await agentInstance.getFullState() as CodeGenState;
-                this.logger.info('Agent state fetched successfully', {
-                    agentId,
-                    // state: fullState,
-                });
-                // Construct WebSocket URL
-                const url = new URL(request.url);
-                const websocketUrl = `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/api/agent/${agentId}/ws`;
-                
-                // Prepare response with comprehensive agent data matching AgentStateData interface
-                const responseData: AgentStateData = {
-                    agentId,
-                    websocketUrl,
-                    state: fullState,
-                };
-
-                this.codeGenLogger.info('Agent state fetched successfully', {
-                    agentId,
-                    codeFiles: responseData.state.generatedFilesMap.length,
-                    conversationMessages: responseData.state.conversationMessages.length,
-                    phases: responseData.state.generatedPhases.length
-                });
-
-                return this.createSuccessResponse(responseData);
-
-            } catch (agentError) {
-                this.codeGenLogger.error('Failed to fetch agent instance', { agentId, error: agentError });
-                return this.createErrorResponse<AgentStateData>('Agent instance not found or inaccessible', 404);
-            }
-
-        } catch (error) {
-            this.codeGenLogger.error('Error fetching agent state', error);
-            // Use the typed error handling approach
-            const appError = this.handleError(error, 'fetch agent state') as ControllerResponse<ApiResponse<AgentStateData>>;
-            return appError;
         }
     }
 
