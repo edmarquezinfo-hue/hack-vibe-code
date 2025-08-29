@@ -41,8 +41,6 @@ export function GlobalHeader() {
 									height: '28px',
 									marginLeft: '8px',
 								}}
-								color1='#e03f0f'
-								color2="#f68d6e"
 							/>
 						</motion.div>
 					) : (
