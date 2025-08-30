@@ -31,9 +31,6 @@ import {
     DeploymentResultSchema,
     ShutdownResponseSchema,
     StaticAnalysisResponseSchema,
-    GitHubExportResponse,
-    GitHubExportRequest,
-    GitHubExportResponseSchema,
     GitHubPushRequest,
     GitHubPushResponse,
     GitHubPushResponseSchema,
@@ -43,23 +40,8 @@ import { env } from 'cloudflare:workers'
 import z from 'zod';
 
 export async function runnerFetch(url: string, method: 'GET' | 'POST' | 'DELETE', headers: Headers, body: string | undefined) {
-    // console.log('Fetching from runner service.. ', import.meta.env.DEV);
-    // If working locally, make a fetch call, else use the service binding
-    // if (import.meta.env.DEV) {
-        // console.log('Fetching from local...');
+    // Use direct fetch for runner service communication
     return await fetch(url, { method, headers, body });
-    // }
-    // const response = await env.RUNNER_SERVICE.fetch(url, { method, headers, body });
-    // // If 400, use fetch
-    // if (response.status === 400) {
-    //     console.log('Falling back to local fetch');
-    //     return await fetch(url, {
-    //         method,
-    //         headers,
-    //         body,
-    //     });
-    // }
-    // return response;
 }
 
 /**
@@ -76,7 +58,7 @@ export class RemoteSandboxServiceClient extends BaseSandboxService{
 
     constructor(sandboxId: string) {
         super(sandboxId)
-        this.logger.info('Initialized session', { sandboxId: this.sandboxId });
+        this.logger.info('RemoteSandboxServiceClient initialized', { sandboxId: this.sandboxId });
     }
 
     private async makeRequest<T extends z.ZodTypeAny>(
@@ -87,7 +69,6 @@ export class RemoteSandboxServiceClient extends BaseSandboxService{
         resetPrevious: boolean = false
     ): Promise<z.infer<T>> {
         const url = `${RemoteSandboxServiceClient.sandboxServiceUrl}${endpoint}`;
-        // this.logger.info('Making request', { method, url, sandboxId: this.sandboxId });
 
         try {
             const headers = new Headers();
@@ -126,7 +107,7 @@ export class RemoteSandboxServiceClient extends BaseSandboxService{
                 };
             }
 
-            this.logger.info('Successfully received and validated response', { url });
+            this.logger.info('Response validated', { url });
             return validation.data;
         } catch (error) {
             this.logger.error('Error making request to runner service', error, { url });
@@ -236,14 +217,7 @@ export class RemoteSandboxServiceClient extends BaseSandboxService{
     }
 
     /**
-     * Initialize GitHub repository for an instance (DEPRECATED - use pushToGitHub)
-     */
-    async exportToGitHub(instanceId: string, request: GitHubExportRequest): Promise<GitHubExportResponse> {
-        return this.makeRequest(`/instances/${instanceId}/github/export`, 'POST', GitHubExportResponseSchema, request);
-    }
-
-    /**
-     * Push instance files to existing GitHub repository (NEW - separated concerns)
+     * Push instance files to existing GitHub repository
      */
     async pushToGitHub(instanceId: string, request: GitHubPushRequest): Promise<GitHubPushResponse> {
         return this.makeRequest(`/instances/${instanceId}/github/push`, 'POST', GitHubPushResponseSchema, request);

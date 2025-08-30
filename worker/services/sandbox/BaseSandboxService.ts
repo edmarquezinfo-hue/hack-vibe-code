@@ -30,8 +30,6 @@ import {
     ListInstancesResponse,
     SaveInstanceResponse,
     ResumeInstanceResponse,
-    GitHubExportRequest,
-    GitHubExportResponse,
     GitHubPushRequest,
     GitHubPushResponse
   } from './sandboxTypes';
@@ -224,12 +222,7 @@ import {
     // ==========================================
   
     /**
-     * Initialize a GitHub repository for an instance (DEPRECATED - use pushToGitHub)
-     */
-    abstract exportToGitHub(instanceId: string, request: GitHubExportRequest): Promise<GitHubExportResponse>
-
-    /**
-     * Push instance files to existing GitHub repository (NEW - separated concerns)
+     * Push instance files to existing GitHub repository
      */
     abstract pushToGitHub(instanceId: string, request: GitHubPushRequest): Promise<GitHubPushResponse>
 

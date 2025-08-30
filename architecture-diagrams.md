@@ -368,6 +368,7 @@ graph TD
         LivePreview[Live Preview Server]
         ResourceProv[Resource Provisioner]
         TemplateParser[Template Parser]
+        ConfigKV[Configuration Storage<br/>KV-based wrangler.jsonc]
     end
     
     subgraph "Quality Assurance"
