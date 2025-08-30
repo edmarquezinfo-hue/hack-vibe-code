@@ -30,8 +30,6 @@ import {
     ListInstancesResponse,
     SaveInstanceResponse,
     ResumeInstanceResponse,
-    GitHubExportRequest,
-    GitHubExportResponse,
     GitHubPushRequest,
     GitHubPushResponse
   } from './sandboxTypes';
