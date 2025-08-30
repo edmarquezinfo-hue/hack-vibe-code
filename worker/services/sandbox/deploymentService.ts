@@ -24,7 +24,7 @@ export interface CFDeploymentArgs {
  * @deprecated Use SandboxSdkClient.deployToCloudflareWorkers directly instead
  */
 export async function deployToCloudflareWorkers(args: CFDeploymentArgs): Promise<DeploymentResult> {
-    args.logger.info('[deployToCloudflareWorkers] Using secure API-based deployment (legacy wrapper)');
+    args.logger.info('Using secure API-based deployment', { type: 'legacy-wrapper' });
     
     // Create a SandboxSdkClient instance for the deployment
     // Note: We generate a session ID for the sandbox allocation
