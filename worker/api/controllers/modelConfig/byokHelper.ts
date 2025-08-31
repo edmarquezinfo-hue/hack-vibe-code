@@ -18,7 +18,7 @@ export async function getUserProviderStatus(
 	env: Env,
 ): Promise<UserProviderStatus[]> {
 	try {
-		const dbService = new DatabaseService({ DB: env.DB });
+		const dbService =createDatabaseService({ DB: env.DB });
 		const secretsService = new SecretsService(dbService, env);
 
 		// Get BYOK templates dynamically

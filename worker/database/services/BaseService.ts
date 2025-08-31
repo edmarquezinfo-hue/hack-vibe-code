@@ -1,7 +1,6 @@
 /**
  * Base Database Service Class
  * Provides common database functionality and patterns for all domain services
- * Ensures consistent patterns and eliminates code duplication
  */
 
 import { DatabaseService } from '../database';
@@ -19,7 +18,6 @@ export abstract class BaseService {
 
     /**
      * Helper to build type-safe where conditions
-     * Reused across all services to maintain consistency
      */
     protected buildWhereConditions(conditions: (SQL<unknown> | undefined)[]): SQL<unknown> | undefined {
         const validConditions = conditions.filter((c): c is SQL<unknown> => c !== undefined);

@@ -1,15 +1,11 @@
 /**
  * Analytics and Count Queries Service
- * Provides optimized count queries to replace denormalized count fields
- * Maintains 3NF compliance while achieving optimal performance through proper indexing
  */
 
 import { BaseService } from './BaseService';
 import * as schema from '../schema';
 import { eq, count, and, inArray, sql } from 'drizzle-orm';
 import type {
-    TeamStats,
-    BoardStats,
     AppStats,
     UserStats,
     EnhancedUserStats,
@@ -27,74 +23,7 @@ interface CommentStats {
 
 export class AnalyticsService extends BaseService {
     /**
-     * Get team statistics with optimized queries
-     */
-    async getTeamStats(teamId: string): Promise<TeamStats> {
-        const [memberCount, appCount] = await Promise.all([
-            // Count active team members
-            this.database
-                .select({ count: count() })
-                .from(schema.teamMembers)
-                .where(
-                    and(
-                        eq(schema.teamMembers.teamId, teamId),
-                        eq(schema.teamMembers.status, 'active')
-                    )
-                )
-                .get(),
-            
-            // Count team apps
-            this.database
-                .select({ count: count() })
-                .from(schema.apps)
-                .where(eq(schema.apps.teamId, teamId))
-                .get()
-        ]);
-
-        return {
-            memberCount: memberCount?.count ?? 0,
-            appCount: appCount?.count ?? 0
-        };
-    }
-
-    /**
-     * Get board statistics with optimized queries
-     */
-    async getBoardStats(boardId: string): Promise<BoardStats> {
-        const [memberCount, appCount] = await Promise.all([
-            // Count board members
-            this.database
-                .select({ count: count() })
-                .from(schema.boardMembers)
-                .where(
-                    and(
-                        eq(schema.boardMembers.boardId, boardId),
-                        eq(schema.boardMembers.isBanned, false)
-                    )
-                )
-                .get(),
-            
-            // Count apps shared to board
-            this.database
-                .select({ count: count() })
-                .from(schema.apps)
-                .where(
-                    and(
-                        eq(schema.apps.boardId, boardId),
-                        eq(schema.apps.visibility, 'board')
-                    )
-                )
-                .get()
-        ]);
-
-        return {
-            memberCount: memberCount?.count ?? 0,
-            appCount: appCount?.count ?? 0
-        };
-    }
-
-    /**
-     * Get app statistics with optimized queries
+     * Get app statistics
      */
     async getAppStats(appId: string): Promise<AppStats> {
         const [viewCount, forkCount, likeCount] = await Promise.all([
@@ -128,7 +57,7 @@ export class AnalyticsService extends BaseService {
     }
 
     /**
-     * Get comment statistics with optimized queries
+     * Get comment statistics
      */
     async getCommentStats(commentId: string): Promise<CommentStats> {
         const [likeCount, replyCount] = await Promise.all([
@@ -160,12 +89,12 @@ export class AnalyticsService extends BaseService {
 
     /**
      * Batch get statistics for multiple entities
-     * More efficient when loading lists of items - uses proper IN clauses instead of raw SQL
+     * More efficient when loading lists of items
      */
     async batchGetAppStats(appIds: string[]): Promise<BatchAppStats> {
         if (appIds.length === 0) return {};
 
-        // Get all stats in parallel using batch queries with proper type-safe IN clauses
+        // Get all stats in parallel using batch queries
         const [views, forks, likes] = await Promise.all([
             // Batch view counts
             this.database
@@ -201,7 +130,7 @@ export class AnalyticsService extends BaseService {
                 .all()
         ]);
 
-        // Combine results into lookup object with proper typing
+        // Combine results into lookup object
         const result: BatchAppStats = {};
         
         appIds.forEach(appId => {
@@ -219,7 +148,7 @@ export class AnalyticsService extends BaseService {
      * Get user statistics
      */
     async getUserStats(userId: string): Promise<UserStats> {
-        const [appCount, publicAppCount, teamCount, favoriteCount, totalLikesReceived, totalViewsReceived] = await Promise.all([
+        const [appCount, publicAppCount, favoriteCount, totalLikesReceived, totalViewsReceived] = await Promise.all([
             // Count user's total apps
             this.database
                 .select({ count: count() })
@@ -235,18 +164,6 @@ export class AnalyticsService extends BaseService {
                     and(
                         eq(schema.apps.userId, userId),
                         eq(schema.apps.visibility, 'public')
-                    )
-                )
-                .get(),
-            
-            // Count teams user belongs to
-            this.database
-                .select({ count: count() })
-                .from(schema.teamMembers)
-                .where(
-                    and(
-                        eq(schema.teamMembers.userId, userId),
-                        eq(schema.teamMembers.status, 'active')
                     )
                 )
                 .get(),
@@ -278,7 +195,6 @@ export class AnalyticsService extends BaseService {
         return {
             appCount: appCount?.count ?? 0,
             publicAppCount: publicAppCount?.count ?? 0,
-            teamCount: teamCount?.count ?? 0,
             favoriteCount: favoriteCount?.count ?? 0,
             totalLikesReceived: totalLikesReceived?.count ?? 0,
             totalViewsReceived: totalViewsReceived?.count ?? 0

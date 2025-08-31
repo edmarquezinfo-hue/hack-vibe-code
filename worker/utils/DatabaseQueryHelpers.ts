@@ -318,7 +318,7 @@ export class DatabaseQueryHelpers {
      * Create database service instance (utility method)
      */
     static createDbService(env: Env): DatabaseService {
-        return new DatabaseService({ DB: env.DB });
+        returncreateDatabaseService({ DB: env.DB });
     }
 
     /**

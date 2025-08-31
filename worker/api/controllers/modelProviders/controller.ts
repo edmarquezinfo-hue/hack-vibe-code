@@ -62,7 +62,7 @@ export class ModelProvidersController extends BaseController {
                 return this.createErrorResponse<ModelProvidersListData>('Authentication required', 401);
             }
 
-            const dbService = new DatabaseService({ DB: env.DB });
+            const dbService =createDatabaseService({ DB: env.DB });
             
             const providers = await dbService.db
                 .select()
@@ -103,7 +103,7 @@ export class ModelProvidersController extends BaseController {
                 return this.createErrorResponse<ModelProviderData>('Provider ID is required', 400);
             }
 
-            const dbService = new DatabaseService({ DB: env.DB });
+            const dbService =createDatabaseService({ DB: env.DB });
             
             const provider = await dbService.db
                 .select()
@@ -155,7 +155,7 @@ export class ModelProvidersController extends BaseController {
             }
 
             const { name, baseUrl, apiKey } = validation.data;
-            const dbService = new DatabaseService({ DB: env.DB });
+            const dbService =createDatabaseService({ DB: env.DB });
             const secretsService = new SecretsService(dbService, env);
 
             // Check if provider name already exists for user
@@ -242,7 +242,7 @@ export class ModelProvidersController extends BaseController {
                 );
             }
 
-            const dbService = new DatabaseService({ DB: env.DB });
+            const dbService =createDatabaseService({ DB: env.DB });
             const secretsService = new SecretsService(dbService, env);
 
             // Check if provider exists and belongs to user
@@ -337,7 +337,7 @@ export class ModelProvidersController extends BaseController {
                 return this.createErrorResponse<ModelProviderDeleteData>('Provider ID is required', 400);
             }
 
-            const dbService = new DatabaseService({ DB: env.DB });
+            const dbService =createDatabaseService({ DB: env.DB });
 
             // Check if provider exists and belongs to user
             const existingProvider = await dbService.db
@@ -407,7 +407,7 @@ export class ModelProvidersController extends BaseController {
 
             if (validation.data.providerId) {
                 // Test existing provider
-                const dbService = new DatabaseService({ DB: env.DB });
+                const dbService =createDatabaseService({ DB: env.DB });
                 const provider = await dbService.db
                     .select()
                     .from(userModelProviders)

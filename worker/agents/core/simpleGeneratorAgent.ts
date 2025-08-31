@@ -868,7 +868,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         }
 
         try {
-            const db = new DatabaseService(this.env);
+            const db =createDatabaseService(this.env);
             const modelConfigService = new ModelConfigService(db);
             
             // Get all user configs

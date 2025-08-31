@@ -1,7 +1,6 @@
 /**
  * User Service
  * Handles all user-related database operations including sessions, teams, and profiles
- * Extracted from main DatabaseService to maintain single responsibility principle
  */
 
 import { BaseService } from './BaseService';
@@ -9,7 +8,6 @@ import * as schema from '../schema';
 import { eq, and, sql, lt } from 'drizzle-orm';
 import { generateId } from '../../utils/idGenerator';
 import type {
-    UserTeamData,
     EnhancedAppData,
     AppQueryOptions,
     EnhancedUserStats,
@@ -20,7 +18,6 @@ import { AppService } from './AppService';
 
 /**
  * User Service Class
- * Comprehensive user management operations
  */
 export class UserService extends BaseService {
 
@@ -108,75 +105,6 @@ export class UserService extends BaseService {
     }
 
     // ========================================
-    // TEAM OPERATIONS
-    // ========================================
-
-    async createTeam(teamData: Omit<schema.NewTeam, 'id'>): Promise<schema.Team> {
-        const [team] = await this.database
-            .insert(schema.teams)
-            .values({
-                ...teamData,
-                id: generateId(),
-                slug: this.generateSlug(teamData.name),
-            })
-            .returning();
-
-        // Add owner as team member
-        await this.addTeamMember(team.id, team.ownerId, 'owner');
-        return team;
-    }
-
-    async addTeamMember(teamId: string, userId: string, role: 'owner' | 'admin' | 'member' | 'viewer' = 'member'): Promise<void> {
-        await this.database
-            .insert(schema.teamMembers)
-            .values({
-                id: generateId(),
-                teamId,
-                userId,
-                role: role as 'owner' | 'admin' | 'member' | 'viewer',
-                joinedAt: new Date(),
-            });
-    }
-
-    /**
-     * Team fields selector helper
-     */
-    private get TEAM_SELECT_FIELDS() {
-        return {
-            id: schema.teams.id,
-            name: schema.teams.name,
-            slug: schema.teams.slug,
-            description: schema.teams.description,
-            avatarUrl: schema.teams.avatarUrl,
-            visibility: schema.teams.visibility,
-            ownerId: schema.teams.ownerId,
-            createdAt: schema.teams.createdAt,
-            updatedAt: schema.teams.updatedAt,
-            deletedAt: schema.teams.deletedAt,
-            plan: schema.teams.plan,
-            maxMembers: schema.teams.maxMembers,
-            maxApps: schema.teams.maxApps,
-            allowMemberInvites: schema.teams.allowMemberInvites,
-        } as const;
-    }
-
-    async getUserTeams(userId: string): Promise<UserTeamData[]> {
-        const results = await this.database
-            .select({
-                ...this.TEAM_SELECT_FIELDS,
-                memberRole: schema.teamMembers.role,
-            })
-            .from(schema.teams)
-            .innerJoin(schema.teamMembers, eq(schema.teams.id, schema.teamMembers.teamId))
-            .where(and(
-                eq(schema.teamMembers.userId, userId),
-                eq(schema.teamMembers.status, 'active')
-            ));
-        
-        return results;
-    }
-
-    // ========================================
     // USER PROFILE AND DASHBOARD OPERATIONS
     // ========================================
 
@@ -186,9 +114,8 @@ export class UserService extends BaseService {
      */
     async getUserDashboardData(userId: string): Promise<{
         user: schema.User | null;
-        stats: { totalApps: number; appsThisMonth: number; totalTeams: number; cloudflareAccounts: number };
+        stats: { totalApps: number; appsThisMonth: number; cloudflareAccounts: number };
         recentApps: EnhancedAppData[];
-        teams: UserTeamData[];
         cloudflareAccounts: schema.CloudflareAccount[];
     }> {
         // Get user profile
@@ -203,10 +130,9 @@ export class UserService extends BaseService {
         }
 
         // Get data in parallel for better performance
-        const [stats, recentApps, teams, cloudflareAccounts] = await Promise.all([
+        const [stats, recentApps, cloudflareAccounts] = await Promise.all([
             this.getUserStatisticsBasic(userId),
             this.getRecentAppsWithAnalytics(userId, 10),
-            this.getUserTeams(userId),
             this.getCloudflareAccounts(userId)
         ]);
 
@@ -214,18 +140,15 @@ export class UserService extends BaseService {
             user,
             stats: {
                 ...stats,
-                totalTeams: teams.length,
                 cloudflareAccounts: cloudflareAccounts.length
             },
             recentApps,
-            teams,
             cloudflareAccounts
         };
     }
 
     /**
      * Get user apps with analytics data integrated
-     * Consolidates app retrieval with analytics for consistent patterns
      */
     async getUserAppsWithAnalytics(userId: string, options: Partial<AppQueryOptions> = {}): Promise<EnhancedAppData[]> {
         // Use AppService for consistent app operations
@@ -244,7 +167,6 @@ export class UserService extends BaseService {
 
     /**
      * Get recent apps with analytics for dashboard
-     * Specialized method for dashboard's recent apps section
      */
     private async getRecentAppsWithAnalytics(userId: string, limit: number): Promise<EnhancedAppData[]> {
         return this.getUserAppsWithAnalytics(userId, { limit, offset: 0 });
@@ -252,7 +174,6 @@ export class UserService extends BaseService {
 
     /**
      * Update user profile with comprehensive validation
-     * Centralizes all validation logic and database updates
      */
     async updateUserProfileWithValidation(
         userId: string,
@@ -323,7 +244,6 @@ export class UserService extends BaseService {
 
     /**
      * Get basic user statistics efficiently
-     * Consolidates helper methods from controller into single service call
      */
     async getUserStatisticsBasic(userId: string): Promise<{ totalApps: number; appsThisMonth: number }> {
         const startOfMonth = new Date();
@@ -356,7 +276,6 @@ export class UserService extends BaseService {
 
     /**
      * Get comprehensive user statistics for stats controller
-     * Leverages AnalyticsService for consistent statistics across app
      */
     async getUserStatisticsEnhanced(userId: string): Promise<EnhancedUserStats> {
         const analyticsService = new AnalyticsService(this.db);
@@ -365,7 +284,6 @@ export class UserService extends BaseService {
 
     /**
      * Get user activity timeline for stats controller
-     * Leverages AnalyticsService for consistent data access patterns
      */
     async getUserActivityTimeline(userId: string, limit?: number): Promise<UserActivity[]> {
         const analyticsService = new AnalyticsService(this.db);
@@ -376,15 +294,10 @@ export class UserService extends BaseService {
     // CLOUDFLARE ACCOUNT OPERATIONS (User-related)
     // ========================================
 
-    async getCloudflareAccounts(userId?: string, teamId?: string): Promise<schema.CloudflareAccount[]> {
+    async getCloudflareAccounts(userId?: string): Promise<schema.CloudflareAccount[]> {
         const whereConditions = [
             eq(schema.cloudflareAccounts.isActive, true),
-            userId && teamId ? and(
-                eq(schema.cloudflareAccounts.userId, userId),
-                eq(schema.cloudflareAccounts.teamId, teamId)
-            ) : undefined,
-            userId && !teamId ? eq(schema.cloudflareAccounts.userId, userId) : undefined,
-            teamId && !userId ? eq(schema.cloudflareAccounts.teamId, teamId) : undefined,
+            userId ? eq(schema.cloudflareAccounts.userId, userId) : undefined,
         ];
 
         const whereClause = this.buildWhereConditions(whereConditions);
@@ -393,19 +306,5 @@ export class UserService extends BaseService {
             .select()
             .from(schema.cloudflareAccounts)
             .where(whereClause);
-    }
-
-    // ========================================
-    // UTILITY METHODS
-    // ========================================
-
-    private generateSlug(text: string): string {
-        return text
-            .toLowerCase()
-            .replace(/[^a-z0-9\s-]/g, '')
-            .replace(/\s+/g, '-')
-            .replace(/-+/g, '-')
-            .trim()
-            .substring(0, 50);
     }
 }

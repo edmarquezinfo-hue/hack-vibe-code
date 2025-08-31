@@ -1,11 +1,10 @@
 /**
  * Database Services Export Index
  * Centralized exports for all database services and utilities
- * Maintains clean import structure and consistent access patterns
  */
 
 // Core database service and utilities
-export { DatabaseService, createDatabaseService, getDatabase } from './database';
+export { DatabaseService, createDatabaseService } from './database';
 export type { DatabaseEnv } from './database';
 
 // Domain-specific services

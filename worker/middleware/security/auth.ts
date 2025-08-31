@@ -40,7 +40,7 @@ export async function validateToken(
         }
         
         // Get user from database
-        const dbService = new DatabaseService({ DB: env.DB });
+        const dbService =createDatabaseService({ DB: env.DB });
         const user = await dbService.db
             .select({
                 id: schema.users.id,

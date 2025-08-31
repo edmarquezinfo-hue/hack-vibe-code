@@ -209,7 +209,7 @@ export async function checkAppOwnership(user: AuthUser, params: Record<string, s
             return false;
         }
 
-        const dbService = new DatabaseService({ DB: env.DB });
+        const dbService =createDatabaseService({ DB: env.DB });
         const app = await dbService.db
             .select({ userId: schema.apps.userId })
             .from(schema.apps)

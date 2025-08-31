@@ -1,7 +1,6 @@
 /**
  * Secrets Service
  * Handles encryption/decryption and management of user API keys and secrets
- * Moved from /services/secrets/ to maintain consistent database service patterns
  */
 
 import { BaseService } from './BaseService';
@@ -259,7 +258,6 @@ export class SecretsService extends BaseService {
 
     /**
      * Get BYOK (Bring Your Own Key) API keys as a map (provider -> decrypted key)
-     * Uses dynamic template discovery for future-proof provider support
      */
     async getUserBYOKKeysMap(userId: string): Promise<Map<string, string>> {
         try {
@@ -297,65 +295,6 @@ export class SecretsService extends BaseService {
             return keyMap;
         } catch (error) {
             this.logger.error('Failed to get user BYOK keys map', error);
-            return new Map();
-        }
-    }
-
-    /**
-     * Get legacy API keys (secretType = 'API_KEY') as a map
-     * Maintains backward compatibility
-     */
-    async getLegacyAPIKeysMap(userId: string): Promise<Map<string, string>> {
-        try {
-            const secrets = await this.database
-                .select()
-                .from(schema.userSecrets)
-                .where(
-                    and(
-                        eq(schema.userSecrets.userId, userId),
-                        eq(schema.userSecrets.isActive, true),
-                        eq(schema.userSecrets.secretType, 'API_KEY') // Only legacy API keys
-                    )
-                );
-
-            const keyMap = new Map<string, string>();
-            
-            for (const secret of secrets) {
-                try {
-                    const decryptedKey = await this.decryptSecret(secret.encryptedValue);
-                    keyMap.set(secret.provider, decryptedKey);
-                } catch (error) {
-                    this.logger.error(`Failed to decrypt legacy key for provider ${secret.provider}:`, error);
-                }
-            }
-
-            return keyMap;
-        } catch (error) {
-            this.logger.error('Failed to get legacy user provider keys map', error);
-            return new Map();
-        }
-    }
-
-    /**
-     * Get all user API keys as a map (provider -> decrypted key)
-     * Used by inference system to override environment variables
-     * Combines legacy keys and BYOK keys (BYOK takes precedence)
-     */
-    async getUserProviderKeysMap(userId: string): Promise<Map<string, string>> {
-        try {
-            // Get both legacy and BYOK keys in parallel
-            const [legacyKeys, byokKeys] = await Promise.all([
-                this.getLegacyAPIKeysMap(userId),
-                this.getUserBYOKKeysMap(userId)
-            ]);
-
-            // Combine maps with BYOK keys taking precedence
-            const combinedMap = new Map([...legacyKeys, ...byokKeys]);
-
-            this.logger.info(`Loaded ${combinedMap.size} user API keys from secrets system (${legacyKeys.size} legacy, ${byokKeys.size} BYOK)`, { userId });
-            return combinedMap;
-        } catch (error) {
-            this.logger.error('Failed to get user provider keys map', error);
             return new Map();
         }
     }

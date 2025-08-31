@@ -1,15 +1,12 @@
 /**
  * Model Test Service
  * Handles testing of model configurations with user API keys
- * Moved from /services/modelConfig/ to maintain consistent database service patterns
  */
 
 import { BaseService } from './BaseService';
 import { AIModels } from '../../agents/inferutils/config.types';
 import { infer, InferError } from '../../agents/inferutils/core';
 import { createUserMessage } from '../../agents/inferutils/common';
-
-// Import centralized types
 import type { TestResult, ModelTestRequest, ModelTestResult } from '../types';
 import { isErrorWithMessage } from '../types';
 import { DatabaseService } from '../database';
@@ -35,7 +32,6 @@ export class ModelTestService extends BaseService {
         const cleanModelName = modelName.replace(/\[.*?\]/, ''); // Remove provider prefix for display
 
         try {
-            // Create test message using core abstractions
             const testMessage = createUserMessage(testPrompt);
 
             // Use core inference system to test the model configuration
@@ -60,11 +56,6 @@ export class ModelTestService extends BaseService {
                 responsePreview: content.length > 100 ? content.substring(0, 100) + '...' : content,
                 latencyMs,
                 modelUsed: cleanModelName,
-                tokensUsed: {
-                    prompt: 0, // Core inference doesn't expose token counts in the response
-                    completion: 0, // Would need to be added to core system if needed
-                    total: 0
-                }
             };
 
         } catch (error: unknown) {

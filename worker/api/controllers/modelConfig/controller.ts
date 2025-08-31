@@ -314,7 +314,7 @@ export class ModelConfigController extends BaseController {
             // Get user API keys if requested
             let userApiKeys: Record<string, string> | undefined;
             if (validatedData.useUserKeys) {
-                const userApiKeysMap = await secretsService.getUserProviderKeysMap(user.id);
+                const userApiKeysMap = await secretsService.getUserBYOKKeysMap(user.id);
                 userApiKeys = Object.fromEntries(userApiKeysMap);
             }
 
