@@ -4,11 +4,7 @@
  */
 
 import { drizzle } from 'drizzle-orm/d1';
-import { nanoid } from 'nanoid';
 import * as schema from './schema';
-
-// Generate unique IDs
-const generateId = () => nanoid();
 
 import type { HealthStatusResult } from './types';
 
@@ -23,7 +19,6 @@ export interface DatabaseEnv {
 export type {
     User, NewUser, Session, NewSession,
     App, NewApp,
-    CloudflareAccount, NewCloudflareAccount,
     AppLike, NewAppLike, AppComment, NewAppComment,
     AppView, NewAppView, OAuthState, NewOAuthState,
     SystemSetting, NewSystemSetting,
@@ -43,17 +38,6 @@ export class DatabaseService {
 
     constructor(env: DatabaseEnv) {
         this.db = drizzle(env.DB, { schema });
-    }
-    // ========================================
-    // CLOUDFLARE INTEGRATION (Core Operations)
-    // ========================================
-
-    async addCloudflareAccount(accountData: Omit<schema.NewCloudflareAccount, 'id'>): Promise<schema.CloudflareAccount> {
-        const [account] = await this.db
-            .insert(schema.cloudflareAccounts)
-            .values({ ...accountData, id: generateId() })
-            .returning();
-        return account;
     }
 
     // ========================================

@@ -29,30 +29,24 @@ export class SecretsService extends BaseService {
                 throw new Error('SECRETS_ENCRYPTION_KEY environment variable not set');
             }
 
-            const encoder = new TextEncoder();
-            const keyMaterial = encoder.encode(this.env.SECRETS_ENCRYPTION_KEY);
-            
-            // Create 32-byte key from environment variable
-            const key = keyMaterial.length >= 32 
-                ? keyMaterial.slice(0, 32)
-                : (() => {
-                    const padded = new Uint8Array(32);
-                    padded.set(keyMaterial);
-                    return padded;
-                })();
+            // Derive a proper 32-byte key using PBKDF2
+            const salt = crypto.getRandomValues(new Uint8Array(16));
+            const keyMaterial = await this.deriveKey(this.env.SECRETS_ENCRYPTION_KEY, salt);
             
             // Generate random 24-byte nonce for XChaCha20-Poly1305
             const nonce = crypto.getRandomValues(new Uint8Array(24));
             
             // Create cipher and encrypt
-            const cipher = xchacha20poly1305(key, nonce);
+            const cipher = xchacha20poly1305(keyMaterial, nonce);
+            const encoder = new TextEncoder();
             const data = encoder.encode(value);
             const encrypted = cipher.encrypt(data);
             
-            // Combine nonce + encrypted data
-            const combined = new Uint8Array(nonce.length + encrypted.length);
-            combined.set(nonce, 0);
-            combined.set(encrypted, nonce.length);
+            // Combine salt + nonce + encrypted data
+            const combined = new Uint8Array(salt.length + nonce.length + encrypted.length);
+            combined.set(salt, 0);
+            combined.set(nonce, salt.length);
+            combined.set(encrypted, salt.length + nonce.length);
             
             const encryptedValue = btoa(String.fromCharCode(...combined));
             
@@ -82,24 +76,16 @@ export class SecretsService extends BaseService {
                 Array.from(atob(encryptedValue), c => c.charCodeAt(0))
             );
             
-            // Extract nonce (first 24 bytes) and encrypted data (rest)
-            const nonce = combined.slice(0, 24);
-            const encrypted = combined.slice(24);
+            // Extract salt (first 16 bytes), nonce (next 24 bytes) and encrypted data (rest)
+            const salt = combined.slice(0, 16);
+            const nonce = combined.slice(16, 40);
+            const encrypted = combined.slice(40);
             
-            // Prepare the same key used for encryption
-            const encoder = new TextEncoder();
-            const keyMaterial = encoder.encode(this.env.SECRETS_ENCRYPTION_KEY);
-            
-            const key = keyMaterial.length >= 32 
-                ? keyMaterial.slice(0, 32)
-                : (() => {
-                    const padded = new Uint8Array(32);
-                    padded.set(keyMaterial);
-                    return padded;
-                })();
+            // Derive the same key using PBKDF2
+            const keyMaterial = await this.deriveKey(this.env.SECRETS_ENCRYPTION_KEY, salt);
             
             // Create cipher and decrypt
-            const cipher = xchacha20poly1305(key, nonce);
+            const cipher = xchacha20poly1305(keyMaterial, nonce);
             const decrypted = cipher.decrypt(encrypted);
             
             return new TextDecoder().decode(decrypted);
@@ -107,6 +93,37 @@ export class SecretsService extends BaseService {
             this.logger.error('Error decrypting secret:', error);
             throw new Error('Failed to decrypt secret');
         }
+    }
+
+    /**
+     * Derive a key using PBKDF2
+     */
+    private async deriveKey(password: string, salt: Uint8Array): Promise<Uint8Array> {
+        const encoder = new TextEncoder();
+        const passwordBuffer = encoder.encode(password);
+        
+        // Import password as key material
+        const keyMaterial = await crypto.subtle.importKey(
+            'raw',
+            passwordBuffer,
+            { name: 'PBKDF2' },
+            false,
+            ['deriveBits']
+        );
+        
+        // Derive 256-bit key using PBKDF2
+        const derivedBits = await crypto.subtle.deriveBits(
+            {
+                name: 'PBKDF2',
+                salt: salt,
+                iterations: 100000, // OWASP recommended minimum
+                hash: 'SHA-256'
+            },
+            keyMaterial,
+            256 // 32 bytes
+        );
+        
+        return new Uint8Array(derivedBits);
     }
 
     /**

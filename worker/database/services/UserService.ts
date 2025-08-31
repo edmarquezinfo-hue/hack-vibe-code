@@ -5,7 +5,7 @@
 
 import { BaseService } from './BaseService';
 import * as schema from '../schema';
-import { eq, and, sql, lt } from 'drizzle-orm';
+import { eq, and, sql, lt, ne } from 'drizzle-orm';
 import { generateId } from '../../utils/idGenerator';
 import type {
     EnhancedAppData,
@@ -126,6 +126,46 @@ export class UserService extends BaseService {
     }
 
     /**
+     * Update user profile directly
+     */
+    async updateUserProfile(
+        userId: string,
+        profileData: {
+            displayName?: string;
+            username?: string;
+            bio?: string;
+            avatarUrl?: string;
+            timezone?: string;
+        }
+    ): Promise<void> {
+        await this.database
+            .update(schema.users)
+            .set({
+                ...profileData,
+                updatedAt: new Date()
+            })
+            .where(eq(schema.users.id, userId));
+    }
+
+    /**
+     * Check if username is available
+     */
+    async isUsernameAvailable(username: string, excludeUserId?: string): Promise<boolean> {
+        const existingUser = await this.database
+            .select({ id: schema.users.id })
+            .from(schema.users)
+            .where(
+                and(
+                    eq(schema.users.username, username),
+                    excludeUserId ? ne(schema.users.id, excludeUserId) : undefined
+                )
+            )
+            .get();
+        
+        return !existingUser;
+    }
+
+    /**
      * Update user profile with comprehensive validation
      */
     async updateUserProfileWithValidation(
@@ -241,23 +281,5 @@ export class UserService extends BaseService {
     async getUserActivityTimeline(userId: string, limit?: number): Promise<UserActivity[]> {
         const analyticsService = new AnalyticsService(this.db);
         return analyticsService.getUserActivityTimeline(userId, limit);
-    }
-
-    // ========================================
-    // CLOUDFLARE ACCOUNT OPERATIONS (User-related)
-    // ========================================
-
-    async getCloudflareAccounts(userId?: string): Promise<schema.CloudflareAccount[]> {
-        const whereConditions = [
-            eq(schema.cloudflareAccounts.isActive, true),
-            userId ? eq(schema.cloudflareAccounts.userId, userId) : undefined,
-        ];
-
-        const whereClause = this.buildWhereConditions(whereConditions);
-
-        return await this.database
-            .select()
-            .from(schema.cloudflareAccounts)
-            .where(whereClause);
     }
 }

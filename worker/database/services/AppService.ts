@@ -885,7 +885,7 @@ export class AppService extends BaseService {
             userFavorited: userFavoriteMap.has(app.id),
             viewCount: analyticsData[app.id]?.viewCount || 0,
             forkCount: analyticsData[app.id]?.forkCount || 0,
-            likeCount: analyticsData[app.id]?.likeCount || 0
+            likeCount: 0
         }));
     }
 

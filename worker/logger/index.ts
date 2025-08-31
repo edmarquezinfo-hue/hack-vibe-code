@@ -98,7 +98,7 @@ export function LogMethod(component?: string) {
 export function WithLogger(component?: string) {
 	return function <T extends new (...args: any[]) => {}>(constructor: T) {
 		return class extends constructor {
-			protected logger = createObjectLogger(
+			logger = createObjectLogger(
 				this,
 				component || constructor.name,
 			);

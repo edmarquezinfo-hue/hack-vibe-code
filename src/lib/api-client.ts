@@ -17,7 +17,6 @@ import type {
 	ForkAppData,
 	UserAppsData,
 	ProfileUpdateData,
-	UserTeamsData,
 	UserStatsData,
 	UserActivityData,
 	UserAnalyticsResponseData,
@@ -497,13 +496,6 @@ class ApiClient {
 			method: 'PUT',
 			body: data,
 		});
-	}
-
-	/**
-	 * Get user teams
-	 */
-	async getUserTeams(): Promise<ApiResponse<UserTeamsData>> {
-		return this.request<UserTeamsData>('/api/user/teams');
 	}
 
 	// ===============================

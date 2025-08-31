@@ -11,4 +11,7 @@
 			"path": "./tsconfig.worker.json"
 		}
 	],
+	"compilerOptions": {
+		"composite": true
+	}
 }

@@ -10,7 +10,7 @@ import * as schema from '../schema';
 import { eq, and, lt, gt, desc, ne } from 'drizzle-orm';
 import { createLogger } from '../../logger';
 import { generateId } from '../../utils/idGenerator';
-import { TokenService } from '../../middleware/auth/tokenService';
+import { JWTUtils } from '../../utils/jwtUtils';
 import { extractRequestMetadata } from '../../utils/authUtils';
 import { BaseService } from './BaseService';
 
@@ -47,11 +47,14 @@ export class SessionService extends BaseService {
         deviceFingerprintValidation: true // Enable device fingerprinting
     };
     
+    private jwtUtils: JWTUtils;
+    
     constructor(
         protected db: DatabaseService,
-        private tokenService: TokenService
+        env: Env
     ) {
         super(db);
+        this.jwtUtils = JWTUtils.getInstance(env);
     }
     
     /**
@@ -268,7 +271,7 @@ export class SessionService extends BaseService {
             const userEmail = await this.getUserEmail(userId);
             
             // Generate tokens WITH session ID
-            const { accessToken, refreshToken } = await this.tokenService.createTokenPairWithSession(
+            const { accessToken, refreshToken } = await this.jwtUtils.createTokenPair(
                 userId,
                 userEmail,
                 sessionId
@@ -276,8 +279,8 @@ export class SessionService extends BaseService {
             
             // Hash tokens for storage
             const [accessTokenHash, refreshTokenHash] = await Promise.all([
-                this.tokenService.hashToken(accessToken),
-                this.tokenService.hashToken(refreshToken)
+                this.jwtUtils.hashToken(accessToken),
+                this.jwtUtils.hashToken(refreshToken)
             ]);
             
             // Extract request metadata using centralized utility
@@ -342,13 +345,13 @@ export class SessionService extends BaseService {
     async validateSession(accessToken: string, request?: Request): Promise<AuthSession | null> {
         try {
             // Verify token structure
-            const payload = await this.tokenService.verifyToken(accessToken);
+            const payload = await this.jwtUtils.verifyToken(accessToken);
             if (!payload || payload.type !== 'access') {
                 return null;
             }
             
             // Hash token for lookup
-            const accessTokenHash = await this.tokenService.hashToken(accessToken);
+            const accessTokenHash = await this.jwtUtils.hashToken(accessToken);
             
             // Find session
             const now = new Date();
@@ -444,13 +447,13 @@ export class SessionService extends BaseService {
     } | null> {
         try {
             // Verify refresh token
-            const payload = await this.tokenService.verifyToken(refreshToken);
+            const payload = await this.jwtUtils.verifyToken(refreshToken);
             if (!payload || payload.type !== 'refresh') {
                 return null;
             }
             
             // Hash token for lookup
-            const refreshTokenHash = await this.tokenService.hashToken(refreshToken);
+            const refreshTokenHash = await this.jwtUtils.hashToken(refreshToken);
             
             // Find session
             const session = await this.db.db
@@ -470,13 +473,13 @@ export class SessionService extends BaseService {
             }
             
             // Generate new access token
-            const result = await this.tokenService.refreshAccessToken(refreshToken);
+            const result = await this.jwtUtils.refreshAccessToken(refreshToken);
             if (!result) {
                 return null;
             }
             
             // Update session with new access token hash
-            const newTokenHash = await this.tokenService.hashToken(result.accessToken);
+            const newTokenHash = await this.jwtUtils.hashToken(result.accessToken);
             await this.db.db
                 .update(schema.sessions)
                 .set({
@@ -744,6 +747,27 @@ export class SessionService extends BaseService {
                 riskLevel: 'low',
                 recommendations: ['Unable to assess security status']
             };
+        }
+    }
+    
+    /**
+     * Revoke session by refresh token hash
+     */
+    async revokeSessionByRefreshTokenHash(refreshTokenHash: string): Promise<void> {
+        try {
+            await this.db.db
+                .update(schema.sessions)
+                .set({
+                    isRevoked: true,
+                    revokedAt: new Date(),
+                    revokedReason: 'user_logout'
+                })
+                .where(eq(schema.sessions.refreshTokenHash, refreshTokenHash));
+            
+            logger.info('Session revoked by refresh token hash');
+        } catch (error) {
+            logger.error('Error revoking session by refresh token hash', error);
+            // Don't throw error for logout operations
         }
     }
     

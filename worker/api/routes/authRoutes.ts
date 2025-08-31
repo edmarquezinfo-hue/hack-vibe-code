@@ -5,14 +5,25 @@
 import { Router, AuthConfig } from '../router';
 import { AuthController } from '../controllers/auth/controller';
 import { ContextualRequestHandler, RouteContext } from '../types/route-context';
+import { enforceAuthRateLimit, RateLimitContext } from '../../middleware/security/rateLimiter';
+import { authMiddleware } from '../../middleware/auth/auth';
 
 /**
  * Setup authentication routes
  */
 export function setupAuthRoutes(_env: Env, router: Router): Router {
     // Create contextual handler - all methods now use the same signature
-    const createHandler = (method: keyof AuthController): ContextualRequestHandler => {
+    const createHandler = (
+        method: keyof AuthController,
+        applyAuthRateLimit: boolean = false
+    ): ContextualRequestHandler => {
         return async (request: Request, env: Env, ctx: ExecutionContext, routeContext: RouteContext) => {
+            if (applyAuthRateLimit) {
+                // Extract user for rate limiting context
+                const user = await authMiddleware(request, env);
+                const rateLimitContext: RateLimitContext = { request, user };
+                await enforceAuthRateLimit(rateLimitContext, env);
+            }
             const url = new URL(request.url);
             const controller = new AuthController(env, url.origin);
             return controller[method](request, env, ctx, routeContext);
@@ -21,11 +32,11 @@ export function setupAuthRoutes(_env: Env, router: Router): Router {
     
     // Public authentication routes
     router.get('/api/auth/providers', createHandler('getAuthProviders'));
-    router.post('/api/auth/register', createHandler('register'));
-    router.post('/api/auth/login', createHandler('login'));
-    router.post('/api/auth/verify-email', createHandler('verifyEmail'));
-    router.post('/api/auth/resend-verification', createHandler('resendVerificationOtp'));
-    router.post('/api/auth/refresh', createHandler('refreshToken'));
+    router.post('/api/auth/register', createHandler('register', true));
+    router.post('/api/auth/login', createHandler('login', true));
+    router.post('/api/auth/verify-email', createHandler('verifyEmail', true));
+    router.post('/api/auth/resend-verification', createHandler('resendVerificationOtp', true));
+    router.post('/api/auth/refresh', createHandler('refreshToken', true));
     router.get('/api/auth/check', createHandler('checkAuth'));
     
     // Protected routes (require authentication) - must come before dynamic OAuth routes

@@ -124,42 +124,6 @@ export const apiKeys = sqliteTable('api_keys', {
 }));
 
 // ========================================
-// CLOUDFLARE INTEGRATION
-// ========================================
-
-/**
- * CloudflareAccounts table - Store Cloudflare account configurations
- * Supports both user and team-level accounts
- */
-export const cloudflareAccounts = sqliteTable('cloudflare_accounts', {
-    id: text('id').primaryKey(),
-    name: text('name').notNull(), // User-friendly name for the account
-    
-    // Account Details
-    accountId: text('account_id').notNull(), // Cloudflare Account ID
-    apiTokenHash: text('api_token_hash').notNull(), // Encrypted/hashed API token
-    
-    // Ownership - either user or team
-    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
-    
-    // Configuration
-    isDefault: integer('is_default', { mode: 'boolean' }).default(false),
-    isActive: integer('is_active', { mode: 'boolean' }).default(true),
-    
-    // Capabilities and Limits
-    capabilities: text('capabilities', { mode: 'json' }).default('[]'), // What the token can do
-    lastValidated: integer('last_validated', { mode: 'timestamp' }),
-    validationStatus: text('validation_status').default('pending'), // 'valid', 'invalid', 'pending'
-    
-    // Metadata
-    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-}, (table) => ({
-    userIdx: index('cf_accounts_user_idx').on(table.userId),
-    accountIdIdx: index('cf_accounts_account_id_idx').on(table.accountId),
-}));
-
-// ========================================
 // CORE APP AND GENERATION SYSTEM
 // ========================================
 
@@ -194,7 +158,6 @@ export const apps = sqliteTable('apps', {
     
     // Deployment Information
     deploymentUrl: text('deployment_url'), // Live deployment URL
-    cloudflareAccountId: text('cloudflare_account_id'), // Which CF account was used
     
     // GitHub Repository Integration
     githubRepositoryUrl: text('github_repository_url'), // GitHub repository URL
@@ -484,7 +447,7 @@ export const auditLogs = sqliteTable('audit_logs', {
 
 /**
  * User Secrets table - Stores encrypted API keys and secrets for code generation
- * Used by code generator to access external services (Stripe, OpenAI, Cloudflare, etc.)
+ * Used by code generator to access external services (Stripe, OpenAI, etc.)
  */
 export const userSecrets = sqliteTable('user_secrets', {
     id: text('id').primaryKey(),
@@ -492,7 +455,7 @@ export const userSecrets = sqliteTable('user_secrets', {
     
     // Secret identification
     name: text('name').notNull(), // User-friendly name (e.g., "My Stripe API Key")
-    provider: text('provider').notNull(), // Service provider (stripe, openai, cloudflare, etc.)
+    provider: text('provider').notNull(), // Service provider (stripe, openai, etc.)
     secretType: text('secret_type').notNull(), // api_key, account_id, secret_key, token, etc.
     
     // Encrypted secret data
@@ -607,9 +570,6 @@ export type NewApiKey = typeof apiKeys.$inferInsert;
 
 export type App = typeof apps.$inferSelect;
 export type NewApp = typeof apps.$inferInsert;
-
-export type CloudflareAccount = typeof cloudflareAccounts.$inferSelect;
-export type NewCloudflareAccount = typeof cloudflareAccounts.$inferInsert;
 
 export type AppLike = typeof appLikes.$inferSelect;
 export type NewAppLike = typeof appLikes.$inferInsert;

@@ -3,6 +3,8 @@
  * Allows different parts of the app to communicate about app state changes
  */
 
+import { AppWithFavoriteStatus } from "@/api-types";
+
 // Define specific event data types
 export interface AppDeletedEvent {
   type: 'app-deleted';
@@ -23,13 +25,7 @@ export interface AppCreatedEvent {
 export interface AppUpdatedEvent {
   type: 'app-updated';
   appId: string;
-  data?: {
-    title?: string;
-    description?: string;
-    visibility?: 'private' | 'public' | 'team' | 'board';
-    deploymentUrl?: string;
-    screenshotUrl?: string;
-  };
+  data?: AppWithFavoriteStatus
 }
 
 export type AppEvent = AppDeletedEvent | AppCreatedEvent | AppUpdatedEvent;

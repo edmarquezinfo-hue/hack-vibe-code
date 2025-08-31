@@ -1,9 +1,4 @@
 /**
- * Comprehensive Authentication Error Definitions
- * Provides structured error handling for all authentication scenarios
- */
-
-/**
  * Base authentication error class with enhanced context
  */
 export abstract class BaseAuthError extends Error {

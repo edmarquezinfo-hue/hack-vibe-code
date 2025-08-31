@@ -1,6 +1,5 @@
 /**
  * Error Handling Utilities
- * Standardizes error handling patterns across controllers and services
  */
 
 import { createLogger } from '../logger';

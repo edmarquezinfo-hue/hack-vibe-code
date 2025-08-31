@@ -6,7 +6,8 @@
 import { DatabaseService } from '../database';
 import * as schema from '../schema';
 import { eq, and, sql, or, lt } from 'drizzle-orm';
-import { TokenService } from '../../middleware/auth/tokenService';
+import { JWTUtils } from '../../utils/jwtUtils';
+import { generateSecureToken } from '../../utils/cryptoUtils';
 import { SessionService } from './SessionService';
 import { PasswordService } from '../../middleware/auth/passwordService';
 import { GoogleOAuthProvider } from '../../services/oauth/google';
@@ -61,19 +62,17 @@ export interface AuthResult {
  * Main Authentication Service
  */
 export class AuthService extends BaseService {
-    private readonly tokenService: TokenService;
     private readonly sessionService: SessionService;
     private readonly passwordService: PasswordService;
     private readonly oauthProviders: Map<OAuthProvider, BaseOAuthProvider>;
     
     constructor(
-        protected db: DatabaseService,
+        db: DatabaseService,
         env: Env,
         baseUrl: string
     ) {
         super(db);
-        this.tokenService = new TokenService(env);
-        this.sessionService = new SessionService(db, this.tokenService);
+        this.sessionService = new SessionService(db, env);
         this.passwordService = new PasswordService();
         
         // Initialize OAuth providers
@@ -318,7 +317,7 @@ export class AuthService extends BaseService {
         }
         
         // Generate state for CSRF protection
-        const state = await this.tokenService.generateSecureToken();
+        const state = generateSecureToken();
         
         // Generate PKCE code verifier
         const codeVerifier = BaseOAuthProvider.generateCodeVerifier();
@@ -724,6 +723,68 @@ export class AuthService extends BaseService {
         }
     }
 
+    /**
+     * Get user for authentication (for middleware)
+     */
+    async getUserForAuth(userId: string): Promise<AuthUser | null> {
+        try {
+            const user = await this.database
+                .select({
+                    id: schema.users.id,
+                    email: schema.users.email,
+                    displayName: schema.users.displayName
+                })
+                .from(schema.users)
+                .where(
+                    and(
+                        eq(schema.users.id, userId),
+                        sql`${schema.users.deletedAt} IS NULL`
+                    )
+                )
+                .get();
+            
+            if (!user) {
+                return null;
+            }
+            
+            return {
+                id: user.id,
+                email: user.email,
+                displayName: user.displayName || undefined,
+                isAnonymous: false
+            };
+        } catch (error) {
+            logger.error('Error getting user for auth', error);
+            return null;
+        }
+    }
+    
+    /**
+     * Validate token and return user (for middleware)
+     */
+    async validateTokenAndGetUser(token: string, env: Env): Promise<AuthUser | null> {
+        try {
+            const jwtUtils = JWTUtils.getInstance(env);
+            const payload = await jwtUtils.verifyToken(token);
+            
+            if (!payload || payload.type !== 'access') {
+                return null;
+            }
+            
+            // Check if token is expired
+            if (payload.exp * 1000 < Date.now()) {
+                logger.debug('Token expired', { exp: payload.exp });
+                return null;
+            }
+            
+            // Get user from database
+            return this.getUserForAuth(payload.sub);
+        } catch (error) {
+            logger.error('Token validation error', error);
+            return null;
+        }
+    }
+    
     /**
      * Resend verification OTP
      */
