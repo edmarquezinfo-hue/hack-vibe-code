@@ -1,5 +1,4 @@
 /**
- * Analytics Routes
  * Setup routes for AI Gateway analytics endpoints
  */
 
@@ -9,8 +8,8 @@ import { AnalyticsController } from '../controllers/analytics/controller';
 /**
  * Setup analytics routes
  */
-export function setupAnalyticsRoutes(router: Router): Router {
-    const analyticsController = new AnalyticsController();
+export function setupAnalyticsRoutes(env: Env, router: Router): Router {
+    const analyticsController = new AnalyticsController(env);
 
     // User analytics - requires authentication
     router.get(

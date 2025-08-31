@@ -1,14 +1,12 @@
 /**
  * Route Authentication Middleware
- * Provides granular authentication requirements for routes
  */
 
 import { AuthUser } from '../../types/auth-types';
 import { authMiddleware } from './auth';
 import { createLogger } from '../../logger';
-import { DatabaseService } from '../../database/database';
-import * as schema from '../../database/schema';
-import { eq } from 'drizzle-orm';
+import { createDatabaseService } from '../../database/database';
+import { AppService } from '../../database';
 
 const logger = createLogger('RouteAuth');
 
@@ -160,46 +158,6 @@ function createForbiddenResponse(message: string): Response {
 }
 
 /**
- * Common auth requirements for reuse
- */
-export const AuthRequirements = {
-    public: { level: 'public' as AuthLevel },
-    authenticated: { level: 'authenticated' as AuthLevel },
-    ownerOnly: { level: 'owner-only' as AuthLevel }
-} as const;
-
-/**
- * Middleware factory for specific authentication patterns
- */
-export const AuthMiddleware = {
-    /**
-     * Require full authentication (no anonymous users)
-     */
-    requireFullAuth: async (request: Request, env: Env, params?: Record<string, string>) => {
-        return routeAuthMiddleware(request, env, AuthRequirements.authenticated, params);
-    },
-
-    /**
-     * Public route (no authentication required)
-     */
-    public: async (request: Request, env: Env, params?: Record<string, string>) => {
-        return routeAuthMiddleware(request, env, AuthRequirements.public, params);
-    },
-
-    /**
-     * Require resource ownership
-     */
-    requireOwnership: (ownershipCheck: (user: AuthUser, params: Record<string, string>, env: Env) => Promise<boolean>) => {
-        return async (request: Request, env: Env, params?: Record<string, string>) => {
-            return routeAuthMiddleware(request, env, {
-                level: 'owner-only',
-                resourceOwnershipCheck: ownershipCheck
-            }, params);
-        };
-    }
-};
-
-/**
  * Check if user owns an app by agent/app ID
  */
 export async function checkAppOwnership(user: AuthUser, params: Record<string, string>, env: Env): Promise<boolean> {
@@ -209,19 +167,9 @@ export async function checkAppOwnership(user: AuthUser, params: Record<string, s
             return false;
         }
 
-        const dbService =createDatabaseService({ DB: env.DB });
-        const app = await dbService.db
-            .select({ userId: schema.apps.userId })
-            .from(schema.apps)
-            .where(eq(schema.apps.id, agentId))
-            .get();
-
-        if (!app) {
-            return false; // App doesn't exist
-        }
-
-        // Check if user is the owner
-        return app.userId === user.id;
+        const appService = new AppService(createDatabaseService(env));
+        const ownershipResult = await appService.checkAppOwnership(agentId, user.id);
+        return ownershipResult.isOwner;
     } catch (error) {
         logger.error('Error checking app ownership', error);
         return false;

@@ -273,11 +273,9 @@ export class AppService extends BaseService {
     async updateDeploymentUrl(
         sessionId: string,
         deploymentUrl: string,
-        status: 'generating' | 'completed' = 'completed'
     ): Promise<boolean> {
         return this.updateApp(sessionId, {
             deploymentUrl,
-            status,
         });
     }
 
@@ -418,15 +416,15 @@ export class AppService extends BaseService {
             })
             .from(schema.apps)
             .where(eq(schema.apps.id, appId))
-            .limit(1);
+            .get();
 
-        if (app.length === 0) {
+        if (!app) {
             return { exists: false, isOwner: false };
         }
 
         return {
             exists: true,
-            isOwner: app[0].userId === userId
+            isOwner: app.userId === userId
         };
     }
 

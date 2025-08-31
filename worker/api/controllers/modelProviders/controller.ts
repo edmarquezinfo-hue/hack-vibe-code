@@ -7,10 +7,7 @@ import { BaseController } from '../BaseController';
 import { RouteContext } from '../../types/route-context';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
 import { SecretsService } from '../../../database/services/SecretsService';
-import { DatabaseService } from '../../../database/database';
-import { userModelProviders } from '../../../database/schema';
-import { eq, and } from 'drizzle-orm';
-import { generateId } from '../../../utils/idGenerator';
+import { ModelProvidersService } from '../../../database/services/ModelProvidersService';
 import { z } from 'zod';
 import {
     ModelProvidersListData,
@@ -48,441 +45,317 @@ const testProviderSchema = z.object({
 );
 
 export class ModelProvidersController extends BaseController {
-    constructor() {
-        super();
+    private modelProvidersService: ModelProvidersService;
+    private secretsService: SecretsService;
+    
+    constructor(env: Env) {
+        super(env);
+        this.modelProvidersService = new ModelProvidersService(this.db);
+        this.secretsService = new SecretsService(this.db, env);
     }
 
     /**
      * Get all custom providers for the authenticated user
      */
-    async getProviders(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProvidersListData>>> {
-        try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<ModelProvidersListData>('Authentication required', 401);
-            }
-
-            const dbService =createDatabaseService({ DB: env.DB });
-            
-            const providers = await dbService.db
-                .select()
-                .from(userModelProviders)
-                .where(
-                    and(
-                        eq(userModelProviders.userId, user.id),
-                        eq(userModelProviders.isActive, true)
-                    )
-                )
-                .orderBy(userModelProviders.createdAt);
-
-            const responseData: ModelProvidersListData = {
-                providers
-            };
-
-            return this.createSuccessResponse(responseData);
-        } catch (error) {
-            this.logger.error('Error fetching model providers:', error);
-            return this.createErrorResponse<ModelProvidersListData>('Failed to fetch providers', 500);
+    async getProviders(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProvidersListData>>> {
+        const user = this.extractAuthUser(context);
+        if (!user) {
+            return this.createErrorResponse<ModelProvidersListData>('Authentication required', 401);
         }
+
+        return this.executeTypedOperation(
+            async () => {
+                const providers = await this.modelProvidersService.getUserProviders(user.id);
+                
+                return {
+                    providers: providers.filter(p => p.isActive)
+                };
+            },
+            'getProviders'
+        );
     }
 
     /**
      * Get a specific provider by ID
      */
-    async getProvider(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderData>>> {
-        try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<ModelProviderData>('Authentication required', 401);
-            }
-
-            const url = new URL(request.url);
-            const providerId = url.pathname.split('/').pop();
-
-            if (!providerId) {
-                return this.createErrorResponse<ModelProviderData>('Provider ID is required', 400);
-            }
-
-            const dbService =createDatabaseService({ DB: env.DB });
-            
-            const provider = await dbService.db
-                .select()
-                .from(userModelProviders)
-                .where(
-                    and(
-                        eq(userModelProviders.id, providerId),
-                        eq(userModelProviders.userId, user.id)
-                    )
-                )
-                .get();
-
-            if (!provider) {
-                return this.createErrorResponse<ModelProviderData>('Provider not found', 404);
-            }
-
-            const responseData: ModelProviderData = {
-                provider
-            };
-
-            return this.createSuccessResponse(responseData);
-        } catch (error) {
-            this.logger.error('Error fetching model provider:', error);
-            return this.createErrorResponse<ModelProviderData>('Failed to fetch provider', 500);
+    async getProvider(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderData>>> {
+        const user = this.extractAuthUser(context);
+        if (!user) {
+            return this.createErrorResponse<ModelProviderData>('Authentication required', 401);
         }
+
+        const url = new URL(request.url);
+        const providerId = url.pathname.split('/').pop();
+
+        if (!providerId) {
+            return this.createErrorResponse<ModelProviderData>('Provider ID is required', 400);
+        }
+
+        return this.executeTypedOperation(
+            async () => {
+                const provider = await this.modelProvidersService.getProvider(user.id, providerId);
+                
+                if (!provider) {
+                    throw new Error('Provider not found');
+                }
+                
+                return { provider };
+            },
+            'getProvider'
+        );
     }
 
     /**
      * Create a new custom provider
      */
-    async createProvider(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderCreateData>>> {
-        try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<ModelProviderCreateData>('Authentication required', 401);
-            }
-
-            const body = await this.parseJsonBody<CreateProviderRequest>(request);
-            if (!body) {
-                return this.createErrorResponse<ModelProviderCreateData>('Invalid request body', 400);
-            }
-
-            const validation = createProviderSchema.safeParse(body);
-            if (!validation.success) {
-                return this.createErrorResponse<ModelProviderCreateData>(
-                    `Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 
-                    400
-                );
-            }
-
-            const { name, baseUrl, apiKey } = validation.data;
-            const dbService =createDatabaseService({ DB: env.DB });
-            const secretsService = new SecretsService(dbService, env);
-
-            // Check if provider name already exists for user
-            const existingProvider = await dbService.db
-                .select()
-                .from(userModelProviders)
-                .where(
-                    and(
-                        eq(userModelProviders.userId, user.id),
-                        eq(userModelProviders.name, name)
-                    )
-                )
-                .get();
-
-            if (existingProvider) {
-                return this.createErrorResponse<ModelProviderCreateData>('Provider name already exists', 409);
-            }
-
-            // Store API key in userSecrets
-            const secretResult = await secretsService.storeSecret(user.id, {
-                name: `${name} API Key`,
-                provider: 'custom',
-                secretType: 'api_key',
-                value: apiKey,
-                description: `API key for custom provider: ${name}`
-            });
-            const secretId = secretResult.id;
-
-            // Create provider record
-            const providerId = generateId();
-            const provider = {
-                id: providerId,
-                userId: user.id,
-                name,
-                baseUrl,
-                secretId,
-                isActive: true,
-                createdAt: new Date(),
-                updatedAt: new Date()
-            };
-
-            await dbService.db
-                .insert(userModelProviders)
-                .values(provider);
-
-            const responseData: ModelProviderCreateData = {
-                provider
-            };
-
-            return this.createSuccessResponse(responseData);
-        } catch (error) {
-            this.logger.error('Error creating model provider:', error);
-            return this.createErrorResponse<ModelProviderCreateData>('Failed to create provider', 500);
+    async createProvider(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderCreateData>>> {
+        const user = this.extractAuthUser(context);
+        if (!user) {
+            return this.createErrorResponse<ModelProviderCreateData>('Authentication required', 401);
         }
+
+        const bodyResult = await this.parseJsonBody<CreateProviderRequest>(request);
+        if (!bodyResult.success) {
+            return bodyResult.response as ControllerResponse<ApiResponse<ModelProviderCreateData>>;
+        }
+
+        const validation = createProviderSchema.safeParse(bodyResult.data);
+        if (!validation.success) {
+            return this.createErrorResponse<ModelProviderCreateData>(
+                `Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 
+                400
+            );
+        }
+
+        const { name, baseUrl, apiKey } = validation.data;
+
+        return this.executeTypedOperation(
+            async () => {
+
+                const exists = await this.modelProvidersService.providerExists(user.id, name);
+                if (exists) {
+                    throw new Error('Provider name already exists');
+                }
+
+                const secretResult = await this.secretsService.storeSecret(user.id, {
+                    name: `${name} API Key`,
+                    provider: 'custom',
+                    secretType: 'api_key',
+                    value: apiKey,
+                    description: `API key for custom provider: ${name}`,
+                    expiresAt: null
+                });
+
+                const provider = await this.modelProvidersService.createProvider(user.id, {
+                    name,
+                    baseUrl,
+                    secretId: secretResult.id
+                });
+
+                return { provider };
+            },
+            'createProvider'
+        );
     }
 
     /**
      * Update an existing provider
      */
-    async updateProvider(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderUpdateData>>> {
-        try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<ModelProviderUpdateData>('Authentication required', 401);
-            }
-
-            const url = new URL(request.url);
-            const providerId = url.pathname.split('/').pop();
-
-            if (!providerId) {
-                return this.createErrorResponse<ModelProviderUpdateData>('Provider ID is required', 400);
-            }
-
-            const body = await this.parseJsonBody<UpdateProviderRequest>(request);
-            if (!body) {
-                return this.createErrorResponse<ModelProviderUpdateData>('Invalid request body', 400);
-            }
-
-            const validation = updateProviderSchema.safeParse(body);
-            if (!validation.success) {
-                return this.createErrorResponse<ModelProviderUpdateData>(
-                    `Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 
-                    400
-                );
-            }
-
-            const dbService =createDatabaseService({ DB: env.DB });
-            const secretsService = new SecretsService(dbService, env);
-
-            // Check if provider exists and belongs to user
-            const existingProvider = await dbService.db
-                .select()
-                .from(userModelProviders)
-                .where(
-                    and(
-                        eq(userModelProviders.id, providerId),
-                        eq(userModelProviders.userId, user.id)
-                    )
-                )
-                .get();
-
-            if (!existingProvider) {
-                return this.createErrorResponse<ModelProviderUpdateData>('Provider not found', 404);
-            }
-
-            const updates = validation.data;
-            const updateData: Partial<typeof userModelProviders.$inferInsert> = {
-                updatedAt: new Date()
-            };
-
-            if (updates.name !== undefined) updateData.name = updates.name;
-            if (updates.baseUrl !== undefined) updateData.baseUrl = updates.baseUrl;
-            if (updates.isActive !== undefined) updateData.isActive = updates.isActive;
-
-            // Update API key if provided
-            if (updates.apiKey) {
-                if (existingProvider.secretId) {
-                    // For now, we'll create a new secret since updateSecret doesn't exist
-                    // In production, you'd want to implement updateSecret in SecretsService
-                    const secretResult = await secretsService.storeSecret(user.id, {
-                        name: `${updates.name || existingProvider.name} API Key`,
-                        provider: 'custom',
-                        secretType: 'api_key',
-                        value: updates.apiKey,
-                        description: `API key for custom provider: ${updates.name || existingProvider.name}`
-                    });
-                    updateData.secretId = secretResult.id;
-                } else {
-                    // Create new secret
-                    const secretResult = await secretsService.storeSecret(user.id, {
-                        name: `${updates.name || existingProvider.name} API Key`,
-                        provider: 'custom',
-                        secretType: 'api_key',
-                        value: updates.apiKey,
-                        description: `API key for custom provider: ${updates.name || existingProvider.name}`
-                    });
-                    updateData.secretId = secretResult.id;
-                }
-            }
-
-            // Update provider
-            await dbService.db
-                .update(userModelProviders)
-                .set(updateData)
-                .where(eq(userModelProviders.id, providerId));
-
-            // Get updated provider
-            const updatedProvider = await dbService.db
-                .select()
-                .from(userModelProviders)
-                .where(eq(userModelProviders.id, providerId))
-                .get();
-
-            const responseData: ModelProviderUpdateData = {
-                provider: updatedProvider!
-            };
-
-            return this.createSuccessResponse(responseData);
-        } catch (error) {
-            this.logger.error('Error updating model provider:', error);
-            return this.createErrorResponse<ModelProviderUpdateData>('Failed to update provider', 500);
+    async updateProvider(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderUpdateData>>> {
+        const user = this.extractAuthUser(context);
+        if (!user) {
+            return this.createErrorResponse<ModelProviderUpdateData>('Authentication required', 401);
         }
+
+        const url = new URL(request.url);
+        const providerId = url.pathname.split('/').pop();
+
+        if (!providerId) {
+            return this.createErrorResponse<ModelProviderUpdateData>('Provider ID is required', 400);
+        }
+
+        const bodyResult = await this.parseJsonBody<UpdateProviderRequest>(request);
+        if (!bodyResult.success) {
+            return bodyResult.response as ControllerResponse<ApiResponse<ModelProviderUpdateData>>;
+        }
+
+        const validation = updateProviderSchema.safeParse(bodyResult.data);
+        if (!validation.success) {
+            return this.createErrorResponse<ModelProviderUpdateData>(
+                `Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 
+                400
+            );
+        }
+
+        const updates = validation.data;
+
+        return this.executeTypedOperation(
+            async () => {
+                const existingProvider = await this.modelProvidersService.getProvider(user.id, providerId);
+                if (!existingProvider) {
+                    throw new Error('Provider not found');
+                }
+
+                let secretId = existingProvider.secretId;
+
+                if (updates.apiKey) {
+                    if (existingProvider.secretId) {
+                        await this.secretsService.deleteSecret(user.id, existingProvider.secretId);
+                    }
+                    
+                    const secretResult = await this.secretsService.storeSecret(user.id, {
+                        name: `${updates.name || existingProvider.name} API Key`,
+                        provider: 'custom',
+                        secretType: 'api_key',
+                        value: updates.apiKey,
+                        description: `API key for custom provider: ${updates.name || existingProvider.name}`,
+                        expiresAt: null
+                    });
+                    secretId = secretResult.id;
+                }
+
+                const updatedProvider = await this.modelProvidersService.updateProvider(user.id, providerId, {
+                    name: updates.name,
+                    baseUrl: updates.baseUrl,
+                    isActive: updates.isActive,
+                    secretId
+                });
+
+                if (!updatedProvider) {
+                    throw new Error('Failed to update provider');
+                }
+
+                return { provider: updatedProvider };
+            },
+            'updateProvider'
+        );
     }
 
     /**
      * Delete a provider
      */
-    async deleteProvider(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderDeleteData>>> {
-        try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<ModelProviderDeleteData>('Authentication required', 401);
-            }
-
-            const url = new URL(request.url);
-            const providerId = url.pathname.split('/').pop();
-
-            if (!providerId) {
-                return this.createErrorResponse<ModelProviderDeleteData>('Provider ID is required', 400);
-            }
-
-            const dbService =createDatabaseService({ DB: env.DB });
-
-            // Check if provider exists and belongs to user
-            const existingProvider = await dbService.db
-                .select()
-                .from(userModelProviders)
-                .where(
-                    and(
-                        eq(userModelProviders.id, providerId),
-                        eq(userModelProviders.userId, user.id)
-                    )
-                )
-                .get();
-
-            if (!existingProvider) {
-                return this.createErrorResponse<ModelProviderDeleteData>('Provider not found', 404);
-            }
-
-            // Delete provider (soft delete by setting isActive = false)
-            await dbService.db
-                .update(userModelProviders)
-                .set({ 
-                    isActive: false,
-                    updatedAt: new Date()
-                })
-                .where(eq(userModelProviders.id, providerId));
-
-            // Note: We'll keep the secret for now as deleteSecret method needs to be implemented
-            // In production, you'd want to implement deleteSecret in SecretsService
-
-            const responseData: ModelProviderDeleteData = {
-                success: true,
-                providerId
-            };
-
-            return this.createSuccessResponse(responseData);
-        } catch (error) {
-            this.logger.error('Error deleting model provider:', error);
-            return this.createErrorResponse<ModelProviderDeleteData>('Failed to delete provider', 500);
+    async deleteProvider(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderDeleteData>>> {
+        const user = this.extractAuthUser(context);
+        if (!user) {
+            return this.createErrorResponse<ModelProviderDeleteData>('Authentication required', 401);
         }
+
+        const url = new URL(request.url);
+        const providerId = url.pathname.split('/').pop();
+
+        if (!providerId) {
+            return this.createErrorResponse<ModelProviderDeleteData>('Provider ID is required', 400);
+        }
+
+        return this.executeTypedOperation(
+            async () => {
+                const existingProvider = await this.modelProvidersService.getProvider(user.id, providerId);
+                if (!existingProvider) {
+                    throw new Error('Provider not found');
+                }
+
+                if (existingProvider.secretId) {
+                    await this.secretsService.deleteSecret(user.id, existingProvider.secretId);
+                }
+
+                const updated = await this.modelProvidersService.updateProvider(user.id, providerId, {
+                    isActive: false
+                });
+
+                return {
+                    success: !!updated,
+                    providerId
+                };
+            },
+            'deleteProvider'
+        );
     }
 
     /**
      * Test provider connection
      */
-    async testProvider(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderTestData>>> {
-        try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<ModelProviderTestData>('Authentication required', 401);
-            }
-
-            const body = await this.parseJsonBody<TestProviderRequest>(request);
-            if (!body) {
-                return this.createErrorResponse<ModelProviderTestData>('Invalid request body', 400);
-            }
-
-            const validation = testProviderSchema.safeParse(body);
-            if (!validation.success) {
-                return this.createErrorResponse<ModelProviderTestData>(
-                    `Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 
-                    400
-                );
-            }
-
-            let baseUrl: string;
-            let apiKey: string;
-
-            if (validation.data.providerId) {
-                // Test existing provider
-                const dbService =createDatabaseService({ DB: env.DB });
-                const provider = await dbService.db
-                    .select()
-                    .from(userModelProviders)
-                    .where(
-                        and(
-                            eq(userModelProviders.id, validation.data.providerId),
-                            eq(userModelProviders.userId, user.id)
-                        )
-                    )
-                    .get();
-
-                if (!provider) {
-                    return this.createErrorResponse<ModelProviderTestData>('Provider not found', 404);
-                }
-
-                if (!provider.secretId) {
-                    return this.createErrorResponse<ModelProviderTestData>('Provider has no API key', 400);
-                }
-
-                const secretsService = new SecretsService(dbService, env);
-                const secretValue = await secretsService.getSecretValue(user.id, provider.secretId);
-                
-                if (!secretValue) {
-                    return this.createErrorResponse<ModelProviderTestData>('API key not found', 404);
-                }
-
-                baseUrl = provider.baseUrl;
-                apiKey = secretValue;
-            } else {
-                // Test new provider configuration
-                baseUrl = validation.data.baseUrl!;
-                apiKey = validation.data.apiKey!;
-            }
-
-            // Test the API by making a simple request
-            const startTime = Date.now();
-            try {
-                const testUrl = `${baseUrl.replace(/\/$/, '')}/models`;
-                const response = await fetch(testUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const responseTime = Date.now() - startTime;
-
-                if (response.ok) {
-                    const responseData: ModelProviderTestData = {
-                        success: true,
-                        responseTime
-                    };
-                    return this.createSuccessResponse(responseData);
-                } else {
-                    const errorText = await response.text();
-                    const responseData: ModelProviderTestData = {
-                        success: false,
-                        error: `API request failed: ${response.status} ${errorText}`,
-                        responseTime
-                    };
-                    return this.createSuccessResponse(responseData);
-                }
-            } catch (error) {
-                const responseTime = Date.now() - startTime;
-                const responseData: ModelProviderTestData = {
-                    success: false,
-                    error: `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                    responseTime
-                };
-                return this.createSuccessResponse(responseData);
-            }
-        } catch (error) {
-            this.logger.error('Error testing model provider:', error);
-            return this.createErrorResponse<ModelProviderTestData>('Failed to test provider', 500);
+    async testProvider(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderTestData>>> {
+        const user = this.extractAuthUser(context);
+        if (!user) {
+            return this.createErrorResponse<ModelProviderTestData>('Authentication required', 401);
         }
+
+        const bodyResult = await this.parseJsonBody<TestProviderRequest>(request);
+        if (!bodyResult.success) {
+            return bodyResult.response as ControllerResponse<ApiResponse<ModelProviderTestData>>;
+        }
+
+        const validation = testProviderSchema.safeParse(bodyResult.data);
+        if (!validation.success) {
+            return this.createErrorResponse<ModelProviderTestData>(
+                `Validation error: ${validation.error.errors.map(e => e.message).join(', ')}`, 
+                400
+            );
+        }
+
+        return this.executeTypedOperation(
+            async () => {
+                let baseUrl: string;
+                let apiKey: string;
+
+                if (validation.data.providerId) {
+                    const provider = await this.modelProvidersService.getProvider(user.id, validation.data.providerId);
+                    if (!provider) {
+                        throw new Error('Provider not found');
+                    }
+
+                    if (!provider.secretId) {
+                        throw new Error('Provider has no API key');
+                    }
+
+                    const secretValue = await this.secretsService.getSecretValue(user.id, provider.secretId);
+                    if (!secretValue) {
+                        throw new Error('API key not found');
+                    }
+
+                    baseUrl = provider.baseUrl;
+                    apiKey = secretValue;
+                } else {
+                    baseUrl = validation.data.baseUrl!;
+                    apiKey = validation.data.apiKey!;
+                }
+
+                const startTime = Date.now();
+                try {
+                    const testUrl = `${baseUrl.replace(/\/$/, '')}/models`;
+                    const response = await fetch(testUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${apiKey}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    const responseTime = Date.now() - startTime;
+
+                    if (response.ok) {
+                        return {
+                            success: true,
+                            responseTime
+                        };
+                    } else {
+                        const errorText = await response.text();
+                        return {
+                            success: false,
+                            error: `API request failed: ${response.status} ${errorText}`,
+                            responseTime
+                        };
+                    }
+                } catch (error) {
+                    const responseTime = Date.now() - startTime;
+                    return {
+                        success: false,
+                        error: `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                        responseTime
+                    };
+                }
+            },
+            'testProvider'
+        );
     }
 }

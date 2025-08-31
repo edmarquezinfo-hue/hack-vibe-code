@@ -1,7 +1,6 @@
 /**
  * Model Configuration Controller
  * Handles CRUD operations for user model configurations
- * Refactored to use new database service structure and proper typing
  */
 
 import { BaseController } from '../BaseController';
@@ -52,36 +51,25 @@ const modelTestSchema = z.object({
 });
 
 export class ModelConfigController extends BaseController {
-    constructor() {
-        super();
+    private modelConfigService: ModelConfigService;
+    constructor(env: Env) {
+        super(env);
+        this.modelConfigService = new ModelConfigService(this.db);
     }
-
-    /**
-     * Create service instances with proper database service integration
-     */
-    private createServices(env: Env) {
-        const dbService = this.createDbService(env);
-        return {
-            modelConfigService: new ModelConfigService(dbService),
-            secretsService: new SecretsService(dbService, env),
-            modelTestService: new ModelTestService(dbService, env)
-        };
-    }
-
+    
     /**
      * Get all model configurations for the current user
      * GET /api/model-configs
      */
-    async getModelConfigs(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelConfigsData>>> {
+    async getModelConfigs(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelConfigsData>>> {
         try {
             const user = this.extractAuthUser(context);
             if (!user) {
                 return this.createErrorResponse<ModelConfigsData>('Authentication required', 401);
             }
 
-            const { modelConfigService } = this.createServices(env);
-            const configs = await modelConfigService.getUserModelConfigs(user.id);
-            const defaults = modelConfigService.getDefaultConfigs();
+            const configs = await this.modelConfigService.getUserModelConfigs(user.id);
+            const defaults = this.modelConfigService.getDefaultConfigs();
 
             const responseData: ModelConfigsData = {
                 configs,
@@ -100,7 +88,7 @@ export class ModelConfigController extends BaseController {
      * Get a specific model configuration
      * GET /api/model-configs/:agentAction
      */
-    async getModelConfig(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelConfigData>>> {
+    async getModelConfig(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelConfigData>>> {
         try {
             const user = this.extractAuthUser(context);
             if (!user) {
@@ -114,9 +102,8 @@ export class ModelConfigController extends BaseController {
                 return this.createErrorResponse<ModelConfigData>('Invalid agent action name', 400);
             }
 
-            const { modelConfigService } = this.createServices(env);
-            const config = await modelConfigService.getUserModelConfig(user.id, agentAction);
-            const defaultConfig = modelConfigService.getDefaultConfigs()[agentAction];
+            const config = await this.modelConfigService.getUserModelConfig(user.id, agentAction);
+            const defaultConfig = this.modelConfigService.getDefaultConfigs()[agentAction];
 
             const responseData: ModelConfigData = {
                 config,
@@ -214,8 +201,7 @@ export class ModelConfigController extends BaseController {
                 }
             }
 
-            const { modelConfigService } = this.createServices(env);
-            const updatedConfig = await modelConfigService.upsertUserModelConfig(
+            const updatedConfig = await this.modelConfigService.upsertUserModelConfig(
                 user.id,
                 agentAction,
                 modelConfig
@@ -240,7 +226,7 @@ export class ModelConfigController extends BaseController {
      * Delete/reset a model configuration to default
      * DELETE /api/model-configs/:agentAction
      */
-    async deleteModelConfig(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelConfigDeleteData>>> {
+    async deleteModelConfig(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelConfigDeleteData>>> {
         try {
             const user = this.extractAuthUser(context);
             if (!user) {
@@ -254,8 +240,7 @@ export class ModelConfigController extends BaseController {
                 return this.createErrorResponse<ModelConfigDeleteData>('Invalid agent action name', 400);
             }
 
-            const { modelConfigService } = this.createServices(env);
-            const deleted = await modelConfigService.deleteUserModelConfig(user.id, agentAction);
+            const deleted = await this.modelConfigService.deleteUserModelConfig(user.id, agentAction);
 
             if (!deleted) {
                 return this.createErrorResponse<ModelConfigDeleteData>('Configuration not found or already using defaults', 404);
@@ -295,10 +280,11 @@ export class ModelConfigController extends BaseController {
                 return this.createErrorResponse<ModelConfigTestData>('Invalid agent action name', 400);
             }
 
-            const { modelConfigService, secretsService, modelTestService } = this.createServices(env);
+            const secretsService = new SecretsService(this.db, env);
+            const modelTestService = new ModelTestService(this.db, env);
 
             // Get base configuration and merge with temporary changes if provided
-            const baseConfig = await modelConfigService.getUserModelConfig(user.id, agentAction);
+            const baseConfig = await this.modelConfigService.getUserModelConfig(user.id, agentAction);
             
             const configToTest: ModelConfig = validatedData.tempConfig ? {
                 ...baseConfig,
@@ -346,15 +332,14 @@ export class ModelConfigController extends BaseController {
      * Reset all model configurations to defaults
      * POST /api/model-configs/reset-all
      */
-    async resetAllConfigs(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelConfigResetData>>> {
+    async resetAllConfigs(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelConfigResetData>>> {
         try {
             const user = this.extractAuthUser(context);
             if (!user) {
                 return this.createErrorResponse<ModelConfigResetData>('Authentication required', 401);
             }
 
-            const { modelConfigService } = this.createServices(env);
-            const resetCount = await modelConfigService.resetAllUserConfigs(user.id);
+            const resetCount = await this.modelConfigService.resetAllUserConfigs(user.id);
 
             const responseData: ModelConfigResetData = {
                 resetCount,
@@ -372,10 +357,9 @@ export class ModelConfigController extends BaseController {
      * Get default configurations
      * GET /api/model-configs/defaults
      */
-    async getDefaults(_request: Request, env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ModelConfigDefaultsData>>> {
+    async getDefaults(_request: Request, _env: Env, _ctx: ExecutionContext): Promise<ControllerResponse<ApiResponse<ModelConfigDefaultsData>>> {
         try {
-            const { modelConfigService } = this.createServices(env);
-            const defaults = modelConfigService.getDefaultConfigs();
+            const defaults = this.modelConfigService.getDefaultConfigs();
             
             const responseData: ModelConfigDefaultsData = {
                 defaults,

@@ -1,6 +1,5 @@
 /**
- * Rate Limiting Middleware using Durable Objects
- * Prevents brute force attacks and API abuse
+ * Rate Limiting Middleware
  */
 
 import { SecurityError, SecurityErrorType } from '../../types/security';

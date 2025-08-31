@@ -52,7 +52,6 @@ export interface ModelConfigTestData {
 
 /**
  * Response data for resetAllConfigs
- * Simple result interface - no duplication needed
  */
 export interface ModelConfigResetData {
     resetCount: number;
@@ -69,7 +68,6 @@ export interface ModelConfigDefaultsData {
 
 /**
  * Response data for deleteModelConfig
- * Simple message response
  */
 export interface ModelConfigDeleteData {
     message: string;

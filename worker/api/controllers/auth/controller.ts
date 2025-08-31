@@ -1,6 +1,5 @@
 /**
  * Secure Authentication Controller
- * Handles all authentication endpoints with proper separation of concerns
  */
 
 import { BaseController } from '../BaseController';
@@ -32,17 +31,14 @@ import { authMiddleware } from '../../../middleware/security/auth';
 
 /**
  * Authentication Controller
- * All business logic for auth endpoints
  */
 export class AuthController extends BaseController {
     private authService: AuthService;
     
-    constructor(private env: Env, baseUrl: string) {
-        super();
-        const db = this.createDbService(env);
-        this.authService = new AuthService(db, env, baseUrl);
+    constructor(env: Env, baseUrl: string) {
+        super(env);
+        this.authService = new AuthService(this.db, env, baseUrl);
     }
-    
     
     /**
      * Register a new user
@@ -154,20 +150,19 @@ export class AuthController extends BaseController {
      * Logout current user
      * POST /api/auth/logout
      */
-    async logout(request: Request, _env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
+    async logout(request: Request, env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
         try {
             // Try to get refresh token to properly logout session
             const refreshToken = extractRefreshToken(request);
             
             if (refreshToken) {
                 try {
-                    const tokenService = new TokenService(this.env);
+                    const tokenService = new TokenService(env);
                     const tokenPayload = await tokenService.verifyToken(refreshToken);
                     if (tokenPayload && tokenPayload.type === 'refresh') {
                         // Find and delete the session
                         const refreshTokenHash = await tokenService.hashToken(refreshToken);
-                        const db = this.createDbService(this.env);
-                        await db.db
+                        await this.db.db
                             .update(schema.sessions)
                             .set({
                                 isRevoked: true,
@@ -215,8 +210,7 @@ export class AuthController extends BaseController {
                 return this.createErrorResponse('Unauthorized', 401);
             }
             
-            const db = this.createDbService(this.env);
-            const userService = new UserService(db);
+            const userService = new UserService(this.db);
             const fullUser = await userService.findUserById(user.id);
             
             if (!fullUser) {
@@ -259,8 +253,7 @@ export class AuthController extends BaseController {
             
             // Validate username uniqueness if provided
             if (updateData.username) {
-                const db = this.createDbService(this.env);
-                const existingUser = await db.db
+                const existingUser = await this.db.db
                     .select({ id: schema.users.id })
                     .from(schema.users)
                     .where(
@@ -277,8 +270,7 @@ export class AuthController extends BaseController {
             }
             
             // Update user profile
-            const db = this.createDbService(this.env);
-            await db.db
+            await this.db.db
                 .update(schema.users)
                 .set({
                     displayName: updateData.displayName,
@@ -291,7 +283,7 @@ export class AuthController extends BaseController {
                 .where(eq(schema.users.id, user.id));
             
             // Return updated user data
-            const userService = new UserService(db);
+            const userService = new UserService(this.db);
             const updatedUser = await userService.findUserById(user.id);
             
             if (!updatedUser) {
@@ -461,10 +453,10 @@ export class AuthController extends BaseController {
      * Check authentication status
      * GET /api/auth/check
      */
-    async checkAuth(request: Request, _env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
+    async checkAuth(request: Request, env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
         try {
             // Use the same middleware authentication logic but don't require auth
-            const user = await authMiddleware(request, this.env);
+            const user = await authMiddleware(request, env);
             
             if (!user) {
                 return this.createSuccessResponse({
@@ -494,15 +486,14 @@ export class AuthController extends BaseController {
      * Get active sessions for current user
      * GET /api/auth/sessions
      */
-    async getActiveSessions(_request: Request, _env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
+    async getActiveSessions(_request: Request, env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
         try {
             const user = routeContext.user;
             if (!user) {
                 return this.createErrorResponse('Unauthorized', 401);
             }
 
-            const db = this.createDbService(this.env);
-            const sessionService = new SessionService(db, new TokenService(this.env));
+            const sessionService = new SessionService(this.db, new TokenService(env));
             const sessions = await sessionService.getUserSessions(user.id);
 
             return this.createSuccessResponse({
@@ -517,7 +508,7 @@ export class AuthController extends BaseController {
      * Revoke a specific session
      * DELETE /api/auth/sessions/:sessionId
      */
-    async revokeSession(_request: Request, _env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
+    async revokeSession(_request: Request, env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
         try {
             const user = routeContext.user;
             if (!user) {
@@ -527,8 +518,7 @@ export class AuthController extends BaseController {
             // Extract session ID from URL
             const sessionIdToRevoke = routeContext.pathParams.sessionId;
 
-            const db = this.createDbService(this.env);
-            const sessionService = new SessionService(db, new TokenService(this.env));
+            const sessionService = new SessionService(this.db, new TokenService(env));
             
             await sessionService.revokeSession(sessionIdToRevoke);
 
@@ -551,8 +541,7 @@ export class AuthController extends BaseController {
                 return this.createErrorResponse('Unauthorized', 401);
             }
 
-            const db = this.createDbService(this.env);
-            const keys = await db.db
+            const keys = await this.db.db
                 .select({
                     id: schema.apiKeys.id,
                     name: schema.apiKeys.name,
@@ -585,7 +574,7 @@ export class AuthController extends BaseController {
      * Create a new API key
      * POST /api/auth/api-keys
      */
-    async createApiKey(request: Request, _env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
+    async createApiKey(request: Request, env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
         try {
             const user = routeContext.user;
             if (!user) {
@@ -606,13 +595,11 @@ export class AuthController extends BaseController {
             // Sanitize name
             const sanitizedName = name.trim().substring(0, 100);
 
-            const tokenService = new TokenService(this.env);
+            const tokenService = new TokenService(env);
             const { key, keyHash, keyPreview } = await tokenService.generateApiKey();
-
-            const db = this.createDbService(this.env);
             
             // Create API key record
-            await db.db
+            await this.db.db
                 .insert(schema.apiKeys)
                 .values({
                     id: generateId(),
@@ -652,12 +639,10 @@ export class AuthController extends BaseController {
             }
 
             // Extract key ID from URL
-            const keyId = routeContext.pathParams.keyId;
-
-            const db = this.createDbService(this.env);
+            const keyId = routeContext.pathParams.keyId;            
             
             // Verify key belongs to user and delete it
-            await db.db
+            await this.db.db
                 .update(schema.apiKeys)
                 .set({
                     isActive: false,

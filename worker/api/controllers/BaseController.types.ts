@@ -1,6 +1,5 @@
 /**
- * Base Controller Types - Pure type definitions only
- * Extracted from BaseController.ts to avoid importing logic code into frontend
+ * Base Controller Types
  */
 
 import { AuthUser } from "../../types/auth-types";

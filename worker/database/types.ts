@@ -156,16 +156,6 @@ export interface AppForForkResult {
 // ========================================
 
 /**
- * Dashboard data structure for user overview
- */
-export interface DashboardData {
-    user: schema.User;
-    stats: UserStats;
-    recentApps: EnhancedAppData[];
-    cloudflareAccounts: schema.CloudflareAccount[];
-}
-
-/**
  * User statistics interface
  */
 export interface UserStats {
@@ -235,9 +225,9 @@ export interface AppStats {
 // ========================================
 
 /**
- * Secret data for storage (before encryption)  
+ * Raw Secret data for storage (before encryption)  
  */
-export interface SecretData extends Omit<schema.UserSecret, 'encryptedValue'> {
+export interface SecretData extends Omit<schema.UserSecret, 'encryptedValue' | 'id' | 'isActive' | 'createdAt' | 'updatedAt' | 'lastUsed' | 'userId' | 'usageCount' | 'keyPreview' > {
     value: string;
 }
 /**

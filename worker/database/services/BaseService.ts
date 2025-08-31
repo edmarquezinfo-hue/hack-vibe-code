@@ -13,7 +13,6 @@ import { createLogger } from '../../logger';
  */
 export abstract class BaseService {
     protected logger = createLogger(this.constructor.name);
-
     constructor(protected db: DatabaseService) {}
 
     /**

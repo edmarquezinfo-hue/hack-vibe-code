@@ -1,6 +1,5 @@
 /**
  * Security Middleware Exports
- * Central export point for all security middleware components
  */
 
 export * from './rateLimiter';
@@ -19,7 +18,6 @@ import { routeAuthMiddleware } from './routeAuth';
 
 /**
  * Combined security middleware that applies all security measures
- * Can be used as a single middleware in routes
  */
 export async function applySecurityMiddleware(
     request: Request,

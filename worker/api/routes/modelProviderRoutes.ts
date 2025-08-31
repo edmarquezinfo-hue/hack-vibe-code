@@ -7,8 +7,8 @@ import type { Router } from '../router';
 import { AuthConfig } from '../router';
 import { ModelProvidersController } from '../controllers/modelProviders/controller';
 
-export function setupModelProviderRoutes(router: Router): void {
-    const controller = new ModelProvidersController();
+export function setupModelProviderRoutes(env: Env, router: Router): void {
+    const controller = new ModelProvidersController(env);
 
     // Custom model provider routes
     router.get('/api/user/providers', controller.getProviders.bind(controller), AuthConfig.authenticated);

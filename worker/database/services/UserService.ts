@@ -11,7 +11,7 @@ import type {
     EnhancedAppData,
     AppQueryOptions,
     EnhancedUserStats,
-    UserActivity
+    UserActivity,
 } from '../types';
 import { AnalyticsService } from './AnalyticsService';
 import { AppService } from './AppService';
@@ -105,48 +105,8 @@ export class UserService extends BaseService {
     }
 
     // ========================================
-    // USER PROFILE AND DASHBOARD OPERATIONS
+    // USER PROFILE OPERATIONS
     // ========================================
-
-    /**
-     * Get comprehensive dashboard data for user controller
-     * Combines user profile, apps, teams, analytics in optimized queries
-     */
-    async getUserDashboardData(userId: string): Promise<{
-        user: schema.User | null;
-        stats: { totalApps: number; appsThisMonth: number; cloudflareAccounts: number };
-        recentApps: EnhancedAppData[];
-        cloudflareAccounts: schema.CloudflareAccount[];
-    }> {
-        // Get user profile
-        const user = await this.database
-            .select()
-            .from(schema.users)
-            .where(eq(schema.users.id, userId))
-            .get();
-
-        if (!user) {
-            throw new Error('User not found');
-        }
-
-        // Get data in parallel for better performance
-        const [stats, recentApps, cloudflareAccounts] = await Promise.all([
-            this.getUserStatisticsBasic(userId),
-            this.getRecentAppsWithAnalytics(userId, 10),
-            this.getCloudflareAccounts(userId)
-        ]);
-
-        return {
-            user,
-            stats: {
-                ...stats,
-                cloudflareAccounts: cloudflareAccounts.length
-            },
-            recentApps,
-            cloudflareAccounts
-        };
-    }
-
     /**
      * Get user apps with analytics data integrated
      */
@@ -163,13 +123,6 @@ export class UserService extends BaseService {
         // Use AppService for consistent app operations
         const appService = new AppService(this.db);
         return appService.getUserAppsCount(userId, options);
-    }
-
-    /**
-     * Get recent apps with analytics for dashboard
-     */
-    private async getRecentAppsWithAnalytics(userId: string, limit: number): Promise<EnhancedAppData[]> {
-        return this.getUserAppsWithAnalytics(userId, { limit, offset: 0 });
     }
 
     /**

@@ -1,5 +1,5 @@
 /**
- * Authentication Middleware for Cloudflare Workers
+ * Authentication Middleware
  * Handles JWT validation and session management
  */
 
@@ -12,9 +12,6 @@ import { TokenValidator } from '../../services/auth/tokenValidator';
 import { extractToken, parseCookies } from '../../utils/authUtils';
 
 const logger = createLogger('AuthMiddleware');
-
-// Token extraction and cookie parsing functions moved to utils/authUtils.ts
-
 /**
  * Validate JWT token and return user
  */
@@ -40,7 +37,7 @@ export async function validateToken(
         }
         
         // Get user from database
-        const dbService =createDatabaseService({ DB: env.DB });
+        const dbService = new DatabaseService({ DB: env.DB });
         const user = await dbService.db
             .select({
                 id: schema.users.id,
@@ -154,8 +151,3 @@ export async function checkPermissions(
     
     return !user.isAnonymous;
 }
-
-// Cookie management functions moved to utils/authUtils.ts
-
-// Re-export for backward compatibility
-export { clearAuthCookie } from '../../utils/authUtils';

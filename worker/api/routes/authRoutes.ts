@@ -1,24 +1,20 @@
 /**
  * Authentication Routes
- * Clean routing definitions with controller delegation
  */
 
 import { Router, AuthConfig } from '../router';
 import { AuthController } from '../controllers/auth/controller';
 import { ContextualRequestHandler, RouteContext } from '../types/route-context';
-// Removed redundant authMiddleware import - AuthController methods handle their own authentication
 
 /**
  * Setup authentication routes
- * All business logic is delegated to the controller
  */
-export function setupAuthRoutes(router: Router): Router {
+export function setupAuthRoutes(_env: Env, router: Router): Router {
     // Create contextual handler - all methods now use the same signature
     const createHandler = (method: keyof AuthController): ContextualRequestHandler => {
         return async (request: Request, env: Env, ctx: ExecutionContext, routeContext: RouteContext) => {
             const url = new URL(request.url);
             const controller = new AuthController(env, url.origin);
-            // All methods now have the same ContextualRequestHandler signature
             return controller[method](request, env, ctx, routeContext);
         };
     };

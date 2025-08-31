@@ -39,7 +39,6 @@ export const AuthConfig = {
     },
     
     // Public read access, but owner required for modifications
-    // This will be handled by the controller logic to distinguish read vs write
     publicReadOwnerWrite: { 
         required: false 
     }
@@ -245,7 +244,6 @@ export class Router {
                 queryParams: url.searchParams
             };
             
-            // All handlers now use contextual approach for type safety
             return await (route.handler as ContextualRequestHandler)(request, env, ctx, routeContext);
         } catch (error) {
             this.logger.error('Error handling request', error);

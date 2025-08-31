@@ -131,7 +131,6 @@ export class SecretsService extends BaseService {
                 secretType: secretData.secretType,
                 encryptedValue,
                 keyPreview,
-                environment: secretData.environment || 'production',
                 description: secretData.description ?? null,
                 expiresAt: secretData.expiresAt ?? null,
                 lastUsed: null,
@@ -181,7 +180,7 @@ export class SecretsService extends BaseService {
     }
 
     /**
-     * Get all secrets for a user (both active and inactive) - for management purposes
+     * Get all secrets for a user (both active and inactive)
      */
     async getAllUserSecrets(userId: string): Promise<EncryptedSecret[]> {
         try {
@@ -366,7 +365,6 @@ export class SecretsService extends BaseService {
             provider: secret.provider,
             secretType: secret.secretType,
             keyPreview: secret.keyPreview,
-            environment: secret.environment,
             description: secret.description,
             expiresAt: secret.expiresAt,
             lastUsed: secret.lastUsed,

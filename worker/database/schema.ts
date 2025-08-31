@@ -500,7 +500,6 @@ export const userSecrets = sqliteTable('user_secrets', {
     keyPreview: text('key_preview').notNull(), // First/last few chars for identification
     
     // Configuration and metadata
-    environment: text('environment').default('production'), // production, sandbox, test
     description: text('description'), // Optional user description
     expiresAt: integer('expires_at', { mode: 'timestamp' }), // Optional expiration
     

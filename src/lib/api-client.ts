@@ -756,17 +756,10 @@ class ApiClient {
 	// ===============================
 
 	/**
-	 * Get all user secrets
-	 */
-	async getSecrets(): Promise<ApiResponse<SecretsData>> {
-		return this.request<SecretsData>('/api/secrets');
-	}
-
-	/**
-	 * Get all user secrets including inactive ones (for management)
+	 * Get all user secrets including inactive ones
 	 */
 	async getAllSecrets(): Promise<ApiResponse<SecretsData>> {
-		return this.request<SecretsData>('/api/secrets/all');
+		return this.request<SecretsData>('/api/secrets');
 	}
 
 	/**

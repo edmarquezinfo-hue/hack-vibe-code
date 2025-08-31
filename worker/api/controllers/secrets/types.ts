@@ -14,7 +14,6 @@ export interface SecretsData {
 
 /**
  * Response data for storeSecret
- * Uses existing types directly - no duplication
  */
 export interface SecretStoreData {
     secret: EncryptedSecret;
@@ -31,7 +30,6 @@ export interface SecretDeleteData {
 
 /**
  * Response data for getTemplates
- * Uses existing types directly - no duplication
  */
 export interface SecretTemplatesData {
     templates: SecretTemplate[];
