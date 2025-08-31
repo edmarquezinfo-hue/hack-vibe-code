@@ -6,15 +6,15 @@ export * from './rateLimiter';
 export * from './inputValidator';
 export * from './headers';
 export * from './cors';
-export * from './auth';
-export * from './routeAuth';
+export * from '../auth/auth';
+export * from '../auth/routeAuth';
 
 import { rateLimitMiddleware } from './rateLimiter';
 import { validateInput } from './inputValidator';
 import { securityHeadersMiddleware } from './headers';
 import { corsMiddleware } from './cors';
-import { authMiddleware } from './auth';
-import { routeAuthMiddleware } from './routeAuth';
+import { authMiddleware } from '../auth/auth';
+import { routeAuthMiddleware } from '../auth/routeAuth';
 
 /**
  * Combined security middleware that applies all security measures

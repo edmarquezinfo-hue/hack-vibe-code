@@ -4,9 +4,9 @@
  */
 
 import { BaseOAuthProvider, OAuthUserInfo } from './base';
-import { OAuthProvider } from '../../../types/auth-types';
-import { createLogger } from '../../../logger';
-import { createGitHubHeaders, extractGitHubErrorText } from '../../../utils/authUtils';
+import { OAuthProvider } from '../../types/auth-types';
+import { createLogger } from '../../logger';
+import { createGitHubHeaders, extractGitHubErrorText } from '../../utils/authUtils';
 
 const logger = createLogger('GitHubOAuth');
 

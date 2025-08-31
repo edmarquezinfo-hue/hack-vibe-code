@@ -1,7 +1,7 @@
 /**
  * Base Controller Class
  */
-import { authMiddleware } from '../../middleware/security/auth';
+import { authMiddleware } from '../../middleware/auth/auth';
 import { successResponse, errorResponse } from '../responses';
 import { ControllerErrorHandler, ErrorHandler } from '../../utils/ErrorHandling';
 import { createLogger } from '../../logger';

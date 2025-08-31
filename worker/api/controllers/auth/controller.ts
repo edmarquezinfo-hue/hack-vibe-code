@@ -4,15 +4,15 @@
 
 import { BaseController } from '../BaseController';
 import { generateId } from '../../../utils/idGenerator';
-import { AuthService } from '../../../services/auth/authService';
-import { SessionService } from '../../../services/auth/sessionService';
-import { TokenService } from '../../../services/auth/tokenService';
+import { AuthService } from '../../../database/services/AuthService';
+import { SessionService } from '../../../database/services/SessionService';
+import { TokenService } from '../../../middleware/auth/tokenService';
 import { 
     loginSchema, 
     registerSchema, 
     refreshTokenSchema,
     oauthProviderSchema
-} from '../../../services/auth/validators/authSchemas';
+} from '../../../middleware/auth/authSchemas';
 import { SecurityError } from '../../../types/security';
 import { 
     extractRefreshToken,
@@ -27,7 +27,7 @@ import { UserService } from '../../../database/services/UserService';
 import * as schema from '../../../database/schema';
 import { eq, and, desc, ne } from 'drizzle-orm';
 import { RouteContext } from '../../types/route-context';
-import { authMiddleware } from '../../../middleware/security/auth';
+import { authMiddleware } from '../../../middleware/auth/auth';
 
 /**
  * Authentication Controller

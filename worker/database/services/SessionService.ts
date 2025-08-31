@@ -5,13 +5,14 @@
 
 import { AuthSession } from '../../types/auth-types';
 import { SecurityError, SecurityErrorType } from '../../types/security';
-import { DatabaseService } from '../../database/database';
-import * as schema from '../../database/schema';
+import { DatabaseService } from '../database';
+import * as schema from '../schema';
 import { eq, and, lt, gt, desc, ne } from 'drizzle-orm';
 import { createLogger } from '../../logger';
 import { generateId } from '../../utils/idGenerator';
-import { TokenService } from './tokenService';
+import { TokenService } from '../../middleware/auth/tokenService';
 import { extractRequestMetadata } from '../../utils/authUtils';
+import { BaseService } from './BaseService';
 
 const logger = createLogger('SessionService');
 
@@ -33,7 +34,7 @@ interface SessionConfig {
 /**
  * Session Service for D1-based session management
  */
-export class SessionService {
+export class SessionService extends BaseService {
     private readonly config: SessionConfig = {
         maxSessions: 5,
         sessionTTL: 7 * 24 * 60 * 60, // 7 days
@@ -47,9 +48,11 @@ export class SessionService {
     };
     
     constructor(
-        private db: DatabaseService,
+        protected db: DatabaseService,
         private tokenService: TokenService
-    ) {}
+    ) {
+        super(db);
+    }
     
     /**
      * Generate device fingerprint from request headers

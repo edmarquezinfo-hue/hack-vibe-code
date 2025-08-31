@@ -8,7 +8,7 @@ import { createLogger } from '../../logger';
 import { DatabaseService } from '../../database/database';
 import * as schema from '../../database/schema';
 import { eq, and, sql } from 'drizzle-orm';
-import { TokenValidator } from '../../services/auth/tokenValidator';
+import { TokenValidator } from './tokenValidator';
 import { extractToken, parseCookies } from '../../utils/authUtils';
 
 const logger = createLogger('AuthMiddleware');

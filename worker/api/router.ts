@@ -1,6 +1,6 @@
 import { createObjectLogger, StructuredLogger } from '../logger';
 import { methodNotAllowedResponse } from './responses';
-import { routeAuthMiddleware, AuthRequirement as AuthMiddlewareRequirement, checkAppOwnership } from '../middleware/security/routeAuth';
+import { routeAuthMiddleware, AuthRequirement as AuthMiddlewareRequirement, checkAppOwnership } from '../middleware/auth/routeAuth';
 import { RouteContext, ContextualRequestHandler } from './types/route-context';
 import { AuthUser } from '../types/auth-types';
 

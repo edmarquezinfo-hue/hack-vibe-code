@@ -3,7 +3,7 @@
  */
 
 import { AuthUser } from '../../types/auth-types';
-import { authMiddleware } from './auth';
+import { authMiddleware } from '../auth/auth';
 import { createLogger } from '../../logger';
 import { createDatabaseService } from '../../database/database';
 import { AppService } from '../../database';
