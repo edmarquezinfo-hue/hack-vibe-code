@@ -1,7 +1,5 @@
 /**
- * Model Configuration Routes
  * Routes for managing user model configurations
- * Provider API keys are managed via the unified secrets system
  */
 
 import { Router, AuthConfig } from '../router';
@@ -11,8 +9,8 @@ import { ModelConfigController } from '../controllers/modelConfig/controller';
  * Setup model configuration routes
  * All routes are protected and require authentication
  */
-export function setupModelConfigRoutes(router: Router): Router {
-    const modelConfigController = new ModelConfigController();
+export function setupModelConfigRoutes(env: Env, router: Router): Router {
+    const modelConfigController = new ModelConfigController(env);
 
     // Model Configuration Routes
     router.get('/api/model-configs', modelConfigController.getModelConfigs.bind(modelConfigController), AuthConfig.authenticated);

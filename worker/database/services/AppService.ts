@@ -1,7 +1,6 @@
 /**
  * App Service
  * Handles all app-related database operations including favorites, views, stars, and forking
- * Extracted from main DatabaseService to maintain single responsibility principle
  */
 
 import { BaseService } from './BaseService';
@@ -38,60 +37,10 @@ interface FavoriteAppResult extends schema.App {
 }
 
 /**
- * App update metadata for internal tracking - Service specific
- */
-interface AppUpdateMetadata {
-    deploymentUrl?: string;
-    screenshotUrl?: string;
-    [key: string]: unknown;
-}
-
-/**
  * App Service Class
  * Comprehensive app management operations
  */
 export class AppService extends BaseService {
-
-    // ========================================
-    // FIELD SELECTORS AND QUERY HELPERS
-    // ========================================
-
-    /**
-     * Complete app selection fields helper - eliminates 20+ line duplication
-     */
-    private readonly APP_SELECT_FIELDS = {
-        id: schema.apps.id,
-        title: schema.apps.title,
-        description: schema.apps.description,
-        slug: schema.apps.slug,
-        iconUrl: schema.apps.iconUrl,
-        originalPrompt: schema.apps.originalPrompt,
-        finalPrompt: schema.apps.finalPrompt,
-        blueprint: schema.apps.blueprint,
-        framework: schema.apps.framework,
-        userId: schema.apps.userId,
-        teamId: schema.apps.teamId,
-        sessionToken: schema.apps.sessionToken,
-        visibility: schema.apps.visibility,
-        boardId: schema.apps.boardId,
-        status: schema.apps.status,
-        deploymentUrl: schema.apps.deploymentUrl,
-        cloudflareAccountId: schema.apps.cloudflareAccountId,
-        deploymentStatus: schema.apps.deploymentStatus,
-        deploymentMetadata: schema.apps.deploymentMetadata,
-        githubRepositoryUrl: schema.apps.githubRepositoryUrl,
-        githubRepositoryVisibility: schema.apps.githubRepositoryVisibility,
-        isArchived: schema.apps.isArchived,
-        isFeatured: schema.apps.isFeatured,
-        version: schema.apps.version,
-        parentAppId: schema.apps.parentAppId,
-        screenshotUrl: schema.apps.screenshotUrl,
-        screenshotCapturedAt: schema.apps.screenshotCapturedAt,
-        createdAt: schema.apps.createdAt,
-        updatedAt: schema.apps.updatedAt,
-        lastDeployedAt: schema.apps.lastDeployedAt,
-    } as const;
-
     // ========================================
     // RANKING ALGORITHM CONFIGURATION
     // ========================================
@@ -138,7 +87,6 @@ export class AppService extends BaseService {
             .insert(schema.apps)
             .values({
                 ...appData,
-                slug: appData.title ? this.generateSlug(appData.title) : undefined,
             })
             .returning();
         return app;
@@ -148,11 +96,10 @@ export class AppService extends BaseService {
         userId: string,
         options: AppQueryOptions = {}
     ): Promise<schema.App[]> {
-        const { teamId, status, visibility, limit = 50, offset = 0 } = options;
+        const { status, visibility, limit = 50, offset = 0 } = options;
 
         const whereConditions: WhereCondition[] = [
             eq(schema.apps.userId, userId),
-            teamId ? eq(schema.apps.teamId, teamId) : undefined,
             status ? eq(schema.apps.status, status) : undefined,
             visibility ? eq(schema.apps.visibility, visibility) : undefined,
         ];
@@ -169,31 +116,7 @@ export class AppService extends BaseService {
     }
 
     /**
-     * Get public apps - simple version returning just app data
-     */
-    async getPublicApps(options: PublicAppQueryOptions = {}): Promise<schema.App[]> {
-        const { 
-            boardId, 
-            limit = 20, 
-            offset = 0, 
-            framework, 
-            search 
-        } = options;
-
-        const whereConditions = this.buildPublicAppConditions(boardId, framework, search);
-        const whereClause = this.buildWhereConditions(whereConditions);
-
-        return await this.database
-            .select()
-            .from(schema.apps)
-            .where(whereClause)
-            .orderBy(desc(schema.apps.createdAt))
-            .limit(limit)
-            .offset(offset);
-    }
-
-    /**
-     * Get enhanced public apps with user stats and pagination
+     * Get public apps with user stats and pagination
      * Uses optimized queries with aggregations for performance
      */
     async getPublicAppsEnhanced(options: PublicAppQueryOptions = {}): Promise<PaginatedResult<EnhancedAppData>> {
@@ -205,8 +128,7 @@ export class AppService extends BaseService {
         }
 
         // Use simple query for basic sorts
-        const { 
-            boardId, 
+        const {
             limit = 20, 
             offset = 0, 
             framework, 
@@ -215,14 +137,14 @@ export class AppService extends BaseService {
             userId 
         } = options;
 
-        const whereConditions = this.buildPublicAppConditions(boardId, framework, search);
+        const whereConditions = this.buildPublicAppConditions(framework, search);
         const whereClause = this.buildWhereConditions(whereConditions);
         const direction = order === 'asc' ? asc : desc;
 
         // Get basic apps for simple sorts
         const basicApps = await this.database
             .select({
-                ...this.APP_SELECT_FIELDS,
+                app: schema.apps,
                 userName: schema.users.displayName,
                 userAvatar: schema.users.avatarUrl,
             })
@@ -254,7 +176,12 @@ export class AppService extends BaseService {
         }
 
         // Use unified analytics enhancement approach
-        const enhancedApps = await this.enhanceAppsWithAnalytics(basicApps, userId, true);
+        const appsWithUserInfo = basicApps.map(row => ({
+            ...row.app,
+            userName: row.userName,
+            userAvatar: row.userAvatar
+        }));
+        const enhancedApps = await this.enhanceAppsWithAnalytics(appsWithUserInfo, userId, true);
 
         return {
             data: enhancedApps,
@@ -295,7 +222,6 @@ export class AppService extends BaseService {
      * Helper to build public app query conditions
      */
     private buildPublicAppConditions(
-        boardId?: string, 
         framework?: string, 
         search?: string
     ): WhereCondition[] {
@@ -309,7 +235,6 @@ export class AppService extends BaseService {
                 eq(schema.apps.status, 'completed'),
                 eq(schema.apps.status, 'generating')
             ),
-            boardId ? eq(schema.apps.boardId, boardId) : undefined,
             // Use shared helper for common filters
             ...this.buildCommonAppFilters(framework, search),
         ];
@@ -317,25 +242,68 @@ export class AppService extends BaseService {
         return whereConditions.filter(Boolean);
     }
 
-    async updateAppStatus(
-        appId: string, 
-        status: 'generating' | 'completed', 
-        metadata?: AppUpdateMetadata
-    ): Promise<void> {
-        const updateData: Partial<typeof schema.apps.$inferInsert> = { 
-            status, 
-            updatedAt: new Date() 
-        };
-
-        if (status === 'completed' && metadata?.deploymentUrl) {
-            updateData.deploymentUrl = metadata.deploymentUrl;
-            updateData.lastDeployedAt = new Date();
+    /**
+     * Update app record in database
+     */
+    async updateApp(
+        sessionId: string,
+        updates: Partial<typeof schema.apps.$inferInsert>
+    ): Promise<boolean> {
+        if (!sessionId) {
+            return false;
         }
 
-        await this.database
-            .update(schema.apps)
-            .set(updateData)
-            .where(eq(schema.apps.id, appId));
+        try {
+            await this.database
+                .update(schema.apps)
+                .set({ 
+                    ...updates, 
+                    updatedAt: new Date() 
+                })
+                .where(eq(schema.apps.id, sessionId));
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Update app with deployment URL
+     */
+    async updateDeploymentUrl(
+        sessionId: string,
+        deploymentUrl: string,
+    ): Promise<boolean> {
+        return this.updateApp(sessionId, {
+            deploymentUrl,
+        });
+    }
+
+    /**
+     * Update app with GitHub repository URL and visibility
+     */
+    async updateGitHubRepository(
+        sessionId: string,
+        repositoryUrl: string,
+        repositoryVisibility: 'public' | 'private'
+    ): Promise<boolean> {
+        return this.updateApp(sessionId, {
+            githubRepositoryUrl: repositoryUrl,
+            githubRepositoryVisibility: repositoryVisibility
+        });
+    }
+
+    /**
+     * Update app with screenshot data
+     */
+    async updateAppScreenshot(
+        sessionId: string,
+        screenshotUrl: string
+    ): Promise<boolean> {
+        return this.updateApp(sessionId, {
+            screenshotUrl,
+            screenshotCapturedAt: new Date()
+        });
     }
 
     /**
@@ -349,7 +317,7 @@ export class AppService extends BaseService {
         
         const results = await this.database
             .select({
-                ...this.APP_SELECT_FIELDS,
+                app: schema.apps,
                 isFavorite: this.createFavoriteStatusQuery(userId)
             })
             .from(schema.apps)
@@ -358,9 +326,10 @@ export class AppService extends BaseService {
             .limit(limit)
             .offset(offset);
 
-        return results.map(app => ({
-            ...app,
-            updatedAtFormatted: formatRelativeTime(app.updatedAt)
+        return results.map(row => ({
+            ...row.app,
+            isFavorite: row.isFavorite,
+            updatedAtFormatted: formatRelativeTime(row.app.updatedAt)
         }));
     }
 
@@ -381,7 +350,9 @@ export class AppService extends BaseService {
         userId: string
     ): Promise<FavoriteAppResult[]> {
         const results = await this.database
-            .select(this.APP_SELECT_FIELDS)
+            .select({
+                app: schema.apps
+            })
             .from(schema.apps)
             .innerJoin(schema.favorites, and(
                 eq(schema.favorites.appId, schema.apps.id),
@@ -389,10 +360,10 @@ export class AppService extends BaseService {
             ))
             .orderBy(desc(schema.apps.updatedAt));
 
-        return results.map(app => ({
-            ...app,
+        return results.map(row => ({
+            ...row.app,
             isFavorite: true as const,
-            updatedAtFormatted: formatRelativeTime(app.updatedAt)
+            updatedAtFormatted: formatRelativeTime(row.app.updatedAt)
         }));
     }
 
@@ -445,15 +416,15 @@ export class AppService extends BaseService {
             })
             .from(schema.apps)
             .where(eq(schema.apps.id, appId))
-            .limit(1);
+            .get();
 
-        if (app.length === 0) {
+        if (!app) {
             return { exists: false, isOwner: false };
         }
 
         return {
             exists: true,
-            isOwner: app[0].userId === userId
+            isOwner: app.userId === userId
         };
     }
 
@@ -466,7 +437,7 @@ export class AppService extends BaseService {
     ): Promise<AppWithFavoriteStatus | null> {
         const apps = await this.database
             .select({
-                ...this.APP_SELECT_FIELDS,
+                app: schema.apps,
                 isFavorite: this.createFavoriteStatusQuery(userId)
             })
             .from(schema.apps)
@@ -481,8 +452,9 @@ export class AppService extends BaseService {
         }
 
         return {
-            ...apps[0],
-            updatedAtFormatted: formatRelativeTime(apps[0].updatedAt)
+            ...apps[0].app,
+            isFavorite: apps[0].isFavorite,
+            updatedAtFormatted: formatRelativeTime(apps[0].app.updatedAt)
         };
     }
 
@@ -548,7 +520,7 @@ export class AppService extends BaseService {
         // Get app with user info using full app selection
         const appResult = await this.database
             .select({
-                ...this.APP_SELECT_FIELDS,
+                app: schema.apps,
                 userName: schema.users.displayName,
                 userAvatar: schema.users.avatarUrl,
             })
@@ -560,6 +532,8 @@ export class AppService extends BaseService {
         if (!appResult) {
             return null;
         }
+
+        const app = appResult.app;
 
         // Get stats in parallel using same pattern as analytics service
         const [viewCount, starCount, isFavorite, userHasStarred] = await Promise.all([
@@ -601,9 +575,9 @@ export class AppService extends BaseService {
                 .get()
                 .then(r => !!r) : false
         ]);
-
+        
         return {
-            ...appResult,
+            ...app,
             userName: appResult.userName,
             userAvatar: appResult.userAvatar,
             starCount,
@@ -615,7 +589,7 @@ export class AppService extends BaseService {
 
     /**
      * Toggle star status for an app (star/unstar)
-     * Uses same efficient pattern as toggleAppFavorite
+     * Uses same pattern as toggleAppFavorite
      */
     async toggleAppStar(userId: string, appId: string): Promise<{ isStarred: boolean; starCount: number }> {
         // Check if already starred
@@ -662,7 +636,6 @@ export class AppService extends BaseService {
 
     /**
      * Record app view with duplicate prevention
-     * Abstracts view tracking logic from controller
      */
     async recordAppView(appId: string, userId: string): Promise<void> {
         try {
@@ -676,7 +649,7 @@ export class AppService extends BaseService {
                 })
                 .run();
         } catch {
-            // Ignore duplicate view errors (same pattern as original controller)
+            // Ignore duplicate view errors
         }
     }
 
@@ -703,7 +676,6 @@ export class AppService extends BaseService {
 
     /**
      * Create forked app using same patterns as createSimpleApp
-     * Clean fork creation with proper schema integration
      */
     async createForkedApp(originalApp: schema.App, newAgentId: string, userId: string): Promise<schema.App> {
         const now = new Date();
@@ -740,8 +712,6 @@ export class AppService extends BaseService {
             offset = 0, 
             status, 
             visibility, 
-            teamId, 
-            boardId,
             framework,
             search,
             sort = 'recent', 
@@ -756,10 +726,8 @@ export class AppService extends BaseService {
         // Build where conditions like in getUserApps but with enhanced data
         const whereConditions: WhereCondition[] = [
             eq(schema.apps.userId, userId),
-            teamId ? eq(schema.apps.teamId, teamId) : undefined,
             status ? eq(schema.apps.status, status) : undefined,
             visibility ? eq(schema.apps.visibility, visibility) : undefined,
-            boardId ? eq(schema.apps.boardId, boardId) : undefined,
             // Add common filtering (search, framework) using shared helper
             ...this.buildCommonAppFilters(framework, search),
         ];
@@ -777,9 +745,9 @@ export class AppService extends BaseService {
 
         if (sort === 'starred') {
             // Join with favorites and add favorite user filter
-            basicApps = await this.database
+            const results = await this.database
                 .select({
-                    ...this.APP_SELECT_FIELDS,
+                    app: schema.apps
                 })
                 .from(schema.apps)
                 .innerJoin(schema.favorites, eq(schema.favorites.appId, schema.apps.id))
@@ -787,11 +755,10 @@ export class AppService extends BaseService {
                 .orderBy(...sortClauses)
                 .limit(limit)
                 .offset(offset);
+            basicApps = results.map(r => r.app);
         } else {
             basicApps = await this.database
-                .select({
-                    ...this.APP_SELECT_FIELDS,
-                })
+                .select()
                 .from(schema.apps)
                 .where(whereClause)
                 .orderBy(...sortClauses)
@@ -811,14 +778,12 @@ export class AppService extends BaseService {
      * Get total count of user apps with filters (for pagination)
      */
     async getUserAppsCount(userId: string, options: Partial<AppQueryOptions> = {}): Promise<number> {
-        const { status, visibility, teamId, boardId, framework, search, sort = 'recent' } = options;
+        const { status, visibility, framework, search, sort = 'recent' } = options;
 
         const whereConditions: WhereCondition[] = [
             eq(schema.apps.userId, userId),
-            teamId ? eq(schema.apps.teamId, teamId) : undefined,
             status ? eq(schema.apps.status, status) : undefined,
             visibility ? eq(schema.apps.visibility, visibility) : undefined,
-            boardId ? eq(schema.apps.boardId, boardId) : undefined,
             // Use shared helper for common filters
             ...this.buildCommonAppFilters(framework, search),
         ];
@@ -851,7 +816,7 @@ export class AppService extends BaseService {
      * All analytics data fetched in 6 total queries regardless of app count
      */
     private async enhanceAppsWithAnalytics(
-        basicApps: (typeof schema.apps.$inferSelect & { userName?: string | null; userAvatar?: string | null })[], 
+        basicApps: (typeof schema.apps.$inferSelect & { userName?: string | null; userAvatar?: string | null })[],
         userId?: string,
         includeUserInfo: boolean = false
     ): Promise<EnhancedAppData[]> {
@@ -859,7 +824,7 @@ export class AppService extends BaseService {
 
         const appIds = basicApps.map(app => app.id);
         
-        // BATCH FETCH ALL ANALYTICS DATA IN PARALLEL (6 queries total, not N*3 queries)
+        // BATCH FETCH ALL ANALYTICS DATA IN PARALLEL (6 queries total)
         const [
             analyticsData,
             starCounts,
@@ -907,8 +872,8 @@ export class AppService extends BaseService {
 
         // Create lookup maps for O(1) access
         const starCountMap = new Map(starCounts.map(s => [s.appId, s.count]));
-        const userStarMap = new Set(userStars.map(s => s.appId));
-        const userFavoriteMap = new Set(userFavorites.map(f => f.appId));
+        const userStarMap = new Set(userStars.map(s => s.appId as string));
+        const userFavoriteMap = new Set(userFavorites.map(f => f.appId as string));
 
         // Transform apps with O(1) lookups instead of additional queries
         return basicApps.map(app => ({
@@ -920,7 +885,7 @@ export class AppService extends BaseService {
             userFavorited: userFavoriteMap.has(app.id),
             viewCount: analyticsData[app.id]?.viewCount || 0,
             forkCount: analyticsData[app.id]?.forkCount || 0,
-            likeCount: analyticsData[app.id]?.likeCount || 0
+            likeCount: 0
         }));
     }
 
@@ -960,7 +925,6 @@ export class AppService extends BaseService {
      */
     private async getEnhancedAppsWithAggregations(options: PublicAppQueryOptions): Promise<PaginatedResult<EnhancedAppData>> {
         const { 
-            boardId, 
             limit = 20, 
             offset = 0, 
             framework, 
@@ -971,7 +935,7 @@ export class AppService extends BaseService {
             userId 
         } = options;
 
-        const whereConditions = this.buildPublicAppConditions(boardId, framework, search);
+        const whereConditions = this.buildPublicAppConditions(framework, search);
         const whereClause = this.buildWhereConditions(whereConditions);
         const periodThreshold = this.getTimePeriodThreshold(period);
         const direction = order === 'asc' ? asc : desc;
@@ -988,7 +952,7 @@ export class AppService extends BaseService {
         // Use efficient aggregation query with LEFT JOINs
         const basicApps = await this.database
             .select({
-                ...this.APP_SELECT_FIELDS,
+                app: schema.apps,
                 userName: schema.users.displayName,
                 userAvatar: schema.users.avatarUrl,
                 viewCount: sql<number>`COALESCE(view_stats.count, 0)`,
@@ -1029,7 +993,7 @@ export class AppService extends BaseService {
             .limit(limit)
             .offset(offset);
 
-        // Get total count efficiently (no aggregations needed)
+        // Get total count
         const totalQuery = await this.database
             .select({ count: sql<number>`count(*)` })
             .from(schema.apps)
@@ -1042,7 +1006,7 @@ export class AppService extends BaseService {
         let userFavoritedSet = new Set<string>();
         
         if (userId && basicApps.length > 0) {
-            const appIds = basicApps.map(app => app.id);
+            const appIds = basicApps.map(row => row.app.id);
             
             const [userStars, userFavorites] = await Promise.all([
                 // Batch query for user stars
@@ -1064,19 +1028,21 @@ export class AppService extends BaseService {
                     ))
             ]);
             
-            userStarredSet = new Set(userStars.map(s => s.appId));
-            userFavoritedSet = new Set(userFavorites.map(f => f.appId));
+            userStarredSet = new Set(userStars.map(s => s.appId as string));
+            userFavoritedSet = new Set(userFavorites.map(f => f.appId as string));
         }
 
         // Convert to EnhancedAppData format with O(1) lookups
-        const enhancedApps: EnhancedAppData[] = basicApps.map((app: any) => ({
-            ...app,
-            starCount: app.starCount || 0,
-            userStarred: userStarredSet.has(app.id),
-            userFavorited: userFavoritedSet.has(app.id),
-            viewCount: app.viewCount || 0,
-            forkCount: app.forkCount || 0,
-            likeCount: app.likeCount || 0
+        const enhancedApps: EnhancedAppData[] = basicApps.map(row => ({
+            ...row.app,
+            userName: row.userName,
+            userAvatar: row.userAvatar,
+            starCount: row.starCount || 0,
+            userStarred: userStarredSet.has(row.app.id),
+            userFavorited: userFavoritedSet.has(row.app.id),
+            viewCount: row.viewCount || 0,
+            forkCount: row.forkCount || 0,
+            likeCount: 0
         }));
 
         return {
@@ -1099,8 +1065,6 @@ export class AppService extends BaseService {
             offset = 0, 
             status, 
             visibility, 
-            teamId, 
-            boardId,
             framework,
             search, 
             sort = 'recent', 
@@ -1111,10 +1075,8 @@ export class AppService extends BaseService {
         // Build where conditions for user apps
         const whereConditions: WhereCondition[] = [
             eq(schema.apps.userId, userId),
-            teamId ? eq(schema.apps.teamId, teamId) : undefined,
             status ? eq(schema.apps.status, status) : undefined,
             visibility ? eq(schema.apps.visibility, visibility) : undefined,
-            boardId ? eq(schema.apps.boardId, boardId) : undefined,
             // Use shared helper for common filters
             ...this.buildCommonAppFilters(framework, search),
         ];
@@ -1129,13 +1091,13 @@ export class AppService extends BaseService {
         const starTimeFilter = period === 'all' ? sql`1=1` : sql`starred_at >= ${periodThreshold.toISOString()}`;
         const forkTimeFilter = period === 'all' ? sql`1=1` : sql`created_at >= ${periodThreshold.toISOString()}`;
 
-        // Build the score expression for ORDER BY based on industry-standard algorithms
+        // Build the score expression
         const scoreExpression = this.createAdvancedScoreExpression(sort, period, WEIGHTS);
 
         // Use efficient aggregation query with LEFT JOINs for user apps
         const basicApps = await this.database
             .select({
-                ...this.APP_SELECT_FIELDS,
+                app: schema.apps,
                 viewCount: sql<number>`COALESCE(view_stats.count, 0)`,
                 starCount: sql<number>`COALESCE(star_stats.count, 0)`,
                 forkCount: sql<number>`COALESCE(fork_stats.count, 0)`
@@ -1174,15 +1136,15 @@ export class AppService extends BaseService {
             .offset(offset);
 
         // Convert to EnhancedAppData format
-        const enhancedApps: EnhancedAppData[] = basicApps.map((app: any) => ({
-            ...app,
+        const enhancedApps: EnhancedAppData[] = basicApps.map(row => ({
+            ...row.app,
             userName: null, // User's own apps don't need userName
             userAvatar: null,
-            starCount: app.starCount || 0,
+            starCount: row.starCount || 0,
             userStarred: false, // User can't star their own apps
             userFavorited: false, // Will be calculated separately if needed
-            viewCount: app.viewCount || 0,
-            forkCount: app.forkCount || 0,
+            viewCount: row.viewCount || 0,
+            forkCount: row.forkCount || 0,
             likeCount: 0
         }));
 
@@ -1191,7 +1153,7 @@ export class AppService extends BaseService {
 
 
     // ========================================
-    // INDUSTRY-STANDARD RANKING ALGORITHMS
+    // RANKING ALGORITHMS
     // ========================================
 
     /**
@@ -1330,15 +1292,5 @@ export class AppService extends BaseService {
             this.logger?.error('Error deleting app:', error);
             return { success: false, error: 'An error occurred while deleting the app' };
         }
-    }
-
-    private generateSlug(text: string): string {
-        return text
-            .toLowerCase()
-            .replace(/[^a-z0-9\s-]/g, '')
-            .replace(/\s+/g, '-')
-            .replace(/-+/g, '-')
-            .trim()
-            .substring(0, 50);
     }
 }

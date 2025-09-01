@@ -4,13 +4,8 @@ import { AgentInitArgs } from "./types";
 
 /**
  * SmartCodeGeneratorAgent - Smartly orchestrated AI-powered code generation
- * 
- * Smartly Manages the lifecycle of code generation including:
- * - Blueprint-based phase generation
- * - Real-time file streaming with WebSocket updates
- * - Code validation and error correction
- * - Deployment to runner service
- * - Review cycles with automated fixes
+ * using an LLM orchestrator instead of state machine based orchestrator.
+ * TODO: NOT YET IMPLEMENTED, CURRENTLY Just uses SimpleCodeGeneratorAgent
  */
 export class SmartCodeGeneratorAgent extends SimpleCodeGeneratorAgent {
     

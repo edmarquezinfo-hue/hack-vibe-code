@@ -9,6 +9,8 @@ import type { ModelConfig } from '../agents/inferutils/config.types';
 // CORE SHARED INTERFACES
 // ========================================
 
+export type Visibility = 'private' | 'public';
+
 /**
  * Standard pagination interface used across all services
  */
@@ -40,11 +42,6 @@ export interface AppWithFavoriteStatus extends schema.App {
     isFavorite: boolean;
     updatedAtFormatted: string;
 }
-
-/**
- * User team data with member role information
- */
-export type UserTeamData = schema.Team & { memberRole: string };
 
 /**
  * Favorite toggle operation result
@@ -96,7 +93,6 @@ export type SortOrder = 'asc' | 'desc';
  * Base app query options with common filters and pagination
  */
 export interface BaseAppQueryOptions extends PaginationOptions {
-    boardId?: string;
     framework?: string;
     search?: string;
     sort?: AppSortOption;
@@ -109,8 +105,7 @@ export interface BaseAppQueryOptions extends PaginationOptions {
  */
 export interface AppQueryOptions extends BaseAppQueryOptions {
     status?: 'generating' | 'completed';
-    visibility?: 'private' | 'public' | 'team' | 'board';
-    teamId?: string;
+    visibility?: Visibility;
 }
 
 /**
@@ -145,7 +140,7 @@ export interface SimpleAppCreation {
     title: string;
     description?: string;
     framework?: string;
-    visibility?: 'private' | 'team' | 'board' | 'public';
+    visibility?: Visibility;
 }
 
 /**
@@ -161,23 +156,11 @@ export interface AppForForkResult {
 // ========================================
 
 /**
- * Dashboard data structure for user overview
- */
-export interface DashboardData {
-    user: schema.User;
-    stats: UserStats;
-    recentApps: EnhancedAppData[];
-    teams: UserTeamData[];
-    cloudflareAccounts: schema.CloudflareAccount[];
-}
-
-/**
  * User statistics interface
  */
 export interface UserStats {
     appCount: number;
     publicAppCount: number;
-    teamCount: number;
     favoriteCount: number;
     totalLikesReceived: number;
     totalViewsReceived: number;
@@ -242,19 +225,11 @@ export interface AppStats {
 // ========================================
 
 /**
- * Secret data for storage (before encryption)  
+ * Raw Secret data for storage (before encryption)  
  */
-export interface SecretData {
-    id?: string;
-    name: string;
-    provider: string;
-    secretType: string;
-    value: string; // The actual secret value (not stored in schema)
-    environment?: string | null;
-    description?: string | null;
-    expiresAt?: Date | null;
+export interface SecretData extends Omit<schema.UserSecret, 'encryptedValue' | 'id' | 'isActive' | 'createdAt' | 'updatedAt' | 'lastUsed' | 'userId' | 'usageCount' | 'keyPreview' > {
+    value: string;
 }
-
 /**
  * Encrypted secret response (without sensitive data)
  */
@@ -301,11 +276,6 @@ export interface ModelTestResult {
     responsePreview?: string;
     latencyMs: number;
     modelUsed: string;
-    tokensUsed?: {
-        prompt: number;
-        completion: number;
-        total: number;
-    };
     timestamp?: Date;
 }
 
@@ -355,8 +325,6 @@ export function isErrorWithMessage(error: unknown): error is ErrorWithMessage {
 // ========================================
 // UTILITY TYPES
 // ========================================
-
-// AppUpdateMetadata moved to AppService as service-specific interface
 
 /**
  * Health check result

@@ -4,8 +4,8 @@ import { StatsController } from '../controllers/stats/controller';
 /**
  * Setup user statistics routes
  */
-export function setupStatsRoutes(router: Router): Router {
-    const statsController = new StatsController();
+export function setupStatsRoutes(env: Env, router: Router): Router {
+    const statsController = new StatsController(env);
 
     // User statistics
     router.get('/api/stats', statsController.getUserStats.bind(statsController), AuthConfig.authenticated);

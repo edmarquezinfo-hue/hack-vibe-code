@@ -1,6 +1,5 @@
 /**
  * Security-related TypeScript types for the application
- * These types ensure type safety across all security implementations
  */
 
 import { z } from 'zod';

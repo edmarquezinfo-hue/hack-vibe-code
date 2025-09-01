@@ -1,12 +1,13 @@
 import { Router, AuthConfig } from '../router';
 import { AppController } from '../controllers/apps/controller';
-import { appViewController } from '../controllers/appView/controller';
+import { AppViewController } from '../controllers/appView/controller';
 
 /**
  * Setup app management routes
  */
-export function setupAppRoutes(router: Router): Router {
-    const appController = new AppController();
+export function setupAppRoutes(env: Env, router: Router): Router {
+    const appController = new AppController(env);
+    const appViewController = new AppViewController(env);
     
     // ========================================
     // PUBLIC ROUTES (Unauthenticated users can access)

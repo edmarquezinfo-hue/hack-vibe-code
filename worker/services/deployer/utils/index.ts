@@ -1,19 +1,8 @@
 /**
- * Pure utility functions for the Cloudflare deployment library
- * These functions are environment-agnostic and work in any JS runtime
- */
-
-/**
  * Calculate SHA256 hash of content (first 32 chars)
  * This matches Cloudflare's expected hash format
- * Uses Web Crypto API which is available in both Node.js and Cloudflare Workers
  */
 export async function calculateFileHash(content: ArrayBuffer): Promise<string> {
-	const crypto = globalThis.crypto;
-	if (!crypto) {
-		throw new Error('Web Crypto API is not available');
-	}
-
 	const hashBuffer = await crypto.subtle.digest('SHA-256', content);
 	const hashArray = Array.from(new Uint8Array(hashBuffer));
 	const hashHex = hashArray

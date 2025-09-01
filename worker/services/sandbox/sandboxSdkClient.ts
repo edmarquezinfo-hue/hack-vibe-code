@@ -791,7 +791,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             try {
                 const wranglerConfigFile = await sandbox.readFile(`${instanceId}/wrangler.jsonc`);
                 if (wranglerConfigFile.success) {
-                    await env.INSTANCE_REGISTRY.put(instanceId, wranglerConfigFile.content);
+                    await env.VibecoderStore.put(`wrangler-${instanceId}`, wranglerConfigFile.content);
                     this.logger.info('Wrangler configuration stored in KV', { instanceId });
                 } else {
                     this.logger.warn('Could not read wrangler.jsonc for KV storage', { instanceId });
@@ -1740,7 +1740,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             
             // Step 2: Parse wrangler config from KV
             this.logger.info('Reading wrangler configuration from KV');
-            let wranglerConfigContent = await env.INSTANCE_REGISTRY.get(instanceId);
+            let wranglerConfigContent = await env.VibecoderStore.get(`wrangler-${instanceId}`);
             
             if (!wranglerConfigContent) {
                 // Fallback to filesystem if KV lookup fails
@@ -2472,7 +2472,7 @@ export class SandboxSdkClient extends BaseSandboxService {
     // private async registerAuthToken(jwtToken: string, instanceId: string): Promise<void> {
     //     try {
     //         const kvKey = `agent-orangebuild-${jwtToken}`;
-    //         await env.INSTANCE_REGISTRY.put(
+    //         await env.VibecoderStore.put(
     //             kvKey,
     //             instanceId,
     //             { expirationTtl: 86400 } // 24 hours TTL

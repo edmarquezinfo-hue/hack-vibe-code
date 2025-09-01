@@ -569,7 +569,7 @@ export default function SettingsPage() {
 					</div>
 
 					{/* Integrations Section */}
-					<Card id="integrations">
+					{/* <Card id="integrations">
 						<CardHeader variant="minimal">
 							<div className="flex items-center gap-3 border-b w-full py-3 text-text-primary">
 								<Link className="h-4 w-4" />
@@ -653,7 +653,7 @@ export default function SettingsPage() {
 								</div>
 							)}
 						</CardContent>
-					</Card>
+					</Card> */}
 
 					{/* Model Configuration Section */}
 					<Card id="model-configs">
@@ -864,12 +864,6 @@ export default function SettingsPage() {
 														</div>
 													</div>
 													<div className="flex items-center gap-2">
-														<Badge
-															variant="secondary"
-															className="text-xs"
-														>
-															{secret.environment}
-														</Badge>
 														<AlertDialog>
 															<AlertDialogTrigger
 																asChild

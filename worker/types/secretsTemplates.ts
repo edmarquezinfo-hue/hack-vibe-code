@@ -1,6 +1,5 @@
 /**
  * Secret template interface for getTemplates
- * Matches the structure used in the controller
  */
 export interface SecretTemplate {
 	id: string;
@@ -18,37 +17,6 @@ export interface SecretTemplate {
 
 export function getTemplatesData(): SecretTemplate[] {
 	const templates = [
-		// Cloudflare (Priority - Required for deployments)
-		{
-			id: 'CLOUDFLARE_API_KEY',
-			displayName: 'Cloudflare API Key',
-			envVarName: 'CLOUDFLARE_API_KEY',
-			provider: 'cloudflare',
-			icon: '☁️',
-			description:
-				'Global API Key with Worker and AI Gateway permissions',
-			instructions:
-				'Go to Cloudflare Dashboard → My Profile → API Tokens → Global API Key',
-			placeholder: 'Your 40-character hex API key',
-			validation: '^[a-f0-9]{40}$',
-			required: true,
-			category: 'deployment',
-		},
-		{
-			id: 'CLOUDFLARE_ACCOUNT_ID',
-			displayName: 'Cloudflare Account ID',
-			envVarName: 'CLOUDFLARE_ACCOUNT_ID',
-			provider: 'cloudflare',
-			icon: '☁️',
-			description: 'Your Cloudflare Account ID for resource management',
-			instructions:
-				'Go to Cloudflare Dashboard → Right sidebar → Account ID (copy the ID)',
-			placeholder: 'Your 32-character hex account ID',
-			validation: '^[a-f0-9]{32}$',
-			required: true,
-			category: 'deployment',
-		},
-
 		// Payment Processing
 		{
 			id: 'STRIPE_SECRET_KEY',

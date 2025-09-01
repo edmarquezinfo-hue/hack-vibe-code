@@ -1,8 +1,10 @@
 import { createObjectLogger, StructuredLogger } from '../logger';
+import { enforceGlobalApiRateLimit, RateLimitContext } from '../middleware/security/rateLimiter';
 import { methodNotAllowedResponse } from './responses';
-import { routeAuthMiddleware, AuthRequirement as AuthMiddlewareRequirement, checkAppOwnership } from '../middleware/security/routeAuth';
+import { routeAuthMiddleware, AuthRequirement as AuthMiddlewareRequirement, checkAppOwnership } from '../middleware/auth/routeAuth';
 import { RouteContext, ContextualRequestHandler } from './types/route-context';
 import { AuthUser } from '../types/auth-types';
+import { authMiddleware } from '../middleware/auth/auth';
 
 // Re-export types for external use
 export type { ContextualRequestHandler, RouteContext };
@@ -39,7 +41,6 @@ export const AuthConfig = {
     },
     
     // Public read access, but owner required for modifications
-    // This will be handled by the controller logic to distinguish read vs write
     publicReadOwnerWrite: { 
         required: false 
     }
@@ -219,9 +220,16 @@ export class Router {
 
             this.logger.info(`Matched route: ${request.method} ${route.path}`);
             
+            // Extract user context first (for rate limiting)
+            const user = await authMiddleware(request, env);
+            
+            // Apply global API rate limit with user context
+            const rateLimitContext: RateLimitContext = { request, user };
+            await enforceGlobalApiRateLimit(rateLimitContext, env);
+            
             let authenticatedUser: AuthUser | null = null;
             
-            // Apply authentication middleware if required
+            // Apply authentication requirement checks if needed
             if (route.auth?.required) {
                 const authRequirement: AuthMiddlewareRequirement = {
                     level: route.auth.level === 'owner-only' ? 'owner-only' : 'authenticated',
@@ -235,6 +243,9 @@ export class Router {
                 }
                 
                 authenticatedUser = authResult.user || null;
+            } else {
+                // Use the user we already extracted
+                authenticatedUser = user;
             }
             
             // Create structured route context
@@ -245,7 +256,6 @@ export class Router {
                 queryParams: url.searchParams
             };
             
-            // All handlers now use contextual approach for type safety
             return await (route.handler as ContextualRequestHandler)(request, env, ctx, routeContext);
         } catch (error) {
             this.logger.error('Error handling request', error);

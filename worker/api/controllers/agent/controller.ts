@@ -1,4 +1,3 @@
-import { createObjectLogger, StructuredLogger } from '../../../logger'
 import { WebSocketMessageResponses } from '../../../agents/constants';
 import { BaseController } from '../BaseController';
 import { generateId } from '../../../utils/idGenerator';
@@ -30,11 +29,8 @@ const defaultCodeGenArgs: CodeGenArgs = {
  * CodingAgentController to handle all code generation related endpoints
  */
 export class CodingAgentController extends BaseController {
-    private codeGenLogger: StructuredLogger;
-
-    constructor() {
-        super();
-        this.codeGenLogger = createObjectLogger(this, 'SimpleCodeGenController');
+    constructor(env: Env) {
+        super(env);
     }
 
     /**
@@ -42,7 +38,7 @@ export class CodingAgentController extends BaseController {
      */
     async startCodeGeneration(request: Request, env: Env, _: ExecutionContext, context: RouteContext): Promise<Response> {
         try {
-            this.codeGenLogger.info('Starting code generation process', {
+            this.logger.info('Starting code generation process', {
                 endpoint: '/api/agent'
             });
 
@@ -87,7 +83,7 @@ export class CodingAgentController extends BaseController {
             // Fetch all user model configs, api keys and agent instance at once
             const [userConfigsRecord, agentInstance] = await Promise.all([
                 modelConfigService.getUserModelConfigs(user.id),
-                getAgentStub(env, agentId, false, this.codeGenLogger)
+                getAgentStub(env, agentId, false, this.logger)
             ]);
                                 
             // Convert Record to Map and extract only ModelConfig properties
@@ -142,9 +138,9 @@ export class CodingAgentController extends BaseController {
                 },
             }, body.agentMode || defaultCodeGenArgs.agentMode) as Promise<CodeGenState>;
             agentPromise.then(async (state: CodeGenState) => {
-                this.codeGenLogger.info('Blueprint generated successfully');
+                this.logger.info('Blueprint generated successfully');
                 // Save the app to database (authenticated users only)
-                const appService = new AppService(this.createDbService(env));
+                const appService = new AppService(this.db);
                 await appService.createApp({
                     id: agentId,
                     userId: user.id,
@@ -160,12 +156,12 @@ export class CodingAgentController extends BaseController {
                     createdAt: new Date(),
                     updatedAt: new Date()
                 });
-                this.codeGenLogger.info('App saved successfully to database', { 
+                this.logger.info('App saved successfully to database', { 
                     agentId, 
                     userId: user.id,
                     visibility: 'private'
                 });
-                this.codeGenLogger.info('Agent initialized successfully');
+                this.logger.info('Agent initialized successfully');
             }).finally(() => {
                 writer.write("terminate");
             });
@@ -177,7 +173,7 @@ export class CodingAgentController extends BaseController {
                 }
             });
         } catch (error) {
-            this.codeGenLogger.error('Error starting code generation', error);
+            this.logger.error('Error starting code generation', error);
             return this.handleError(error, 'start code generation');
         }
     }
@@ -203,14 +199,14 @@ export class CodingAgentController extends BaseController {
                 return new Response('Expected WebSocket upgrade', { status: 426 });
             }
 
-            this.codeGenLogger.info(`WebSocket connection request for chat: ${chatId}`);
+            this.logger.info(`WebSocket connection request for chat: ${chatId}`);
             
             // Log request details for debugging
             const headers: Record<string, string> = {};
             request.headers.forEach((value, key) => {
                 headers[key] = value;
             });
-            this.codeGenLogger.info('WebSocket request details', {
+            this.logger.info('WebSocket request details', {
                 headers,
                 url: request.url,
                 chatId
@@ -218,14 +214,14 @@ export class CodingAgentController extends BaseController {
 
             try {
                 // Get the agent instance to handle the WebSocket connection
-                const agentInstance = await getAgentStub(env, chatId, true, this.codeGenLogger);
+                const agentInstance = await getAgentStub(env, chatId, true, this.logger);
                 
-                this.codeGenLogger.info(`Successfully got agent instance for chat: ${chatId}`);
+                this.logger.info(`Successfully got agent instance for chat: ${chatId}`);
 
                 // Let the agent handle the WebSocket connection directly
                 return agentInstance.fetch(request);
             } catch (error) {
-                this.codeGenLogger.error(`Failed to get agent instance with ID ${chatId}:`, error);
+                this.logger.error(`Failed to get agent instance with ID ${chatId}:`, error);
                 // Return an appropriate WebSocket error response
                 // We need to emulate a WebSocket response even for errors
                 const { 0: client, 1: server } = new WebSocketPair();
@@ -244,7 +240,7 @@ export class CodingAgentController extends BaseController {
                 });
             }
         } catch (error) {
-            this.codeGenLogger.error('Error handling WebSocket connection', error);
+            this.logger.error('Error handling WebSocket connection', error);
             return this.handleError(error, 'handle WebSocket connection');
         }
     }
@@ -265,15 +261,15 @@ export class CodingAgentController extends BaseController {
                 return this.createErrorResponse<AgentConnectionData>('Missing agent ID parameter', 400);
             }
 
-            this.codeGenLogger.info(`Connecting to existing agent: ${agentId}`);
+            this.logger.info(`Connecting to existing agent: ${agentId}`);
 
             try {
                 // Verify the agent instance exists
-                const agentInstance = await getAgentStub(env, agentId, true, this.codeGenLogger);
+                const agentInstance = await getAgentStub(env, agentId, true, this.logger);
                 if (!agentInstance || !(await agentInstance.isInitialized())) {
                     return this.createErrorResponse<AgentConnectionData>('Agent instance not found or not initialized', 404);
                 }
-                this.codeGenLogger.info(`Successfully connected to existing agent: ${agentId}`);
+                this.logger.info(`Successfully connected to existing agent: ${agentId}`);
 
                 // Construct WebSocket URL
                 const url = new URL(request.url);
@@ -286,11 +282,11 @@ export class CodingAgentController extends BaseController {
 
                 return this.createSuccessResponse(responseData);
             } catch (error) {
-                this.codeGenLogger.error(`Failed to connect to agent ${agentId}:`, error);
+                this.logger.error(`Failed to connect to agent ${agentId}:`, error);
                 return this.createErrorResponse<AgentConnectionData>(`Agent instance not found or unavailable: ${error instanceof Error ? error.message : String(error)}`, 404);
             }
         } catch (error) {
-            this.codeGenLogger.error('Error connecting to existing agent', error);
+            this.logger.error('Error connecting to existing agent', error);
             return this.handleError(error, 'connect to existing agent') as ControllerResponse<ApiResponse<AgentConnectionData>>;
         }
     }
@@ -307,29 +303,29 @@ export class CodingAgentController extends BaseController {
                 return this.createErrorResponse<AgentPreviewResponse>('Missing agent ID parameter', 400);
             }
 
-            this.codeGenLogger.info(`Deploying preview for agent: ${agentId}`);
+            this.logger.info(`Deploying preview for agent: ${agentId}`);
 
             try {
                 // Get the agent instance
-                const agentInstance = await getAgentStub(env, agentId, true, this.codeGenLogger);
+                const agentInstance = await getAgentStub(env, agentId, true, this.logger);
                 
                 // Deploy the preview
                 const preview = await agentInstance.deployToSandbox();
                 if (!preview) {
                     return this.createErrorResponse<AgentPreviewResponse>('Failed to deploy preview', 500);
                 }
-                this.codeGenLogger.info('Preview deployed successfully', {
+                this.logger.info('Preview deployed successfully', {
                     agentId,
                     previewUrl: preview.previewURL
                 });
 
                 return this.createSuccessResponse(preview);
             } catch (error) {
-                this.codeGenLogger.error('Failed to deploy preview', { agentId, error });
+                this.logger.error('Failed to deploy preview', { agentId, error });
                 return this.createErrorResponse<AgentPreviewResponse>('Failed to deploy preview', 500);
             }
         } catch (error) {
-            this.codeGenLogger.error('Error deploying preview', error);
+            this.logger.error('Error deploying preview', error);
             const appError = this.handleError(error, 'deploy preview') as ControllerResponse<ApiResponse<AgentPreviewResponse>>;
             return appError;
         }
