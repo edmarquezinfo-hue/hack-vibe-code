@@ -6,8 +6,10 @@ import { getAgentStub } from '../../../agents';
 import { AgentConnectionData, AgentPreviewResponse } from './types';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
 import { RouteContext } from '../../types/route-context';
-import { AppService, DatabaseService, ModelConfigService } from '../../../database';
+import { AppService, DatabaseService, ModelConfigService, SecretsService } from '../../../database';
 import { ModelConfig } from '../../../agents/inferutils/config.types';
+import { PlatformRateLimitService, RateLimitExceededError } from '../../../services/rate-limit/PlatformRateLimitService';
+import { createRateLimitErrorResponse } from '../../../types/rate-limit-errors';
 interface CodeGenArgs {
     query: string;
     language?: string;
@@ -76,8 +78,43 @@ export class CodingAgentController extends BaseController {
                 });
             }
 
-            const agentId = generateId();
+            // Enforce app creation rate limiting
             const db = new DatabaseService(env);
+            const secretsService = new SecretsService(db, env);
+            const rateLimitService = new PlatformRateLimitService(env, secretsService);
+            
+            try {
+                await rateLimitService.enforceAppCreationRateLimit(user, request);
+            } catch (error) {
+                this.logger.warn('App creation rate limited', { userId: user.id, error });
+                if (error instanceof RateLimitExceededError) {
+                    const errorResponse = createRateLimitErrorResponse(
+                        error.limitType as 'app_creation',
+                        error.message,
+                        error.limit,
+                        error.period,
+                        error.retryAfter
+                    );
+                    return new Response(JSON.stringify(errorResponse), {
+                        status: 429,
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Retry-After': error.retryAfter.toString()
+                        }
+                    });
+                }
+                return new Response(JSON.stringify({ 
+                    error: error instanceof Error ? error.message : 'Rate limit exceeded'
+                }), {
+                    status: 429,
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Retry-After': '3600'
+                    }
+                });
+            }
+
+            const agentId = generateId();
             const modelConfigService = new ModelConfigService(db);
                                 
             // Fetch all user model configs, api keys and agent instance at once
@@ -197,6 +234,49 @@ export class CodingAgentController extends BaseController {
             // Ensure the request is a WebSocket upgrade request
             if (request.headers.get('Upgrade') !== 'websocket') {
                 return new Response('Expected WebSocket upgrade', { status: 426 });
+            }
+
+            // Extract user for rate limiting (optional for WebSocket, can be anonymous)
+            const user = this.extractAuthUser(context);
+
+            // Enforce WebSocket upgrade rate limiting
+            const db = new DatabaseService(env);
+            const secretsService = new SecretsService(db, env);
+            const rateLimitService = new PlatformRateLimitService(env, secretsService);
+            
+            try {
+                await rateLimitService.enforceWebSocketUpgradeRateLimit(user, request);
+            } catch (error) {
+                this.logger.warn('WebSocket upgrade rate limited', { chatId, userId: user?.id, error });
+                // Return WebSocket error response for rate limiting
+                const { 0: client, 1: server } = new WebSocketPair();
+                server.accept();
+                
+                if (error instanceof RateLimitExceededError) {
+                    const errorResponse = createRateLimitErrorResponse(
+                        error.limitType as 'websocket_upgrade',
+                        error.message,
+                        error.limit,
+                        error.period,
+                        error.retryAfter
+                    );
+                    server.send(JSON.stringify({
+                        type: WebSocketMessageResponses.ERROR,
+                        error: errorResponse.error,
+                        details: errorResponse.details
+                    }));
+                } else {
+                    server.send(JSON.stringify({
+                        type: WebSocketMessageResponses.ERROR,
+                        error: error instanceof Error ? error.message : 'Rate limit exceeded'
+                    }));
+                }
+                
+                server.close(1013, 'Rate limit exceeded');
+                return new Response(null, {
+                    status: 101,
+                    webSocket: client
+                });
             }
 
             this.logger.info(`WebSocket connection request for chat: ${chatId}`);
