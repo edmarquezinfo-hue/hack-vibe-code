@@ -7,7 +7,7 @@ import { setupAnalyticsRoutes } from './analyticsRoutes';
 import { setupSecretsRoutes } from './secretsRoutes';
 import { setupModelConfigRoutes } from './modelConfigRoutes';
 import { setupModelProviderRoutes } from './modelProviderRoutes';
-import { setupGitHubAppRoutes } from './githubAppRoutes';
+import { setupGitHubExporterRoutes } from './githubExporterRoutes';
 import { setupCodegenRoutes } from './codegenRoutes';
 
 export function setupRoutes(env: Env): Router {
@@ -40,8 +40,8 @@ export function setupRoutes(env: Env): Router {
     // Model provider routes
     setupModelProviderRoutes(env, router);
     
-    // GitHub App routes
-    setupGitHubAppRoutes(env, router);
+    // GitHub Exporter routes
+    setupGitHubExporterRoutes(env, router);
     
     return router;
 }
