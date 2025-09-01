@@ -47,7 +47,7 @@ export async function authMiddleware(c: AppContext, next: Next) {
 
     // Check KV registry for valid JWT token
     const kvKey = `agent-orangebuild-${jwtToken}`;
-    const registeredInstanceId = await c.env.INSTANCE_REGISTRY?.get(kvKey);
+    const registeredInstanceId = await c.env.VibecoderStore?.get(kvKey);
 
     if (!registeredInstanceId) {
       return c.json({ 
