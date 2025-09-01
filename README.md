@@ -62,8 +62,10 @@ Cloudflare VibeSDK utilizes the full Cloudflare developer ecosystem:
 
 Before clicking "Deploy to Cloudflare", have these ready:
 
-### ✅ Required API Keys
-Get these API keys from each provider:
+### Workers Paid and Workers for Platforms Plans
+You will need to have both Workers Paid and Workers for Platforms to deploy and use the AI vibe coding platform end to end. 
+
+### ✅ Required API Key
 - **Google Gemini API Key** - Get from [ai.google.dev](https://ai.google.dev)
 
 Once you click "Deploy to Cloudflare", you'll be taken to your Cloudflare dashboard where you can configure your VibeSDK deployment with these variables. 
