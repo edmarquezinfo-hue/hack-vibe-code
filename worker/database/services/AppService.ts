@@ -575,7 +575,7 @@ export class AppService extends BaseService {
                 .get()
                 .then(r => !!r) : false
         ]);
-
+        
         return {
             ...app,
             userName: appResult.userName,
