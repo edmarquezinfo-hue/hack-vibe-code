@@ -18,6 +18,8 @@ import { ToolCall } from '../tools/types';
 import { executeTool } from '../tools/customTools';
 import { AIModels, InferenceMetadata } from './config.types';
 import { DatabaseService, SecretsService } from '../../database';
+import { PlatformRateLimitService } from '../../services/rate-limit/PlatformRateLimitService';
+import { AuthUser } from '../../types/auth-types';
 
 function optimizeInputs(messages: Message[]): Message[] {
 	return messages.map((message) => ({
@@ -308,6 +310,21 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 	formatOptions?: FormatterOptions;
 }): Promise<InferResponseObject<OutputSchema> | InferResponseString> {
 	try {
+		const db = new DatabaseService(env);
+		const secretsService = new SecretsService(db, env);
+		const rateLimitService = new PlatformRateLimitService(env, secretsService);
+
+		const authUser: AuthUser | null = metadata.userId ? {
+			id: metadata.userId,
+			isAnonymous: false,
+			email: 'unknown@platform.local',
+			displayName: undefined,
+			username: undefined,
+			avatarUrl: undefined
+		} : null;
+
+		await rateLimitService.enforceLLMCallsRateLimit(authUser);
+
         const { apiKey, baseURL, defaultHeaders } = await getConfigurationForModel(modelName, env, metadata.userId);
 		console.log(`baseUrl: ${baseURL}, modelName: ${modelName}`);
 
