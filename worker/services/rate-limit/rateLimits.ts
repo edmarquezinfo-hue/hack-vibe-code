@@ -1,5 +1,5 @@
 import { SecurityError } from '../../types/security';
-import { RateLimitType, RateLimitConfig, RateLimitStore, RateLimitSettings } from './config';
+import { RateLimitType, RateLimitConfig, RateLimitStore, RateLimitSettings, KVRateLimitConfig } from './config';
 import { createObjectLogger } from '../../logger';
 import { AuthUser } from '../../types/auth-types';
 import { extractTokenWithMetadata, extractRequestMetadata } from '../../utils/authUtils';
@@ -41,6 +41,78 @@ export class RateLimitService {
         return this.getRequestIdentifier(request);
     }
 
+    /**
+     * KV-based rate limiting using sliding window counter algorithm
+     * Stores request timestamps in KV with automatic expiration
+     */
+    private static async enforceKVRateLimit(
+        env: Env,
+        key: string,
+        config: KVRateLimitConfig
+    ): Promise<boolean> {
+        const kv = env.VibecoderStore;
+        const now = Date.now();
+        const windowStart = now - (config.period * 1000); // Convert seconds to milliseconds
+        
+        // KV key pattern: ratelimit:{key}
+        const kvKey = `ratelimit:${key}`;
+        
+        try {
+            // Get existing rate limit data
+            const existingData = await kv.get<{ requests: number[], burstCount?: number }>(kvKey, 'json');
+            
+            let requests: number[] = [];
+            let burstCount = 0;
+            
+            if (existingData) {
+                // Filter out expired timestamps (outside the window)
+                requests = existingData.requests.filter(timestamp => timestamp > windowStart);
+                burstCount = existingData.burstCount || 0;
+            }
+            
+            // Check if limit is exceeded
+            if (requests.length >= config.limit) {
+                return false; // Rate limit exceeded
+            }
+            
+            // Check burst limit if configured
+            if (config.burst) {
+                const recentBurstWindow = now - 60000; // 1 minute burst window
+                const recentRequests = requests.filter(timestamp => timestamp > recentBurstWindow);
+                
+                if (recentRequests.length >= config.burst) {
+                    return false; // Burst limit exceeded
+                }
+            }
+            
+            // Add current request timestamp
+            requests.push(now);
+            
+            // Store updated data with expiration
+            await kv.put(
+                kvKey,
+                JSON.stringify({ 
+                    requests, 
+                    burstCount: burstCount + 1,
+                    lastRequest: now 
+                }),
+                { 
+                    expirationTtl: config.period // Expire after the rate limit period
+                }
+            );
+            
+            return true; // Request allowed
+            
+        } catch (error) {
+            this.logger.error('Failed to enforce KV rate limit', {
+                key: kvKey,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+            // On error, allow the request (fail open)
+            return true;
+        }
+    }
+
     static async enforce(
         env: Env,
         key: string,
@@ -50,8 +122,7 @@ export class RateLimitService {
             const { success } = await ( env[config.bindingName as keyof Env] as RateLimit).limit({ key });
             return success;
         } else if (config.store === RateLimitStore.KV) {
-            // TODO: implement KV rate limit
-            return true;
+            return this.enforceKVRateLimit(env, key, config as KVRateLimitConfig);
         }
         return false;
     }
