@@ -17,7 +17,6 @@ import { UserMessage, AIMessage } from './components/messages';
 import { PhaseTimeline } from './components/phase-timeline';
 import { SmartPreviewIframe } from './components/smart-preview-iframe';
 import { ViewModeSwitch } from './components/view-mode-switch';
-import { Terminal, type TerminalLog } from './components/terminal';
 import { DebugPanel, type DebugMessage } from './components/debug-panel';
 import { DeploymentControls } from './components/deployment-controls';
 import { useChat, type FileType } from './hooks/use-chat';
@@ -121,9 +120,9 @@ export default function Chat() {
 		query: userQuery,
 		agentMode: agentMode as 'deterministic' | 'smart',
 		onDebugMessage: addDebugMessage,
-		onTerminalMessage: (log) => {
-			setTerminalLogs(prev => [...prev, log]);
-		},
+		// onTerminalMessage: (log) => {
+		// 	setTerminalLogs(prev => [...prev, log]);
+		// },
 	});
 
 	// GitHub export functionality - use urlChatId directly from URL params
@@ -137,7 +136,7 @@ export default function Chat() {
 	);
 
 	// Terminal state
-	const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
+	// const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
 
 	// Debug panel state
 	const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
@@ -216,26 +215,26 @@ export default function Chat() {
 		setView(mode);
 	}, []);
 
-	// Terminal functions
-	const handleTerminalCommand = useCallback((command: string) => {
-		if (websocket && websocket.readyState === WebSocket.OPEN) {
-			// Add command to terminal logs
-			const commandLog: TerminalLog = {
-				id: `cmd-${Date.now()}`,
-				content: command,
-				type: 'command',
-				timestamp: Date.now()
-			};
-			setTerminalLogs(prev => [...prev, commandLog]);
+	// // Terminal functions
+	// const handleTerminalCommand = useCallback((command: string) => {
+	// 	if (websocket && websocket.readyState === WebSocket.OPEN) {
+	// 		// Add command to terminal logs
+	// 		const commandLog: TerminalLog = {
+	// 			id: `cmd-${Date.now()}`,
+	// 			content: command,
+	// 			type: 'command',
+	// 			timestamp: Date.now()
+	// 		};
+	// 		setTerminalLogs(prev => [...prev, commandLog]);
 
-			// Send command via WebSocket
-			websocket.send(JSON.stringify({
-				type: 'terminal_command',
-				command,
-				timestamp: Date.now()
-			}));
-		}
-	}, [websocket, setTerminalLogs]);
+	// 		// Send command via WebSocket
+	// 		websocket.send(JSON.stringify({
+	// 			type: 'terminal_command',
+	// 			command,
+	// 			timestamp: Date.now()
+	// 		}));
+	// 	}
+	// }, [websocket, setTerminalLogs]);
 
 	const generatingCount = useMemo(
 		() =>
@@ -906,7 +905,9 @@ export default function Chat() {
 								</div>
 							)}
 
-							{view === 'terminal' && (
+
+                            {/* Disabled terminal for now */}
+							{/* {view === 'terminal' && (
 								<div className="flex-1 flex flex-col bg-bg-3 rounded-xl shadow-md shadow-bg-2 overflow-hidden border border-border-primary">
 									<div className="grid grid-cols-3 px-2 h-10 bg-bg-2 border-b">
 										<div className="flex items-center">
@@ -973,7 +974,7 @@ export default function Chat() {
 										/>
 									</div>
 								</div>
-							)}
+							)} */}
 
 							{view === 'editor' && (
 								<div className="flex-1 flex flex-col bg-bg-3 rounded-xl shadow-md shadow-bg-2 overflow-hidden border border-border-primary">

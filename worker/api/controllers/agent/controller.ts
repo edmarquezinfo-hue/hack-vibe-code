@@ -6,10 +6,11 @@ import { getAgentStub } from '../../../agents';
 import { AgentConnectionData, AgentPreviewResponse } from './types';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
 import { RouteContext } from '../../types/route-context';
-import { AppService, DatabaseService, ModelConfigService, SecretsService } from '../../../database';
+import { AppService, DatabaseService, ModelConfigService } from '../../../database';
 import { ModelConfig } from '../../../agents/inferutils/config.types';
-import { PlatformRateLimitService, RateLimitExceededError } from '../../../services/rate-limit/PlatformRateLimitService';
-import { createRateLimitErrorResponse } from '../../../types/rate-limit-errors';
+import { RateLimitService } from '../../../services/rate-limit/rateLimits';
+import { createRateLimitErrorResponse, RateLimitExceededError } from '../../../services/rate-limit/errors';
+import { validateWebSocketOrigin } from '../../../middleware/security/websocket';
 interface CodeGenArgs {
     query: string;
     language?: string;
@@ -40,9 +41,7 @@ export class CodingAgentController extends BaseController {
      */
     async startCodeGeneration(request: Request, env: Env, _: ExecutionContext, context: RouteContext): Promise<Response> {
         try {
-            this.logger.info('Starting code generation process', {
-                endpoint: '/api/agent'
-            });
+            this.logger.info('Starting code generation process');
 
             const url = new URL(request.url);
             const hostname = url.hostname === 'localhost' ? `localhost:${url.port}`: url.hostname;
@@ -77,29 +76,24 @@ export class CodingAgentController extends BaseController {
                     headers: { 'Content-Type': 'application/json' }
                 });
             }
-
-            // Enforce app creation rate limiting
-            const db = new DatabaseService(env);
-            const secretsService = new SecretsService(db, env);
-            const rateLimitService = new PlatformRateLimitService(env, secretsService);
             
             try {
-                await rateLimitService.enforceAppCreationRateLimit(user, request);
+                await RateLimitService.enforceAppCreationRateLimit(env, context.config.security.rateLimit, user, request);
             } catch (error) {
-                this.logger.warn('App creation rate limited', { userId: user.id, error });
+                const config = context.config.security.rateLimit.appCreation;
+                this.logger.warn('App creation rate limited', { userId: user.id, error, config });
                 if (error instanceof RateLimitExceededError) {
                     const errorResponse = createRateLimitErrorResponse(
-                        error.limitType as 'app_creation',
+                        error.limitType,
                         error.message,
-                        error.limit,
-                        error.period,
-                        error.retryAfter
+                        config.limit,
+                        config.period,
                     );
                     return new Response(JSON.stringify(errorResponse), {
                         status: 429,
                         headers: { 
                             'Content-Type': 'application/json',
-                            'Retry-After': error.retryAfter.toString()
+                            'Retry-After': config.period.toString()
                         }
                     });
                 }
@@ -109,12 +103,13 @@ export class CodingAgentController extends BaseController {
                     status: 429,
                     headers: { 
                         'Content-Type': 'application/json',
-                        'Retry-After': '3600'
+                        'Retry-After': config.period.toString()
                     }
                 });
             }
 
             const agentId = generateId();
+            const db = new DatabaseService(env);
             const modelConfigService = new ModelConfigService(db);
                                 
             // Fetch all user model configs, api keys and agent instance at once
@@ -143,6 +138,7 @@ export class CodingAgentController extends BaseController {
                 agentId: agentId,
                 userId: user.id,
                 enableRealtimeCodeFix: true, // For now disabled from the model configs itself
+                // llmRateLimits: context.config.security.rateLimit.llmCalls,
             }
                                 
             this.logger.info(`Initialized inference context for user ${user.id}`, {
@@ -205,8 +201,7 @@ export class CodingAgentController extends BaseController {
             return new Response(readable, {
                 status: 200,
                 headers: {
-                    "content-type": "text/event-stream",
-                    'Access-Control-Allow-Origin': '*',
+                    "content-type": "text/event-stream"
                 }
             });
         } catch (error) {
@@ -235,17 +230,21 @@ export class CodingAgentController extends BaseController {
             if (request.headers.get('Upgrade') !== 'websocket') {
                 return new Response('Expected WebSocket upgrade', { status: 426 });
             }
+            
+            // Validate WebSocket origin
+            if (!validateWebSocketOrigin(request, env)) {
+                return new Response('Forbidden: Invalid origin', { status: 403 });
+            }
 
-            // Extract user for rate limiting (optional for WebSocket, can be anonymous)
+            // Extract user for rate limiting
             const user = this.extractAuthUser(context);
+            if (!user) {
+                return this.createErrorResponse('Missing user', 401);
+            }
 
             // Enforce WebSocket upgrade rate limiting
-            const db = new DatabaseService(env);
-            const secretsService = new SecretsService(db, env);
-            const rateLimitService = new PlatformRateLimitService(env, secretsService);
-            
             try {
-                await rateLimitService.enforceWebSocketUpgradeRateLimit(user, request);
+                await RateLimitService.enforceWebSocketUpgradeRateLimit(env, context.config.security.rateLimit, user, request);
             } catch (error) {
                 this.logger.warn('WebSocket upgrade rate limited', { chatId, userId: user?.id, error });
                 // Return WebSocket error response for rate limiting
@@ -254,11 +253,10 @@ export class CodingAgentController extends BaseController {
                 
                 if (error instanceof RateLimitExceededError) {
                     const errorResponse = createRateLimitErrorResponse(
-                        error.limitType as 'websocket_upgrade',
+                        error.limitType,
                         error.message,
                         error.limit,
                         error.period,
-                        error.retryAfter
                     );
                     server.send(JSON.stringify({
                         type: WebSocketMessageResponses.ERROR,

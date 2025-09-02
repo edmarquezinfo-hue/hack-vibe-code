@@ -2,8 +2,8 @@
  * Route Authentication Middleware
  */
 
+import { createMiddleware } from 'hono/factory';
 import { AuthUser } from '../../types/auth-types';
-import { authMiddleware } from '../auth/auth';
 import { createLogger } from '../../logger';
 import { createDatabaseService } from '../../database/database';
 import { AppService } from '../../database';
@@ -19,28 +19,55 @@ export type AuthLevel = 'public' | 'authenticated' | 'owner-only';
  * Authentication requirement configuration
  */
 export interface AuthRequirement {
-    level: AuthLevel;
-    allowAnonymous?: boolean; // For authenticated level, whether to allow anonymous users
+    required: boolean;
+    level: 'public' | 'authenticated' | 'owner-only';
     resourceOwnershipCheck?: (user: AuthUser, params: Record<string, string>, env: Env) => Promise<boolean>;
 }
 
 /**
- * Route authentication middleware that enforces authentication requirements
+ * Common auth requirement configurations
  */
-export async function routeAuthMiddleware(
-    request: Request,
+export const AuthConfig = {
+    // Public route - no authentication required
+    public: { 
+        required: false,
+        level: 'public' as const
+    },
+    
+    // Require full authentication (no anonymous users)
+    authenticated: { 
+        required: true, 
+        level: 'authenticated' as const 
+    },
+    
+    // Require resource ownership (for app editing)
+    ownerOnly: { 
+        required: true, 
+        level: 'owner-only' as const,
+        resourceOwnershipCheck: checkAppOwnership
+    },
+    
+    // Public read access, but owner required for modifications
+    publicReadOwnerWrite: { 
+        required: false 
+    }
+} as const;
+
+/**
+ * Route authentication logic that enforces authentication requirements
+ */
+export async function routeAuthChecks(
+    user: AuthUser | null,
     env: Env,
     requirement: AuthRequirement,
     params?: Record<string, string>
-): Promise<{ success: boolean; user?: AuthUser; response?: Response }> {
+): Promise<{ success: boolean; response?: Response }> {
     try {
         // Public routes always pass
+        console.log('requirement', requirement, 'for user', user);
         if (requirement.level === 'public') {
             return { success: true };
         }
-
-        // Get user from auth middleware
-        const user = await authMiddleware(request, env);
 
         // For authenticated routes
         if (requirement.level === 'authenticated') {
@@ -51,20 +78,12 @@ export async function routeAuthMiddleware(
                 };
             }
 
-            // Check if anonymous users are allowed for this route
-            if (user.isAnonymous && !requirement.allowAnonymous) {
-                return {
-                    success: false,
-                    response: createAuthRequiredResponse('Full account required')
-                };
-            }
-
-            return { success: true, user };
+            return { success: true };
         }
 
         // For owner-only routes
         if (requirement.level === 'owner-only') {
-            if (!user || user.isAnonymous) {
+            if (!user) {
                 return {
                     success: false,
                     response: createAuthRequiredResponse('Account required')
@@ -82,7 +101,7 @@ export async function routeAuthMiddleware(
                 }
             }
 
-            return { success: true, user };
+            return { success: true };
         }
 
         // Default fallback
@@ -102,22 +121,20 @@ export async function routeAuthMiddleware(
     }
 }
 
-/**
- * Decorator function for easy route protection
+/*
+ * Hono compatible Route authentication middleware
  */
-export function requireAuth(requirement: AuthRequirement) {
-    return function(originalMethod: Function, _context: ClassMethodDecoratorContext) {
-        return async function(this: any, request: Request, env: Env, ctx: ExecutionContext, params?: Record<string, string>) {
-            const authResult = await routeAuthMiddleware(request, env, requirement, params);
-            
-            if (!authResult.success) {
-                return authResult.response!;
-            }
-
-            // Call original method with auth context
-            return originalMethod.call(this, request, env, ctx, params, authResult.user);
-        };
-    };
+export function routeAuthMiddleware(requirement: AuthRequirement) {
+    return createMiddleware(async (c, next) => {
+        const user = c.get('user');
+        const params = c.req.param();
+        const env = c.env;
+        const result = await routeAuthChecks(user, env, requirement, params);
+        if (!result.success) {
+            return result.response;
+        }
+        return await next();
+    })
 }
 
 /**
