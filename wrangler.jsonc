@@ -135,10 +135,6 @@
         {
             "pattern": "build.cloudflare.dev",
             "custom_domain": true
-        },
-        {
-            "pattern": "*.build.cloudflare.dev/*",
-            "custom_domain": false
         }
     ],
 	"vars": {

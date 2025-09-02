@@ -1,6 +1,6 @@
 
-import { BaseController } from '../BaseController';
-import { ApiResponse, ControllerResponse } from '../BaseController.types';
+import { BaseController } from '../baseController';
+import { ApiResponse, ControllerResponse } from '../types';
 import type { RouteContext } from '../../types/route-context';
 import { cloneAgent, getAgentStub } from '../../../agents';
 import { AppService } from '../../../database/services/AppService';

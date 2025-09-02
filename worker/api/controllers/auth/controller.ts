@@ -2,7 +2,7 @@
  * Secure Authentication Controller
  */
 
-import { BaseController } from '../BaseController';
+import { BaseController } from '../baseController';
 import { AuthService } from '../../../database/services/AuthService';
 import { SessionService } from '../../../database/services/SessionService';
 import { UserService } from '../../../database/services/UserService';
@@ -25,6 +25,7 @@ import {
 } from '../../../utils/authUtils';
 import { RouteContext } from '../../types/route-context';
 import { authMiddleware } from '../../../middleware/auth/auth';
+import { CsrfService } from '../../../services/csrf/CsrfService';
 
 /**
  * Authentication Controller
@@ -38,16 +39,21 @@ export class AuthController extends BaseController {
     }
     
     /**
+     * Check if OAuth providers are configured
+     */
+    private hasOAuthProviders(env: Env): boolean {
+        return (!!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET) || 
+               (!!env.GITHUB_CLIENT_ID && !!env.GITHUB_CLIENT_SECRET);
+    }
+    
+    /**
      * Register a new user
      * POST /api/auth/register
      */
     async register(request: Request, env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
         try {
             // Check if OAuth providers are configured - if yes, block email/password registration
-            const hasOAuth = (!!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET) || 
-                           (!!env.GITHUB_CLIENT_ID && !!env.GITHUB_CLIENT_SECRET);
-            
-            if (hasOAuth) {
+            if (this.hasOAuthProviders(env)) {
                 return this.createErrorResponse(
                     'Email/password registration is not available when OAuth providers are configured. Please use OAuth login instead.',
                     403
@@ -97,10 +103,7 @@ export class AuthController extends BaseController {
     async login(request: Request, env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
         try {
             // Check if OAuth providers are configured - if yes, block email/password login
-            const hasOAuth = (!!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET) || 
-                           (!!env.GITHUB_CLIENT_ID && !!env.GITHUB_CLIENT_SECRET);
-            
-            if (hasOAuth) {
+            if (this.hasOAuthProviders(env)) {
                 return this.createErrorResponse(
                     'Email/password login is not available when OAuth providers are configured. Please use OAuth login instead.',
                     403
@@ -343,24 +346,9 @@ export class AuthController extends BaseController {
                 }
             });
             
-            this.logger.info('DEBUG: Setting auth cookies', {
-                hasAccessToken: !!result.accessToken,
-                hasRefreshToken: !!result.refreshToken,
-                accessTokenLength: result.accessToken ? result.accessToken.length : 0,
-                refreshTokenLength: result.refreshToken ? result.refreshToken.length : 0,
-                redirectLocation
-            });
-            
             setSecureAuthCookies(response, {
                 accessToken: result.accessToken,
                 refreshToken: result.refreshToken
-            });
-            
-            // Log the actual Set-Cookie headers
-            const setCookieHeaders = response.headers.getSetCookie();
-            this.logger.info('DEBUG: Set-Cookie headers created', {
-                cookieCount: setCookieHeaders.length,
-                cookies: setCookieHeaders.map(cookie => cookie.substring(0, 50) + '...')
             });
             
             return response;
@@ -404,10 +392,12 @@ export class AuthController extends BaseController {
                 expiresIn: result.expiresIn
             });
             
-            response.headers.append(
-                'Set-Cookie',
-                `accessToken=${result.accessToken}; Path=/; Max-Age=${result.expiresIn}; HttpOnly; Secure; SameSite=Lax`
-            );
+            // Use utility function for consistent cookie setting
+            setSecureAuthCookies(response, {
+                accessToken: result.accessToken,
+                refreshToken: validatedData.refreshToken, // Keep the same refresh token
+                accessTokenExpiry: result.expiresIn
+            });
             
             return response;
         } catch (error) {
@@ -673,11 +663,33 @@ export class AuthController extends BaseController {
     }
 
     /**
+     * Get CSRF token
+     * GET /api/auth/csrf-token
+     */
+    async getCsrfToken(request: Request, _env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
+        try {
+            const token = CsrfService.getOrGenerateToken(request);
+            
+            const response = this.createSuccessResponse({ 
+                token,
+                headerName: 'X-CSRF-Token'
+            });
+            
+            // Set the token in cookie
+            CsrfService.setTokenCookie(response, token);
+            
+            return response;
+        } catch (error) {
+            return this.handleError(error, 'get CSRF token');
+        }
+    }
+    
+    /**
      * Get available authentication providers
      * GET /api/auth/providers
      */
     async getAuthProviders(
-        _request: Request,
+        request: Request,
         env: Env,
         _ctx: ExecutionContext,
         _context: RouteContext
@@ -688,25 +700,22 @@ export class AuthController extends BaseController {
                 github: !!env.GITHUB_CLIENT_ID && !!env.GITHUB_CLIENT_SECRET,
                 email: true
             };
-
-            // const user = context.user;
-            // const csrf = new CSRFProtection(env.VibecoderStore);
-            // const csrfToken = await csrf.generateToken(user?.id);
+            
+            // Include CSRF token with provider info
+            const { CsrfService } = await import('../../../services/csrf/CsrfService');
+            const csrfToken = CsrfService.getOrGenerateToken(request);
             
             const response = this.createSuccessResponse({
                 providers,
                 hasOAuth: providers.google || providers.github,
                 requiresEmailAuth: !providers.google && !providers.github,
-                // csrfToken
+                csrfToken
             });
             
-            // const headers = new Headers(response.headers);
-            // headers.append('Set-Cookie', getCSRFTokenCookie(csrfToken));
+            // Set CSRF token cookie
+            CsrfService.setTokenCookie(response, csrfToken);
             
-            return new Response(response.body, {
-                status: response.status,
-                // headers
-            });
+            return response;
         } catch (error) {
             console.error('Get auth providers error:', error);
             return this.createErrorResponse('Failed to get authentication providers', 500);

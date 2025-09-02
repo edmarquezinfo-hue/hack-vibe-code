@@ -1,7 +1,7 @@
 import { Context } from 'hono';
 import { RouteContext } from './types/route-context';
 import { AppEnv } from '../types/appenv';
-import { BaseController } from './controllers/BaseController';
+import { BaseController } from './controllers/baseController';
 
 type ControllerMethod = (
     request: Request,

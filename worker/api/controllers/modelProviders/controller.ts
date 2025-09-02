@@ -3,9 +3,9 @@
  * Handles CRUD operations for user custom model providers
  */
 
-import { BaseController } from '../BaseController';
+import { BaseController } from '../baseController';
 import { RouteContext } from '../../types/route-context';
-import { ApiResponse, ControllerResponse } from '../BaseController.types';
+import { ApiResponse, ControllerResponse } from '../types';
 import { SecretsService } from '../../../database/services/SecretsService';
 import { ModelProvidersService } from '../../../database/services/ModelProvidersService';
 import { z } from 'zod';

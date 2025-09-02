@@ -1,10 +1,10 @@
 import { WebSocketMessageResponses } from '../../../agents/constants';
-import { BaseController } from '../BaseController';
+import { BaseController } from '../baseController';
 import { generateId } from '../../../utils/idGenerator';
 import { CodeGenState } from '../../../agents/core/state';
 import { getAgentStub } from '../../../agents';
 import { AgentConnectionData, AgentPreviewResponse } from './types';
-import { ApiResponse, ControllerResponse } from '../BaseController.types';
+import { ApiResponse, ControllerResponse } from '../types';
 import { RouteContext } from '../../types/route-context';
 import { AppService, DatabaseService, ModelConfigService } from '../../../database';
 import { ModelConfig } from '../../../agents/inferutils/config.types';

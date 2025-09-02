@@ -1,4 +1,4 @@
-import { BaseController } from '../BaseController';
+import { BaseController } from '../baseController';
 import { RouteContext } from '../../types/route-context';
 import { GitHubService } from '../../../services/github';
 import { GitHubExporterOAuthProvider } from '../../../services/oauth/github-exporter';
