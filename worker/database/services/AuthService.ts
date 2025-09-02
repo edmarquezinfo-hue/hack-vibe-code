@@ -9,7 +9,7 @@ import { eq, and, sql, or, lt } from 'drizzle-orm';
 import { JWTUtils } from '../../utils/jwtUtils';
 import { generateSecureToken } from '../../utils/cryptoUtils';
 import { SessionService } from './SessionService';
-import { PasswordService } from '../../middleware/auth/passwordService';
+import { PasswordService } from '../../utils/passwordService';
 import { GoogleOAuthProvider } from '../../services/oauth/google';
 import { GitHubOAuthProvider } from '../../services/oauth/github';
 import { BaseOAuthProvider, OAuthUserInfo } from '../../services/oauth/base';
@@ -64,31 +64,14 @@ export interface AuthResult {
 export class AuthService extends BaseService {
     private readonly sessionService: SessionService;
     private readonly passwordService: PasswordService;
-    private readonly oauthProviders: Map<OAuthProvider, BaseOAuthProvider>;
     
     constructor(
         db: DatabaseService,
-        env: Env,
-        baseUrl: string
+        private env: Env,
     ) {
         super(db);
         this.sessionService = new SessionService(db, env);
         this.passwordService = new PasswordService();
-        
-        // Initialize OAuth providers
-        this.oauthProviders = new Map();
-        
-        try {
-            this.oauthProviders.set('google', GoogleOAuthProvider.create(env, baseUrl));
-        } catch {
-            logger.warn('Google OAuth provider not configured');
-        }
-        
-        try {
-            this.oauthProviders.set('github', GitHubOAuthProvider.create(env, baseUrl));
-        } catch {
-            logger.warn('GitHub OAuth provider not configured');
-        }
     }
     
     /**
@@ -289,6 +272,23 @@ export class AuthService extends BaseService {
             );
         }
     }
+
+    async getOauthProvider(provider: OAuthProvider, request: Request): Promise<BaseOAuthProvider> {
+        const url = new URL(request.url).origin;
+        
+        switch (provider) {
+            case 'google':
+                return GoogleOAuthProvider.create(this.env, url);
+            case 'github':
+                return GitHubOAuthProvider.create(this.env, url);
+            default:
+                throw new SecurityError(
+                    SecurityErrorType.INVALID_INPUT,
+                    `OAuth provider ${provider} not configured`,
+                    400
+                );
+        }
+    }
     
     /**
      * Get OAuth authorization URL
@@ -298,7 +298,7 @@ export class AuthService extends BaseService {
         request: Request,
         intendedRedirectUrl?: string
     ): Promise<string> {
-        const oauthProvider = this.oauthProviders.get(provider);
+        const oauthProvider = await this.getOauthProvider(provider, request);
         if (!oauthProvider) {
             throw new SecurityError(
                 SecurityErrorType.INVALID_INPUT,
@@ -376,7 +376,7 @@ export class AuthService extends BaseService {
         request: Request
     ): Promise<AuthResult> {
         try {
-            const oauthProvider = this.oauthProviders.get(provider);
+            const oauthProvider = await this.getOauthProvider(provider, request);
             if (!oauthProvider) {
                 throw new SecurityError(
                     SecurityErrorType.INVALID_INPUT,
@@ -441,7 +441,6 @@ export class AuthService extends BaseService {
                     id: user.id,
                     email: user.email,
                     displayName: user.displayName || undefined,
-                    isAnonymous: false
                 },
                 accessToken: sessionAccessToken,
                 refreshToken: sessionRefreshToken,
@@ -751,7 +750,6 @@ export class AuthService extends BaseService {
                 id: user.id,
                 email: user.email,
                 displayName: user.displayName || undefined,
-                isAnonymous: false
             };
         } catch (error) {
             logger.error('Error getting user for auth', error);

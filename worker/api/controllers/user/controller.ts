@@ -1,6 +1,6 @@
 
-import { BaseController } from '../BaseController';
-import { ApiResponse, ControllerResponse } from '../BaseController.types';
+import { BaseController } from '../baseController';
+import { ApiResponse, ControllerResponse } from '../types';
 import { RouteContext } from '../../types/route-context';
 import { UserService } from '../../../database/services/UserService';
 import type { AppSortOption, SortOrder, TimePeriod, Visibility } from '../../../database/types';

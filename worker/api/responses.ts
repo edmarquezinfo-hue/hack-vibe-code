@@ -27,8 +27,7 @@ export function successResponse<T = unknown>(data: T, message?: string): Respons
     return new Response(JSON.stringify(responseBody), {
         status: 200,
         headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
+            'Content-Type': 'application/json'
         }
     });
 }
@@ -47,8 +46,7 @@ export function createdResponse<T = unknown>(data: T, message?: string): Respons
     return new Response(JSON.stringify(responseBody), {
         status: 201,
         headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
+            'Content-Type': 'application/json'
         }
     });
 }
@@ -69,8 +67,7 @@ export function errorResponse(error: string | Error, statusCode = 500, message?:
     return new Response(JSON.stringify(responseBody), {
         status: statusCode,
         headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
+            'Content-Type': 'application/json'
         }
     });
 }

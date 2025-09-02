@@ -1,9 +1,8 @@
 import { createLogger } from './logger';
-import { setupRoutes } from './api/routes';
-import { errorResponse } from './api/responses';
 import { SmartCodeGeneratorAgent } from "./agents/core/smartGeneratorAgent";
 import { proxyToSandbox } from '@cloudflare/sandbox';
 import { isDispatcherAvailable } from './utils/dispatcherUtils';
+import { createApp } from './app';
 
 export class CodeGeneratorAgent extends SmartCodeGeneratorAgent {}
 export { UserAppSandboxService, DeployerService } from './services/sandbox/sandboxSdkClient';
@@ -59,35 +58,15 @@ export default {
 
         logger.info(`Handling the request ${url}`);
 
-        // allow CORS preflight requests
-        if (request.method === 'OPTIONS') {
-            return new Response('', {
-                headers: {
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-                },
-            });
+        // Ignore favicon requests
+        if (url.pathname.startsWith('/favicon')) {
+            return new Response('', { status: 404 });
         }
 
-        try {
-            // Ignore favicon requests
-            if (url.pathname.startsWith('/favicon')) {
-                return new Response('', { status: 404 });
-            }
-
-            logger.info(`${request.method} ${url.pathname}`);
-
-            // Setup router and handle the request
-            const router = setupRoutes(env);
-            return await router.handle(request, env, ctx);
-        } catch (error) {
-            logger.error('Unhandled error in fetch handler', error);
-            return errorResponse(
-                error instanceof Error ? error : 'Unknown error',
-                500,
-                'An unexpected error occurred'
-            );
-        }
+        // Create hono app
+        const app = createApp(env);
+        
+        const response = await app.fetch(request, env, ctx);
+        return response;
     },
 } satisfies ExportedHandler<Env>;

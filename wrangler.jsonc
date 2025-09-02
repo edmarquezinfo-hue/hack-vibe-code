@@ -32,24 +32,6 @@
             "type": "ratelimit",
             "namespace_id": "2102",
             "simple": { "limit": 20, "period": 60 }
-        },
-        {
-            "name": "APP_CREATION_RATE_LIMITER",
-            "type": "ratelimit",
-            "namespace_id": "2103",
-            "simple": { "limit": 10, "period": 3600 }
-        },
-        {
-            "name": "LLM_CALLS_RATE_LIMITER",
-            "type": "ratelimit",
-            "namespace_id": "2104",
-            "simple": { "limit": 1000, "period": 3600 }
-        },
-        {
-            "name": "WEBSOCKET_RATE_LIMITER",
-            "type": "ratelimit",
-            "namespace_id": "2105",
-            "simple": { "limit": 50, "period": 3600 }
         }
     ]
   },
@@ -153,10 +135,6 @@
         {
             "pattern": "build.cloudflare.dev",
             "custom_domain": true
-        },
-        {
-            "pattern": "*.build.cloudflare.dev/*",
-            "custom_domain": false
         }
     ],
 	"vars": {

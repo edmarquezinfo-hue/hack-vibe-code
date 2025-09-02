@@ -136,6 +136,7 @@ interface PublicAppsParams extends PaginationParams {
 class ApiClient {
 	private baseUrl: string;
 	private defaultHeaders: Record<string, string>;
+	private csrfToken: string | null = null;
 
 	constructor(config: ApiClientConfig = {}) {
 		this.baseUrl = config.baseUrl || '';
@@ -158,7 +159,43 @@ class ApiClient {
 			headers['X-Session-Token'] = sessionToken;
 		}
 
+		// Add CSRF token for state-changing requests
+		if (this.csrfToken) {
+			headers['X-CSRF-Token'] = this.csrfToken;
+		}
+
 		return headers;
+	}
+
+	/**
+	 * Fetch CSRF token from server
+	 */
+	private async fetchCsrfToken(): Promise<void> {
+		try {
+			const response = await fetch(`${this.baseUrl}/api/auth/csrf-token`, {
+				method: 'GET',
+				credentials: 'include',
+			});
+			
+			if (response.ok) {
+				const data = await response.json();
+				this.csrfToken = data.token;
+			}
+		} catch (error) {
+			console.warn('Failed to fetch CSRF token:', error);
+		}
+	}
+
+	/**
+	 * Ensure CSRF token exists for state-changing requests
+	 */
+	private async ensureCsrfToken(method: string): Promise<void> {
+        console.log('Ensuring CSRF token...');
+		// Only need CSRF for state-changing methods
+		if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase()) && !this.csrfToken) {
+            console.log('Fetching CSRF token...');
+			await this.fetchCsrfToken();
+		}
 	}
 
 	/**
@@ -212,6 +249,9 @@ class ApiClient {
 	): Promise<ApiResponse<T>> {
 		// Ensure session token exists for anonymous users
 		this.ensureSessionToken();
+		
+		// Ensure CSRF token for state-changing requests
+		await this.ensureCsrfToken(options.method || 'GET');
 
 		const url = `${this.baseUrl}${endpoint}`;
 		const config: RequestInit = {

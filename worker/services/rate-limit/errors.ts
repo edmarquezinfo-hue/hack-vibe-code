@@ -1,10 +1,23 @@
+import { RateLimitType } from "./config";
+
+export class RateLimitExceededError extends Error {
+    constructor(
+        message: string,
+        public limitType: RateLimitType,
+        public limit?: number,
+        public period?: number
+    ) {
+        super(message);
+        this.name = 'RateLimitExceededError';
+    }
+}
+
 export interface RateLimitError {
-	type: 'RATE_LIMIT_EXCEEDED';
 	message: string;
-	limitType: 'app_creation' | 'llm_calls' | 'websocket_upgrade';
+	limitType: RateLimitType;
 	retryAfter?: number; // seconds
-	limit: number;
-	period: number; // seconds
+	limit?: number;
+	period?: number; // seconds
 	suggestions?: string[];
 }
 
@@ -17,27 +30,22 @@ export interface RateLimitErrorResponse {
 export function createRateLimitErrorResponse(
 	limitType: RateLimitError['limitType'],
 	message: string,
-	limit: number,
-	period: number,
+	limit?: number,
+	period?: number,
 	retryAfter?: number
 ): RateLimitErrorResponse {
 	const suggestions: string[] = [];
 	
 	if (limitType === 'llm_calls') {
-		suggestions.push('Consider adding your own API keys in Settings to remove this limit');
-		suggestions.push('Use BYOK (Bring Your Own Keys) for unlimited access');
-	}
-	
-	if (limitType === 'app_creation') {
+		suggestions.push('You have reached maximum allowed LLM calls in an hour. Please wait and try again later.');
+	} else {
 		suggestions.push('Try again in an hour when the limit resets');
-		suggestions.push('Consider upgrading your plan for higher limits');
 	}
 
 	return {
 		error: message,
 		type: 'RATE_LIMIT_EXCEEDED',
 		details: {
-			type: 'RATE_LIMIT_EXCEEDED',
 			message,
 			limitType,
 			retryAfter,

@@ -6,7 +6,7 @@ import { successResponse, errorResponse } from '../responses';
 import { ControllerErrorHandler, ErrorHandler } from '../../utils/ErrorHandling';
 import { createLogger } from '../../logger';
 import { AuthUser } from '../../types/auth-types';
-import type { ControllerResponse, ApiResponse } from './BaseController.types';
+import type { ControllerResponse, ApiResponse } from './types';
 import { RouteContext } from '../types/route-context';
 import { createDatabaseService, DatabaseService } from '../../database/database';
 

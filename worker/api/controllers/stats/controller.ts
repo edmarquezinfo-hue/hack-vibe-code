@@ -1,7 +1,7 @@
 
-import { BaseController } from '../BaseController';
+import { BaseController } from '../baseController';
 import { RouteContext } from '../../types/route-context';
-import { ApiResponse, ControllerResponse } from '../BaseController.types';
+import { ApiResponse, ControllerResponse } from '../types';
 import { UserStatsData, UserActivityData } from './types';
 import { AnalyticsService } from '../../../database/services/AnalyticsService';
 

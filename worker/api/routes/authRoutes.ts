@@ -1,61 +1,58 @@
 /**
  * Authentication Routes
  */
-
-import { Router, AuthConfig } from '../router';
 import { AuthController } from '../controllers/auth/controller';
-import { ContextualRequestHandler, RouteContext } from '../types/route-context';
-import { enforceAuthRateLimit, RateLimitContext } from '../../middleware/security/rateLimiter';
 import { authMiddleware } from '../../middleware/auth/auth';
+import { RateLimitService } from '../../services/rate-limit/rateLimits';
+import { Hono } from 'hono';
+import { AppEnv } from '../../types/appenv';
+import { adaptController } from '../honoAdapter';
+import { AuthConfig, routeAuthMiddleware } from '../../middleware/auth/routeAuth';
 
 /**
  * Setup authentication routes
  */
-export function setupAuthRoutes(_env: Env, router: Router): Router {
-    // Create contextual handler - all methods now use the same signature
-    const createHandler = (
-        method: keyof AuthController,
-        applyAuthRateLimit: boolean = false
-    ): ContextualRequestHandler => {
-        return async (request: Request, env: Env, ctx: ExecutionContext, routeContext: RouteContext) => {
-            if (applyAuthRateLimit) {
-                // Extract user for rate limiting context
-                const user = await authMiddleware(request, env);
-                const rateLimitContext: RateLimitContext = { request, user };
-                await enforceAuthRateLimit(rateLimitContext, env);
-            }
-            const url = new URL(request.url);
-            const controller = new AuthController(env, url.origin);
-            return controller[method](request, env, ctx, routeContext);
-        };
-    };
+export function setupAuthRoutes(env: Env, app: Hono<AppEnv>): void {
+    const authController = new AuthController(env);
+    
+    // Create a sub-router for auth routes
+    const authRouter = new Hono<AppEnv>();
+    
+    // Apply middleware to all auth routes
+    authRouter.use('*', async (c, next) => {
+        const user = await authMiddleware(c.req.raw, env);
+        await RateLimitService.enforceAuthRateLimit(env, c.get('config').security.rateLimit, user, c.req.raw);
+        await next();
+    });
     
     // Public authentication routes
-    router.get('/api/auth/providers', createHandler('getAuthProviders'));
-    router.post('/api/auth/register', createHandler('register', true));
-    router.post('/api/auth/login', createHandler('login', true));
-    router.post('/api/auth/verify-email', createHandler('verifyEmail', true));
-    router.post('/api/auth/resend-verification', createHandler('resendVerificationOtp', true));
-    router.post('/api/auth/refresh', createHandler('refreshToken', true));
-    router.get('/api/auth/check', createHandler('checkAuth'));
+    authRouter.get('/csrf-token', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.getCsrfToken));
+    authRouter.get('/providers', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.getAuthProviders));
+    authRouter.post('/register', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.register));
+    authRouter.post('/login', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.login));
+    authRouter.post('/verify-email', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.verifyEmail));
+    authRouter.post('/resend-verification', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.resendVerificationOtp));
+    authRouter.post('/refresh', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.refreshToken));
+    authRouter.get('/check', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.checkAuth));
     
     // Protected routes (require authentication) - must come before dynamic OAuth routes
-    router.get('/api/auth/profile', createHandler('getProfile'), AuthConfig.authenticated);
-    router.put('/api/auth/profile', createHandler('updateProfile'), AuthConfig.authenticated);
-    router.post('/api/auth/logout', createHandler('logout'));
+    authRouter.get('/profile', routeAuthMiddleware(AuthConfig.authenticated), adaptController(authController, authController.getProfile));
+    authRouter.put('/profile', routeAuthMiddleware(AuthConfig.authenticated), adaptController(authController, authController.updateProfile));
+    authRouter.post('/logout', routeAuthMiddleware(AuthConfig.authenticated), adaptController(authController, authController.logout));
     
     // Session management routes
-    router.get('/api/auth/sessions', createHandler('getActiveSessions'), AuthConfig.authenticated);
-    router.delete('/api/auth/sessions/:sessionId', createHandler('revokeSession'), AuthConfig.authenticated);
+    authRouter.get('/sessions', routeAuthMiddleware(AuthConfig.authenticated), adaptController(authController, authController.getActiveSessions));
+    authRouter.delete('/sessions/:sessionId', routeAuthMiddleware(AuthConfig.authenticated), adaptController(authController, authController.revokeSession));
     
-    // API Keys management routes
-    router.get('/api/auth/api-keys', createHandler('getApiKeys'), AuthConfig.authenticated);
-    router.post('/api/auth/api-keys', createHandler('createApiKey'), AuthConfig.authenticated);
-    router.delete('/api/auth/api-keys/:keyId', createHandler('revokeApiKey'), AuthConfig.authenticated);
+    // // API Keys management routes
+    // authRouter.get('/api-keys', createHandler('getApiKeys'), AuthConfig.authenticated);
+    // authRouter.post('/api-keys', createHandler('createApiKey'), AuthConfig.authenticated);
+    // authRouter.delete('/api-keys/:keyId', createHandler('revokeApiKey'), AuthConfig.authenticated);
     
     // OAuth routes (under /oauth path to avoid conflicts)
-    router.get('/api/auth/oauth/:provider', createHandler('initiateOAuth'));
-    router.get('/api/auth/callback/:provider', createHandler('handleOAuthCallback'));
+    authRouter.get('/oauth/:provider', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.initiateOAuth));
+    authRouter.get('/callback/:provider', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.handleOAuthCallback));
     
-    return router;
+    // Mount the auth router under /api/auth
+    app.route('/api/auth', authRouter);
 }

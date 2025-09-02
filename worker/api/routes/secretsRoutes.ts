@@ -3,20 +3,30 @@
  * API routes for user secrets management
  */
 
-import { Router, AuthConfig } from '../router';
 import { SecretsController } from '../controllers/secrets/controller';
+import { Hono } from 'hono';
+import { AppEnv } from '../../types/appenv';
+import { adaptController } from '../honoAdapter';
+import { AuthConfig, routeAuthMiddleware } from '../../middleware/auth/routeAuth';
 
 /**
  * Setup secrets-related routes
  */
-export function setupSecretsRoutes(env: Env, router: Router): void {
+export function setupSecretsRoutes(env: Env, app: Hono<AppEnv>): void {
     const secretsController = new SecretsController(env);
+    
+    // Create a sub-router for secrets routes
+    const secretsRouter = new Hono<AppEnv>();
+    
     // Secrets management routes
-    router.get('/api/secrets', secretsController.getAllSecrets.bind(secretsController), AuthConfig.authenticated);
-    router.post('/api/secrets', secretsController.storeSecret.bind(secretsController), AuthConfig.authenticated);
-    router.patch('/api/secrets/:secretId/toggle', secretsController.toggleSecret.bind(secretsController), AuthConfig.authenticated);
-    router.delete('/api/secrets/:secretId', secretsController.deleteSecret.bind(secretsController), AuthConfig.authenticated);
+    secretsRouter.get('/', routeAuthMiddleware(AuthConfig.authenticated), adaptController(secretsController, secretsController.getAllSecrets));
+    secretsRouter.post('/', routeAuthMiddleware(AuthConfig.authenticated), adaptController(secretsController, secretsController.storeSecret));
+    secretsRouter.patch('/:secretId/toggle', routeAuthMiddleware(AuthConfig.authenticated), adaptController(secretsController, secretsController.toggleSecret));
+    secretsRouter.delete('/:secretId', routeAuthMiddleware(AuthConfig.authenticated), adaptController(secretsController, secretsController.deleteSecret));
     
     // Templates route
-    router.get('/api/secrets/templates', secretsController.getTemplates.bind(secretsController), AuthConfig.authenticated);
+    secretsRouter.get('/templates', routeAuthMiddleware(AuthConfig.authenticated), adaptController(secretsController, secretsController.getTemplates));
+    
+    // Mount the router under /api/secrets
+    app.route('/api/secrets', secretsRouter);
 }
