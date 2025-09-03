@@ -3,7 +3,7 @@
  * Handles repository creation, file management, and commit synchronization
  */
 
-import { Octokit } from '@octokit/rest';
+import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
 import { createLogger } from '../../logger';
 import {
     GitHubRepository,
@@ -35,13 +35,8 @@ interface RemoteCommit {
     date: string;
 }
 
-interface GitHubTree {
-    path: string;
-    mode: '100644' | '100755' | '040000' | '160000' | '120000';
-    type: 'blob' | 'tree' | 'commit';
-    sha?: string;
-    content?: string;
-}
+// Use Octokit's built-in tree entry type
+type GitHubTree = NonNullable<RestEndpointMethodTypes['git']['createTree']['parameters']['tree']>[number];
 
 
 export class GitHubService {

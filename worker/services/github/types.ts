@@ -1,57 +1,23 @@
 /**
- * Consolidated GitHub Types
- * All GitHub-related TypeScript interfaces and types
+ * GitHub service types and utilities
+ * Extends Octokit types where possible to avoid duplication
  */
 
-export interface GitHubRepository {
-    id: number;
-    name: string;
-    full_name: string;
-    html_url: string;
-    clone_url: string;
-    ssh_url: string;
-    git_url: string;
-    description?: string;
-    private: boolean;
-    owner: {
-        login: string;
-        id: number;
-        type: 'User' | 'Organization';
-    };
-    default_branch: string;
-    created_at: string;
-    updated_at: string;
-}
+import { RestEndpointMethodTypes } from '@octokit/rest';
 
-export interface GitHubUser {
-    id: number;
-    login: string;
-    name?: string;
-    email?: string;
-    avatar_url?: string;
-    type: 'User' | 'Organization';
-}
+// Use Octokit's built-in repository type
+export type GitHubRepository = RestEndpointMethodTypes['repos']['get']['response']['data'];
 
-export interface GitHubInstallation {
-    id: number;
-    account: {
-        login: string;
-        id: number;
-        type: 'User' | 'Organization';
-    };
-    repository_selection: 'all' | 'selected';
-    permissions: Record<string, string>;
-    created_at: string;
-    updated_at: string;
-}
+// Use Octokit's built-in user type
+export type GitHubUser = RestEndpointMethodTypes['users']['getByUsername']['response']['data'];
 
-export interface GitHubAppToken {
-    token: string;
-    expires_at: string;
-    permissions: Record<string, string>;
-    repository_selection?: 'all' | 'selected';
-}
+// Use Octokit's built-in installation type
+export type GitHubInstallation = RestEndpointMethodTypes['apps']['getInstallation']['response']['data'];
 
+// Use Octokit's built-in app token type  
+export type GitHubAppToken = RestEndpointMethodTypes['apps']['createInstallationAccessToken']['response']['data'];
+
+// OAuth token response (not covered by Octokit types)
 export interface GitHubUserAccessToken {
     access_token: string;
     token_type: string;
@@ -60,6 +26,7 @@ export interface GitHubUserAccessToken {
     expires_in?: number;
 }
 
+// Service-specific options interface
 export interface CreateRepositoryOptions {
     name: string;
     description?: string;
@@ -68,6 +35,7 @@ export interface CreateRepositoryOptions {
     token: string;
 }
 
+// Service result interfaces
 export interface CreateRepositoryResult {
     success: boolean;
     repository?: GitHubRepository;
