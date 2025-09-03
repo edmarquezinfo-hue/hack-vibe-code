@@ -1,4 +1,4 @@
-import { OAuthUserInfo } from './base';
+import type { OAuthUserInfo } from '../../types/auth-types';
 import { createLogger } from '../../logger';
 import { createGitHubHeaders } from '../../utils/githubUtils';
 import { GitHubOAuthProvider } from './github';
