@@ -29,7 +29,7 @@ export interface ConfigurableSecuritySettings {
     rateLimit: RateLimitSettings;
 }
 
-export function getConfiguratbleSecurityDefaults(): ConfigurableSecuritySettings {
+export function getConfigurableSecurityDefaults(): ConfigurableSecuritySettings {
     
     return {
         rateLimit: DEFAULT_RATE_LIMIT_SETTINGS,
