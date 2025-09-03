@@ -1749,7 +1749,6 @@ export class SandboxSdkClient extends BaseSandboxService {
             if (!wranglerConfigContent) {
                 // Fallback to filesystem if KV lookup fails
                 // This should never happen unless KV itself has some issues
-                // Also, this is pointless because we anyways don't execute anything from user's wrangler conf.
                 this.logger.warn('Wrangler config not found in KV, falling back to filesystem', { instanceId });
                 const wranglerConfigFile = await sandbox.readFile(`${instanceId}/wrangler.jsonc`);
                 if (!wranglerConfigFile.success) {
