@@ -89,8 +89,8 @@ export function getCSRFConfig(env: Env): CSRFConfig {
     
     return {
         origin: (origin: string) => {
-            // Allow same-origin always
-            if (!origin) return true;
+            // Reject missing origin headers for CSRF protection
+            if (!origin) return false;
             
             // Check against allowed origins
             return allowedOrigins.includes(origin);
