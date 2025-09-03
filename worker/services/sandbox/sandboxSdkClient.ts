@@ -1786,8 +1786,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             const config = parseWranglerConfig(wranglerConfigContent);
             
             // Override script name for dispatch deployment
-            const scriptName = `${config.name}-dispatch`;
-            this.logger.info('Worker configuration', { scriptName });
+            this.logger.info('Worker configuration', { scriptName: config.name });
             this.logger.info('Worker compatibility', { compatibilityDate: config.compatibility_date });
             
             // Step 3: Read worker script from dist
@@ -1818,16 +1817,10 @@ export class SandboxSdkClient extends BaseSandboxService {
                 this.logger.info('No assets found, deploying worker only');
             }
             
-            // Step 5: Override config for dispatch deployment
-            const dispatchConfig = {
-                ...config,
-                name: scriptName
-            };
-            
-            // Step 6: Build deployment config using pure function
+            // Step 5: Build deployment config using pure function
             const deployConfig = {
                 ...buildDeploymentConfig(
-                    dispatchConfig,
+                    config,
                     workerContent,
                     accountId,
                     apiToken,
@@ -1837,7 +1830,7 @@ export class SandboxSdkClient extends BaseSandboxService {
                 dispatchNamespace
             };
             
-            // Step 7: Deploy using pure function
+            // Step 6: Deploy using pure function
             this.logger.info('Deploying to Cloudflare');
             await deployToDispatch(
                 deployConfig,
@@ -1847,7 +1840,7 @@ export class SandboxSdkClient extends BaseSandboxService {
                 config.assets
             );
             
-            // Step 8: Determine deployment URL
+            // Step 7: Determine deployment URL
             const deployedUrl = `${this.getProtocolForHost()}://${projectName}.${this.hostname}`;
             const deploymentId = `deploy-${instanceId}-${Date.now()}`;
             
