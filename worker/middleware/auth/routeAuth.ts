@@ -7,6 +7,8 @@ import { AuthUser } from '../../types/auth-types';
 import { createLogger } from '../../logger';
 import { createDatabaseService } from '../../database/database';
 import { AppService } from '../../database';
+import { authMiddleware } from './auth';
+import { RateLimitService } from '../../services/rate-limit/rateLimits';
 
 const logger = createLogger('RouteAuth');
 
@@ -126,7 +128,16 @@ export async function routeAuthChecks(
  */
 export function routeAuthMiddleware(requirement: AuthRequirement) {
     return createMiddleware(async (c, next) => {
-        const user = c.get('user');
+        let user: AuthUser | null = c.get('user') || null;
+        
+        // Only perform auth if we need it or don't have user yet
+        if (!user && (requirement.level === 'authenticated' || requirement.level === 'owner-only')) {
+            user = await authMiddleware(c.req.raw, c.env);
+            c.set('user', user);
+
+            await RateLimitService.enforceAuthRateLimit(c.env, c.get('config').security.rateLimit, user, c.req.raw);
+        }
+        
         const params = c.req.param();
         const env = c.env;
         const result = await routeAuthChecks(user, env, requirement, params);

@@ -130,7 +130,7 @@ async function testRateLimit() {
 }
 
 async function testCSRFToken() {
-    console.log(chalk.blue('\n🔑 Testing CSRF Protection...'));
+    console.log(chalk.blue('\n🔑 Testing Enhanced CSRF Protection...'));
     
     const response = await fetch(`${BASE_URL}/api/auth/providers`, {
         headers: {
@@ -141,16 +141,76 @@ async function testCSRFToken() {
     const data = await response.json();
     const hasCsrfToken = 'csrfToken' in data;
     const setCookie = response.headers.get('Set-Cookie');
+    const hasExpiration = 'csrfExpiresIn' in data;
     
     tests.push({
-        name: 'CSRF Token Generation',
-        passed: hasCsrfToken && !!setCookie?.includes('csrf-token'),
-        message: hasCsrfToken ? 'CSRF token generated' : 'CSRF token missing'
+        name: 'Enhanced CSRF Token Generation',
+        passed: hasCsrfToken && !!setCookie?.includes('csrf-token') && hasExpiration,
+        message: hasCsrfToken ? 
+            `CSRF token generated with ${data.csrfExpiresIn || 'unknown'} second TTL` : 
+            'CSRF token missing'
     });
     
     if (hasCsrfToken) {
         console.log(chalk.gray('CSRF Token:'), data.csrfToken?.substring(0, 20) + '...');
+        console.log(chalk.gray('Token TTL:'), data.csrfExpiresIn, 'seconds');
     }
+    
+    // Test CSRF validation
+    await testCSRFValidation(data.csrfToken);
+}
+
+async function testCSRFValidation(csrfToken?: string) {
+    console.log(chalk.blue('\n🔒 Testing CSRF Validation...'));
+    
+    if (!csrfToken) {
+        tests.push({
+            name: 'CSRF Validation',
+            passed: false,
+            message: 'No CSRF token available for validation test'
+        });
+        return;
+    }
+    
+    // Test request without CSRF header (should fail)
+    const withoutHeader = await fetch(`${BASE_URL}/api/apps`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Origin': 'http://localhost:3000'
+        },
+        body: JSON.stringify({ title: 'Test App' })
+    });
+    
+    // Test request with CSRF header (should succeed or fail with auth error, not CSRF error)
+    const withHeader = await fetch(`${BASE_URL}/api/apps`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Origin': 'http://localhost:3000',
+            'X-CSRF-Token': csrfToken
+        },
+        body: JSON.stringify({ title: 'Test App' })
+    });
+    
+    const withoutHeaderData = await withoutHeader.json();
+    const withHeaderData = await withHeader.json();
+    
+    const csrfValidationWorking = 
+        withoutHeader.status === 403 && 
+        withoutHeaderData.code === 'CSRF_VIOLATION' &&
+        (withHeader.status !== 403 || !withHeaderData.code?.includes('CSRF'));
+    
+    tests.push({
+        name: 'CSRF Validation',
+        passed: csrfValidationWorking,
+        message: csrfValidationWorking ? 
+            'CSRF validation properly enforced' : 
+            'CSRF validation may not be working correctly'
+    });
+    
+    console.log(chalk.gray('Without CSRF header:'), withoutHeader.status, withoutHeaderData.error);
+    console.log(chalk.gray('With CSRF header:'), withHeader.status, withHeaderData.error);
 }
 
 async function runTests() {

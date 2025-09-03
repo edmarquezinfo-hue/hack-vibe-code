@@ -101,17 +101,12 @@ export class GitHubExporterController extends BaseController {
             });
 
             if (purpose === 'repository_export' && exportData) {
-                const githubService = new GitHubService();
-                
-                const createResult = await githubService.createUserRepository(
-                    {
-                        name: exportData.repositoryName,
-                        description: exportData.description,
-                        private: exportData.isPrivate || false,
-                        auto_init: false
-                    },
-                    tokenResult.accessToken
-                );
+                const createResult = await GitHubService.createUserRepository({
+                    name: exportData.repositoryName,
+                    description: exportData.description,
+                    private: exportData.isPrivate || false,
+                    token: tokenResult.accessToken
+                });
 
                 if (!createResult.success || !createResult.repository) {
                     this.logger.error('Failed to create repository during export', {
@@ -141,9 +136,9 @@ export class GitHubExporterController extends BaseController {
                             repositoryHtmlUrl: createResult.repository.html_url,
                             isPrivate: createResult.repository.private,
                             token: tokenResult.accessToken,
-                            email: 'noreply@v1dev.com',
-                            username: 'v1dev-bot',
-                            commitMessage: `Initial commit - Generated app\n\n🤖 Generated with v1dev\nRepository: ${exportData.repositoryName}`
+                            email: 'noreply@vibesdk.com',
+                            username: 'vibesdk-bot',
+                            commitMessage: `Initial commit - Generated app\n\n🤖 Generated with vibesdk\nRepository: ${exportData.repositoryName}`
                         };
 
                         this.logger.info('Pushing files to repository via agent', {

@@ -16,7 +16,13 @@ export class AnalyticsController extends BaseController {
     
     constructor(env: Env) {
         super(env);
+        const analyticsStart = performance.now();
         this.analyticsService = new AiGatewayAnalyticsService(env);
+        const analyticsEnd = performance.now();
+        const analyticsTime = analyticsEnd - analyticsStart;
+        if (analyticsTime > 10) {
+            console.log(`AnalyticsController - AiGatewayAnalyticsService creation took ${analyticsTime.toFixed(2)}ms`);
+        }
     }
 	/**
 	 * Get analytics data for a specific user
