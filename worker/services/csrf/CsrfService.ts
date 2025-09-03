@@ -153,7 +153,7 @@ export class CsrfService {
     static async enforce(
         request: Request, 
         response?: Response
-    ): Promise<Response | null> {
+    ): Promise<void> {
         // Generate and set token for GET requests (to establish cookie)
         if (request.method === 'GET' && response) {
             const existingToken = this.getTokenFromCookie(request);
@@ -163,7 +163,7 @@ export class CsrfService {
                 this.setTokenCookie(response, newToken, maxAge);
                 logger.debug('New CSRF token generated for GET request');
             }
-            return null;
+            return;
         }
         
         // Validate token for state-changing requests
@@ -174,8 +174,6 @@ export class CsrfService {
                 403
             );
         }
-        
-        return null;
     }
     
     /**

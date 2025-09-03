@@ -138,7 +138,6 @@ export class CodingAgentController extends BaseController {
                 agentId: agentId,
                 userId: user.id,
                 enableRealtimeCodeFix: true, // For now disabled from the model configs itself
-                // llmRateLimits: context.config.security.rateLimit.llmCalls,
             }
                                 
             this.logger.info(`Initialized inference context for user ${user.id}`, {

@@ -31,8 +31,12 @@ export class KVCache {
     }
 
     async deleteByPrefix(prefix: string): Promise<void> {
-        const list = await this.kv.list({ prefix: `cache-${prefix}:` });
-        await Promise.all(list.keys.map(key => this.kv.delete(key.name)));
+        let cursor: string | undefined = undefined;
+        do {
+            const list = await this.kv.list({ prefix: `cache-${prefix}:`, cursor });
+            await Promise.all(list.keys.map(key => this.kv.delete(key.name)));
+            cursor = list.cursor;
+        } while (cursor);
     }
 
     async invalidate(patterns: string[]): Promise<void> {
