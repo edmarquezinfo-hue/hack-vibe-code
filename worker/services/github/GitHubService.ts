@@ -35,9 +35,7 @@ interface RemoteCommit {
     date: string;
 }
 
-// Use Octokit's built-in tree entry type
 type GitHubTree = NonNullable<RestEndpointMethodTypes['git']['createTree']['parameters']['tree']>[number];
-
 
 export class GitHubService {
     private static readonly logger = createLogger('GitHubService');

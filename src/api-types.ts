@@ -227,6 +227,11 @@ export interface AuthProvidersResponseData {
   requiresEmailAuth: boolean;
 }
 
+export interface CsrfTokenResponseData {
+  token: string;
+  headerName: string;
+}
+
 // Active Sessions Response - matches getUserSessions + isCurrent from controller
 export interface ActiveSessionsData {
   sessions: Array<{

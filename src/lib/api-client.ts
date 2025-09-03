@@ -52,6 +52,7 @@ import type {
 	RegisterResponseData,
 	ProfileResponseData,
 	AuthProvidersResponseData,
+	CsrfTokenResponseData,
 	OAuthProvider,
 } from '@/api-types';
 import { AgentPreviewResponse } from 'worker/api/controllers/agent/types';
@@ -170,7 +171,7 @@ class ApiClient {
 	/**
 	 * Fetch CSRF token from server
 	 */
-	private async fetchCsrfToken(): Promise<void> {
+	private async fetchCsrfToken(): Promise<boolean> {
 		try {
 			const response = await fetch(`${this.baseUrl}/api/auth/csrf-token`, {
 				method: 'GET',
@@ -178,24 +179,31 @@ class ApiClient {
 			});
 			
 			if (response.ok) {
-				const data = await response.json();
-				this.csrfToken = data.token;
+				const data: ApiResponse<CsrfTokenResponseData> = await response.json();
+				this.csrfToken = data.data?.token;
+				return !!this.csrfToken;
 			}
+			return false;
 		} catch (error) {
 			console.warn('Failed to fetch CSRF token:', error);
+			return false;
 		}
 	}
+
 
 	/**
 	 * Ensure CSRF token exists for state-changing requests
 	 */
-	private async ensureCsrfToken(method: string): Promise<void> {
-        console.log('Ensuring CSRF token...');
-		// Only need CSRF for state-changing methods
-		if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase()) && !this.csrfToken) {
-            console.log('Fetching CSRF token...');
-			await this.fetchCsrfToken();
+	private async ensureCsrfToken(method: string): Promise<boolean> {
+		if (!['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase())) {
+			return true;
 		}
+		
+		if (!this.csrfToken) {
+			return await this.fetchCsrfToken();
+		}
+		
+		return true;
 	}
 
 	/**
@@ -240,18 +248,28 @@ class ApiClient {
 		return true;
 	}
 
-	/**
-	 * Make HTTP request with proper error handling and type safety
-	 */
 	private async request<T>(
 		endpoint: string,
 		options: RequestOptions = {},
 	): Promise<ApiResponse<T>> {
-		// Ensure session token exists for anonymous users
+		return this.requestWithCsrfRetry(endpoint, options, false);
+	}
+
+	private async requestWithCsrfRetry<T>(
+		endpoint: string,
+		options: RequestOptions = {},
+		isRetry: boolean = false,
+	): Promise<ApiResponse<T>> {
 		this.ensureSessionToken();
 		
-		// Ensure CSRF token for state-changing requests
-		await this.ensureCsrfToken(options.method || 'GET');
+		if (!await this.ensureCsrfToken(options.method || 'GET')) {
+			throw new ApiError(
+				500,
+				'Internal Error',
+				'Failed to obtain CSRF token',
+				endpoint,
+			);
+		}
 
 		const url = `${this.baseUrl}${endpoint}`;
 		const config: RequestInit = {
@@ -276,15 +294,20 @@ class ApiClient {
 			const data = await response.json();
 
 			if (!response.ok) {
-				// Intercept 401 responses and trigger auth modal (but not for auth checking endpoints)
+				// Handle CSRF failures with retry
+				if (response.status === 403 && 
+					(data.error?.includes('CSRF') || data.error?.includes('csrf')) && 
+					!isRetry) {
+					this.csrfToken = null;
+					return this.requestWithCsrfRetry(endpoint, options, true);
+				}
+
 				if (
 					response.status === 401 &&
 					globalAuthModalTrigger &&
 					this.shouldTriggerAuthModal(endpoint)
 				) {
-					// Determine context based on endpoint
-					const authContext =
-						this.getAuthContextForEndpoint(endpoint);
+					const authContext = this.getAuthContextForEndpoint(endpoint);
 					globalAuthModalTrigger(authContext);
 				}
 
@@ -462,10 +485,6 @@ class ApiClient {
 		return this.request<UserAppsData>(endpoint);
 	}
 
-	/**
-	 * Create new agent session for code generation
-	 * Returns a wrapper with success/error info and the streaming response
-	 */
 	async createAgentSession(data: {
 		query: string;
 		agentMode?: 'deterministic' | 'smart';
@@ -473,8 +492,28 @@ class ApiClient {
 		frameworks?: string[];
 		selectedTemplate?: string;
 	}): Promise<AgentStreamingResponse> {
-		// Ensure session token exists for anonymous users
+		return this.createAgentSessionWithRetry(data, false);
+	}
+
+	private async createAgentSessionWithRetry(
+		data: {
+			query: string;
+			agentMode?: 'deterministic' | 'smart';
+			language?: string;
+			frameworks?: string[];
+			selectedTemplate?: string;
+		},
+		isRetry: boolean = false,
+	): Promise<AgentStreamingResponse> {
 		this.ensureSessionToken();
+
+		if (!await this.ensureCsrfToken('POST')) {
+			return {
+				success: false,
+				error: 'Failed to obtain CSRF token',
+				statusCode: 500,
+			};
+		}
 
 		const url = `${this.baseUrl}/api/agent`;
 		const config: RequestInit = {
@@ -491,12 +530,18 @@ class ApiClient {
 			const response = await fetch(url, config);
 
 			if (!response.ok) {
-				// Try to get error message from response
 				let errorMessage = 'Request failed';
 				try {
 					const errorData = await response.json();
-					errorMessage =
-						errorData.error || errorData.message || errorMessage;
+					errorMessage = errorData.error || errorData.message || errorMessage;
+					
+					// Handle CSRF failures with retry
+					if (response.status === 403 && 
+						errorMessage.toLowerCase().includes('csrf') && 
+						!isRetry) {
+						this.csrfToken = null;
+						return this.createAgentSessionWithRetry(data, true);
+					}
 				} catch {
 					errorMessage = response.statusText || errorMessage;
 				}
@@ -508,7 +553,6 @@ class ApiClient {
 				};
 			}
 
-			// Return the streaming response wrapped in success indicator
 			return {
 				success: true,
 				stream: response,
@@ -1032,6 +1076,13 @@ class ApiClient {
 				body: { email },
 			},
 		);
+	}
+
+	/**
+	 * Get CSRF token
+	 */
+	async getCsrfToken(): Promise<ApiResponse<CsrfTokenResponseData>> {
+		return this.request<CsrfTokenResponseData>('/api/auth/csrf-token');
 	}
 
 	/**

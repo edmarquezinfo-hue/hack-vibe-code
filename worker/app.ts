@@ -81,5 +81,10 @@ export function createApp(env: Env): Hono<AppEnv> {
 
     // Now setup all the routes
     setupRoutes(env, app);
+
+    // Add not found route to redirect to ASSETS
+    app.notFound((c) => {
+        return c.env.ASSETS.fetch(c.req.raw);
+    });
     return app;
 }

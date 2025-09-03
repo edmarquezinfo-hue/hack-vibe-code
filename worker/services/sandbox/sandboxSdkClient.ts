@@ -117,6 +117,7 @@ export class SandboxSdkClient extends BaseSandboxService {
         this.hostname = hostname;
         this.envVars = envVars;
         // Set environment variables FIRST, before any other operations
+        // SHOULD NEVER SEND SECRETS TO SANDBOX!
         if (this.envVars && Object.keys(this.envVars).length > 0) {
             this.logger.info('Configuring environment variables', { envVars: Object.keys(this.envVars) });
             this.sandbox.setEnvVars(this.envVars);
@@ -554,13 +555,6 @@ export class SandboxSdkClient extends BaseSandboxService {
                         if (pattern.test(logs)) {
                             const elapsedTime = Date.now() - startTime;
                             this.logger.info('Development server ready', { instanceId, elapsedTimeMs: elapsedTime, attempts: `${attempt}/${maxAttempts}` });
-                            
-                            // Log what pattern matched for debugging
-                            const matchedLines = logs.split('\n').filter(line => pattern.test(line));
-                            if (matchedLines.length > 0) {
-                                this.logger.info('Server readiness confirmed', { logLine: matchedLines[matchedLines.length - 1].trim() });
-                            }
-                            
                             return true;
                         }
                     }
@@ -2127,7 +2121,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             return result;
 
         } catch (error) {
-            this.logger.error('pushToGitHub failed', error, { instanceId, cloneUrl: request.cloneUrl });
+            this.logger.error('pushToGitHub failed', error, { instanceId, repositoryUrl: request.repositoryHtmlUrl });
             
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             
