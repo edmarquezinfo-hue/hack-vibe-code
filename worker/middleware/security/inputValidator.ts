@@ -121,21 +121,12 @@ async function parseFormData(request: Request): Promise<Record<string, string>> 
 /**
  * Parse multipart form data
  */
-async function parseMultipartFormData(request: Request): Promise<Record<string, string | { name: string; size: number; type: string; lastModified: number }>> {
+async function parseMultipartFormData(request: Request): Promise<Record<string, string | File>> {
     const formData = await request.formData();
-    const data: Record<string, string | { name: string; size: number; type: string; lastModified: number }> = {};
+    const data: Record<string, string | File> = {};
     
     formData.forEach((value, key) => {
-        if (value instanceof File) {
-            data[key] = {
-                name: value.name,
-                size: value.size,
-                type: value.type,
-                lastModified: value.lastModified
-            };
-        } else {
-            data[key] = value;
-        }
+        data[key] = value;
     });
     
     return data;
