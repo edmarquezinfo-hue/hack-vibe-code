@@ -4,7 +4,7 @@
  */
  {
 	// "$schema": "node_modules/wrangler/config-schema.json",
-	"name": "vibesdk-production",
+	"name": "orange-build",
 	"main": "worker/index.ts",
 	"compatibility_date": "2025-08-10",
 	"compatibility_flags": ["nodejs_compat"],
@@ -54,7 +54,7 @@
     "dispatch_namespaces": [
         {
             "binding": "DISPATCHER",
-            "namespace": "vibesdk-default-namespace",
+            "namespace": "orange-build-default-namespace",
             "experimental_remote": true
         }
     ],
@@ -76,8 +76,8 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "vibesdk-db",
-			"database_id": "6540e423-534c-4745-9bcd-e748c691a901",
+			"database_name": "orange-build-db",
+			"database_id": "59888192-687c-4282-9e1c-77e7b42c38cf",
 			"migrations_dir": "migrations",
 			"experimental_remote": true
 		}
@@ -95,13 +95,17 @@
             {
                 "class_name": "UserAppSandboxService",
                 "name": "Sandbox"
+            },
+            {
+                "class_name": "DeployerService",
+                "name": "DeployerServiceObject"
             }
 		]
 	},
     "r2_buckets": [
       {
         "binding": "TEMPLATES_BUCKET",
-        "bucket_name": "vibesdk-templates",
+        "bucket_name": "orange-build-templates",
         "experimental_remote": true
       }
     ],
@@ -119,24 +123,25 @@
 				"UserAppSandboxService"
 			],
 			"tag": "v1"
-		}
+		},
+        {
+            "new_sqlite_classes": [
+                "DeployerService"
+            ],
+            "tag": "v2"
+        }
 	],
 	"routes": [
         {
             "pattern": "build.cloudflare.dev",
             "custom_domain": true
-        },
-        {
-            "pattern": "*build.cloudflare.dev/*",
-            "custom_domain": false,
-            "zone_id": "f14aecaf571802180f79dcba9a8d34c3"
         }
     ],
 	"vars": {
         "TEMPLATES_REPOSITORY": "https://github.com/cloudflare/vibesdk-templates",
         "ALLOWED_EMAIL": "",
-        "DISPATCH_NAMESPACE": "vibesdk-default-namespace",
-        "CLOUDFLARE_AI_GATEWAY": "vibesdk-gateway",
+        "DISPATCH_NAMESPACE": "orange-build-default-namespace",
+        "CLOUDFLARE_AI_GATEWAY": "orange-build-gateway",
         "CUSTOM_DOMAIN": "",
         "MAX_SANDBOX_INSTANCES": "10",
         "SANDBOX_INSTANCE_TYPE": "standard"

@@ -71,6 +71,19 @@ export function getMimeType(filePath: string): string {
 }
 
 /**
+ * Parse JSONC (JSON with comments) content
+ */
+export function parseJsonc(content: string): any {
+	// Simple JSONC parser - removes comments and parses JSON
+	// For production use, you might want to use a more robust parser
+	const cleanedContent = content
+		.replace(/\/\*[\s\S]*?\*\//g, '') // Remove block comments
+		.replace(/\/\/.*$/gm, ''); // Remove line comments
+
+	return JSON.parse(cleanedContent);
+}
+
+/**
  * Validate required configuration fields
  */
 export function validateConfig(config: any): void {

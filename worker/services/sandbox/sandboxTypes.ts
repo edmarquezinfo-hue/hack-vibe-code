@@ -476,26 +476,14 @@ export type RunnerServiceWebhookPayload = z.infer<typeof RunnerServiceWebhookPay
  * GitHub integration types for exporting generated applications
  */
 
-// Common fields for GitHub operations
-interface GitHubUserInfo {
+export interface GitHubExportRequest {
     token: string;
-    email: string;
-    username: string;
-    isPrivate: boolean;
-}
-
-// Request for creating repository and pushing files (high-level export)
-export interface GitHubExportRequest extends GitHubUserInfo {
     repositoryName: string;
     description?: string;
-    cloneUrl?: string; // Optional - if provided, skips repository creation
-    repositoryHtmlUrl?: string; // Optional - if provided, skips repository creation
-}
-
-// Request for pushing to existing repository (low-level push)
-export interface GitHubPushRequest extends GitHubUserInfo {
-    cloneUrl: string;
-    repositoryHtmlUrl: string;
+    isPrivate: boolean;
+    email: string;
+    username: string;
+    commitMessage?: string; // Optional commit message for changes
 }
 
 export const GitHubExportResponseSchema = z.object({
@@ -506,6 +494,17 @@ export const GitHubExportResponseSchema = z.object({
     error: z.string().optional(),
 })
 export type GitHubExportResponse = z.infer<typeof GitHubExportResponseSchema>
+
+// New simplified git push operation (for separated concerns)
+export interface GitHubPushRequest {
+    cloneUrl: string;
+    token: string;
+    email: string;
+    username: string;
+    commitMessage?: string;
+    repositoryHtmlUrl: string;
+    isPrivate: boolean;
+}
 
 export const GitHubPushResponseSchema = z.object({
     success: z.boolean(),

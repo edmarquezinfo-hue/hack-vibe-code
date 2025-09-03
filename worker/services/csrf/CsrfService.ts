@@ -7,20 +7,12 @@ import { createLogger } from '../../logger';
 import { SecurityError, SecurityErrorType } from '../../types/security';
 import { generateSecureToken } from '../../utils/cryptoUtils';
 import { parseCookies, createSecureCookie } from '../../utils/authUtils';
-import { getCSRFConfig } from '../../config/security';
-import { env } from 'cloudflare:workers'
 
 const logger = createLogger('CsrfService');
 
-interface CSRFTokenData {
-    token: string;
-    timestamp: number;
-}
-
 export class CsrfService {
-    static readonly COOKIE_NAME = 'csrf-token';
-    static readonly HEADER_NAME = 'X-CSRF-Token';
-    static readonly defaults = getCSRFConfig(env)
+    private static readonly COOKIE_NAME = 'csrf-token';
+    private static readonly HEADER_NAME = 'X-CSRF-Token';
     
     /**
      * Generate a cryptographically secure CSRF token
@@ -30,59 +22,27 @@ export class CsrfService {
     }
     
     /**
-     * Set CSRF token cookie with timestamp
+     * Set CSRF token cookie
      */
-    static setTokenCookie(response: Response, token: string, maxAge: number = 7200): void {
-        const tokenData: CSRFTokenData = {
-            token,
-            timestamp: Date.now()
-        };
-        
+    static setTokenCookie(response: Response, token: string): void {
         const cookie = createSecureCookie({
             name: this.COOKIE_NAME,
-            value: JSON.stringify(tokenData),
+            value: token,
             sameSite: 'Strict',
-            maxAge
+            maxAge: 86400 // 24 hours
         });
         response.headers.append('Set-Cookie', cookie);
     }
     
     /**
-     * Extract CSRF token from cookies with validation
+     * Extract CSRF token from cookies
      */
     static getTokenFromCookie(request: Request): string | null {
         const cookieHeader = request.headers.get('Cookie');
         if (!cookieHeader) return null;
         
         const cookies = parseCookies(cookieHeader);
-        const cookieValue = cookies[this.COOKIE_NAME];
-        
-        if (!cookieValue) return null;
-        
-        try {
-            const tokenData: CSRFTokenData = JSON.parse(cookieValue);
-            
-            const now = Date.now();
-            const tokenAge = now - tokenData.timestamp;
-            
-            if (tokenAge > this.defaults.tokenTTL) {
-                logger.debug('CSRF token expired', {
-                    tokenAge,
-                    maxAge: this.defaults.tokenTTL
-                });
-                return null;
-            }
-            return tokenData.token;
-        } catch (error) {
-            // Handle legacy tokens (plain string) for backward compatibility
-            if (typeof cookieValue === 'string' && cookieValue.length > 0) {
-                logger.debug('Using legacy CSRF token format');
-                return cookieValue;
-            }
-            
-            logger.warn('Invalid CSRF token format', error);
-            return null;
-        }
+        return cookies[this.COOKIE_NAME] || null;
     }
     
     /**
@@ -117,51 +77,31 @@ export class CsrfService {
             logger.warn('CSRF validation failed: missing token', {
                 hasCookie: !!cookieToken,
                 hasHeader: !!headerToken,
-                method,
-                path: new URL(request.url).pathname,
-                userAgent: request.headers.get('User-Agent')?.substring(0, 100),
-                origin: request.headers.get('Origin'),
-                referer: request.headers.get('Referer')
+                path: new URL(request.url).pathname
             });
             return false;
         }
         
         if (cookieToken !== headerToken) {
             logger.warn('CSRF validation failed: token mismatch', {
-                method,
-                path: new URL(request.url).pathname,
-                userAgent: request.headers.get('User-Agent')?.substring(0, 100),
-                origin: request.headers.get('Origin'),
-                referer: request.headers.get('Referer'),
-                cookieTokenPrefix: cookieToken.substring(0, 8),
-                headerTokenPrefix: headerToken.substring(0, 8)
+                path: new URL(request.url).pathname
             });
             return false;
         }
-        
-        logger.debug('CSRF validation successful', {
-            method,
-            path: new URL(request.url).pathname
-        });
         
         return true;
     }
     
     /**
-     * Middleware to enforce CSRF protection with configuration
+     * Middleware to enforce CSRF protection
      */
-    static async enforce(
-        request: Request, 
-        response?: Response
-    ): Promise<Response | null> {
+    static async enforce(request: Request, response?: Response): Promise<Response | null> {
         // Generate and set token for GET requests (to establish cookie)
         if (request.method === 'GET' && response) {
             const existingToken = this.getTokenFromCookie(request);
             if (!existingToken) {
                 const newToken = this.generateToken();
-                const maxAge = Math.floor(this.defaults.tokenTTL / 1000);
-                this.setTokenCookie(response, newToken, maxAge);
-                logger.debug('New CSRF token generated for GET request');
+                this.setTokenCookie(response, newToken);
             }
             return null;
         }
@@ -179,52 +119,10 @@ export class CsrfService {
     }
     
     /**
-     * Get or generate CSRF token for a request with proper rotation
+     * Get or generate CSRF token for a request
      */
-    static getOrGenerateToken(
-        request: Request, 
-        forceNew: boolean = false
-    ): string {
-        if (forceNew) {
-            const newToken = this.generateToken();
-            logger.debug('Forced generation of new CSRF token');
-            return newToken;
-        }
-        
+    static getOrGenerateToken(request: Request): string {
         const existingToken = this.getTokenFromCookie(request);
-        if (existingToken) {
-            logger.debug('Using existing valid CSRF token');
-            return existingToken;
-        }
-        
-        const newToken = this.generateToken();
-        logger.debug('Generated new CSRF token due to missing/expired token');
-        return newToken;
-    }
-    
-    /**
-     * Rotate CSRF token (generate new token and invalidate old one)
-     */
-    static rotateToken(response: Response): string {
-        const newToken = this.generateToken();
-        const maxAge = Math.floor(this.defaults.tokenTTL / 1000);
-        
-        this.setTokenCookie(response, newToken, maxAge);
-        logger.info('CSRF token rotated');
-        
-        return newToken;
-    }
-    
-    /**
-     * Clear CSRF token cookie
-     */
-    static clearTokenCookie(response: Response): void {
-        const cookie = createSecureCookie({
-            name: this.COOKIE_NAME,
-            value: '',
-            sameSite: 'Strict',
-            maxAge: 0
-        });
-        response.headers.append('Set-Cookie', cookie);
+        return existingToken || this.generateToken();
     }
 }

@@ -1,9 +1,7 @@
-import { ConfigurableSecuritySettings, getConfiguratbleSecurityDefaults } from "./security";
+import { ConfigurableSecuritySettings, getDefaultSecuritySettings } from "./security";
 import { createLogger } from "../logger";
 
-const logger = createLogger('GlobalConfigurableSettings');
-
-let cachedConfig: GlobalConfigurableSettings | null = null;
+const logger = createLogger('GlobalConfig');
 
 /**
  *  deep merge utility for configuration objects
@@ -74,21 +72,18 @@ function deepMerge<T>(
     
     return result as T;
 }
-export interface GlobalConfigurableSettings {
+export interface GlobalConfig {
     security: ConfigurableSecuritySettings;
 }
 
-type StoredConfig = DeepPartial<GlobalConfigurableSettings>;
+type StoredConfig = DeepPartial<GlobalConfig>;
 
 const CONFIG_KEY = 'platform_configs';
 
-export async function getGlobalConfigurableSettings(env: Env): Promise<GlobalConfigurableSettings> {
-    if (cachedConfig) {
-        return cachedConfig;
-    }
+export async function getGlobalConfig(env: Env): Promise<GlobalConfig> {
     // Get default configuration
-    const defaultConfig: GlobalConfigurableSettings = {
-        security: getConfiguratbleSecurityDefaults()
+    const defaultConfig: GlobalConfig = {
+        security: getDefaultSecuritySettings()
     };
     
     try {
@@ -104,10 +99,9 @@ export async function getGlobalConfigurableSettings(env: Env): Promise<GlobalCon
         const storedConfig: StoredConfig = JSON.parse(storedConfigJson);
         
         // Deep merge configurations (stored config overrides defaults)
-        const mergedConfig = deepMerge<GlobalConfigurableSettings>(defaultConfig, storedConfig);
+        const mergedConfig = deepMerge<GlobalConfig>(defaultConfig, storedConfig);
         
         logger.debug('Loaded configuration with overrides from KV');
-        cachedConfig = mergedConfig;
         return mergedConfig;
         
     } catch (error) {

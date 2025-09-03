@@ -18,13 +18,7 @@ export abstract class BaseController {
     protected db: DatabaseService;
 
     constructor(env: Env) {
-        const dbStart = performance.now();
         this.db = createDatabaseService(env);
-        const dbEnd = performance.now();
-        const dbTime = dbEnd - dbStart;
-        if (dbTime > 10) {
-            console.log(`${this.constructor.name} - Database service creation took ${dbTime.toFixed(2)}ms`);
-        }
     }
 
     /**

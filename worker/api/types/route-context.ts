@@ -2,7 +2,7 @@
  * Route Context Types
  */
 
-import { GlobalConfigurableSettings } from '../../config';
+import { GlobalConfig } from '../../config';
 import { AuthUser } from '../../types/auth-types';
 
 /**
@@ -17,7 +17,7 @@ export interface RouteContext {
     /**
      * Global configurations for the application
      */
-    config: GlobalConfigurableSettings;
+    config: GlobalConfig;
 
 	/**
 	 * Path parameters extracted from the route (e.g., :id, :agentId)

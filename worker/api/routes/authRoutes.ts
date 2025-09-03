@@ -2,7 +2,8 @@
  * Authentication Routes
  */
 import { AuthController } from '../controllers/auth/controller';
-// import { RateLimitService } from '../../services/rate-limit/rateLimits';
+import { authMiddleware } from '../../middleware/auth/auth';
+import { RateLimitService } from '../../services/rate-limit/rateLimits';
 import { Hono } from 'hono';
 import { AppEnv } from '../../types/appenv';
 import { adaptController } from '../honoAdapter';
@@ -16,6 +17,13 @@ export function setupAuthRoutes(env: Env, app: Hono<AppEnv>): void {
     
     // Create a sub-router for auth routes
     const authRouter = new Hono<AppEnv>();
+    
+    // Apply middleware to all auth routes
+    authRouter.use('*', async (c, next) => {
+        const user = await authMiddleware(c.req.raw, env);
+        await RateLimitService.enforceAuthRateLimit(env, c.get('config').security.rateLimit, user, c.req.raw);
+        await next();
+    });
     
     // Public authentication routes
     authRouter.get('/csrf-token', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.getCsrfToken));

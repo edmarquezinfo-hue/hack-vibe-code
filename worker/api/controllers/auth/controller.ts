@@ -26,6 +26,7 @@ import {
 import { RouteContext } from '../../types/route-context';
 import { authMiddleware } from '../../../middleware/auth/auth';
 import { CsrfService } from '../../../services/csrf/CsrfService';
+
 /**
  * Authentication Controller
  */
@@ -34,13 +35,7 @@ export class AuthController extends BaseController {
     
     constructor(env: Env) {
         super(env);
-        const authServiceStart = performance.now();
         this.authService = new AuthService(this.db, env);
-        const authServiceEnd = performance.now();
-        const authServiceTime = authServiceEnd - authServiceStart;
-        if (authServiceTime > 10) {
-            console.log(`AuthController - AuthService creation took ${authServiceTime.toFixed(2)}ms`);
-        }
     }
     
     /**
@@ -90,11 +85,6 @@ export class AuthController extends BaseController {
                 refreshToken: result.refreshToken,
                 accessTokenExpiry: result.expiresIn
             });
-            
-            // Rotate CSRF token on successful registration if configured
-            if (CsrfService.defaults.rotateOnAuth) {
-                CsrfService.rotateToken(response);
-            }
             
             return response;
         } catch (error) {
@@ -146,11 +136,6 @@ export class AuthController extends BaseController {
                 accessTokenExpiry: result.expiresIn
             });
             
-            // Rotate CSRF token on successful login if configured
-            if (CsrfService.defaults.rotateOnAuth) {
-                CsrfService.rotateToken(response);
-            }
-            
             return response;
         } catch (error) {
             if (error instanceof SecurityError) {
@@ -190,9 +175,6 @@ export class AuthController extends BaseController {
             
             clearAuthCookies(response);
             
-            // Clear CSRF token on logout
-            CsrfService.clearTokenCookie(response);
-            
             return response;
         } catch (error) {
             this.logger.error('Logout failed', error);
@@ -203,9 +185,6 @@ export class AuthController extends BaseController {
             });
             
             clearAuthCookies(response);
-            
-            // Clear CSRF token on logout
-            CsrfService.clearTokenCookie(response);
             
             return response;
         }
@@ -684,22 +663,20 @@ export class AuthController extends BaseController {
     }
 
     /**
-     * Get CSRF token with proper expiration and rotation
+     * Get CSRF token
      * GET /api/auth/csrf-token
      */
     async getCsrfToken(request: Request, _env: Env, _ctx: ExecutionContext, _routeContext: RouteContext): Promise<Response> {
         try {
-            const token = CsrfService.getOrGenerateToken(request, false);
+            const token = CsrfService.getOrGenerateToken(request);
             
             const response = this.createSuccessResponse({ 
                 token,
-                headerName: CsrfService.defaults.headerName,
-                expiresIn: Math.floor(CsrfService.defaults.tokenTTL / 1000)
+                headerName: 'X-CSRF-Token'
             });
             
-            // Set the token in cookie with proper expiration
-            const maxAge = Math.floor(CsrfService.defaults.tokenTTL / 1000);
-            CsrfService.setTokenCookie(response, token, maxAge);
+            // Set the token in cookie
+            CsrfService.setTokenCookie(response, token);
             
             return response;
         } catch (error) {
@@ -725,19 +702,18 @@ export class AuthController extends BaseController {
             };
             
             // Include CSRF token with provider info
-            const csrfToken = CsrfService.getOrGenerateToken(request, false);
+            const { CsrfService } = await import('../../../services/csrf/CsrfService');
+            const csrfToken = CsrfService.getOrGenerateToken(request);
             
             const response = this.createSuccessResponse({
                 providers,
                 hasOAuth: providers.google || providers.github,
                 requiresEmailAuth: !providers.google && !providers.github,
-                csrfToken,
-                csrfExpiresIn: Math.floor(CsrfService.defaults.tokenTTL / 1000)
+                csrfToken
             });
             
-            // Set CSRF token cookie with proper expiration
-            const maxAge = Math.floor(CsrfService.defaults.tokenTTL / 1000);
-            CsrfService.setTokenCookie(response, csrfToken, maxAge);
+            // Set CSRF token cookie
+            CsrfService.setTokenCookie(response, csrfToken);
             
             return response;
         } catch (error) {
