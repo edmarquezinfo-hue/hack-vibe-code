@@ -1008,7 +1008,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 					onDebugMessage?.(
 						'error',
 						`Rate Limit: ${rateLimitError.limitType.replace('_', ' ')} limit exceeded`,
-						`Limit: ${rateLimitError.limit} per ${Math.floor(rateLimitError.period || 0 / 3600)}h\nRetry after: ${rateLimitError.retryAfter}s\n\nSuggestions:\n${rateLimitError.suggestions?.join('\n') || 'None'}`,
+						`Limit: ${rateLimitError.limit} per ${Math.floor((rateLimitError.period || 0) / 3600)}h\nRetry after: ${rateLimitError.retryAfter}s\n\nSuggestions:\n${rateLimitError.suggestions?.join('\n') || 'None'}`,
 						'Rate Limiting',
 						rateLimitError.limitType,
 						rateLimitError
@@ -1253,7 +1253,7 @@ Message: ${message.errors.map((e) => e.message).join('\n').trim()}`;
 							onDebugMessage?.(
 								'error',
 								`Rate Limit: ${rateLimitError.limitType.replace('_', ' ')} limit exceeded`,
-								`Limit: ${rateLimitError.limit} per ${Math.floor(rateLimitError.period || 0 / 3600)}h\nRetry after: ${rateLimitError.retryAfter}s\n\nSuggestions:\n${rateLimitError.suggestions?.join('\n') || 'None'}`,
+								`Limit: ${rateLimitError.limit} per ${Math.floor((rateLimitError.period || 0) / 3600)}h\nRetry after: ${rateLimitError.retryAfter}s\n\nSuggestions:\n${rateLimitError.suggestions?.join('\n') || 'None'}`,
 								'Rate Limiting',
 								rateLimitError.limitType,
 								rateLimitError
