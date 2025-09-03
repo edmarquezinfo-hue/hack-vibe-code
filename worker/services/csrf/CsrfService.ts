@@ -95,17 +95,7 @@ export class CsrfService {
     /**
      * Middleware to enforce CSRF protection
      */
-    static async enforce(request: Request, response?: Response): Promise<Response | null> {
-        // Generate and set token for GET requests (to establish cookie)
-        if (request.method === 'GET' && response) {
-            const existingToken = this.getTokenFromCookie(request);
-            if (!existingToken) {
-                const newToken = this.generateToken();
-                this.setTokenCookie(response, newToken);
-            }
-            return null;
-        }
-        
+    static async enforce(request: Request): Promise<void> {
         // Validate token for state-changing requests
         if (!this.validateToken(request)) {
             throw new SecurityError(
@@ -114,8 +104,6 @@ export class CsrfService {
                 403
             );
         }
-        
-        return null;
     }
     
     /**
