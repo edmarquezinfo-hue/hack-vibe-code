@@ -1,4 +1,4 @@
-import { ConfigurableSecuritySettings, getConfiguratbleSecurityDefaults } from "./security";
+import { ConfigurableSecuritySettings, getConfigurableSecurityDefaults } from "./security";
 import { createLogger } from "../logger";
 
 const logger = createLogger('GlobalConfigurableSettings');
@@ -88,7 +88,7 @@ export async function getGlobalConfigurableSettings(env: Env): Promise<GlobalCon
     }
     // Get default configuration
     const defaultConfig: GlobalConfigurableSettings = {
-        security: getConfiguratbleSecurityDefaults()
+        security: getConfigurableSecurityDefaults()
     };
     
     try {
