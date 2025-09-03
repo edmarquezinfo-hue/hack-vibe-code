@@ -12,6 +12,10 @@ import { Hono } from "hono";
 import { AppEnv } from "../../types/appenv";
 
 export function setupRoutes(env: Env, app: Hono<AppEnv>): void {
+    // Health check route
+    app.get('/api/health', (c) => {
+        return c.json({ status: 'ok' });
+    });
     // Codegen routes
     setupCodegenRoutes(env, app);
 
