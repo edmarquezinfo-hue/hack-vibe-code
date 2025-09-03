@@ -3,6 +3,10 @@ import { RouteContext } from './types/route-context';
 import { AppEnv } from '../types/appenv';
 import { BaseController } from './controllers/BaseController';
 
+/*
+* This is a simple adapter to convert Hono context to our base controller's expected arguments
+*/
+
 type ControllerMethod = (
     request: Request,
     env: Env,
