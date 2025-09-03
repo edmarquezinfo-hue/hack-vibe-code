@@ -31,7 +31,9 @@ import {
     SaveInstanceResponse,
     ResumeInstanceResponse,
     GitHubPushRequest,
-    GitHubPushResponse
+    GitHubPushResponse,
+    GitHubExportRequest,
+    GitHubExportResponse
   } from './sandboxTypes';
   
   import { createObjectLogger, StructuredLogger } from '../../logger';
@@ -221,6 +223,11 @@ import {
     // GITHUB INTEGRATION (Required)
     // ==========================================
   
+    /**
+     * Export generated app to GitHub (creates repository if needed, then pushes files)
+     */
+    abstract exportToGitHub(instanceId: string, request: GitHubExportRequest): Promise<GitHubExportResponse>
+
     /**
      * Push instance files to existing GitHub repository
      */

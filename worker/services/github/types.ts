@@ -65,6 +65,7 @@ export interface CreateRepositoryOptions {
     description?: string;
     private: boolean;
     auto_init?: boolean;
+    token: string;
 }
 
 export interface CreateRepositoryResult {
