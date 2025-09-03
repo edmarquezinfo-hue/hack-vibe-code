@@ -11,7 +11,6 @@ import {
     RuntimeErrorResponse,
     ClearErrorsResponse,
     StaticAnalysisResponse,
-    DeploymentCredentials,
     DeploymentResult,
     GetLogsResponse,
     ListInstancesResponse,
@@ -206,9 +205,8 @@ export class RemoteSandboxServiceClient extends BaseSandboxService{
      * @param instanceId The ID of the runner instance to deploy
      * @param credentials Optional Cloudflare deployment credentials
      */
-    async deployToCloudflareWorkers(instanceId: string, credentials?: DeploymentCredentials): Promise<DeploymentResult> {
-        const requestBody = credentials || {};
-        return this.makeRequest(`/instances/${instanceId}/deploy`, 'POST', DeploymentResultSchema, requestBody);
+    async deployToCloudflareWorkers(instanceId: string): Promise<DeploymentResult> {
+        return this.makeRequest(`/instances/${instanceId}/deploy`, 'POST', DeploymentResultSchema);
     }
 
     /**
