@@ -2,12 +2,12 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
 import { getCORSConfig, getSecureHeadersConfig } from './config/security';
-import { getGlobalConfig } from './config';
 import { RateLimitService } from './services/rate-limit/rateLimits';
-import { authMiddleware } from './middleware/auth/auth';
 import { AppEnv } from './types/appenv';
 import { setupRoutes } from './api/routes';
 import { CsrfService } from './services/csrf/CsrfService';
+import { SecurityError, SecurityErrorType } from './types/security';
+import { getGlobalConfigurableSettings } from './config';
 
 export function createApp(env: Env): Hono<AppEnv> {
     const app = new Hono<AppEnv>();
@@ -25,18 +25,10 @@ export function createApp(env: Env): Hono<AppEnv> {
     
     // CORS configuration
     app.use('/api/*', cors(getCORSConfig(env)));
-
-    // Vanilla CSRF protection
-    app.use('*', cors(getCORSConfig(env)));
     
-    // CSRF protection using double-submit cookie pattern
+    // CSRF protection using double-submit cookie pattern with proper GET handling
     app.use('*', async (c, next) => {
         const method = c.req.method.toUpperCase();
-        
-        // Skip CSRF for safe methods and WebSocket upgrades
-        if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
-            return next();
-        }
         
         // Skip for WebSocket upgrades
         const upgradeHeader = c.req.header('upgrade');
@@ -44,33 +36,44 @@ export function createApp(env: Env): Hono<AppEnv> {
             return next();
         }
         
-        
         try {
-            await CsrfService.enforce(c.req.raw);
-            return next();
+            // Handle GET requests - establish CSRF token if needed
+            if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+                await next();
+                
+                // Only set CSRF token for successful API responses
+                if (c.req.url.includes('/api/') && c.res.status < 400) {
+                    await CsrfService.enforce(c.req.raw, c.res);
+                }
+                
+                return;
+            }
+            
+            // Validate CSRF token for state-changing requests
+            await CsrfService.enforce(c.req.raw, undefined);
+            await next();
         } catch (error) {
-            return new Response(JSON.stringify({ error: 'CSRF validation failed' }), {
-                status: 403,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            if (error instanceof SecurityError && error.type === SecurityErrorType.CSRF_VIOLATION) {
+                return new Response(JSON.stringify({ 
+                    error: 'CSRF validation failed',
+                    code: 'CSRF_VIOLATION'
+                }), {
+                    status: 403,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+            throw error;
         }
     });
 
     // Apply global config middleware
     app.use('/api/*', async (c, next) => {
-        const config = await getGlobalConfig(env);
+        const config = await getGlobalConfigurableSettings(env);
         c.set('config', config);
         await next();
     })
 
-    // Apply global auth middleware
-    app.use('/api/*', async (c, next) => {
-        const user = await authMiddleware(c.req.raw, env);
-        c.set('user', user);
-        await next();
-    })
-
-    // Apply global rate limit middleware
+    // Apply global rate limit middleware. Should this be moved after setupRoutes so that maybe 'user' is available?
     app.use('/api/*', async (c, next) => {
         await RateLimitService.enforceGlobalApiRateLimit(env, c.get('config').security.rateLimit, c.get('user'), c.req.raw)
         await next();
