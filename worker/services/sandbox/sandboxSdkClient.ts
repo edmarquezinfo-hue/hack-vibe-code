@@ -375,7 +375,35 @@ export class SandboxSdkClient extends BaseSandboxService {
 
     private async buildFileTree(instanceId: string): Promise<FileTreeNode | undefined> {
         try {
-            const buildTreeCmd = `echo "===FILES==="; find . -type d \\( -name ".github" -o -name "node_modules" -o -name ".git" -o -name "dist" -o -name ".wrangler" -o -name ".vscode" -o -name ".next" -o -name ".cache" -o -name ".idea" -o -name ".DS_Store" \\) -prune -o \\( -type f -not -name "*.jpg" -not -name "*.jpeg" -not -name "*.png" -not -name "*.gif" -not -name "*.svg" -not -name "*.ico" -not -name "*.webp" -not -name "*.bmp" \\) -print; echo "===DIRS==="; find . -type d \\( -name ".github" -o -name "node_modules" -o -name ".git" -o -name "dist" -o -name ".wrangler" -o -name ".vscode" -o -name ".next" -o -name ".cache" -o -name ".idea" -o -name ".DS_Store" \\) -prune -o -type d -print`;
+            // Directories to exclude from file tree
+            const EXCLUDED_DIRS = [
+                ".github",
+                "node_modules",
+                ".git",
+                "dist",
+                ".wrangler",
+                ".vscode",
+                ".next",
+                ".cache",
+                ".idea",
+                ".DS_Store"
+            ];
+            // Build exclusion string for find command
+            const excludedDirsFind = EXCLUDED_DIRS.map(dir => `-name "${dir}"`).join(" -o ");
+            // File type exclusions
+            const excludedFileTypes = [
+                "*.jpg",
+                "*.jpeg",
+                "*.png",
+                "*.gif",
+                "*.svg",
+                "*.ico",
+                "*.webp",
+                "*.bmp"
+            ];
+            const excludedFilesFind = excludedFileTypes.map(ext => `-not -name "${ext}"`).join(" ");
+            // Build the command dynamically
+            const buildTreeCmd = `echo "===FILES==="; find . -type d \\( ${excludedDirsFind} \\) -prune -o \\( -type f ${excludedFilesFind} \\) -print; echo "===DIRS==="; find . -type d \\( ${excludedDirsFind} \\) -prune -o -type d -print`;
 
             const filesResult = await this.executeCommand(instanceId, buildTreeCmd);
             if (filesResult.exitCode === 0) {
