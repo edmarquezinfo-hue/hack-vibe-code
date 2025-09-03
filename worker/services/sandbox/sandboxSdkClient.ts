@@ -137,6 +137,10 @@ export class SandboxSdkClient extends BaseSandboxService {
         this.logger.info('Sandbox initialization complete')
     }
 
+    private getWranglerKVKey(instanceId: string): string {
+        return `wrangler-${instanceId}`;
+    }
+
     private getSandbox(): SandboxType {
         if (!this.sandbox) {
             this.sandbox = getSandbox(env.Sandbox, this.sandboxId);
@@ -791,7 +795,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             try {
                 const wranglerConfigFile = await sandbox.readFile(`${instanceId}/wrangler.jsonc`);
                 if (wranglerConfigFile.success) {
-                    await env.VibecoderStore.put(`wrangler-${instanceId}`, wranglerConfigFile.content);
+                    await env.VibecoderStore.put(this.getWranglerKVKey(instanceId), wranglerConfigFile.content);
                     this.logger.info('Wrangler configuration stored in KV', { instanceId });
                 } else {
                     this.logger.warn('Could not read wrangler.jsonc for KV storage', { instanceId });
@@ -1740,12 +1744,11 @@ export class SandboxSdkClient extends BaseSandboxService {
             
             // Step 2: Parse wrangler config from KV
             this.logger.info('Reading wrangler configuration from KV');
-            let wranglerConfigContent = await env.VibecoderStore.get(`wrangler-${instanceId}`);
+            let wranglerConfigContent = await env.VibecoderStore.get(this.getWranglerKVKey(instanceId));
             
             if (!wranglerConfigContent) {
                 // Fallback to filesystem if KV lookup fails
                 // This should never happen unless KV itself has some issues
-                // Also, this is pointless because we anyways don't execute anything from user's wrangler conf.
                 this.logger.warn('Wrangler config not found in KV, falling back to filesystem', { instanceId });
                 const wranglerConfigFile = await sandbox.readFile(`${instanceId}/wrangler.jsonc`);
                 if (!wranglerConfigFile.success) {
