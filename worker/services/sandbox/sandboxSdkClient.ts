@@ -139,6 +139,10 @@ export class SandboxSdkClient extends BaseSandboxService {
         this.logger.info('Sandbox initialization complete')
     }
 
+    private getWranglerKVKey(instanceId: string): string {
+        return `wrangler-${instanceId}`;
+    }
+
     private getSandbox(): SandboxType {
         if (!this.sandbox) {
             this.sandbox = getSandbox(env.Sandbox, this.sandboxId);
@@ -376,7 +380,35 @@ export class SandboxSdkClient extends BaseSandboxService {
 
     private async buildFileTree(instanceId: string): Promise<FileTreeNode | undefined> {
         try {
-            const buildTreeCmd = `echo "===FILES==="; find . -type d \\( -name ".github" -o -name "node_modules" -o -name ".git" -o -name "dist" -o -name ".wrangler" -o -name ".vscode" -o -name ".next" -o -name ".cache" -o -name ".idea" -o -name ".DS_Store" \\) -prune -o \\( -type f -not -name "*.jpg" -not -name "*.jpeg" -not -name "*.png" -not -name "*.gif" -not -name "*.svg" -not -name "*.ico" -not -name "*.webp" -not -name "*.bmp" \\) -print; echo "===DIRS==="; find . -type d \\( -name ".github" -o -name "node_modules" -o -name ".git" -o -name "dist" -o -name ".wrangler" -o -name ".vscode" -o -name ".next" -o -name ".cache" -o -name ".idea" -o -name ".DS_Store" \\) -prune -o -type d -print`;
+            // Directories to exclude from file tree
+            const EXCLUDED_DIRS = [
+                ".github",
+                "node_modules",
+                ".git",
+                "dist",
+                ".wrangler",
+                ".vscode",
+                ".next",
+                ".cache",
+                ".idea",
+                ".DS_Store"
+            ];
+            // Build exclusion string for find command
+            const excludedDirsFind = EXCLUDED_DIRS.map(dir => `-name "${dir}"`).join(" -o ");
+            // File type exclusions
+            const excludedFileTypes = [
+                "*.jpg",
+                "*.jpeg",
+                "*.png",
+                "*.gif",
+                "*.svg",
+                "*.ico",
+                "*.webp",
+                "*.bmp"
+            ];
+            const excludedFilesFind = excludedFileTypes.map(ext => `-not -name "${ext}"`).join(" ");
+            // Build the command dynamically
+            const buildTreeCmd = `echo "===FILES==="; find . -type d \\( ${excludedDirsFind} \\) -prune -o \\( -type f ${excludedFilesFind} \\) -print; echo "===DIRS==="; find . -type d \\( ${excludedDirsFind} \\) -prune -o -type d -print`;
 
             const filesResult = await this.executeCommand(instanceId, buildTreeCmd);
             if (filesResult.exitCode === 0) {
@@ -786,7 +818,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             try {
                 const wranglerConfigFile = await sandbox.readFile(`${instanceId}/wrangler.jsonc`);
                 if (wranglerConfigFile.success) {
-                    await env.VibecoderStore.put(`wrangler-${instanceId}`, wranglerConfigFile.content);
+                    await env.VibecoderStore.put(this.getWranglerKVKey(instanceId), wranglerConfigFile.content);
                     this.logger.info('Wrangler configuration stored in KV', { instanceId });
                 } else {
                     this.logger.warn('Could not read wrangler.jsonc for KV storage', { instanceId });
@@ -1735,12 +1767,11 @@ export class SandboxSdkClient extends BaseSandboxService {
             
             // Step 2: Parse wrangler config from KV
             this.logger.info('Reading wrangler configuration from KV');
-            let wranglerConfigContent = await env.VibecoderStore.get(`wrangler-${instanceId}`);
+            let wranglerConfigContent = await env.VibecoderStore.get(this.getWranglerKVKey(instanceId));
             
             if (!wranglerConfigContent) {
                 // Fallback to filesystem if KV lookup fails
                 // This should never happen unless KV itself has some issues
-                // Also, this is pointless because we anyways don't execute anything from user's wrangler conf.
                 this.logger.warn('Wrangler config not found in KV, falling back to filesystem', { instanceId });
                 const wranglerConfigFile = await sandbox.readFile(`${instanceId}/wrangler.jsonc`);
                 if (!wranglerConfigFile.success) {
