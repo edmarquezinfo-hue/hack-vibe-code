@@ -190,10 +190,6 @@ class ApiClient {
 	 * Ensure CSRF token exists for state-changing requests
 	 */
 	private async ensureCsrfToken(method: string): Promise<void> {
-        console.log('Ensuring CSRF token...');
-		// Only need CSRF for state-changing methods
-		if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase()) && !this.csrfToken) {
-            console.log('Fetching CSRF token...');
 			await this.fetchCsrfToken();
 		}
 	}
