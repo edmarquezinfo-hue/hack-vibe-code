@@ -215,11 +215,3 @@ export const commonSchemas = {
     // Date validation
     date: z.string().datetime(),
 };
-
-// Sanitizers removed - use Zod transforms instead
-// Example: z.string().transform(val => val.trim().toLowerCase())
-
-/**
- * Export inputValidator as an alias for validateInput
- */
-export const inputValidator = validateInput;
