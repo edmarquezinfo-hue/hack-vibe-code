@@ -56,7 +56,9 @@ export default {
             return response;
         }
 
-        logger.info(`Handling the request ${url}`);
+        const requestId = crypto.randomUUID();
+        const requestStart = performance.now();
+        logger.info(`Handling the request ${url}`, { requestId });
 
         // Ignore favicon requests
         if (url.pathname.startsWith('/favicon')) {
@@ -64,8 +66,23 @@ export default {
         }
 
         // Create hono app
+        const appCreationStart = performance.now();
         const app = createApp(env);
+        const appCreationEnd = performance.now();
+        const appCreationTime = appCreationEnd - appCreationStart;
+        
+        logger.info(`App creation took ${appCreationTime.toFixed(2)}ms`, { requestId });
+
+        // Process request
+        const requestProcessingStart = performance.now();
         const response = await app.fetch(request, env, ctx);
+        const requestProcessingEnd = performance.now();
+        
+        const processingTime = requestProcessingEnd - requestProcessingStart;
+        const totalTime = requestProcessingEnd - requestStart;
+        
+        logger.info(`Request completed - Processing: ${processingTime.toFixed(2)}ms, Total: ${totalTime.toFixed(2)}ms`, { requestId, path: url.pathname });
+
         return response;
     },
 } satisfies ExportedHandler<Env>;

@@ -762,8 +762,17 @@ export class AuthService extends BaseService {
      */
     async validateTokenAndGetUser(token: string, env: Env): Promise<AuthUser | null> {
         try {
+            const methodStart = performance.now();
+            
+            // JWT Utils instance
+            const jwtUtilsStart = performance.now();
             const jwtUtils = JWTUtils.getInstance(env);
+            const jwtUtilsEnd = performance.now();
+            
+            // Token verification
+            const verifyStart = performance.now();
             const payload = await jwtUtils.verifyToken(token);
+            const verifyEnd = performance.now();
             
             if (!payload || payload.type !== 'access') {
                 return null;
@@ -776,7 +785,28 @@ export class AuthService extends BaseService {
             }
             
             // Get user from database
-            return this.getUserForAuth(payload.sub);
+            const dbStart = performance.now();
+            const user = await this.getUserForAuth(payload.sub);
+            const dbEnd = performance.now();
+            
+            const methodEnd = performance.now();
+            
+            const jwtUtilsTime = jwtUtilsEnd - jwtUtilsStart;
+            const verifyTime = verifyEnd - verifyStart;
+            const dbTime = dbEnd - dbStart;
+            const totalTime = methodEnd - methodStart;
+            
+            if (totalTime > 30) {
+                logger.info('validateTokenAndGetUser timing breakdown', {
+                    total: `${totalTime.toFixed(2)}ms`,
+                    jwtUtilsInstance: `${jwtUtilsTime.toFixed(2)}ms`,
+                    tokenVerification: `${verifyTime.toFixed(2)}ms`,
+                    databaseQuery: `${dbTime.toFixed(2)}ms`,
+                    userId: payload.sub
+                });
+            }
+            
+            return user;
         } catch (error) {
             logger.error('Token validation error', error);
             return null;

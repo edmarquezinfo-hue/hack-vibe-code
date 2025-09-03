@@ -225,11 +225,14 @@ export interface AuthProvidersResponseData {
   };
   hasOAuth: boolean;
   requiresEmailAuth: boolean;
+  csrfToken?: string;
+  csrfExpiresIn?: number;
 }
 
 export interface CsrfTokenResponseData {
   token: string;
   headerName: string;
+  expiresIn?: number;
 }
 
 // Active Sessions Response - matches getUserSessions + isCurrent from controller

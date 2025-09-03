@@ -18,10 +18,40 @@ export async function validateToken(
     env: Env
 ): Promise<AuthUser | null> {
     try {
-        // Use AuthService for token validation and user retrieval
+        const validateStart = performance.now();
+        
+        // Create database service
+        const dbStart = performance.now();
         const db = createDatabaseService(env);
+        const dbEnd = performance.now();
+        
+        // Create auth service
+        const authServiceStart = performance.now();
         const authService = new AuthService(db, env);
-        return authService.validateTokenAndGetUser(token, env);
+        const authServiceEnd = performance.now();
+        
+        // Validate token and get user
+        const tokenValidationStart = performance.now();
+        const result = await authService.validateTokenAndGetUser(token, env);
+        const tokenValidationEnd = performance.now();
+        
+        const validateEnd = performance.now();
+        
+        const dbTime = dbEnd - dbStart;
+        const authServiceTime = authServiceEnd - authServiceStart;
+        const tokenValidationTime = tokenValidationEnd - tokenValidationStart;
+        const totalTime = validateEnd - validateStart;
+        
+        if (totalTime > 50) {
+            logger.info('Token validation timing breakdown', {
+                total: `${totalTime.toFixed(2)}ms`,
+                dbCreation: `${dbTime.toFixed(2)}ms`,
+                authServiceCreation: `${authServiceTime.toFixed(2)}ms`,
+                tokenValidation: `${tokenValidationTime.toFixed(2)}ms`
+            });
+        }
+        
+        return result;
     } catch (error) {
         logger.error('Token validation error', error);
         return null;

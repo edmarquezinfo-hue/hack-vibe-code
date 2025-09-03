@@ -1690,13 +1690,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 fileCount: Object.keys(this.state.generatedFilesMap).length
             });
 
-            // Call the actual deployment API endpoint
-            const defaultCredentials = {
-                apiToken: this.env.CLOUDFLARE_API_TOKEN,
-                accountId: this.env.CLOUDFLARE_ACCOUNT_ID
-            }; // TODO: Remove this before production
-
-            const deploymentResult = await this.getSandboxServiceClient().deployToCloudflareWorkers(this.state.sandboxInstanceId, defaultCredentials);
+            const deploymentResult = await this.getSandboxServiceClient().deployToCloudflareWorkers(this.state.sandboxInstanceId);
             this.logger().info('[DeployToCloudflare] Deployment result:', deploymentResult);
             if (!deploymentResult) {
                 this.logger().error('[DeployToCloudflare] Deployment API call failed');
