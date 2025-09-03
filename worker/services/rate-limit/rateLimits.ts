@@ -19,7 +19,7 @@ export class RateLimitService {
 		return `user:${user.id}`;
 	}
 
-    static async getRequestIdentifier(request: Request ): Promise<string> {
+    static async getRequestIdentifier(request: Request): Promise<string> {
         const tokenResult = extractTokenWithMetadata(request);
         if (tokenResult.token) {
             const encoder = new TextEncoder();
