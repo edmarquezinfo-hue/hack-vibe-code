@@ -1,9 +1,10 @@
 import { SecurityError } from '../../types/security';
-import { RateLimitType, RateLimitConfig, RateLimitStore, RateLimitSettings, KVRateLimitConfig } from './config';
+import { RateLimitType, RateLimitStore, RateLimitSettings, KVRateLimitConfig } from './config';
 import { createObjectLogger } from '../../logger';
 import { AuthUser } from '../../types/auth-types';
 import { extractTokenWithMetadata, extractRequestMetadata } from '../../utils/authUtils';
 import { RateLimitExceededError } from './errors';
+import { getUserConfigurableSettings } from '../../config';
 
 export class RateLimitService {
     static logger = createObjectLogger(this, 'RateLimitService');
@@ -139,16 +140,32 @@ export class RateLimitService {
         }
     }
 
+    static async applyUserConfigs(
+        env: Env,
+        config: RateLimitSettings,
+        user: AuthUser | null,
+        limitType: RateLimitType
+    ) : Promise<RateLimitSettings> {
+        if (config[limitType].store !== RateLimitStore.RATE_LIMITER && user) {
+            // Only fetch user configurable settings IF user is available and limit type is configurable
+            const userConfigs = await getUserConfigurableSettings(env, user.id, {security: {rateLimit: config}});
+            config = userConfigs.security.rateLimit;
+        }
+        return config;
+    }
+
     static async enforce(
         env: Env,
         key: string,
-        config: RateLimitConfig
+        config: RateLimitSettings,
+        limitType: RateLimitType
     ) : Promise<boolean> {
-        if (config.store === RateLimitStore.RATE_LIMITER) {
-            const { success } = await ( env[config.bindingName as keyof Env] as RateLimit).limit({ key });
+        config = await this.applyUserConfigs(env, config, null, limitType);
+        if (config[limitType].store === RateLimitStore.RATE_LIMITER) {
+            const { success } = await ( env[config[limitType].bindingName as keyof Env] as RateLimit).limit({ key });
             return success;
-        } else if (config.store === RateLimitStore.KV) {
-            return this.enforceKVRateLimit(env, key, config as KVRateLimitConfig);
+        } else if (config[limitType].store === RateLimitStore.KV) {
+            return this.enforceKVRateLimit(env, key, config[limitType]);
         }
         return false;
     }
@@ -159,7 +176,7 @@ export class RateLimitService {
         user: AuthUser | null,
         request: Request
     ): Promise<void> {
-        if (!config.apiRateLimit.enabled) {
+        if (!config[RateLimitType.API_RATE_LIMIT].enabled) {
             return;
         }
         const identifier = await this.getUniversalIdentifier(user, request);
@@ -167,7 +184,7 @@ export class RateLimitService {
         const key = this.buildRateLimitKey(RateLimitType.API_RATE_LIMIT, identifier);
         
         try {
-            const success = await this.enforce(env, key, config.apiRateLimit);
+            const success = await this.enforce(env, key, config, RateLimitType.API_RATE_LIMIT);
             if (!success) {
                 this.logger.warn('Global API rate limit exceeded', {
                     identifier,
@@ -192,7 +209,7 @@ export class RateLimitService {
         request: Request
     ) {
         
-        if (!config.authRateLimit.enabled) {
+        if (!config[RateLimitType.AUTH_RATE_LIMIT].enabled) {
             return;
         }
         const identifier = await this.getUniversalIdentifier(user, request);
@@ -200,7 +217,7 @@ export class RateLimitService {
         const key = this.buildRateLimitKey(RateLimitType.AUTH_RATE_LIMIT, identifier);
         
         try {
-            const success = await this.enforce(env, key, config.authRateLimit);
+            const success = await this.enforce(env, key, config, RateLimitType.AUTH_RATE_LIMIT);
             if (!success) {
                 this.logger.warn('Auth rate limit exceeded', {
                     identifier,
@@ -224,7 +241,7 @@ export class RateLimitService {
 		user: AuthUser,
 		request: Request
 	): Promise<void> {
-		if (!config.appCreation.enabled) {
+		if (!config[RateLimitType.APP_CREATION].enabled) {
 			return;
 		}
 		const identifier = await this.getUserIdentifier(user);
@@ -232,7 +249,7 @@ export class RateLimitService {
 		const key = this.buildRateLimitKey(RateLimitType.APP_CREATION, identifier);
 		
 		try {
-            const success = await this.enforce(env, key, config.appCreation);
+            const success = await this.enforce(env, key, config, RateLimitType.APP_CREATION);
 			if (!success) {
 				this.logger.warn('App creation rate limit exceeded', {
 					identifier,
@@ -261,7 +278,7 @@ export class RateLimitService {
 		user: AuthUser,
 	): Promise<void> {
 		
-		if (!config.llmCalls.enabled) {
+		if (!config[RateLimitType.LLM_CALLS].enabled) {
 			return;
 		}
 
@@ -270,7 +287,7 @@ export class RateLimitService {
 		const key = this.buildRateLimitKey(RateLimitType.LLM_CALLS, identifier);
 		
 		try {
-			const success = await this.enforce(env, key, config.llmCalls);
+			const success = await this.enforce(env, key, config, RateLimitType.LLM_CALLS);
 			if (!success) {
 				this.logger.warn('LLM calls rate limit exceeded', {
 					identifier,

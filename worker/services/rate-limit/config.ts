@@ -22,18 +22,24 @@ export interface RLRateLimitConfig extends RateLimitConfigBase {
     bindingName: string;
     // Rate limits via bindings are configurable only via wrangler configs
 }
-
-export type RateLimitConfig = RLRateLimitConfig | KVRateLimitConfig;
-
 export interface LLMCallsRateLimitConfig extends KVRateLimitConfig {
     excludeBYOKUsers: boolean;
 }
 
+export type RateLimitConfig = RLRateLimitConfig | KVRateLimitConfig | LLMCallsRateLimitConfig;
+
+export enum RateLimitType {
+    API_RATE_LIMIT = 'apiRateLimit',
+    AUTH_RATE_LIMIT = 'authRateLimit',
+	APP_CREATION = 'appCreation',
+	LLM_CALLS = 'llmCalls',
+}
+
 export interface RateLimitSettings {
-    apiRateLimit: RLRateLimitConfig;
-    authRateLimit: RLRateLimitConfig;
-    appCreation: KVRateLimitConfig;
-	llmCalls: LLMCallsRateLimitConfig;
+    [RateLimitType.API_RATE_LIMIT]: RLRateLimitConfig;
+    [RateLimitType.AUTH_RATE_LIMIT]: RLRateLimitConfig;
+    [RateLimitType.APP_CREATION]: KVRateLimitConfig;
+    [RateLimitType.LLM_CALLS]: LLMCallsRateLimitConfig;
 }
 
 export const DEFAULT_RATE_LIMIT_SETTINGS: RateLimitSettings = {
@@ -61,10 +67,3 @@ export const DEFAULT_RATE_LIMIT_SETTINGS: RateLimitSettings = {
 		excludeBYOKUsers: true
 	},
 };
-
-export enum RateLimitType {
-    API_RATE_LIMIT = 'api_rate_limit',
-    AUTH_RATE_LIMIT = 'auth_rate_limit',
-	APP_CREATION = 'app_creation',
-	LLM_CALLS = 'llm_calls',
-}
