@@ -89,10 +89,7 @@ export class AppViewController extends BaseController {
     // Star/unstar an app
     async toggleAppStar(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppStarToggleData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<AppStarToggleData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const appId = context.pathParams.id;
             if (!appId) {
@@ -119,10 +116,7 @@ export class AppViewController extends BaseController {
     // Fork an app
     async forkApp(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ForkAppData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<ForkAppData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const appId = context.pathParams.id;
             if (!appId) {

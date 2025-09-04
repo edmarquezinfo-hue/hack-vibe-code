@@ -69,14 +69,7 @@ export class CodingAgentController extends BaseController {
             });
             const writer = writable.getWriter();
             // Check if user is authenticated (required for app creation)
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return new Response(JSON.stringify({ error: 'Authentication required to create apps' }), {
-                    status: 401,
-                    headers: { 'Content-Type': 'application/json' }
-                });
-            }
-            
+            const user = context.user!;
             try {
                 await RateLimitService.enforceAppCreationRateLimit(env, context.config.security.rateLimit, user, request);
             } catch (error) {
@@ -236,7 +229,7 @@ export class CodingAgentController extends BaseController {
             }
 
             // Extract user for rate limiting
-            const user = this.extractAuthUser(context);
+            const user = context.user!;
             if (!user) {
                 return this.createErrorResponse('Missing user', 401);
             }
