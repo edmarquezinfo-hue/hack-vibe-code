@@ -15,10 +15,7 @@ export class StatsController extends BaseController {
     // Get user statistics
     async getUserStats(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<UserStatsData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<UserStatsData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             // Get comprehensive user statistics using analytics service
             const enhancedStats = await this.analyticsService.getEnhancedUserStats(user.id);
@@ -37,10 +34,7 @@ export class StatsController extends BaseController {
     // Get user activity timeline
     async getUserActivity(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<UserActivityData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<UserActivityData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             // Get user activity timeline using analytics service
             const activities = await this.analyticsService.getUserActivityTimeline(user.id, 20);

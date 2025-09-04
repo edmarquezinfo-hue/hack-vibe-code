@@ -58,10 +58,7 @@ export class ModelProvidersController extends BaseController {
      * Get all custom providers for the authenticated user
      */
     async getProviders(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProvidersListData>>> {
-        const user = this.extractAuthUser(context);
-        if (!user) {
-            return this.createErrorResponse<ModelProvidersListData>('Authentication required', 401);
-        }
+        const user = context.user!;
 
         return this.executeTypedOperation(
             async () => {
@@ -79,10 +76,7 @@ export class ModelProvidersController extends BaseController {
      * Get a specific provider by ID
      */
     async getProvider(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderData>>> {
-        const user = this.extractAuthUser(context);
-        if (!user) {
-            return this.createErrorResponse<ModelProviderData>('Authentication required', 401);
-        }
+        const user = context.user!;
 
         const url = new URL(request.url);
         const providerId = url.pathname.split('/').pop();
@@ -109,10 +103,7 @@ export class ModelProvidersController extends BaseController {
      * Create a new custom provider
      */
     async createProvider(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderCreateData>>> {
-        const user = this.extractAuthUser(context);
-        if (!user) {
-            return this.createErrorResponse<ModelProviderCreateData>('Authentication required', 401);
-        }
+        const user = context.user!;
 
         const bodyResult = await this.parseJsonBody<CreateProviderRequest>(request);
         if (!bodyResult.success) {
@@ -162,10 +153,7 @@ export class ModelProvidersController extends BaseController {
      * Update an existing provider
      */
     async updateProvider(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderUpdateData>>> {
-        const user = this.extractAuthUser(context);
-        if (!user) {
-            return this.createErrorResponse<ModelProviderUpdateData>('Authentication required', 401);
-        }
+        const user = context.user!;
 
         const url = new URL(request.url);
         const providerId = url.pathname.split('/').pop();
@@ -235,10 +223,7 @@ export class ModelProvidersController extends BaseController {
      * Delete a provider
      */
     async deleteProvider(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderDeleteData>>> {
-        const user = this.extractAuthUser(context);
-        if (!user) {
-            return this.createErrorResponse<ModelProviderDeleteData>('Authentication required', 401);
-        }
+        const user = context.user!;
 
         const url = new URL(request.url);
         const providerId = url.pathname.split('/').pop();
@@ -275,10 +260,7 @@ export class ModelProvidersController extends BaseController {
      * Test provider connection
      */
     async testProvider(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ModelProviderTestData>>> {
-        const user = this.extractAuthUser(context);
-        if (!user) {
-            return this.createErrorResponse<ModelProviderTestData>('Authentication required', 401);
-        }
+        const user = context.user!;
 
         const bodyResult = await this.parseJsonBody<TestProviderRequest>(request);
         if (!bodyResult.success) {
