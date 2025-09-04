@@ -27,10 +27,7 @@ export class AppController extends BaseController {
     getUserApps = withCache(
         async function(this: AppController, _request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<AppsListData>('Authentication required', 401);
-            }
+            const user = context.user!;
             
             const userApps = await this.appService.getUserAppsWithFavorites(user.id);
 
@@ -50,10 +47,7 @@ export class AppController extends BaseController {
     // Get recent apps (last 10)
     async getRecentApps(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<AppsListData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const recentApps = await this.appService.getRecentAppsWithFavorites(user.id, 10);
 
@@ -71,10 +65,7 @@ export class AppController extends BaseController {
     // Get favorite apps
     async getFavoriteApps(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<AppsListData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const favoriteApps = await this.appService.getFavoriteAppsOnly(user.id);
 
@@ -93,10 +84,7 @@ export class AppController extends BaseController {
     // Toggle favorite status
     async toggleFavorite(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<FavoriteToggleData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<FavoriteToggleData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const appId = context.pathParams.id;
             if (!appId) {
@@ -245,10 +233,7 @@ export class AppController extends BaseController {
     // Get single app
     async getApp(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SingleAppData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<SingleAppData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const appId = context.pathParams.id;
             if (!appId) {
@@ -272,10 +257,7 @@ export class AppController extends BaseController {
     // Update app visibility
     async updateAppVisibility(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<UpdateAppVisibilityData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<UpdateAppVisibilityData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const appId = context.pathParams.id;
             if (!appId) {
@@ -321,10 +303,7 @@ export class AppController extends BaseController {
     // Delete app
     async deleteApp(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppDeleteData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<AppDeleteData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const appId = context.pathParams.id;
             if (!appId) {

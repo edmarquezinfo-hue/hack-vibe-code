@@ -68,13 +68,7 @@ export class CodingAgentController extends BaseController {
             });
             const writer = writable.getWriter();
             // Check if user is authenticated (required for app creation)
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return new Response(JSON.stringify({ error: 'Authentication required to create apps' }), {
-                    status: 401,
-                    headers: { 'Content-Type': 'application/json' }
-                });
-            }
+            const user = context.user!;
 
             const agentId = generateId();
             const db = new DatabaseService(env);
