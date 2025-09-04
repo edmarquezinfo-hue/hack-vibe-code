@@ -7,7 +7,6 @@ import { ControllerErrorHandler, ErrorHandler } from '../../utils/ErrorHandling'
 import { createLogger } from '../../logger';
 import { AuthUser } from '../../types/auth-types';
 import type { ControllerResponse, ApiResponse } from './types';
-import { RouteContext } from '../types/route-context';
 import { createDatabaseService, DatabaseService } from '../../database/database';
 
 /**
@@ -19,13 +18,6 @@ export abstract class BaseController {
 
     constructor(env: Env) {
         this.db = createDatabaseService(env);
-    }
-
-    /**
-     * Extract authenticated user from route context
-     */
-    protected extractAuthUser(context: RouteContext): AuthUser | null {
-        return context.user;
     }
 
     /**
