@@ -1743,15 +1743,8 @@ export class SandboxSdkClient extends BaseSandboxService {
             let wranglerConfigContent = await env.INSTANCE_REGISTRY.get(instanceId);
             
             if (!wranglerConfigContent) {
-                // Fallback to filesystem if KV lookup fails
                 // This should never happen unless KV itself has some issues
-                this.logger.warn('Wrangler config not found in KV, falling back to filesystem', { instanceId });
-                const wranglerConfigFile = await sandbox.readFile(`${instanceId}/wrangler.jsonc`);
-                if (!wranglerConfigFile.success) {
-                    throw new Error(`Could not read wrangler.jsonc from KV or filesystem for ${instanceId}`);
-                }
-                wranglerConfigContent = wranglerConfigFile.content;
-                this.logger.info('Using wrangler configuration from filesystem fallback');
+                throw new Error(`Wrangler config not found in KV for ${instanceId}`);
             } else {
                 this.logger.info('Using wrangler configuration from KV');
             }
