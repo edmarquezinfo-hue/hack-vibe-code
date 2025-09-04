@@ -231,8 +231,7 @@ export class CodingAgentController extends BaseController {
             }
 
             // Extract user for rate limiting (optional for WebSocket, can be anonymous)
-            const user = this.extractAuthUser(context);
-
+            const user = context.user!;
             // Enforce WebSocket upgrade rate limiting
             const db = new DatabaseService(env);
             const secretsService = new SecretsService(db, env);
