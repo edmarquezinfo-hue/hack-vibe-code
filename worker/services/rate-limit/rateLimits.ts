@@ -229,43 +229,6 @@ export class RateLimitService {
 		}
 	}
 
-	static async enforceWebSocketUpgradeRateLimit(
-		env: Env,
-		config: RateLimitSettings,
-		user: AuthUser,
-		request: Request
-	): Promise<void> {
-		if (!config.websocketUpgrade.enabled) {
-			return;
-		}
-
-		const identifier = await this.getUserIdentifier(user);
-		const key = this.buildRateLimitKey(RateLimitType.WEBSOCKET_UPGRADE, identifier);
-		
-		try {
-			const success = await this.enforce(env, key, config.websocketUpgrade);
-			if (!success) {
-				this.logger.warn('WebSocket upgrade rate limit exceeded', {
-					identifier,
-					key,
-					userAgent: request.headers.get('User-Agent'),
-					ip: request.headers.get('CF-Connecting-IP')
-				});
-				throw new RateLimitExceededError(
-					`WebSocket connection rate limit exceeded. Maximum ${config.websocketUpgrade.limit} connections per ${config.websocketUpgrade.period / 3600} hour${config.websocketUpgrade.period >= 7200 ? 's' : ''}`,
-					RateLimitType.WEBSOCKET_UPGRADE,
-					config.websocketUpgrade.limit,
-					config.websocketUpgrade.period
-				);
-			}
-		} catch (error) {
-			if (error instanceof RateLimitExceededError || error instanceof SecurityError) {
-				throw error;
-			}
-			this.logger.error('Failed to enforce WebSocket upgrade rate limit', error);
-		}
-	}
-
 	static async enforceLLMCallsRateLimit(
         env: Env,
 		config: RateLimitSettings,
