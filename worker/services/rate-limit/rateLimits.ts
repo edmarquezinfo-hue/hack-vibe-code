@@ -42,8 +42,8 @@ export class RateLimitService {
     }
 
     /**
-     * KV-based rate limiting using sliding window counter algorithm
-     * Stores request timestamps in KV with automatic expiration
+     * KV-based rate limiting using bucketed sliding window algorithm
+     * Distributes writes across time-bucketed keys to avoid KV write limits
      */
     private static async enforceKVRateLimit(
         env: Env,
@@ -52,64 +52,90 @@ export class RateLimitService {
     ): Promise<boolean> {
         const kv = env.VibecoderStore;
         const now = Date.now();
-        const windowStart = now - (config.period * 1000); // Convert seconds to milliseconds
         
-        // KV key pattern: ratelimit:{key}
-        const kvKey = `ratelimit:${key}`;
+        const bucketSize = (config.bucketSize || 10) * 1000; // Convert to milliseconds
+        const burstWindow = (config.burstWindow || 60) * 1000; // Convert to milliseconds
+        const mainWindow = config.period * 1000; // Convert to milliseconds
+        
+        const currentBucket = Math.floor(now / bucketSize) * bucketSize;
         
         try {
-            // Get existing rate limit data
-            const existingData = await kv.get<{ requests: number[], burstCount?: number }>(kvKey, 'json');
+            // Generate bucket keys for main window
+            const mainBuckets = this.generateBucketKeys(key, now, mainWindow, bucketSize);
+            const burstBuckets = config.burst ? this.generateBucketKeys(key, now, burstWindow, bucketSize) : [];
             
-            let requests: number[] = [];
-            let burstCount = 0;
+            // Read all buckets in parallel
+            const allBucketKeys = [...new Set([...mainBuckets, ...burstBuckets])];
+            const bucketPromises = allBucketKeys.map(async bucketKey => {
+                const value = await kv.get(bucketKey);
+                return { key: bucketKey, count: value ? parseInt(value, 10) || 0 : 0 };
+            });
             
-            if (existingData) {
-                // Filter out expired timestamps (outside the window)
-                requests = existingData.requests.filter(timestamp => timestamp > windowStart);
-                burstCount = existingData.burstCount || 0;
+            const bucketResults = await Promise.all(bucketPromises);
+            const bucketMap = new Map(bucketResults.map(r => [r.key, r.count]));
+            
+            // Calculate current counts
+            const mainCount = mainBuckets.reduce((sum, bucketKey) => sum + (bucketMap.get(bucketKey) || 0), 0);
+            const burstCount = burstBuckets.reduce((sum, bucketKey) => sum + (bucketMap.get(bucketKey) || 0), 0);
+            
+            // Check limits
+            if (mainCount >= config.limit) {
+                return false;
             }
             
-            // Check if limit is exceeded
-            if (requests.length >= config.limit) {
-                return false; // Rate limit exceeded
+            if (config.burst && burstCount >= config.burst) {
+                return false;
             }
             
-            // Check burst limit if configured
-            if (config.burst) {
-                const recentBurstWindow = now - 60000; // 1 minute burst window
-                const recentRequests = requests.filter(timestamp => timestamp > recentBurstWindow);
-                
-                if (recentRequests.length >= config.burst) {
-                    return false; // Burst limit exceeded
-                }
-            }
+            // Increment current bucket with retry logic
+            const currentBucketKey = `ratelimit:${key}:${currentBucket}`;
+            const maxTtl = Math.max(config.period, config.burstWindow || 60) + (config.bucketSize || 10);
             
-            // Add current request timestamp
-            requests.push(now);
+            await this.incrementBucketWithRetry(kv, currentBucketKey, maxTtl);
             
-            // Store updated data with expiration
-            await kv.put(
-                kvKey,
-                JSON.stringify({ 
-                    requests, 
-                    burstCount: burstCount + 1,
-                    lastRequest: now 
-                }),
-                { 
-                    expirationTtl: config.period // Expire after the rate limit period
-                }
-            );
-            
-            return true; // Request allowed
+            return true;
             
         } catch (error) {
             this.logger.error('Failed to enforce KV rate limit', {
-                key: kvKey,
+                key,
                 error: error instanceof Error ? error.message : 'Unknown error'
             });
-            // On error, allow the request (fail open)
-            return true;
+            return true; // Fail open
+        }
+    }
+    
+    private static generateBucketKeys(key: string, now: number, windowMs: number, bucketSizeMs: number): string[] {
+        const buckets: string[] = [];
+        const windowStart = now - windowMs;
+        
+        for (let time = Math.floor(windowStart / bucketSizeMs) * bucketSizeMs; time <= now; time += bucketSizeMs) {
+            buckets.push(`ratelimit:${key}:${time}`);
+        }
+        
+        return buckets;
+    }
+    
+    private static async incrementBucketWithRetry(
+        kv: KVNamespace,
+        bucketKey: string,
+        ttl: number,
+        maxRetries: number = 3
+    ): Promise<void> {
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                const current = await kv.get(bucketKey);
+                const newCount = (current ? parseInt(current, 10) : 0) + 1;
+                
+                await kv.put(bucketKey, newCount.toString(), { expirationTtl: ttl });
+                return;
+                
+            } catch (error) {
+                if (error instanceof Error && error.message.includes('429') && attempt < maxRetries - 1) {
+                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
+                    continue;
+                }
+                throw error;
+            }
         }
     }
 

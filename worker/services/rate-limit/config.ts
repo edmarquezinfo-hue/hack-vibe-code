@@ -13,6 +13,8 @@ export interface KVRateLimitConfig extends RateLimitConfigBase {
     limit: number;
     period: number; // in seconds
     burst?: number; // optional burst limit
+    burstWindow?: number; // burst window in seconds (default: 60)
+    bucketSize?: number; // time bucket size in seconds (default: 10)
 }
 
 export interface RLRateLimitConfig extends RateLimitConfigBase {
