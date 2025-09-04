@@ -40,10 +40,7 @@ export class SecretsController extends BaseController {
      */
     async getAllSecrets(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretsData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<SecretsData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const secrets = await this.secretsService.getAllUserSecrets(user.id);
 
@@ -61,10 +58,7 @@ export class SecretsController extends BaseController {
      */
     async storeSecret(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretStoreData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<SecretStoreData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const bodyResult = await this.parseJsonBody<{
                 templateId?: string;  // For predefined templates
@@ -150,10 +144,7 @@ export class SecretsController extends BaseController {
      */
     async deleteSecret(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretDeleteData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<SecretDeleteData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const secretId = context.pathParams.secretId;
 
@@ -180,10 +171,7 @@ export class SecretsController extends BaseController {
      */
     async toggleSecret(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretStoreData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<SecretStoreData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const secretId = context.pathParams.secretId;
 

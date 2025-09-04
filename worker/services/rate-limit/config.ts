@@ -13,6 +13,8 @@ export interface KVRateLimitConfig extends RateLimitConfigBase {
     limit: number;
     period: number; // in seconds
     burst?: number; // optional burst limit
+    burstWindow?: number; // burst window in seconds (default: 60)
+    bucketSize?: number; // time bucket size in seconds (default: 10)
 }
 
 export interface RLRateLimitConfig extends RateLimitConfigBase {
@@ -32,7 +34,6 @@ export interface RateLimitSettings {
     authRateLimit: RLRateLimitConfig;
     appCreation: KVRateLimitConfig;
 	llmCalls: LLMCallsRateLimitConfig;
-	websocketUpgrade: KVRateLimitConfig;
 }
 
 export const DEFAULT_RATE_LIMIT_SETTINGS: RateLimitSettings = {
@@ -59,12 +60,6 @@ export const DEFAULT_RATE_LIMIT_SETTINGS: RateLimitSettings = {
 		period: 3600, // 1 hour  
 		excludeBYOKUsers: true
 	},
-	websocketUpgrade: {
-		enabled: true,
-        store: RateLimitStore.KV,
-		limit: 50,
-		period: 3600 // 1 hour
-	}
 };
 
 export enum RateLimitType {
@@ -72,5 +67,4 @@ export enum RateLimitType {
     AUTH_RATE_LIMIT = 'auth_rate_limit',
 	APP_CREATION = 'app_creation',
 	LLM_CALLS = 'llm_calls',
-	WEBSOCKET_UPGRADE = 'websocket_upgrade'
 }
