@@ -30,13 +30,7 @@ export class AnalyticsController extends BaseController {
 	): Promise<ControllerResponse<ApiResponse<UserAnalyticsResponseData>>> {
 		try {
 			// Extract authenticated user from context
-			const authUser = this.extractAuthUser(context);
-			if (!authUser) {
-				return this.createErrorResponse<UserAnalyticsResponseData>(
-					'Authentication required',
-					401,
-				);
-			}
+			const authUser = context.user!;
 
 			// Extract route parameters
 			const userId = context.pathParams.id;
@@ -112,14 +106,7 @@ export class AnalyticsController extends BaseController {
 	): Promise<ControllerResponse<ApiResponse<AgentAnalyticsResponseData>>> {
 		try {
 			// Extract authenticated user from context
-			const authUser = this.extractAuthUser(context);
-			if (!authUser) {
-				return this.createErrorResponse<AgentAnalyticsResponseData>(
-					'Authentication required',
-					401,
-				);
-			}
-
+			const authUser = context.user!;
 			// Extract route parameters
 			const agentId = context.pathParams.id;
 
