@@ -26,10 +26,7 @@ export class UserController extends BaseController {
      */
     async getApps(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<UserAppsData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<UserAppsData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const url = new URL(request.url);
             const page = parseInt(url.searchParams.get('page') || '1');
@@ -83,10 +80,7 @@ export class UserController extends BaseController {
      */
     async updateProfile(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ProfileUpdateData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<ProfileUpdateData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const bodyResult = await this.parseJsonBody<{
                 username?: string;
