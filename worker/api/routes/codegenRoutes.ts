@@ -1,10 +1,13 @@
-import { Router, AuthConfig } from '../router';
 import { CodingAgentController } from '../controllers/agent/controller';
+import { AppEnv } from '../../types/appenv';
+import { Hono } from 'hono';
+import { AuthConfig, routeAuthMiddleware } from '../../middleware/auth/routeAuth';
+import { adaptController } from '../honoAdapter';
 
 /**
  * Setup and configure the application router
  */
-export function setupCodegenRoutes(env: Env, router: Router): Router {
+export function setupCodegenRoutes(env: Env, app: Hono<AppEnv>): void {
     const codingAgentController = new CodingAgentController(env);
 
     // ========================================
@@ -12,7 +15,7 @@ export function setupCodegenRoutes(env: Env, router: Router): Router {
     // ========================================
     
     // CRITICAL: Create new app - requires full authentication
-    router.post('/api/agent', codingAgentController.startCodeGeneration.bind(codingAgentController), AuthConfig.authenticated);
+    app.post('/api/agent', routeAuthMiddleware(AuthConfig.authenticated), adaptController(codingAgentController, codingAgentController.startCodeGeneration));
     
     // ========================================
     // APP EDITING ROUTES (/chat/:id frontend)
@@ -20,12 +23,11 @@ export function setupCodegenRoutes(env: Env, router: Router): Router {
     
     // WebSocket for app editing - OWNER ONLY (for /chat/:id route)
     // Only the app owner should be able to connect and modify via WebSocket
-    router.register('/api/agent/:agentId/ws', codingAgentController.handleWebSocketConnection.bind(codingAgentController), ['GET'], AuthConfig.ownerOnly);
+    app.get('/api/agent/:agentId/ws', routeAuthMiddleware(AuthConfig.ownerOnly), adaptController(codingAgentController, codingAgentController.handleWebSocketConnection));
     
     // Connect to existing agent for editing - OWNER ONLY
     // Only the app owner should be able to connect for editing purposes
-    router.get('/api/agent/:agentId/connect', codingAgentController.connectToExistingAgent.bind(codingAgentController), AuthConfig.ownerOnly);
+    app.get('/api/agent/:agentId/connect', routeAuthMiddleware(AuthConfig.ownerOnly), adaptController(codingAgentController, codingAgentController.connectToExistingAgent));
 
-    router.get('/api/agent/:agentId/preview', codingAgentController.deployPreview.bind(codingAgentController), AuthConfig.public);
-    return router;
+    app.get('/api/agent/:agentId/preview', routeAuthMiddleware(AuthConfig.public), adaptController(codingAgentController, codingAgentController.deployPreview));
 }

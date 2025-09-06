@@ -71,25 +71,13 @@
                 "disk_mb": 10240
             },
             "rollout_step_percentage": 100
-		},
-        {
-          "class_name": "DeployerService",
-          "image": "./DeployerDockerfile",
-          "max_instances": 1,
-          // ATTENTION: Altering instance_type value will have no effect. Please use the SANDBOX_INSTANCE_TYPE var instead.
-          "instance_type": {
-            "vcpu": 4,
-            "memory_mib": 4096,
-            "disk_mb": 5120
-        },
-          "rollout_step_percentage": 100
-        }
+		}
 	],
 	"d1_databases": [
 		{
 			"binding": "DB",
 			"database_name": "orange-build-db",
-			"database_id": "3085356f-6009-4a75-a478-66c05a5a532f",
+			"database_id": "59888192-687c-4282-9e1c-77e7b42c38cf",
 			"migrations_dir": "migrations",
 			"experimental_remote": true
 		}
@@ -124,7 +112,7 @@
     "kv_namespaces": [
         {
             "binding": "VibecoderStore",
-            "id": "4ef0645e51904cce9d2807ddb631c75b",
+            "id": "f066f3c2e4824981b48e8586c04db9c1",
             "experimental_remote": true
         }
     ],
@@ -147,6 +135,10 @@
         {
             "pattern": "build.cloudflare.dev",
             "custom_domain": true
+        },
+        {
+            "pattern": "*.build.cloudflare.dev/*",
+            "custom_domain": false
         }
     ],
 	"vars": {

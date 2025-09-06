@@ -1,30 +1,7 @@
 /**
  * Security-related TypeScript types for the application
  */
-
-import { z } from 'zod';
 import type { AuthUser, AuthSession, OAuthProvider } from './auth-types';
-
-/**
- * Rate limit configuration
- */
-export interface RateLimitConfig {
-    requests: number;
-    window: string | number; // '1h', '15m', or milliseconds
-    by: 'ip' | 'user' | 'session';
-}
-
-/**
- * Route security configuration
- */
-export interface RouteSecurityConfig {
-    rateLimit?: RateLimitConfig;
-    requireAuth: boolean;
-    validation?: z.ZodSchema;
-    requiredScopes?: string[];
-    authorization?: string; // Custom authorization function name
-    bruteForceProtection?: boolean;
-}
 
 /**
  * Security context passed through middleware
