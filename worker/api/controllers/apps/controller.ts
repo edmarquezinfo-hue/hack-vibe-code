@@ -24,8 +24,7 @@ export class AppController extends BaseController {
     }
 
     // Get all apps for the current user
-    getUserApps = withCache(
-        async function(this: AppController, _request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
+    async getUserApps(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
         try {
             const user = context.user!;
             
@@ -40,9 +39,7 @@ export class AppController extends BaseController {
             this.logger.error('Error fetching user apps:', error);
             return this.createErrorResponse<AppsListData>('Failed to fetch apps', 500);
         }
-    },
-        { ttlSeconds: 12 * 60, tags: ['user-apps'] }
-    );
+    }
 
     // Get recent apps (last 10)
     async getRecentApps(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
@@ -62,7 +59,7 @@ export class AppController extends BaseController {
         }
     }
 
-    // Get favorite apps
+    // Get favorite apps - NO CACHE (user-specific, real-time)
     async getFavoriteApps(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
         try {
             const user = context.user!;

@@ -1,17 +1,18 @@
-import { Router, AuthConfig } from '../router';
 import { UserController } from '../controllers/user/controller';
+import { Hono } from 'hono';
+import { AppEnv } from '../../types/appenv';
+import { adaptController } from '../honoAdapter';
+import { AuthConfig, routeAuthMiddleware } from '../../middleware/auth/routeAuth';
 
 /**
  * Setup user management routes
  */
-export function setupUserRoutes(env: Env, router: Router): Router {
+export function setupUserRoutes(env: Env, app: Hono<AppEnv>): void {
     const userController = new UserController(env);
 
     // User apps with pagination (this is what the frontend needs)
-    router.get('/api/user/apps', userController.getApps.bind(userController), AuthConfig.authenticated);
+    app.get('/api/user/apps', routeAuthMiddleware(AuthConfig.authenticated), adaptController(userController, userController.getApps));
 
-    // User profile and teams
-    router.put('/api/user/profile', userController.updateProfile.bind(userController), AuthConfig.authenticated);
-    
-    return router;
+    // User profile
+    app.put('/api/user/profile', routeAuthMiddleware(AuthConfig.authenticated), adaptController(userController, userController.updateProfile));
 }

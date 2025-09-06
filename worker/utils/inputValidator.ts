@@ -4,9 +4,9 @@
  */
 
 import { z } from 'zod';
-import { SecurityError, SecurityErrorType } from '../../types/security';
-import { createLogger } from '../../logger';
-import { validatePassword, validateEmail, validateUsername } from '../../utils/validationUtils';
+import { SecurityError, SecurityErrorType } from '../types/security';
+import { createLogger } from '../logger';
+import { validatePassword, validateEmail, validateUsername } from './validationUtils';
 
 const logger = createLogger('InputValidator');
 

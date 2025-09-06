@@ -14,7 +14,7 @@ import {
     registerSchema, 
     refreshTokenSchema,
     oauthProviderSchema
-} from '../../../middleware/auth/authSchemas';
+} from './authSchemas';
 import { SecurityError } from '../../../types/security';
 import { 
     extractRefreshToken,
@@ -32,9 +32,9 @@ import { authMiddleware } from '../../../middleware/auth/auth';
 export class AuthController extends BaseController {
     private authService: AuthService;
     
-    constructor(env: Env, baseUrl: string) {
+    constructor(env: Env) {
         super(env);
-        this.authService = new AuthService(this.db, env, baseUrl);
+        this.authService = new AuthService(this.db, env);
     }
     
     /**
@@ -680,19 +680,32 @@ export class AuthController extends BaseController {
         _request: Request,
         env: Env,
         _ctx: ExecutionContext,
-        _routeContext?: RouteContext
-    ) {
+        _context: RouteContext
+    ): Promise<Response> {
         try {
             const providers = {
                 google: !!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET,
                 github: !!env.GITHUB_CLIENT_ID && !!env.GITHUB_CLIENT_SECRET,
-                email: true // Email/password is always available
+                email: true
             };
 
-            return this.createSuccessResponse({
+            // const user = context.user;
+            // const csrf = new CSRFProtection(env.VibecoderStore);
+            // const csrfToken = await csrf.generateToken(user?.id);
+            
+            const response = this.createSuccessResponse({
                 providers,
                 hasOAuth: providers.google || providers.github,
-                requiresEmailAuth: !providers.google && !providers.github
+                requiresEmailAuth: !providers.google && !providers.github,
+                // csrfToken
+            });
+            
+            // const headers = new Headers(response.headers);
+            // headers.append('Set-Cookie', getCSRFTokenCookie(csrfToken));
+            
+            return new Response(response.body, {
+                status: response.status,
+                // headers
             });
         } catch (error) {
             console.error('Get auth providers error:', error);

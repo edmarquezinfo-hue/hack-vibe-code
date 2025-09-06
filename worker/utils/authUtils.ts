@@ -300,7 +300,6 @@ export function mapUserResponse(
 		displayName: user.displayName || undefined,
 		username: user.username || undefined,
 		avatarUrl: user.avatarUrl || undefined,
-		isAnonymous: false,
 	};
 }
 

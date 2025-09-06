@@ -319,7 +319,6 @@ export class SessionService extends BaseService {
                 email: await this.getUserEmail(userId),
                 sessionId,
                 expiresAt: expiresAt,
-                isAnonymous: false
             };
             
             logger.info('Session created', { userId, sessionId });
@@ -430,7 +429,6 @@ export class SessionService extends BaseService {
                 email: payload.email,
                 sessionId: session.id,
                 expiresAt: session.expiresAt,
-                isAnonymous: false
             };
         } catch (error) {
             logger.error('Error validating session', error);
