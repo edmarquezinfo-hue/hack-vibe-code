@@ -121,21 +121,12 @@ async function parseFormData(request: Request): Promise<Record<string, string>> 
 /**
  * Parse multipart form data
  */
-async function parseMultipartFormData(request: Request): Promise<Record<string, FormDataEntryValue | { name: string; size: number; type: string; lastModified: number }>> {
+async function parseMultipartFormData(request: Request): Promise<Record<string, string | File>> {
     const formData = await request.formData();
-    const data: Record<string, FormDataEntryValue | { name: string; size: number; type: string; lastModified: number }> = {};
+    const data: Record<string, string | File> = {};
     
     formData.forEach((value, key) => {
-        if (value instanceof File) {
-            data[key] = {
-                name: value.name,
-                size: value.size,
-                type: value.type,
-                lastModified: value.lastModified
-            };
-        } else {
-            data[key] = value;
-        }
+        data[key] = value;
     });
     
     return data;
@@ -214,7 +205,9 @@ export const commonSchemas = {
     }),
     
     // Safe string (no special chars that could be used for injection)
-    safeString: z.string().regex(/^[a-zA-Z0-9\s\-_]+$/, 'Only alphanumeric characters, spaces, hyphens, and underscores allowed'),
+    safeString: z.string()
+        .regex(/^[a-zA-Z0-9\s\-_]+$/, 'Only alphanumeric characters, spaces, hyphens, and underscores allowed')
+        .transform(val => val.trim()),
     
     // URL validation
     url: z.string().url(),
@@ -223,58 +216,8 @@ export const commonSchemas = {
     date: z.string().datetime(),
 };
 
-/**
- * Request sanitizers to prevent common attacks
- */
-export const sanitizers = {
-    /**
-     * Remove any HTML tags from string
-     */
-    stripHtml(input: string): string {
-        return input.replace(/<[^>]*>/g, '');
-    },
-    
-    /**
-     * Escape HTML special characters
-     */
-    escapeHtml(input: string): string {
-        const htmlEscapes: Record<string, string> = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;'
-        };
-        
-        return input.replace(/[&<>"']/g, char => htmlEscapes[char]);
-    },
-    
-    /**
-     * Sanitize file path to prevent directory traversal
-     */
-    sanitizePath(input: string): string {
-        // Remove any parent directory references and special chars
-        return input
-            .replace(/\.\./g, '')
-            .replace(/[^a-zA-Z0-9\-_./]/g, '')
-            .replace(/\/+/g, '/'); // Normalize multiple slashes
-    },
-    
-    /**
-     * Sanitize SQL identifier (table/column names)
-     */
-    sanitizeIdentifier(input: string): string {
-        // Only allow alphanumeric and underscore
-        return input.replace(/[^a-zA-Z0-9_]/g, '');
-    },
-    
-    /**
-     * Truncate string to prevent DoS via large inputs
-     */
-    truncate(input: string, maxLength: number = 1000): string {
-        return input.length > maxLength ? input.slice(0, maxLength) : input;
-    }
-};
+// Sanitizers removed - use Zod transforms instead
+// Example: z.string().transform(val => val.trim().toLowerCase())
 
 /**
  * Export inputValidator as an alias for validateInput

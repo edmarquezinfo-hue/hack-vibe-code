@@ -1,7 +1,6 @@
 /**
  * Model Configuration Service
  * Handles CRUD operations for user model configurations
- * Moved from /services/modelConfig/ to maintain consistent database service patterns
  */
 
 import { BaseService } from './BaseService';
@@ -14,7 +13,6 @@ import { generateId } from '../../utils/idGenerator';
 import type { UserModelConfigWithMetadata } from '../types';
 
 export class ModelConfigService extends BaseService {
-
     /**
      * Safely cast database string to ReasoningEffort type
      */
@@ -22,8 +20,6 @@ export class ModelConfigService extends BaseService {
         if (!value) return undefined;
         return value as ReasoningEffort;
     }
-
-
 
     /**
      * Get all model configurations for a user (merged with defaults)
@@ -215,21 +211,6 @@ export class ModelConfigService extends BaseService {
      */
     getDefaultConfigs(): Record<AgentActionKey, ModelConfig> {
         return AGENT_CONFIG;
-    }
-
-    /**
-     * Check if user has any custom configurations
-     */
-    async hasUserOverrides(userId: string): Promise<boolean> {
-        const count = await this.database
-            .select({ count: userModelConfigs.id })
-            .from(userModelConfigs)
-            .where(and(
-                eq(userModelConfigs.userId, userId),
-                eq(userModelConfigs.isActive, true)
-            ));
-
-        return count.length > 0;
     }
 
     /**

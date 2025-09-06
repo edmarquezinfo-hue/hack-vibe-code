@@ -9,8 +9,8 @@ import { GitHubAppController } from '../controllers/githubApp/controller';
 /**
  * Setup GitHub App routes
  */
-export function setupGitHubAppRoutes(router: Router): void {
-    const githubAppController = new GitHubAppController();
+export function setupGitHubAppRoutes(env: Env, router: Router): void {
+    const githubAppController = new GitHubAppController(env);
     router.get('/api/github-app/oauth-callback', githubAppController.handleOAuthCallback.bind(githubAppController), AuthConfig.public);
     
     // Repository export routes with OAuth flow

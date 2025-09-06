@@ -864,12 +864,6 @@ export default function SettingsPage() {
 														</div>
 													</div>
 													<div className="flex items-center gap-2">
-														<Badge
-															variant="secondary"
-															className="text-xs"
-														>
-															{secret.environment}
-														</Badge>
 														<AlertDialog>
 															<AlertDialogTrigger
 																asChild

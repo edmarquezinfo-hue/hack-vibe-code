@@ -116,7 +116,7 @@ async function getApiKey(provider: string, env: Env, userId: string): Promise<st
     try {
         const db = new DatabaseService(env);
         const secretsService = new SecretsService(db, env);
-        const userProviderKeys = await secretsService.getUserProviderKeysMap(userId);
+        const userProviderKeys = await secretsService.getUserBYOKKeysMap(userId);
         // First check if user has a custom API key for this provider
         if (userProviderKeys && provider in userProviderKeys) {
             const userKey = userProviderKeys.get(provider);

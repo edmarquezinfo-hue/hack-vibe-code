@@ -17,7 +17,6 @@ import type {
 	ForkAppData,
 	UserAppsData,
 	ProfileUpdateData,
-	UserTeamsData,
 	UserStatsData,
 	UserActivityData,
 	UserAnalyticsResponseData,
@@ -499,13 +498,6 @@ class ApiClient {
 		});
 	}
 
-	/**
-	 * Get user teams
-	 */
-	async getUserTeams(): Promise<ApiResponse<UserTeamsData>> {
-		return this.request<UserTeamsData>('/api/user/teams');
-	}
-
 	// ===============================
 	// Stats API Methods
 	// ===============================
@@ -756,17 +748,10 @@ class ApiClient {
 	// ===============================
 
 	/**
-	 * Get all user secrets
-	 */
-	async getSecrets(): Promise<ApiResponse<SecretsData>> {
-		return this.request<SecretsData>('/api/secrets');
-	}
-
-	/**
-	 * Get all user secrets including inactive ones (for management)
+	 * Get all user secrets including inactive ones
 	 */
 	async getAllSecrets(): Promise<ApiResponse<SecretsData>> {
-		return this.request<SecretsData>('/api/secrets/all');
+		return this.request<SecretsData>('/api/secrets');
 	}
 
 	/**

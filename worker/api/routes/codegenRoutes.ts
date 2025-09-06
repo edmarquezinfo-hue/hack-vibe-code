@@ -1,25 +1,11 @@
 import { Router, AuthConfig } from '../router';
 import { CodingAgentController } from '../controllers/agent/controller';
-import { setupAuthRoutes } from './authRoutes';
-import { setupAppRoutes } from './appRoutes';
-import { setupUserRoutes } from './userRoutes';
-import { setupStatsRoutes } from './statsRoutes';
-import { setupAnalyticsRoutes } from './analyticsRoutes';
-import { setupWebhookRoutes } from './webhookRoutes';
-import { setupSecretsRoutes } from './secretsRoutes';
-import { setupModelConfigRoutes } from './modelConfigRoutes';
-import { setupModelProviderRoutes } from './modelProviderRoutes';
-import { setupGitHubAppRoutes } from './githubAppRoutes';
-// import { handleInsertRag, handleQueryRag } from "./rag";
-
-// Export the CodeGenerator Agent as a Durable Object class named CodeGen
 
 /**
  * Setup and configure the application router
  */
-export function setupRouter(): Router {
-    const router = new Router();
-    const codingAgentController = new CodingAgentController();
+export function setupCodegenRoutes(env: Env, router: Router): Router {
+    const codingAgentController = new CodingAgentController(env);
 
     // ========================================
     // CODE GENERATION ROUTES
@@ -41,36 +27,5 @@ export function setupRouter(): Router {
     router.get('/api/agent/:agentId/connect', codingAgentController.connectToExistingAgent.bind(codingAgentController), AuthConfig.ownerOnly);
 
     router.get('/api/agent/:agentId/preview', codingAgentController.deployPreview.bind(codingAgentController), AuthConfig.public);
-
-    // Authentication and user management routes
-    setupAuthRoutes(router);
-    
-    // User dashboard and profile routes
-    setupUserRoutes(router);
-    
-    // App management routes
-    setupAppRoutes(router);
-    
-    // Stats routes
-    setupStatsRoutes(router);
-    
-    // AI Gateway Analytics routes
-    setupAnalyticsRoutes(router);
-    
-    // Webhook routes
-    setupWebhookRoutes(router);
-    
-    // Secrets management routes
-    setupSecretsRoutes(router);
-    
-    // Model configuration and provider keys routes
-    setupModelConfigRoutes(router);
-    
-    // Model provider routes
-    setupModelProviderRoutes(router);
-    
-    // GitHub App routes
-    setupGitHubAppRoutes(router);
-    
     return router;
 }

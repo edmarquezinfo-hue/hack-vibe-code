@@ -1,6 +1,5 @@
 /**
- * CORS (Cross-Origin Resource Sharing) Middleware for Cloudflare Workers
- * Configures CORS based on environment with secure defaults
+ * CORS (Cross-Origin Resource Sharing) Middleware
  */
 
 import { createLogger } from '../../logger';

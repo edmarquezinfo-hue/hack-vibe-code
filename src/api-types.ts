@@ -44,7 +44,6 @@ export type {
 export type {
   UserAppsData,
   ProfileUpdateData,
-  UserTeamsData
 } from 'worker/api/controllers/user/types';
 
 // Stats API Types
@@ -132,7 +131,6 @@ export type {
   FavoriteToggleResult,
   EnhancedUserStats,
   UserActivity,
-  UserTeamData,
   EncryptedSecret,
   UserModelConfigWithMetadata,
   ModelTestResult

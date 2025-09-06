@@ -3,15 +3,16 @@
  * Orchestrates all auth operations including login, registration, and OAuth
  */
 
-import { DatabaseService } from '../../database/database';
-import * as schema from '../../database/schema';
+import { DatabaseService } from '../database';
+import * as schema from '../schema';
 import { eq, and, sql, or, lt } from 'drizzle-orm';
-import { TokenService } from './tokenService';
-import { SessionService } from './sessionService';
-import { PasswordService } from './passwordService';
-import { GoogleOAuthProvider } from './providers/google';
-import { GitHubOAuthProvider } from './providers/github';
-import { BaseOAuthProvider, OAuthUserInfo } from './providers/base';
+import { JWTUtils } from '../../utils/jwtUtils';
+import { generateSecureToken } from '../../utils/cryptoUtils';
+import { SessionService } from './SessionService';
+import { PasswordService } from '../../middleware/auth/passwordService';
+import { GoogleOAuthProvider } from '../../services/oauth/google';
+import { GitHubOAuthProvider } from '../../services/oauth/github';
+import { BaseOAuthProvider, OAuthUserInfo } from '../../services/oauth/base';
 import { 
     SecurityError, 
     SecurityErrorType 
@@ -25,6 +26,7 @@ import { mapUserResponse } from '../../utils/authUtils';
 import { createLogger } from '../../logger';
 import { validateEmail, validatePassword } from '../../utils/validationUtils';
 import { extractRequestMetadata } from '../../utils/authUtils';
+import { BaseService } from './BaseService';
 
 const logger = createLogger('AuthService');
 
@@ -59,19 +61,18 @@ export interface AuthResult {
 /**
  * Main Authentication Service
  */
-export class AuthService {
-    private readonly tokenService: TokenService;
+export class AuthService extends BaseService {
     private readonly sessionService: SessionService;
     private readonly passwordService: PasswordService;
     private readonly oauthProviders: Map<OAuthProvider, BaseOAuthProvider>;
     
     constructor(
-        private db: DatabaseService,
+        db: DatabaseService,
         env: Env,
         baseUrl: string
     ) {
-        this.tokenService = new TokenService(env);
-        this.sessionService = new SessionService(db, this.tokenService);
+        super(db);
+        this.sessionService = new SessionService(db, env);
         this.passwordService = new PasswordService();
         
         // Initialize OAuth providers
@@ -119,7 +120,7 @@ export class AuthService {
             }
             
             // Check if user already exists
-            const existingUser = await this.db.db
+            const existingUser = await this.database
                 .select()
                 .from(schema.users)
                 .where(eq(schema.users.email, data.email.toLowerCase()))
@@ -141,7 +142,7 @@ export class AuthService {
             const now = new Date();
             
             // Store user as verified immediately (no OTP verification required)
-            await this.db.db.insert(schema.users).values({
+            await this.database.insert(schema.users).values({
                 id: userId,
                 email: data.email.toLowerCase(),
                 passwordHash,
@@ -154,7 +155,7 @@ export class AuthService {
             });
             
             // Get the created user
-            const newUser = await this.db.db
+            const newUser = await this.database
                 .select()
                 .from(schema.users)
                 .where(eq(schema.users.id, userId))
@@ -206,7 +207,7 @@ export class AuthService {
     async login(credentials: LoginCredentials, request: Request): Promise<AuthResult> {
         try {
             // Find user
-            const user = await this.db.db
+            const user = await this.database
                 .select()
                 .from(schema.users)
                 .where(
@@ -316,13 +317,13 @@ export class AuthService {
         }
         
         // Generate state for CSRF protection
-        const state = await this.tokenService.generateSecureToken();
+        const state = generateSecureToken();
         
         // Generate PKCE code verifier
         const codeVerifier = BaseOAuthProvider.generateCodeVerifier();
         
         // Store OAuth state with intended redirect URL
-        await this.db.db.insert(schema.oauthStates).values({
+        await this.database.insert(schema.oauthStates).values({
             id: generateId(),
             state,
             provider,
@@ -350,7 +351,7 @@ export class AuthService {
     private async cleanupExpiredOAuthStates(): Promise<void> {
         try {
             const now = new Date();
-            await this.db.db
+            await this.database
                 .delete(schema.oauthStates)
                 .where(
                     or(
@@ -386,7 +387,7 @@ export class AuthService {
             
             // Verify state
             const now = new Date();
-            const oauthState = await this.db.db
+            const oauthState = await this.database
                 .select()
                 .from(schema.oauthStates)
                 .where(
@@ -407,7 +408,7 @@ export class AuthService {
             }
             
             // Mark state as used
-            await this.db.db
+            await this.database
                 .update(schema.oauthStates)
                 .set({ isUsed: true })
                 .where(eq(schema.oauthStates.id, oauthState.id));
@@ -491,7 +492,7 @@ export class AuthService {
         oauthUserInfo: OAuthUserInfo
     ): Promise<schema.User> {
         // Check if user exists with this email
-        let user = await this.db.db
+        let user = await this.database
             .select()
             .from(schema.users)
             .where(eq(schema.users.email, oauthUserInfo.email.toLowerCase()))
@@ -502,7 +503,7 @@ export class AuthService {
             const userId = generateId();
             const now = new Date();
             
-            await this.db.db.insert(schema.users).values({
+            await this.database.insert(schema.users).values({
                 id: userId,
                 email: oauthUserInfo.email.toLowerCase(),
                 displayName: oauthUserInfo.name || oauthUserInfo.email.split('@')[0],
@@ -514,14 +515,14 @@ export class AuthService {
                 updatedAt: now
             });
             
-            user = await this.db.db
+            user = await this.database
                 .select()
                 .from(schema.users)
                 .where(eq(schema.users.id, userId))
                 .get();
         } else {
             // Always update OAuth info and user data on login
-            await this.db.db
+            await this.database
                 .update(schema.users)
                 .set({
                     displayName: oauthUserInfo.name || user.displayName,
@@ -534,7 +535,7 @@ export class AuthService {
                 .where(eq(schema.users.id, user.id));
             
             // Refresh user data after updates
-            user = await this.db.db
+            user = await this.database
                 .select()
                 .from(schema.users)
                 .where(eq(schema.users.id, user.id))
@@ -556,7 +557,7 @@ export class AuthService {
         try {
             const requestMetadata = extractRequestMetadata(request);
             
-            await this.db.db.insert(schema.authAttempts).values({
+            await this.database.insert(schema.authAttempts).values({
                 identifier: identifier.toLowerCase(),
                 attemptType: attemptType as 'login' | 'register' | 'oauth_google' | 'oauth_github' | 'refresh' | 'reset_password',
                 success: success,
@@ -614,7 +615,7 @@ export class AuthService {
         const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes expiry
 
         // Store OTP in database (you may need to create a verification_otps table)
-        await this.db.db.insert(schema.verificationOtps).values({
+        await this.database.insert(schema.verificationOtps).values({
             id: generateId(),
             email: email.toLowerCase(),
             otp: await this.passwordService.hash(otp), // Hash the OTP for security
@@ -632,7 +633,7 @@ export class AuthService {
     async verifyEmailWithOtp(email: string, otp: string, request: Request): Promise<AuthResult> {
         try {
             // Find valid OTP
-            const storedOtp = await this.db.db
+            const storedOtp = await this.database
                 .select()
                 .from(schema.verificationOtps)
                 .where(
@@ -664,13 +665,13 @@ export class AuthService {
             }
 
             // Mark OTP as used
-            await this.db.db
+            await this.database
                 .update(schema.verificationOtps)
                 .set({ used: true, usedAt: new Date() })
                 .where(eq(schema.verificationOtps.id, storedOtp.id));
 
             // Find and verify the user
-            const user = await this.db.db
+            const user = await this.database
                 .select()
                 .from(schema.users)
                 .where(eq(schema.users.email, email.toLowerCase()))
@@ -685,7 +686,7 @@ export class AuthService {
             }
 
             // Update user as verified
-            await this.db.db
+            await this.database
                 .update(schema.users)
                 .set({ emailVerified: true, updatedAt: new Date() })
                 .where(eq(schema.users.id, user.id));
@@ -723,12 +724,74 @@ export class AuthService {
     }
 
     /**
+     * Get user for authentication (for middleware)
+     */
+    async getUserForAuth(userId: string): Promise<AuthUser | null> {
+        try {
+            const user = await this.database
+                .select({
+                    id: schema.users.id,
+                    email: schema.users.email,
+                    displayName: schema.users.displayName
+                })
+                .from(schema.users)
+                .where(
+                    and(
+                        eq(schema.users.id, userId),
+                        sql`${schema.users.deletedAt} IS NULL`
+                    )
+                )
+                .get();
+            
+            if (!user) {
+                return null;
+            }
+            
+            return {
+                id: user.id,
+                email: user.email,
+                displayName: user.displayName || undefined,
+                isAnonymous: false
+            };
+        } catch (error) {
+            logger.error('Error getting user for auth', error);
+            return null;
+        }
+    }
+    
+    /**
+     * Validate token and return user (for middleware)
+     */
+    async validateTokenAndGetUser(token: string, env: Env): Promise<AuthUser | null> {
+        try {
+            const jwtUtils = JWTUtils.getInstance(env);
+            const payload = await jwtUtils.verifyToken(token);
+            
+            if (!payload || payload.type !== 'access') {
+                return null;
+            }
+            
+            // Check if token is expired
+            if (payload.exp * 1000 < Date.now()) {
+                logger.debug('Token expired', { exp: payload.exp });
+                return null;
+            }
+            
+            // Get user from database
+            return this.getUserForAuth(payload.sub);
+        } catch (error) {
+            logger.error('Token validation error', error);
+            return null;
+        }
+    }
+    
+    /**
      * Resend verification OTP
      */
     async resendVerificationOtp(email: string): Promise<void> {
         try {
             // Check if user exists and is unverified
-            const user = await this.db.db
+            const user = await this.database
                 .select()
                 .from(schema.users)
                 .where(eq(schema.users.email, email.toLowerCase()))
@@ -751,7 +814,7 @@ export class AuthService {
             }
 
             // Invalidate existing OTPs
-            await this.db.db
+            await this.database
                 .update(schema.verificationOtps)
                 .set({ used: true, usedAt: new Date() })
                 .where(

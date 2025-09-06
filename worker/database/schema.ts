@@ -124,174 +124,6 @@ export const apiKeys = sqliteTable('api_keys', {
 }));
 
 // ========================================
-// TEAM AND ORGANIZATION MANAGEMENT
-// ========================================
-
-/**
- * Teams table - Organization/team accounts that users can belong to
- */
-export const teams = sqliteTable('teams', {
-    id: text('id').primaryKey(),
-    name: text('name').notNull(),
-    slug: text('slug').notNull().unique(), // URL-friendly identifier
-    description: text('description'),
-    avatarUrl: text('avatar_url'),
-    
-    // Team Settings
-    visibility: text('visibility', { enum: ['private', 'public'] }).notNull().default('private'),
-    allowMemberInvites: integer('allow_member_invites', { mode: 'boolean' }).default(false),
-    
-    // Billing and Limits (for future use)
-    plan: text('plan', { enum: ['free', 'pro', 'enterprise'] }).default('free'),
-    maxMembers: integer('max_members').default(5),
-    maxApps: integer('max_apps').default(10),
-    
-    // Removed memberCount and appCount - use COUNT() queries with proper indexes instead
-    
-    // Ownership
-    ownerId: text('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-    
-    // Metadata
-    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
-}, (table) => ({
-    slugIdx: uniqueIndex('teams_slug_idx').on(table.slug),
-    ownerIdx: index('teams_owner_idx').on(table.ownerId),
-    visibilityIdx: index('teams_visibility_idx').on(table.visibility),
-}));
-
-/**
- * TeamMembers table - Many-to-many relationship between users and teams
- */
-export const teamMembers = sqliteTable('team_members', {
-    id: text('id').primaryKey(),
-    teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
-    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-    
-    // Membership Details
-    role: text('role', { enum: ['owner', 'admin', 'member', 'viewer'] }).notNull().default('member'),
-    permissions: text('permissions', { mode: 'json' }).default('[]'), // Array of specific permissions
-    
-    // Invitation Management
-    invitedBy: text('invited_by').references(() => users.id),
-    invitedAt: integer('invited_at', { mode: 'timestamp' }),
-    joinedAt: integer('joined_at', { mode: 'timestamp' }),
-    status: text('status', { enum: ['pending', 'active', 'suspended'] }).notNull().default('active'),
-    
-    // Metadata
-    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-}, (table) => ({
-    teamUserIdx: uniqueIndex('team_members_team_user_idx').on(table.teamId, table.userId),
-    userIdx: index('team_members_user_idx').on(table.userId),
-    roleIdx: index('team_members_role_idx').on(table.role),
-    statusIdx: index('team_members_status_idx').on(table.status),
-}));
-
-// ========================================
-// CLOUDFLARE INTEGRATION
-// ========================================
-
-/**
- * CloudflareAccounts table - Store Cloudflare account configurations
- * Supports both user and team-level accounts
- */
-export const cloudflareAccounts = sqliteTable('cloudflare_accounts', {
-    id: text('id').primaryKey(),
-    name: text('name').notNull(), // User-friendly name for the account
-    
-    // Account Details
-    accountId: text('account_id').notNull(), // Cloudflare Account ID
-    apiTokenHash: text('api_token_hash').notNull(), // Encrypted/hashed API token
-    
-    // Ownership - either user or team
-    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
-    teamId: text('team_id').references(() => teams.id, { onDelete: 'cascade' }),
-    
-    // Configuration
-    isDefault: integer('is_default', { mode: 'boolean' }).default(false),
-    isActive: integer('is_active', { mode: 'boolean' }).default(true),
-    
-    // Capabilities and Limits
-    capabilities: text('capabilities', { mode: 'json' }).default('[]'), // What the token can do
-    lastValidated: integer('last_validated', { mode: 'timestamp' }),
-    validationStatus: text('validation_status').default('pending'), // 'valid', 'invalid', 'pending'
-    
-    // Metadata
-    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-}, (table) => ({
-    userIdx: index('cf_accounts_user_idx').on(table.userId),
-    teamIdx: index('cf_accounts_team_idx').on(table.teamId),
-    accountIdIdx: index('cf_accounts_account_id_idx').on(table.accountId),
-}));
-
-// ========================================
-// COMMUNITY AND BOARDS
-// ========================================
-
-/**
- * Boards table - Organizational boards for sharing apps (like subreddits)
- */
-export const boards = sqliteTable('boards', {
-    id: text('id').primaryKey(),
-    name: text('name').notNull(),
-    slug: text('slug').notNull().unique(),
-    description: text('description'),
-    iconUrl: text('icon_url'),
-    bannerUrl: text('banner_url'),
-    
-    // Board Configuration
-    visibility: text('visibility', { enum: ['public', 'private', 'team_only'] }).notNull().default('public'),
-    allowSubmissions: integer('allow_submissions', { mode: 'boolean' }).default(true),
-    requireApproval: integer('require_approval', { mode: 'boolean' }).default(false),
-    
-    // Board Rules and Guidelines
-    rules: text('rules'), // Markdown content
-    guidelines: text('guidelines'), // Markdown content
-    
-    // Ownership and Moderation
-    ownerId: text('owner_id').references(() => users.id),
-    teamId: text('team_id').references(() => teams.id), // If it's a team board
-    
-    // Removed memberCount and appCount - use COUNT() queries with proper indexes instead
-    
-    // Metadata
-    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-}, (table) => ({
-    slugIdx: uniqueIndex('boards_slug_idx').on(table.slug),
-    ownerIdx: index('boards_owner_idx').on(table.ownerId),
-    teamIdx: index('boards_team_idx').on(table.teamId),
-    visibilityIdx: index('boards_visibility_idx').on(table.visibility),
-}));
-
-/**
- * BoardMembers table - Board membership and moderation roles
- */
-export const boardMembers = sqliteTable('board_members', {
-    id: text('id').primaryKey(),
-    boardId: text('board_id').notNull().references(() => boards.id, { onDelete: 'cascade' }),
-    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-    
-    // Membership Details
-    role: text('role', { enum: ['owner', 'moderator', 'member'] }).notNull().default('member'),
-    permissions: text('permissions', { mode: 'json' }).default('[]'),
-    
-    // Member Status
-    isBanned: integer('is_banned', { mode: 'boolean' }).default(false),
-    bannedAt: integer('banned_at', { mode: 'timestamp' }),
-    bannedReason: text('banned_reason'),
-    
-    // Metadata
-    joinedAt: integer('joined_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-}, (table) => ({
-    boardUserIdx: uniqueIndex('board_members_board_user_idx').on(table.boardId, table.userId),
-    userIdx: index('board_members_user_idx').on(table.userId),
-}));
-
-// ========================================
 // CORE APP AND GENERATION SYSTEM
 // ========================================
 
@@ -304,7 +136,6 @@ export const apps = sqliteTable('apps', {
     // App Identity
     title: text('title').notNull(),
     description: text('description'),
-    slug: text('slug'), // URL-friendly identifier for public apps
     iconUrl: text('icon_url'), // App icon URL
     
     // Original Generation Data
@@ -317,21 +148,16 @@ export const apps = sqliteTable('apps', {
     
     // Ownership and Context
     userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }), // Null for anonymous
-    teamId: text('team_id').references(() => teams.id, { onDelete: 'cascade' }), // Team context if applicable
     sessionToken: text('session_token'), // For anonymous users
     
     // Visibility and Sharing
-    visibility: text('visibility', { enum: ['private', 'team', 'board', 'public'] }).notNull().default('private'),
-    boardId: text('board_id').references(() => boards.id), // If shared to a board
+    visibility: text('visibility', { enum: ['private', 'public'] }).notNull().default('private'),
     
     // Status and State
     status: text('status', { enum: ['generating', 'completed'] }).notNull().default('generating'),
     
     // Deployment Information
     deploymentUrl: text('deployment_url'), // Live deployment URL
-    cloudflareAccountId: text('cloudflare_account_id'), // Which CF account was used
-    deploymentStatus: text('deployment_status').default('none'), // 'none', 'deploying', 'deployed', 'failed'
-    deploymentMetadata: text('deployment_metadata', { mode: 'json' }).default('{}'),
     
     // GitHub Repository Integration
     githubRepositoryUrl: text('github_repository_url'), // GitHub repository URL
@@ -340,8 +166,6 @@ export const apps = sqliteTable('apps', {
     // App Metadata
     isArchived: integer('is_archived', { mode: 'boolean' }).default(false),
     isFeatured: integer('is_featured', { mode: 'boolean' }).default(false), // Featured by admins
-    
-    // Removed viewCount, forkCount, likeCount - use COUNT() queries with proper indexes instead
     
     // Versioning (for future support)
     version: integer('version').default(1),
@@ -357,11 +181,8 @@ export const apps = sqliteTable('apps', {
     lastDeployedAt: integer('last_deployed_at', { mode: 'timestamp' }),
 }, (table) => ({
     userIdx: index('apps_user_idx').on(table.userId),
-    teamIdx: index('apps_team_idx').on(table.teamId),
-    boardIdx: index('apps_board_idx').on(table.boardId),
     statusIdx: index('apps_status_idx').on(table.status),
     visibilityIdx: index('apps_visibility_idx').on(table.visibility),
-    slugIdx: index('apps_slug_idx').on(table.slug),
     sessionTokenIdx: index('apps_session_token_idx').on(table.sessionToken),
     parentAppIdx: index('apps_parent_app_idx').on(table.parentAppId),
     // Performance indexes for common queries
@@ -533,32 +354,6 @@ export const oauthStates = sqliteTable('oauth_states', {
 // ========================================
 
 /**
- * AppTags table - Normalized tags for apps
- */
-export const appTags = sqliteTable('app_tags', {
-    id: text('id').primaryKey(),
-    appId: text('app_id').notNull().references(() => apps.id, { onDelete: 'cascade' }),
-    tagName: text('tag_name').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-}, (table) => ({
-    appTagIdx: uniqueIndex('app_tags_app_tag_idx').on(table.appId, table.tagName),
-    tagNameIdx: index('app_tags_tag_name_idx').on(table.tagName),
-}));
-
-/**
- * AppCategories table - Normalized categories for apps
- */
-export const appCategories = sqliteTable('app_categories', {
-    id: text('id').primaryKey(),
-    appId: text('app_id').notNull().references(() => apps.id, { onDelete: 'cascade' }),
-    categoryName: text('category_name').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-}, (table) => ({
-    appCategoryIdx: uniqueIndex('app_categories_app_category_idx').on(table.appId, table.categoryName),
-    categoryNameIdx: index('app_categories_category_name_idx').on(table.categoryName),
-}));
-
-/**
  * Auth Attempts table - Security monitoring and rate limiting
  */
 export const authAttempts = sqliteTable('auth_attempts', {
@@ -652,7 +447,7 @@ export const auditLogs = sqliteTable('audit_logs', {
 
 /**
  * User Secrets table - Stores encrypted API keys and secrets for code generation
- * Used by code generator to access external services (Stripe, OpenAI, Cloudflare, etc.)
+ * Used by code generator to access external services (Stripe, OpenAI, etc.)
  */
 export const userSecrets = sqliteTable('user_secrets', {
     id: text('id').primaryKey(),
@@ -660,7 +455,7 @@ export const userSecrets = sqliteTable('user_secrets', {
     
     // Secret identification
     name: text('name').notNull(), // User-friendly name (e.g., "My Stripe API Key")
-    provider: text('provider').notNull(), // Service provider (stripe, openai, cloudflare, etc.)
+    provider: text('provider').notNull(), // Service provider (stripe, openai, etc.)
     secretType: text('secret_type').notNull(), // api_key, account_id, secret_key, token, etc.
     
     // Encrypted secret data
@@ -668,7 +463,6 @@ export const userSecrets = sqliteTable('user_secrets', {
     keyPreview: text('key_preview').notNull(), // First/last few chars for identification
     
     // Configuration and metadata
-    environment: text('environment').default('production'), // production, sandbox, test
     description: text('description'), // Optional user description
     expiresAt: integer('expires_at', { mode: 'timestamp' }), // Optional expiration
     
@@ -741,37 +535,6 @@ export const userModelProviders = sqliteTable('user_model_providers', {
     isActiveIdx: index('user_model_providers_is_active_idx').on(table.isActive),
 }));
 
-/**
- * User Provider Keys table - DEPRECATED: Use userSecrets table instead
- * This table is kept for migration compatibility but should not be used in new code
- * TODO: Remove this table in a future migration after data is migrated to userSecrets
- */
-export const userProviderKeys = sqliteTable('user_provider_keys', {
-    id: text('id').primaryKey(),
-    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-    
-    // Provider Details
-    provider: text('provider').notNull(), // 'anthropic', 'openai', 'gemini', 'google-ai-studio', etc.
-    encryptedApiKey: text('encrypted_api_key').notNull(), // AES-256 encrypted API key
-    keyPreview: text('key_preview').notNull(), // First/last few chars for display (e.g., "sk-...xyz")
-    
-    // Testing and Validation
-    lastTested: integer('last_tested', { mode: 'timestamp' }), // Last time key was tested
-    testStatus: text('test_status', { enum: ['success', 'failed', 'pending'] }), // Last test result
-    testError: text('test_error'), // Error message from last failed test
-    
-    // Status and Metadata
-    isActive: integer('is_active', { mode: 'boolean' }).default(true),
-    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
-}, (table) => ({
-    userProviderIdx: uniqueIndex('user_provider_keys_user_provider_idx').on(table.userId, table.provider),
-    userIdx: index('user_provider_keys_user_idx').on(table.userId),
-    providerIdx: index('user_provider_keys_provider_idx').on(table.provider),
-    isActiveIdx: index('user_provider_keys_is_active_idx').on(table.isActive),
-    testStatusIdx: index('user_provider_keys_test_status_idx').on(table.testStatus),
-}));
-
 // ========================================
 // SYSTEM CONFIGURATION
 // ========================================
@@ -805,23 +568,8 @@ export type NewSession = typeof sessions.$inferInsert;
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type NewApiKey = typeof apiKeys.$inferInsert;
 
-export type Team = typeof teams.$inferSelect;
-export type NewTeam = typeof teams.$inferInsert;
-
-export type TeamMember = typeof teamMembers.$inferSelect;
-export type NewTeamMember = typeof teamMembers.$inferInsert;
-
 export type App = typeof apps.$inferSelect;
 export type NewApp = typeof apps.$inferInsert;
-
-export type Board = typeof boards.$inferSelect;
-export type NewBoard = typeof boards.$inferInsert;
-
-export type BoardMember = typeof boardMembers.$inferSelect;
-export type NewBoardMember = typeof boardMembers.$inferInsert;
-
-export type CloudflareAccount = typeof cloudflareAccounts.$inferSelect;
-export type NewCloudflareAccount = typeof cloudflareAccounts.$inferInsert;
 
 export type AppLike = typeof appLikes.$inferSelect;
 export type NewAppLike = typeof appLikes.$inferInsert;
@@ -840,12 +588,6 @@ export type NewOAuthState = typeof oauthStates.$inferInsert;
 
 export type SystemSetting = typeof systemSettings.$inferSelect;
 export type NewSystemSetting = typeof systemSettings.$inferInsert;
-
-export type AppTag = typeof appTags.$inferSelect;
-export type NewAppTag = typeof appTags.$inferInsert;
-
-export type AppCategory = typeof appCategories.$inferSelect;
-export type NewAppCategory = typeof appCategories.$inferInsert;
 
 export type Favorite = typeof favorites.$inferSelect;
 export type NewFavorite = typeof favorites.$inferInsert;
@@ -869,9 +611,6 @@ export type UserModelConfig = typeof userModelConfigs.$inferSelect;
 export type NewUserModelConfig = typeof userModelConfigs.$inferInsert;
 export type UserModelProvider = typeof userModelProviders.$inferSelect;
 export type NewUserModelProvider = typeof userModelProviders.$inferInsert;
-
-export type UserProviderKey = typeof userProviderKeys.$inferSelect;
-export type NewUserProviderKey = typeof userProviderKeys.$inferInsert;
 
 export type Star = typeof stars.$inferSelect;
 export type NewStar = typeof stars.$inferInsert;

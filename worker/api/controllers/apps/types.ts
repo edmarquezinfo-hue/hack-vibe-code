@@ -1,6 +1,5 @@
 /**
  * Type definitions for App Controller responses
- * Imports types from schema.ts as single source of truth, only defines response wrappers
  */
 
 import { App } from '../../../database/schema';
@@ -8,7 +7,6 @@ import { AppWithFavoriteStatus, PaginationInfo, FavoriteToggleResult, EnhancedAp
 
 /**
  * App with extended user and social stats for public listings
- * Enhanced with formatted date for display
  */
 export type AppWithUserAndStats = EnhancedAppData & {
     updatedAtFormatted: string;

@@ -1383,6 +1383,9 @@ class CloudflareDeploymentManager {
 			);
 
 			// Update internal config to reflect changes
+            if (!this.config.dispatch_namespaces) {
+                this.config.dispatch_namespaces = [];
+            }
 			this.config.dispatch_namespaces[0].namespace = dispatchNamespace;
 			if (!this.config.vars) {
 				this.config.vars = {};

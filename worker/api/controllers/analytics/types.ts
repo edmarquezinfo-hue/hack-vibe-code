@@ -3,27 +3,30 @@
  * Type definitions for analytics controller requests and responses
  */
 
-import { UserAnalyticsData, ChatAnalyticsData } from '../../../services/analytics/types';
+import {
+	UserAnalyticsData,
+	ChatAnalyticsData,
+} from '../../../services/analytics/types';
 
 /**
  * Query parameters for analytics requests
  */
 export interface AnalyticsQueryParams {
-  days?: string; // Number of days to query (default: 1)
+	days?: string; // Number of days to query (default: 1)
 }
 
 /**
  * Route parameters for user analytics
  */
 export interface UserAnalyticsParams {
-  id: string; // User ID
+	id: string; // User ID
 }
 
 /**
  * Route parameters for agent analytics
  */
 export interface AgentAnalyticsParams {
-  id: string; // Agent/Chat ID
+	id: string; // Agent/Chat ID
 }
 
 /**
@@ -40,7 +43,7 @@ export interface AgentAnalyticsResponseData extends ChatAnalyticsData {}
  * Analytics error response
  */
 export interface AnalyticsErrorResponse {
-  message: string;
-  code: string;
-  statusCode: number;
+	message: string;
+	code: string;
+	statusCode: number;
 }

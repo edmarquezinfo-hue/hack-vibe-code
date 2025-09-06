@@ -1,6 +1,6 @@
 import { AnalyticsService } from '../../../database/services/AnalyticsService';
 import { AppService } from '../../../database/services/AppService';
-import type { BatchAppStats, AppSortOption, SortOrder, TimePeriod } from '../../../database/types';
+import type { BatchAppStats, AppSortOption, SortOrder, TimePeriod, Visibility } from '../../../database/types';
 import { formatRelativeTime } from '../../../utils/timeFormatter';
 import { BaseController } from '../BaseController';
 import { ApiResponse, ControllerResponse } from '../BaseController.types';
@@ -16,24 +16,20 @@ import {
 import { withCache } from '../../../services/cache/wrapper';
 
 export class AppController extends BaseController {
-    constructor() {
-        super();
+    private appService: AppService;
+    
+    constructor(env: Env) {
+        super(env);
+        this.appService = new AppService(this.db);
     }
 
     // Get all apps for the current user
     getUserApps = withCache(
-        async function(this: AppController, _request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
+        async function(this: AppController, _request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<AppsListData>('Authentication required', 401);
-            }
-
-            const dbService = this.createDbService(env);
-            const appService = new AppService(dbService);
+            const user = context.user!;
             
-            // Get user's apps with favorite status using AppService
-            const userApps = await appService.getUserAppsWithFavorites(user.id);
+            const userApps = await this.appService.getUserAppsWithFavorites(user.id);
 
             const responseData: AppsListData = {
                 apps: userApps // Already properly typed and formatted by DatabaseService
@@ -49,18 +45,11 @@ export class AppController extends BaseController {
     );
 
     // Get recent apps (last 10)
-    async getRecentApps(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
+    async getRecentApps(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<AppsListData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
-            const dbService = this.createDbService(env);
-            const appService = new AppService(dbService);
-
-            // Get recent apps using AppService
-            const recentApps = await appService.getRecentAppsWithFavorites(user.id, 10);
+            const recentApps = await this.appService.getRecentAppsWithFavorites(user.id, 10);
 
             const responseData: AppsListData = {
                 apps: recentApps // Already properly typed and formatted by DatabaseService
@@ -74,18 +63,11 @@ export class AppController extends BaseController {
     }
 
     // Get favorite apps
-    async getFavoriteApps(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
+    async getFavoriteApps(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppsListData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<AppsListData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
-            const dbService = this.createDbService(env);
-            const appService = new AppService(dbService);
-
-            // Get favorite apps using AppService
-            const favoriteApps = await appService.getFavoriteAppsOnly(user.id);
+            const favoriteApps = await this.appService.getFavoriteAppsOnly(user.id);
 
             const responseData: AppsListData = {
                 apps: favoriteApps // Already properly typed and formatted by DatabaseService
@@ -100,30 +82,23 @@ export class AppController extends BaseController {
 
 
     // Toggle favorite status
-    async toggleFavorite(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<FavoriteToggleData>>> {
+    async toggleFavorite(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<FavoriteToggleData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<FavoriteToggleData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const appId = context.pathParams.id;
             if (!appId) {
                 return this.createErrorResponse<FavoriteToggleData>('App ID is required', 400);
             }
 
-            const dbService = this.createDbService(env);
-            const appService = new AppService(dbService);
-            
             // Check if app exists (no ownership check needed - users can bookmark any app)
-            const ownershipResult = await appService.checkAppOwnership(appId, user.id);
+            const ownershipResult = await this.appService.checkAppOwnership(appId, user.id);
             
             if (!ownershipResult.exists) {
                 return this.createErrorResponse<FavoriteToggleData>('App not found', 404);
             }
 
-            // Toggle favorite using AppService (users can bookmark any app)
-            const result = await appService.toggleAppFavorite(user.id, appId);
+            const result = await this.appService.toggleAppFavorite(user.id, appId);
             const responseData: FavoriteToggleData = result;
                 
             return this.createSuccessResponse(responseData);
@@ -137,7 +112,6 @@ export class AppController extends BaseController {
     getPublicApps = withCache(
         async function(this: AppController, request: Request, env: Env, _ctx: ExecutionContext, _context: RouteContext): Promise<ControllerResponse<ApiResponse<PublicAppsData>>> {
         try {
-            const dbService = this.createDbService(env);
             const url = new URL(request.url);
             
             // Pagination and filtering - handle both page and offset params
@@ -149,19 +123,13 @@ export class AppController extends BaseController {
             const sort = (url.searchParams.get('sort') || 'recent') as AppSortOption;
             const order = (url.searchParams.get('order') || 'desc') as SortOrder;
             const period = (url.searchParams.get('period') || 'all') as TimePeriod;
-            const boardId = url.searchParams.get('boardId') || undefined;
             const framework = url.searchParams.get('framework') || undefined;
             const search = url.searchParams.get('search') || undefined;
             
-            // Get current user for interaction data (optional for public endpoint)
-            // Since this is a public route, use optional auth middleware directly
             const user = await this.getOptionalUser(request, env);
             const userId = user?.id;
             
-            // Get public apps using AppService
-            const appService = new AppService(dbService);
-            const result = await appService.getPublicAppsEnhanced({
-                boardId,
+            const result = await this.appService.getPublicAppsEnhanced({
                 limit,
                 offset,
                 sort,
@@ -180,8 +148,7 @@ export class AppController extends BaseController {
             if (sort === 'popular' || sort === 'trending') {
                 // For analytics-based sorting, we need to fetch analytics for ALL apps, sort, then paginate
                 // First get all apps without pagination
-                const allAppsResult = await appService.getPublicAppsEnhanced({
-                    boardId: boardId,
+                const allAppsResult = await this.appService.getPublicAppsEnhanced({
                     framework: framework,
                     search: search,
                     userId: userId,
@@ -189,7 +156,7 @@ export class AppController extends BaseController {
                     offset: 0
                 });
                 
-                const analyticsService = new AnalyticsService(dbService);
+                const analyticsService = new AnalyticsService(this.db);
                 const appIds = allAppsResult.data.map(app => app.id);
                 analyticsData = await analyticsService.batchGetAppStats(appIds);
                 
@@ -231,7 +198,7 @@ export class AppController extends BaseController {
                 pagination.hasMore = offset + limit < pagination.total;
             } else {
                 // For non-analytics sorting, get analytics only for the current page
-                const analyticsService = new AnalyticsService(dbService);
+                const analyticsService = new AnalyticsService(this.db);
                 const appIds = apps.map(app => app.id);
                 analyticsData = await analyticsService.batchGetAppStats(appIds);
             }
@@ -264,22 +231,16 @@ export class AppController extends BaseController {
     );
 
     // Get single app
-    async getApp(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SingleAppData>>> {
+    async getApp(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SingleAppData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<SingleAppData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const appId = context.pathParams.id;
             if (!appId) {
                 return this.createErrorResponse<SingleAppData>('App ID is required', 400);
             }
-
-            const dbService = this.createDbService(env);
-            const appService = new AppService(dbService);
             
-            const app = await appService.getSingleAppWithFavoriteStatus(appId, user.id);
+            const app = await this.appService.getSingleAppWithFavoriteStatus(appId, user.id);
 
             if (!app) {
                 return this.createErrorResponse<SingleAppData>('App not found', 404);
@@ -294,12 +255,9 @@ export class AppController extends BaseController {
     }
 
     // Update app visibility
-    async updateAppVisibility(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<UpdateAppVisibilityData>>> {
+    async updateAppVisibility(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<UpdateAppVisibilityData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<UpdateAppVisibilityData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const appId = context.pathParams.id;
             if (!appId) {
@@ -318,13 +276,9 @@ export class AppController extends BaseController {
                 return this.createErrorResponse<UpdateAppVisibilityData>('Visibility must be either "private" or "public"', 400);
             }
 
-            const validVisibility = visibility as 'private' | 'public';
-
-            const dbService = this.createDbService(env);
-            const appService = new AppService(dbService);
+            const validVisibility = visibility as Visibility;
             
-            // Update visibility using AppService
-            const result = await appService.updateAppVisibility(appId, user.id, validVisibility);
+            const result = await this.appService.updateAppVisibility(appId, user.id, validVisibility);
 
             if (!result.success) {
                 const statusCode = result.error === 'App not found' ? 404 : 
@@ -335,7 +289,7 @@ export class AppController extends BaseController {
             const responseData: UpdateAppVisibilityData = { 
                 app: {
                     ...result.app!,
-                    visibility: result.app!.visibility as 'private' | 'public' | 'team' | 'board'
+                    visibility: result.app!.visibility
                 },
                 message: `App visibility updated to ${validVisibility}`
             };
@@ -347,23 +301,16 @@ export class AppController extends BaseController {
     }
 
     // Delete app
-    async deleteApp(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppDeleteData>>> {
+    async deleteApp(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<AppDeleteData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<AppDeleteData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const appId = context.pathParams.id;
             if (!appId) {
                 return this.createErrorResponse<AppDeleteData>('App ID is required', 400);
             }
-
-            const dbService = this.createDbService(env);
-            const appService = new AppService(dbService);
-            
-            // Delete app using AppService
-            const result = await appService.deleteApp(appId, user.id);
+        
+            const result = await this.appService.deleteApp(appId, user.id);
 
             if (!result.success) {
                 const statusCode = result.error === 'App not found' ? 404 : 
