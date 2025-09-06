@@ -3,10 +3,10 @@
  * Provides secure password hashing and validation
  */
 
-import { PasswordValidationResult } from '../../types/auth-types';
-import { validatePassword } from '../../utils/validationUtils';
-import { createLogger } from '../../logger';
-import { pbkdf2, timingSafeEqualBytes } from '../../utils/cryptoUtils';
+import { PasswordValidationResult } from '../types/auth-types';
+import { validatePassword } from './validationUtils';
+import { createLogger } from '../logger';
+import { pbkdf2, timingSafeEqualBytes } from './cryptoUtils';
 
 const logger = createLogger('PasswordService');
 

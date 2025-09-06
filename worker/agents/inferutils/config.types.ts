@@ -4,6 +4,7 @@
  */
 
 import { ReasoningEffort } from "openai/resources.mjs";
+// import { LLMCallsRateLimitConfig } from "../../services/rate-limit/config";
 
 export enum AIModels {
     DISABLED = 'disabled',
@@ -68,6 +69,7 @@ export type AgentActionKey = keyof AgentConfig;
 export type InferenceMetadata = {
     agentId: string;
     userId: string;
+    // llmRateLimits: LLMCallsRateLimitConfig;
 }
 
 export interface InferenceContext extends InferenceMetadata {

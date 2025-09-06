@@ -21,18 +21,18 @@
 	},
   "unsafe": {
     "bindings": [
-      {
-        "name": "API_RATE_LIMITER",
-        "type": "ratelimit",
-        "namespace_id": "2101",
-        "simple": { "limit": 1000, "period": 60 }
-      },
-      {
-        "name": "AUTH_RATE_LIMITER",
-        "type": "ratelimit",
-        "namespace_id": "2102",
-        "simple": { "limit": 20, "period": 60 }
-      }
+        {
+            "name": "API_RATE_LIMITER",
+            "type": "ratelimit",
+            "namespace_id": "2101",
+            "simple": { "limit": 1000, "period": 60 }
+        },
+        {
+            "name": "AUTH_RATE_LIMITER",
+            "type": "ratelimit",
+            "namespace_id": "2102",
+            "simple": { "limit": 20, "period": 60 }
+        }
     ]
   },
 	/**
@@ -71,25 +71,13 @@
                 "disk_mb": 10240
             },
             "rollout_step_percentage": 100
-		},
-        {
-          "class_name": "DeployerService",
-          "image": "./DeployerDockerfile",
-          "max_instances": 1,
-          // ATTENTION: Altering instance_type value will have no effect. Please use the SANDBOX_INSTANCE_TYPE var instead.
-          "instance_type": {
-            "vcpu": 4,
-            "memory_mib": 4096,
-            "disk_mb": 5120
-        },
-          "rollout_step_percentage": 100
-        }
+		}
 	],
 	"d1_databases": [
 		{
 			"binding": "DB",
 			"database_name": "orange-build-db",
-			"database_id": "3085356f-6009-4a75-a478-66c05a5a532f",
+			"database_id": "59888192-687c-4282-9e1c-77e7b42c38cf",
 			"migrations_dir": "migrations",
 			"experimental_remote": true
 		}
@@ -123,8 +111,8 @@
     ],
     "kv_namespaces": [
         {
-            "binding": "INSTANCE_REGISTRY",
-            "id": "801cc1d5758e44f1bd0565985d9d6df0",
+            "binding": "VibecoderStore",
+            "id": "f066f3c2e4824981b48e8586c04db9c1",
             "experimental_remote": true
         }
     ],
@@ -132,7 +120,6 @@
 		{
 			"new_sqlite_classes": [
 				"CodeGeneratorAgent",
-				// "SmartCodeGeneratorAgent"
 				"UserAppSandboxService"
 			],
 			"tag": "v1"
@@ -148,6 +135,10 @@
         {
             "pattern": "build.cloudflare.dev",
             "custom_domain": true
+        },
+        {
+            "pattern": "*.build.cloudflare.dev/*",
+            "custom_domain": false
         }
     ],
 	"vars": {

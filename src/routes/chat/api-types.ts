@@ -7,3 +7,4 @@ export type { FileOutputType as GeneratedFile } from "worker/agents/schemas";
 export type { CodeGenState } from "worker/agents/core/state";   
 export type { RuntimeError } from "worker/services/sandbox/sandboxTypes";
 export type { StaticAnalysisResponse } from "worker/services/sandbox/sandboxTypes";
+export type { RateLimitError, RateLimitErrorResponse } from "worker/services/rate-limit/errors";

@@ -13,7 +13,7 @@ export class CacheService {
 	 */
 	async get(keyOrRequest: string | Request): Promise<Response | undefined> {
 		// Use caches.default for Cloudflare Workers
-		const cache = (caches as any).default;  // Using any here because unable to debug why `caches` shows not available in vscode
+		const cache = caches.default;
 		return await cache.match(keyOrRequest);
 	}
 
@@ -45,7 +45,7 @@ export class CacheService {
 		});
 
 		// Use caches.default for Cloudflare Workers
-		const cache = (caches as any).default;
+		const cache = caches.default;
 		await cache.put(keyOrRequest, responseToCache);
 	}
 
