@@ -4,8 +4,8 @@
  */
 
 import { BaseOAuthProvider, OAuthUserInfo } from './base';
-import { OAuthProvider } from '../../../types/auth-types';
-import { createLogger } from '../../../logger';
+import { OAuthProvider } from '../../types/auth-types';
+import { createLogger } from '../../logger';
 
 const logger = createLogger('GoogleOAuth');
 

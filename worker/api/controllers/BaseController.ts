@@ -1,57 +1,23 @@
 /**
  * Base Controller Class
- * Provides common functionality for all controllers to eliminate code duplication
  */
-
-import { DatabaseService } from '../../database/database';
-import { authMiddleware } from '../../middleware/security/auth';
+import { authMiddleware } from '../../middleware/auth/auth';
 import { successResponse, errorResponse } from '../responses';
-import { DatabaseQueryHelpers } from '../../utils/DatabaseQueryHelpers';
 import { ControllerErrorHandler, ErrorHandler } from '../../utils/ErrorHandling';
 import { createLogger } from '../../logger';
 import { AuthUser } from '../../types/auth-types';
-// Import types from separate types file to maintain consistency
 import type { ControllerResponse, ApiResponse } from './BaseController.types';
-import { RouteContext } from '../types/route-context';
+import { createDatabaseService, DatabaseService } from '../../database/database';
 
 /**
  * Base controller class that provides common functionality
  */
 export abstract class BaseController {
     protected logger = createLogger(this.constructor.name);
+    protected db: DatabaseService;
 
-    /**
-     * Create a database service instance
-     */
-    protected createDbService(env: Env): DatabaseService {
-        return DatabaseQueryHelpers.createDbService(env);
-    }
-
-    /**
-     * Find a user-owned resource with ownership verification
-     */
-    protected async findUserOwnedResource<T = Record<string, unknown>>(
-        dbService: DatabaseService,
-        table: unknown,
-        resourceId: string,
-        userId: string,
-        resourceIdField: string = 'id'
-    ): Promise<T[]> {
-        return DatabaseQueryHelpers.findUserOwnedResource<T>(
-            dbService, 
-            table, 
-            resourceId, 
-            userId, 
-            resourceIdField
-        );
-    }
-
-    /**
-     * Extract authenticated user from route context
-     * Type-safe approach using structured RouteContext
-     */
-    protected extractAuthUser(context: RouteContext): AuthUser | null {
-        return context.user;
+    constructor(env: Env) {
+        this.db = createDatabaseService(env);
     }
 
     /**
@@ -65,27 +31,6 @@ export abstract class BaseController {
             this.logger.debug('Optional auth failed, continuing without user', { error });
             return null;
         }
-    }
-
-    /**
-     * Update a user-owned resource with ownership verification
-     */
-    protected async updateUserOwnedResource(
-        dbService: DatabaseService,
-        table: unknown,
-        resourceId: string,
-        userId: string,
-        updateData: Record<string, unknown>,
-        resourceIdField: string = 'id'
-    ): Promise<boolean> {
-        return DatabaseQueryHelpers.updateUserOwnedResource(
-            dbService,
-            table,
-            resourceId,
-            userId,
-            updateData,
-            resourceIdField
-        );
     }
 
     /**

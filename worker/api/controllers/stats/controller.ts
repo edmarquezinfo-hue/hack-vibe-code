@@ -6,22 +6,19 @@ import { UserStatsData, UserActivityData } from './types';
 import { AnalyticsService } from '../../../database/services/AnalyticsService';
 
 export class StatsController extends BaseController {
-    constructor() {
-        super();
+    private analyticsService: AnalyticsService;
+    
+    constructor(env: Env) {
+        super(env);
+        this.analyticsService = new AnalyticsService(this.db);
     }
     // Get user statistics
-    async getUserStats(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<UserStatsData>>> {
+    async getUserStats(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<UserStatsData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<UserStatsData>('Authentication required', 401);
-            }
-
-            const dbService = this.createDbService(env);
-            const analyticsService = new AnalyticsService(dbService);
+            const user = context.user!;
 
             // Get comprehensive user statistics using analytics service
-            const enhancedStats = await analyticsService.getEnhancedUserStats(user.id);
+            const enhancedStats = await this.analyticsService.getEnhancedUserStats(user.id);
 
             // Use EnhancedUserStats directly as response data
             const responseData = enhancedStats;
@@ -35,18 +32,12 @@ export class StatsController extends BaseController {
 
 
     // Get user activity timeline
-    async getUserActivity(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<UserActivityData>>> {
+    async getUserActivity(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<UserActivityData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<UserActivityData>('Authentication required', 401);
-            }
-
-            const dbService = this.createDbService(env);
-            const analyticsService = new AnalyticsService(dbService);
+            const user = context.user!;
 
             // Get user activity timeline using analytics service
-            const activities = await analyticsService.getUserActivityTimeline(user.id, 20);
+            const activities = await this.analyticsService.getUserActivityTimeline(user.id, 20);
 
             const responseData: UserActivityData = { activities };
 
@@ -57,6 +48,3 @@ export class StatsController extends BaseController {
         }
     }
 }
-
-// Export singleton instance
-export const statsController = new StatsController();

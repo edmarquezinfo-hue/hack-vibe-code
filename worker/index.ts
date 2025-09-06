@@ -1,5 +1,5 @@
 import { createLogger } from './logger';
-import { setupRouter } from './api/routes/codegenRoutes';
+import { setupRoutes } from './api/routes';
 import { errorResponse } from './api/responses';
 import { SmartCodeGeneratorAgent } from "./agents/core/smartGeneratorAgent";
 import { proxyToSandbox } from '@cloudflare/sandbox';
@@ -79,7 +79,7 @@ export default {
             logger.info(`${request.method} ${url.pathname}`);
 
             // Setup router and handle the request
-            const router = setupRouter();
+            const router = setupRoutes(env);
             return await router.handle(request, env, ctx);
         } catch (error) {
             logger.error('Unhandled error in fetch handler', error);

@@ -1,20 +1,15 @@
 /**
- * Authentication Middleware for Cloudflare Workers
+ * Authentication Middleware
  * Handles JWT validation and session management
  */
 
 import { AuthUser } from '../../types/auth-types';
 import { createLogger } from '../../logger';
-import { DatabaseService } from '../../database/database';
-import * as schema from '../../database/schema';
-import { eq, and, sql } from 'drizzle-orm';
-import { TokenValidator } from '../../services/auth/tokenValidator';
+import { createDatabaseService } from '../../database/database';
+import { AuthService } from '../../database/services/AuthService';
 import { extractToken, parseCookies } from '../../utils/authUtils';
 
 const logger = createLogger('AuthMiddleware');
-
-// Token extraction and cookie parsing functions moved to utils/authUtils.ts
-
 /**
  * Validate JWT token and return user
  */
@@ -23,50 +18,10 @@ export async function validateToken(
     env: Env
 ): Promise<AuthUser | null> {
     try {
-        // Use TokenValidator to avoid circular dependencies
-        const tokenValidator = new TokenValidator(env);
-        
-        // Verify token
-        const payload = await tokenValidator.verifyToken(token);
-        
-        if (!payload || payload.type !== 'access') {
-            return null;
-        }
-        
-        // Check if token is expired
-        if (payload.exp * 1000 < Date.now()) {
-            logger.debug('Token expired', { exp: payload.exp });
-            return null;
-        }
-        
-        // Get user from database
-        const dbService = new DatabaseService({ DB: env.DB });
-        const user = await dbService.db
-            .select({
-                id: schema.users.id,
-                email: schema.users.email,
-                displayName: schema.users.displayName
-            })
-            .from(schema.users)
-            .where(
-                and(
-                    eq(schema.users.id, payload.sub),
-                    sql`${schema.users.deletedAt} IS NULL`
-                )
-            )
-            .get();
-        
-        if (!user) {
-            logger.warn('User not found for valid token', { userId: payload.sub });
-            return null;
-        }
-        
-        return {
-            id: user.id,
-            email: user.email,
-            displayName: user.displayName || undefined,
-            isAnonymous: false
-        };
+        // Use AuthService for token validation and user retrieval
+        const db = createDatabaseService(env);
+        const authService = new AuthService(db, env, '');
+        return authService.validateTokenAndGetUser(token, env);
     } catch (error) {
         logger.error('Token validation error', error);
         return null;
@@ -154,8 +109,3 @@ export async function checkPermissions(
     
     return !user.isAnonymous;
 }
-
-// Cookie management functions moved to utils/authUtils.ts
-
-// Re-export for backward compatibility
-export { clearAuthCookie } from '../../utils/authUtils';

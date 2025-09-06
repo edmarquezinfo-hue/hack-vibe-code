@@ -1,7 +1,6 @@
 /**
  * Secrets Controller
  * Handles API endpoints for user secrets and API keys management
- * Refactored to use new database service structure and proper typing
  */
 
 import { BaseController } from '../BaseController';
@@ -17,17 +16,11 @@ import {
 import { getTemplatesData, SecretTemplate } from '../../../types/secretsTemplates';
 
 export class SecretsController extends BaseController {
+    private secretsService: SecretsService;
     
-    constructor() {
-        super();
-    }
-
-    /**
-     * Create service instance with proper database service integration
-     */
-    private createSecretsService(env: Env): SecretsService {
-        const dbService = this.createDbService(env);
-        return new SecretsService(dbService, env);
+    constructor(env: Env) {
+        super(env);
+        this.secretsService = new SecretsService(this.db, env);
     }
 
     /**
@@ -42,40 +35,14 @@ export class SecretsController extends BaseController {
     }
 
     /**
-     * Get all user secrets (without decrypted values)
+     * Get all user secrets including inactive ones
      * GET /api/secrets
      */
-    async getSecrets(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretsData>>> {
+    async getAllSecrets(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretsData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<SecretsData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
-            const secretsService = this.createSecretsService(env);
-            const secrets = await secretsService.getUserSecrets(user.id);
-
-            const responseData: SecretsData = { secrets };
-            return this.createSuccessResponse(responseData);
-        } catch (error) {
-            this.logger.error('Error getting user secrets:', error);
-            return this.createErrorResponse<SecretsData>('Failed to get user secrets', 500);
-        }
-    }
-
-    /**
-     * Get all user secrets including inactive ones (for management purposes)
-     * GET /api/secrets/all
-     */
-    async getAllSecrets(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretsData>>> {
-        try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<SecretsData>('Authentication required', 401);
-            }
-
-            const secretsService = this.createSecretsService(env);
-            const secrets = await secretsService.getAllUserSecrets(user.id);
+            const secrets = await this.secretsService.getAllUserSecrets(user.id);
 
             const responseData: SecretsData = { secrets };
             return this.createSuccessResponse(responseData);
@@ -89,19 +56,15 @@ export class SecretsController extends BaseController {
      * Store a new secret
      * POST /api/secrets
      */
-    async storeSecret(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretStoreData>>> {
+    async storeSecret(request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretStoreData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<SecretStoreData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const bodyResult = await this.parseJsonBody<{
                 templateId?: string;  // For predefined templates
                 name?: string;        // For custom secrets
                 envVarName?: string;  // For custom secrets
                 value: string;
-                environment?: string;
                 description?: string;
             }>(request);
 
@@ -109,7 +72,7 @@ export class SecretsController extends BaseController {
                 return bodyResult.response! as ControllerResponse<ApiResponse<SecretStoreData>>;
             }
 
-            const { templateId, name, envVarName, value, environment, description } = bodyResult.data!;
+            const { templateId, name, envVarName, value, description } = bodyResult.data!;
 
             // Validate required fields
             if (!value) {
@@ -137,8 +100,8 @@ export class SecretsController extends BaseController {
                     provider: template.provider,
                     secretType: template.envVarName,
                     value: value.trim(),
-                    environment: environment || 'production',
-                    description: template.description
+                    description: template.description,
+                    expiresAt: null
                 };
             } else {
                 // Custom secret
@@ -156,13 +119,12 @@ export class SecretsController extends BaseController {
                     provider: 'custom',
                     secretType: envVarName.trim().toUpperCase(),
                     value: value.trim(),
-                    environment: environment || 'production',
-                    description: description?.trim()
+                    description: description?.trim() || null,
+                    expiresAt: null
                 };
             }
 
-            const secretsService = this.createSecretsService(env);
-            const storedSecret = await secretsService.storeSecret(user.id, secretData);
+            const storedSecret = await this.secretsService.storeSecret(user.id, secretData);
 
             const responseData: SecretStoreData = {
                 secret: storedSecret,
@@ -180,12 +142,9 @@ export class SecretsController extends BaseController {
      * Delete a secret
      * DELETE /api/secrets/:secretId
      */
-    async deleteSecret(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretDeleteData>>> {
+    async deleteSecret(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretDeleteData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<SecretDeleteData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const secretId = context.pathParams.secretId;
 
@@ -193,8 +152,7 @@ export class SecretsController extends BaseController {
                 return this.createErrorResponse<SecretDeleteData>('Secret ID is required', 400);
             }
 
-            const secretsService = this.createSecretsService(env);
-            await secretsService.deleteSecret(user.id, secretId);
+            await this.secretsService.deleteSecret(user.id, secretId);
 
             const responseData: SecretDeleteData = {
                 message: 'Secret deleted successfully'
@@ -211,12 +169,9 @@ export class SecretsController extends BaseController {
      * Toggle secret active status
      * PATCH /api/secrets/:secretId/toggle
      */
-    async toggleSecret(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretStoreData>>> {
+    async toggleSecret(_request: Request, _env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<SecretStoreData>>> {
         try {
-            const user = this.extractAuthUser(context);
-            if (!user) {
-                return this.createErrorResponse<SecretStoreData>('Authentication required', 401);
-            }
+            const user = context.user!;
 
             const secretId = context.pathParams.secretId;
 
@@ -224,8 +179,7 @@ export class SecretsController extends BaseController {
                 return this.createErrorResponse<SecretStoreData>('Secret ID is required', 400);
             }
 
-            const secretsService = this.createSecretsService(env);
-            const toggledSecret = await secretsService.toggleSecretActiveStatus(user.id, secretId);
+            const toggledSecret = await this.secretsService.toggleSecretActiveStatus(user.id, secretId);
 
             const responseData: SecretStoreData = {
                 secret: toggledSecret,

@@ -26,9 +26,7 @@ import { CodeReviewOperation } from '../operations/CodeReview';
 import { FileRegenerationOperation } from '../operations/FileRegeneration';
 import { PhaseGenerationOperation } from '../operations/PhaseGeneration';
 import { ScreenshotAnalysisOperation } from '../operations/ScreenshotAnalysis';
-import { ErrorHandler } from './utilities/ErrorHandler';
-import { DatabaseOperations } from './utilities/DatabaseOperations';
-import { DatabaseService } from '../../database/database';
+import { createDatabaseService, DatabaseService } from '../../database/database';
 // Database schema imports removed - using zero-storage OAuth flow
 import { BaseSandboxService } from '../../services/sandbox/BaseSandboxService';
 import { getSandboxService } from '../../services/sandbox/factory';
@@ -44,6 +42,7 @@ import { SandboxSdkClient } from '../../services/sandbox/sandboxSdkClient';
 import { selectTemplate } from '../planning/templateSelector';
 import { generateBlueprint } from '../planning/blueprint';
 import { prepareCloudflareButton } from '../../utils/deployToCf';
+import { AppService } from '../../database';
 
 interface WebhookPayload {
     event: {
@@ -441,7 +440,14 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 error: `Error during generation: ${errorMessage}`
             });
         } finally {
-            await this.updateDatabase({ status: 'completed' });
+            const db = createDatabaseService(this.env);
+            const appService = new AppService(db);
+            await appService.updateApp(
+                this.state.sessionId,
+                {
+                    status: 'completed',
+                }
+            );
             this.isGenerating = false;
             this.broadcast(WebSocketMessageResponses.GENERATION_COMPLETE, {
                 message: "Code generation and review process completed.",
@@ -1722,11 +1728,10 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 message: deploymentResult.message
             });
 
+            const appService = new AppService(createDatabaseService(this.env));
             // Update cloudflare URL in database
-            await DatabaseOperations.updateDeploymentUrl(
-                this.env,
+            await appService.updateDeploymentUrl(
                 this.state.sessionId,
-                this.logger(),
                 deploymentUrl || ''
             );
 
@@ -1739,13 +1744,19 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             return { deploymentUrl };
 
         } catch (error) {
-            return ErrorHandler.handleOperationError(
-                this.logger(),
-                this,
-                'Cloudflare deployment',
-                error,
-                WebSocketMessageResponses.CLOUDFLARE_DEPLOYMENT_ERROR
-            );
+            // return ErrorHandler.handleOperationError(
+            //     this.logger(),
+            //     this,
+            //     'Cloudflare deployment',
+            //     error,
+            //     WebSocketMessageResponses.CLOUDFLARE_DEPLOYMENT_ERROR
+            // );
+            this.logger().error('Cloudflare deployment failed', error);
+            this.broadcast(WebSocketMessageResponses.CLOUDFLARE_DEPLOYMENT_ERROR, {
+                message: `Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+            return null;
         }
     }
 
@@ -2063,12 +2074,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
 
             // Check if we have generated files
             if (!this.state.generatedFilesMap || Object.keys(this.state.generatedFilesMap).length === 0) {
-                return ErrorHandler.handleGitHubExportError(
-                    this.logger(),
-                    this,
-                    'Export failed: No generated code available',
-                    'No generated files available for export'
-                );
+                throw new Error('No generated files available for export');
             }
 
             // Broadcast export started
@@ -2090,12 +2096,7 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             const exportResult = await this.getSandboxServiceClient().pushToGitHub(this.state.sandboxInstanceId!, options);
 
             if (!exportResult?.success) {
-                return ErrorHandler.handleGitHubExportError(
-                    this.logger(),
-                    this,
-                    'Failed to export to GitHub repository',
-                    exportResult?.error || 'Failed to export to GitHub repository'
-                );
+                throw new Error(`Failed to export to GitHub repository: ${exportResult?.error}`);
             }
 
             this.logger().info('GitHub export completed successfully', { options, commitSha: exportResult.commitSha });
@@ -2125,11 +2126,12 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 progress: 90
             });
 
+            this.logger().info('Finalizing GitHub export...');
+            const db = createDatabaseService(this.env);
+            const appService = new AppService(db);
             // Update database with GitHub repository URL and visibility
-            await DatabaseOperations.updateGitHubRepository(
-                this.env,
+            await appService.updateGitHubRepository(
                 this.state.sessionId || '',
-                this.logger(),
                 options.repositoryHtmlUrl || '',
                 options.isPrivate ? 'private' : 'public'
             );
@@ -2144,12 +2146,12 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             return { success: true, repositoryUrl: options.repositoryHtmlUrl };
 
         } catch (error) {
-            return ErrorHandler.handleGitHubExportError(
-                this.logger(),
-                this,
-                'GitHub export failed due to an unexpected error',
-                error instanceof Error ? error.message : String(error)
-            );
+            this.logger().error('GitHub export failed', error);
+            this.broadcast(WebSocketMessageResponses.GITHUB_EXPORT_ERROR, {
+                message: `GitHub export failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+            return { success: false, repositoryUrl: options.repositoryHtmlUrl };
         }
     }
 
@@ -2223,36 +2225,6 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             });
         }
     }
-
-    private async updateDatabase(data: {
-        status?: 'generating' | 'completed';
-        deploymentUrl?: string;
-        [key: string]: unknown;
-    }): Promise<void> {
-        if (!this.env.DB || !this.state.sessionId) {
-            return;
-        }
-
-        try {
-            
-            if (data.status === 'completed') {
-                await DatabaseOperations.updateApp(this.env, this.state.sessionId, this.logger(), {
-                    status: 'completed',
-                    // deploymentUrl: state.previewURL
-                });
-            } else if (data.deploymentUrl) {
-                await DatabaseOperations.updateDeploymentUrl(
-                    this.env,
-                    this.state.sessionId,
-                    this.logger(),
-                    data.deploymentUrl
-                );
-            }
-        } catch (error) {
-            this.logger().error('Failed to update database:', error);
-        }
-    }
-
 
     /**
      * Capture screenshot of the given URL using Cloudflare Browser Rendering REST API
@@ -2340,11 +2312,11 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
             const base64Screenshot = result.result.screenshot;
             
             try {
+                const db = createDatabaseService(this.env);
+                const appService = new AppService(db);
                 // Update database with base64 screenshot data
-                await DatabaseOperations.updateAppScreenshot(
-                    this.env,
+                await appService.updateAppScreenshot(
                     this.state.sessionId,
-                    this.logger(),
                     `data:image/png;base64,${base64Screenshot}`
                 );
             } catch (dbError) {

@@ -37,8 +37,8 @@ interface GitHubOAuthCallbackState {
 export class GitHubAppController extends BaseController {
 	protected logger = createLogger('GitHubAppController');
 
-	constructor() {
-		super();
+	constructor(env: Env) {
+		super(env);
 	}
     
 	/**

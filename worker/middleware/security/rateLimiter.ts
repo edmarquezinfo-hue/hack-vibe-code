@@ -1,100 +1,72 @@
-/**
- * Rate Limiting Middleware using Durable Objects
- * Prevents brute force attacks and API abuse
- */
-
 import { SecurityError, SecurityErrorType } from '../../types/security';
-import { createLogger } from '../../logger';
+import { AuthUser } from '../../types/auth-types';
+import { extractTokenWithMetadata, extractRequestMetadata } from '../../utils/authUtils';
 
-const logger = createLogger('RateLimiter');
-
-export interface RateLimitConfig {
-    requests: number;
-    window: number; // milliseconds
-    identifier: (request: Request) => string;
+export interface RateLimitContext {
+	request: Request;
+	user?: AuthUser | null;
 }
 
-export class RateLimiter {
-    private attempts: Map<string, number[]> = new Map();
-    
-    constructor(private config: RateLimitConfig) {}
+async function getIdentifier(context: RateLimitContext): Promise<string> {
+	// Priority 1: Authenticated user ID (most stable)
+	if (context.user && !context.user.isAnonymous) {
+		return `user:${context.user.id}`;
+	}
 
-    async checkLimit(request: Request): Promise<boolean> {
-        const identifier = this.config.identifier(request);
-        const now = Date.now();
-        
-        // Get existing attempts
-        const userAttempts = this.attempts.get(identifier) || [];
-        
-        // Clean expired attempts
-        const validAttempts = userAttempts.filter(
-            attempt => now - attempt < this.config.window
-        );
-        
-        // Check if limit exceeded
-        if (validAttempts.length >= this.config.requests) {
-            logger.warn('Rate limit exceeded', { 
-                identifier, 
-                attempts: validAttempts.length,
-                limit: this.config.requests 
-            });
-            return false;
-        }
-        
-        // Record this attempt
-        validAttempts.push(now);
-        this.attempts.set(identifier, validAttempts);
-        
-        return true;
-    }
+	// Priority 2: Anonymous session ID
+	if (context.user?.isAnonymous && context.user.id) {
+		return `anon:${context.user.id}`;
+	}
 
-    async getRemainingAttempts(request: Request): Promise<number> {
-        const identifier = this.config.identifier(request);
-        const now = Date.now();
-        const userAttempts = this.attempts.get(identifier) || [];
-        
-        const validAttempts = userAttempts.filter(
-            attempt => now - attempt < this.config.window
-        );
-        
-        return Math.max(0, this.config.requests - validAttempts.length);
-    }
+	// Priority 3: Token hash (for pre-auth rate limiting)
+	const tokenResult = extractTokenWithMetadata(context.request);
+	if (tokenResult.token) {
+		const encoder = new TextEncoder();
+		const data = encoder.encode(tokenResult.token);
+		const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+		const hashArray = Array.from(new Uint8Array(hashBuffer));
+		const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+		return `token:${hashHex.slice(0, 16)}`;
+	}
+
+	// Priority 4: IP address (fallback)
+	const metadata = extractRequestMetadata(context.request);
+	return `ip:${metadata.ipAddress}`;
 }
 
-// Predefined rate limit configurations
-export const authRateLimit = new RateLimiter({
-    requests: 5,
-    window: 15 * 60 * 1000, // 15 minutes
-    identifier: (request: Request) => {
-        const ip = request.headers.get('CF-Connecting-IP') || 
-                             request.headers.get('X-Forwarded-For')?.split(',')[0] || 
-                             'unknown';
-        return `auth:${ip}`;
-    }
-});
+function buildKey(namespace: string, pathname: string, identifier: string): string {
+	return `${namespace}:${pathname}:${identifier}`;
+}
 
-export const apiRateLimit = new RateLimiter({
-    requests: 100,
-    window: 60 * 1000, // 1 minute
-    identifier: (request: Request) => {
-        const ip = request.headers.get('CF-Connecting-IP') || 
-                             request.headers.get('X-Forwarded-For')?.split(',')[0] || 
-                             'unknown';
-        return `api:${ip}`;
-    }
-});
+async function enforce(binding: RateLimit, key: string): Promise<void> {
+	const { success } = await binding.limit({ key });
+	if (!success) {
+		throw new SecurityError(
+			SecurityErrorType.RATE_LIMITED,
+			'Rate limit exceeded',
+			429
+		);
+	}
+}
 
-export async function rateLimitMiddleware(
-    request: Request,
-    rateLimiter: RateLimiter
+export async function enforceGlobalApiRateLimit(
+	context: RateLimitContext,
+	env: Env
 ): Promise<void> {
-    const allowed = await rateLimiter.checkLimit(request);
-    
-    if (!allowed) {
-        throw new SecurityError(
-            SecurityErrorType.RATE_LIMITED,
-            `Rate limit exceeded. Try again later.`,
-            429
-        );
-    }
+	const limiter = env.API_RATE_LIMITER;
+	const url = new URL(context.request.url);
+	const identifier = await getIdentifier(context);
+	const key = buildKey('api', url.pathname, identifier);
+	await enforce(limiter, key);
+}
+
+export async function enforceAuthRateLimit(
+	context: RateLimitContext,
+	env: Env
+): Promise<void> {
+	const limiter = env.AUTH_RATE_LIMITER;
+	const url = new URL(context.request.url);
+	const identifier = await getIdentifier(context);
+	const key = buildKey('auth', url.pathname, identifier);
+	await enforce(limiter, key);
 }

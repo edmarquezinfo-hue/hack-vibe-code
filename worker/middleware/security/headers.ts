@@ -1,6 +1,5 @@
 /**
  * Security Headers Middleware
- * Implements comprehensive security headers to prevent common attacks
  */
 
 import { createLogger } from '../../logger';
