@@ -18,7 +18,6 @@ export interface AuthUser {
 	displayName?: string;
 	username?: string;
 	avatarUrl?: string;
-	isAnonymous: boolean;
 }
 
 /**
@@ -29,7 +28,6 @@ export interface AuthSession {
 	email: string;
 	sessionId: string;
 	expiresAt: Date | null;
-	isAnonymous: boolean;
 };
 
 /**
@@ -136,40 +134,6 @@ export interface PasswordValidationResult {
 }
 
 /**
- * Rate limiting configuration and state
- */
-export interface RateLimitConfig {
-	windowMs: number; // Time window in milliseconds
-	maxAttempts: number; // Max attempts per window
-
-	// Escalation policy
-	blockDurationMs?: number; // How long to block after max attempts
-	escalationMultiplier?: number; // Multiply block duration on repeated violations
-
-	// Context-specific limits
-	skipSuccessfulRequests?: boolean;
-	skipFailedRequests?: boolean;
-
-	// Custom key generation
-	keyGenerator?: (request: Request) => string;
-}
-
-/**
- * Rate limiting state for a specific identifier
- */
-export interface RateLimitState {
-	identifier: string;
-	attempts: number;
-	windowStart: Date;
-	isBlocked: boolean;
-	blockUntil?: Date;
-
-	// Violation tracking
-	totalViolations: number;
-	lastViolation?: Date;
-}
-
-/**
  * Security context for authentication operations
  */
 export interface SecurityContext {
@@ -189,9 +153,6 @@ export interface SecurityContext {
 	// Risk assessment
 	riskScore?: number; // 0-100
 	riskFactors?: string[];
-
-	// Rate limiting state
-	rateLimitState?: RateLimitState;
 }
 
 /**

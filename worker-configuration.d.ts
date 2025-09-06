@@ -47,9 +47,6 @@ declare namespace Cloudflare {
 		DISPATCHER: DispatchNamespace;
 		API_RATE_LIMITER: RateLimit;
 		AUTH_RATE_LIMITER: RateLimit;
-		APP_CREATION_RATE_LIMITER: RateLimit;
-		LLM_CALLS_RATE_LIMITER: RateLimit;
-		WEBSOCKET_RATE_LIMITER: RateLimit;
 		BROWSER: Fetcher;
 		AI: Ai;
 		IMAGES: ImagesBinding;

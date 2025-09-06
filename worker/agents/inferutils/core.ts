@@ -18,8 +18,9 @@ import { ToolCall } from '../tools/types';
 import { executeTool } from '../tools/customTools';
 import { AIModels, InferenceMetadata } from './config.types';
 import { DatabaseService, SecretsService } from '../../database';
-import { PlatformRateLimitService } from '../../services/rate-limit/PlatformRateLimitService';
+import { RateLimitService } from '../../services/rate-limit/rateLimits';
 import { AuthUser } from '../../types/auth-types';
+import { getGlobalConfig } from '../../config';
 
 function optimizeInputs(messages: Message[]): Message[] {
 	return messages.map((message) => ({
@@ -69,8 +70,6 @@ function optimizeTextContent(content: string): string {
 	return content;
 }
 
-
-
 export async function buildGatewayUrl(env: Env, providerOverride?: AIGatewayProviders): Promise<string> {
     // If CLOUDFLARE_AI_GATEWAY_URL is set and is a valid URL, use it directly
     if (env.CLOUDFLARE_AI_GATEWAY_URL && 
@@ -97,10 +96,6 @@ export async function buildGatewayUrl(env: Env, providerOverride?: AIGatewayProv
     const baseUrl = providerOverride ? await gateway.getUrl(providerOverride) : `${await gateway.getUrl()}compat`;
     return baseUrl;
 }
-
-// const providerAliasMap: Record<string, string> = {
-//     'google-ai-studio': 'gemini',
-// }
 
 function isValidApiKey(apiKey: string): boolean {
     if (!apiKey || apiKey.trim() === '') {
@@ -310,20 +305,17 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 	formatOptions?: FormatterOptions;
 }): Promise<InferResponseObject<OutputSchema> | InferResponseString> {
 	try {
-		const db = new DatabaseService(env);
-		const secretsService = new SecretsService(db, env);
-		const rateLimitService = new PlatformRateLimitService(env, secretsService);
-
-		const authUser: AuthUser | null = metadata.userId ? {
+		const authUser: AuthUser = {
 			id: metadata.userId,
-			isAnonymous: false,
 			email: 'unknown@platform.local',
 			displayName: undefined,
 			username: undefined,
 			avatarUrl: undefined
-		} : null;
+		};
 
-		await rateLimitService.enforceLLMCallsRateLimit(authUser);
+        const globalConfig = await getGlobalConfig(env) // Its powered by KV so it be fast enough. 
+        // Maybe in the future can expand using config object for other stuff like global model configs?
+		await RateLimitService.enforceLLMCallsRateLimit(env, globalConfig.security.rateLimit, authUser)
 
         const { apiKey, baseURL, defaultHeaders } = await getConfigurationForModel(modelName, env, metadata.userId);
 		console.log(`baseUrl: ${baseURL}, modelName: ${modelName}`);

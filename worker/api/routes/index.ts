@@ -1,4 +1,3 @@
-import { Router } from "../router";
 import { setupAuthRoutes } from './authRoutes';
 import { setupAppRoutes } from './appRoutes';
 import { setupUserRoutes } from './userRoutes';
@@ -9,39 +8,37 @@ import { setupModelConfigRoutes } from './modelConfigRoutes';
 import { setupModelProviderRoutes } from './modelProviderRoutes';
 import { setupGitHubExporterRoutes } from './githubExporterRoutes';
 import { setupCodegenRoutes } from './codegenRoutes';
+import { Hono } from "hono";
+import { AppEnv } from "../../types/appenv";
 
-export function setupRoutes(env: Env): Router {
-    const router = new Router();
-
+export function setupRoutes(env: Env, app: Hono<AppEnv>): void {
     // Codegen routes
-    setupCodegenRoutes(env, router);
+    setupCodegenRoutes(env, app);
 
     // Authentication and user management routes
-    setupAuthRoutes(env, router);
+    setupAuthRoutes(env, app);
     
     // User dashboard and profile routes
-    setupUserRoutes(env, router);
+    setupUserRoutes(env, app);
     
     // App management routes
-    setupAppRoutes(env, router);
+    setupAppRoutes(env, app);
     
     // Stats routes
-    setupStatsRoutes(env, router);
+    setupStatsRoutes(env, app);
     
     // AI Gateway Analytics routes
-    setupAnalyticsRoutes(env, router);
+    setupAnalyticsRoutes(env, app);
     
     // Secrets management routes
-    setupSecretsRoutes(env, router);
+    setupSecretsRoutes(env, app);
     
     // Model configuration and provider keys routes
-    setupModelConfigRoutes(env, router);
+    setupModelConfigRoutes(env, app);
     
     // Model provider routes
-    setupModelProviderRoutes(env, router);
+    setupModelProviderRoutes(env, app);
     
     // GitHub Exporter routes
-    setupGitHubExporterRoutes(env, router);
-    
-    return router;
+    setupGitHubExporterRoutes(env, app);
 }
