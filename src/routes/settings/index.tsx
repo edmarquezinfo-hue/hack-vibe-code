@@ -9,10 +9,7 @@ import {
 	Trash2,
 	Key,
 	Lock,
-    Link,
     Settings,
-    Unlink,
-	RefreshCw,
 } from 'lucide-react';
 import { ModelConfigTabs } from '@/components/model-config-tabs';
 import type {
@@ -71,23 +68,6 @@ import CloudflareLogo from '@/assets/provider-logos/cloudflare.svg?react';
 
 export default function SettingsPage() {
 	const { user } = useAuth();
-	// const [profileData, setProfileData] = useState({
-	// 	displayName: user?.displayName || '',
-	// 	username: user?.username || '',
-	// 	bio: user?.bio || '',
-	// 	timezone: user?.timezone || 'UTC',
-	// });
-	// const [isSaving, setIsSaving] = useState(false);
-	// const [profileVisibility, setProfileVisibility] = useState('public');
-	// const [appDefaultVisibility, setAppDefaultVisibility] = useState('private');
-
-	// GitHub integration state
-	const [githubIntegration, setGithubIntegration] = useState<{
-		hasIntegration: boolean;
-		githubUsername?: string;
-		loading: boolean;
-	}>({ hasIntegration: false, loading: true });
-
 	// Active sessions state
 	const [activeSessions, setActiveSessions] = useState<
 		ActiveSessionsData & { loading: boolean }
@@ -339,22 +319,6 @@ export default function SettingsPage() {
 
 	const handleDeleteAccount = async () => {
 		toast.error('Account deletion is not yet implemented');
-	};
-
-	const handleConnectGithub = () => {
-		// Redirect to GitHub App installation flow
-		window.location.href = '/api/github-app/install';
-	};
-
-	const handleDisconnectGithub = async () => {
-		// GitHub Apps can be uninstalled from GitHub directly
-		// Just update local state
-		setGithubIntegration({
-			hasIntegration: false,
-			githubUsername: undefined,
-			loading: false,
-		});
-		toast.info('To fully uninstall, visit your GitHub Settings > Applications');
 	};
 
 	// Load active sessions

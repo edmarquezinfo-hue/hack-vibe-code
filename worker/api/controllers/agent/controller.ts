@@ -8,6 +8,9 @@ import { ApiResponse, ControllerResponse } from '../BaseController.types';
 import { RouteContext } from '../../types/route-context';
 import { AppService, DatabaseService, ModelConfigService } from '../../../database';
 import { ModelConfig } from '../../../agents/inferutils/config.types';
+import { RateLimitService } from '../../../services/rate-limit/rateLimits';
+import { createRateLimitErrorResponse, RateLimitExceededError } from '../../../services/rate-limit/errors';
+import { validateWebSocketOrigin } from '../../../middleware/security/websocket';
 interface CodeGenArgs {
     query: string;
     language?: string;
@@ -38,9 +41,7 @@ export class CodingAgentController extends BaseController {
      */
     async startCodeGeneration(request: Request, env: Env, _: ExecutionContext, context: RouteContext): Promise<Response> {
         try {
-            this.logger.info('Starting code generation process', {
-                endpoint: '/api/agent'
-            });
+            this.logger.info('Starting code generation process');
 
             const url = new URL(request.url);
             const hostname = url.hostname === 'localhost' ? `localhost:${url.port}`: url.hostname;
@@ -69,6 +70,36 @@ export class CodingAgentController extends BaseController {
             const writer = writable.getWriter();
             // Check if user is authenticated (required for app creation)
             const user = context.user!;
+            try {
+                await RateLimitService.enforceAppCreationRateLimit(env, context.config.security.rateLimit, user, request);
+            } catch (error) {
+                const config = context.config.security.rateLimit.appCreation;
+                this.logger.warn('App creation rate limited', { userId: user.id, error, config });
+                if (error instanceof RateLimitExceededError) {
+                    const errorResponse = createRateLimitErrorResponse(
+                        error.limitType,
+                        error.message,
+                        config.limit,
+                        config.period,
+                    );
+                    return new Response(JSON.stringify(errorResponse), {
+                        status: 429,
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Retry-After': config.period.toString()
+                        }
+                    });
+                }
+                return new Response(JSON.stringify({ 
+                    error: error instanceof Error ? error.message : 'Rate limit exceeded'
+                }), {
+                    status: 429,
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Retry-After': config.period.toString()
+                    }
+                });
+            }
 
             const agentId = generateId();
             const db = new DatabaseService(env);
@@ -162,8 +193,7 @@ export class CodingAgentController extends BaseController {
             return new Response(readable, {
                 status: 200,
                 headers: {
-                    "content-type": "text/event-stream",
-                    'Access-Control-Allow-Origin': '*',
+                    "content-type": "text/event-stream"
                 }
             });
         } catch (error) {
@@ -191,6 +221,52 @@ export class CodingAgentController extends BaseController {
             // Ensure the request is a WebSocket upgrade request
             if (request.headers.get('Upgrade') !== 'websocket') {
                 return new Response('Expected WebSocket upgrade', { status: 426 });
+            }
+            
+            // Validate WebSocket origin
+            if (!validateWebSocketOrigin(request, env)) {
+                return new Response('Forbidden: Invalid origin', { status: 403 });
+            }
+
+            // Extract user for rate limiting
+            const user = context.user!;
+            if (!user) {
+                return this.createErrorResponse('Missing user', 401);
+            }
+
+            // Enforce WebSocket upgrade rate limiting
+            try {
+                await RateLimitService.enforceWebSocketUpgradeRateLimit(env, context.config.security.rateLimit, user, request);
+            } catch (error) {
+                this.logger.warn('WebSocket upgrade rate limited', { chatId, userId: user?.id, error });
+                // Return WebSocket error response for rate limiting
+                const { 0: client, 1: server } = new WebSocketPair();
+                server.accept();
+                
+                if (error instanceof RateLimitExceededError) {
+                    const errorResponse = createRateLimitErrorResponse(
+                        error.limitType,
+                        error.message,
+                        error.limit,
+                        error.period,
+                    );
+                    server.send(JSON.stringify({
+                        type: WebSocketMessageResponses.ERROR,
+                        error: errorResponse.error,
+                        details: errorResponse.details
+                    }));
+                } else {
+                    server.send(JSON.stringify({
+                        type: WebSocketMessageResponses.ERROR,
+                        error: error instanceof Error ? error.message : 'Rate limit exceeded'
+                    }));
+                }
+                
+                server.close(1013, 'Rate limit exceeded');
+                return new Response(null, {
+                    status: 101,
+                    webSocket: client
+                });
             }
 
             this.logger.info(`WebSocket connection request for chat: ${chatId}`);
