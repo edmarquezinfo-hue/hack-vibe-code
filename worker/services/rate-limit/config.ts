@@ -26,7 +26,6 @@ export interface RLRateLimitConfig extends RateLimitConfigBase {
 
 export interface DORateLimitConfig extends RateLimitConfigBase {
 	store: RateLimitStore.DURABLE_OBJECT;
-	bindingName: string;
 	limit: number;
 	period: number; // in seconds
 	burst?: number; // optional burst limit
