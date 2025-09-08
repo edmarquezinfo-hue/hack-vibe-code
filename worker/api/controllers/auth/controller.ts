@@ -25,7 +25,7 @@ import {
 import { RouteContext } from '../../types/route-context';
 import { authMiddleware } from '../../../middleware/auth/auth';
 import { CsrfService } from '../../../services/csrf/CsrfService';
-import { BaseController } from '../BaseController';
+import { BaseController } from '../baseController';
 /**
  * Authentication Controller
  */

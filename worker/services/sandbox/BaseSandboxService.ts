@@ -22,7 +22,6 @@ import {
     StaticAnalysisResponse,
     
     // Deployment types
-    DeploymentCredentials,
     DeploymentResult,
     BootstrapResponse,
     
@@ -217,7 +216,7 @@ import {
      * Deploy instance to Cloudflare Workers
      * Returns: { success: boolean, message: string, deployedUrl?: string, deploymentId?: string, error?: string }
      */
-    abstract deployToCloudflareWorkers(instanceId: string, credentials?: DeploymentCredentials): Promise<DeploymentResult>;
+    abstract deployToCloudflareWorkers(instanceId: string): Promise<DeploymentResult>;
   
     // ==========================================
     // GITHUB INTEGRATION (Required)
