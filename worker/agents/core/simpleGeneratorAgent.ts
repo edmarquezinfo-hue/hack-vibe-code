@@ -1644,6 +1644,9 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
                 ...this.state,
                 sandboxInstanceId: undefined,
             });
+            this.broadcast(WebSocketMessageResponses.DEPLOYMENT_FAILED, {
+                error: `Error deploying to sandbox service: ${error instanceof Error ? error.message : String(error)}`,
+            });
             return this.deployToSandbox();
         }
     }

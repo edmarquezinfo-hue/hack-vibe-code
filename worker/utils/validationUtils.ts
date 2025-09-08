@@ -219,53 +219,6 @@ export function validateUsername(
 }
 
 /**
- * Validate display name
- */
-export function validateDisplayName(
-	displayName: string,
-	config?: {
-		minLength?: number;
-		maxLength?: number;
-		allowSpecialChars?: boolean;
-	},
-): { valid: boolean; error?: string } {
-	const {
-		minLength = 2,
-		maxLength = 50,
-		allowSpecialChars = true,
-	} = config || {};
-
-	if (!displayName || typeof displayName !== 'string') {
-		return { valid: false, error: 'Display name is required' };
-	}
-
-	const trimmed = displayName.trim();
-
-	if (trimmed.length < minLength) {
-		return {
-			valid: false,
-			error: `Display name must be at least ${minLength} characters`,
-		};
-	}
-
-	if (trimmed.length > maxLength) {
-		return {
-			valid: false,
-			error: `Display name must be less than ${maxLength} characters`,
-		};
-	}
-
-	if (!allowSpecialChars && !/^[a-zA-Z0-9\s]+$/.test(trimmed)) {
-		return {
-			valid: false,
-			error: 'Display name can only contain letters, numbers, and spaces',
-		};
-	}
-
-	return { valid: true };
-}
-
-/**
  * Batch validation utility
  */
 export interface ValidationField<

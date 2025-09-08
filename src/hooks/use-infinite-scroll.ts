@@ -16,7 +16,7 @@ export function useInfiniteScroll({
   onLoadMore
 }: UseInfiniteScrollOptions = {}): UseInfiniteScrollResult {
   const triggerRef = useRef<HTMLDivElement | null>(null);
-  const loadingRef = useRef(false);
+  const isLoadingRef = useRef(false);
 
   useEffect(() => {
     if (!triggerRef.current || !enabled || !onLoadMore) return;
@@ -24,12 +24,14 @@ export function useInfiniteScroll({
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
-        if (entry.isIntersecting && !loadingRef.current) {
-          loadingRef.current = true;
+        if (entry.isIntersecting && !isLoadingRef.current) {
+          isLoadingRef.current = true;
           onLoadMore();
+          
+          // Reset after a brief delay to prevent duplicate calls
           setTimeout(() => {
-            loadingRef.current = false;
-          }, 1000);
+            isLoadingRef.current = false;
+          }, 500);
         }
       },
       {
@@ -41,6 +43,13 @@ export function useInfiniteScroll({
     observer.observe(triggerRef.current);
     return () => observer.disconnect();
   }, [threshold, enabled, onLoadMore]);
+
+  // Reset loading state when enabled changes to prevent stuck state
+  useEffect(() => {
+    if (!enabled) {
+      isLoadingRef.current = false;
+    }
+  }, [enabled]);
 
   return { triggerRef };
 }

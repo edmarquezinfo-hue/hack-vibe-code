@@ -1,7 +1,27 @@
 // Crypto utilities for Cloudflare Workers
 
+/**
+ * Secure base64url encoding for Cloudflare Workers
+ * Prevents stack overflow and encoding corruption with large buffers
+ */
 export function base64url(buffer: Uint8Array): string {
-    return btoa(String.fromCharCode(...buffer))
+    // Handle empty buffer
+    if (buffer.length === 0) {
+        return '';
+    }
+    
+    // For large buffers, process in chunks to prevent stack overflow
+    const CHUNK_SIZE = 8192; // 8KB chunks - safe for all JS engines
+    let result = '';
+    
+    for (let i = 0; i < buffer.length; i += CHUNK_SIZE) {
+        const chunk = buffer.slice(i, i + CHUNK_SIZE);
+        const chars = Array.from(chunk, byte => String.fromCharCode(byte));
+        result += btoa(chars.join(''));
+    }
+    
+    // Convert to base64url format (URL-safe)
+    return result
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=/g, '');

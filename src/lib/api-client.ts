@@ -42,7 +42,6 @@ import type {
 	SecretStoreData,
 	SecretDeleteData,
 	SecretTemplatesData,
-	AgentStateData,
 	AgentConnectionData,
 	AgentStreamingResponse,
 	App,
@@ -937,14 +936,6 @@ class ApiClient {
 	// ===============================
 	// Agent/CodeGen API Methods
 	// ===============================
-
-	/**
-	 * Get agent state
-	 */
-	async getAgentState(agentId: string): Promise<ApiResponse<AgentStateData>> {
-		return this.request<AgentStateData>(`/api/agent/${agentId}`);
-	}
-
 	/**
 	 * Connect to existing agent
 	 */
