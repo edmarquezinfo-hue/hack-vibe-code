@@ -1,1 +1,0 @@
-DROP TABLE `code_gen_instances`;

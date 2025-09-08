@@ -16,6 +16,79 @@ const LOG_LEVELS: Record<LogLevel, number> = {
 	error: 3,
 };
 
+/**
+ * Patterns for detecting and redacting sensitive credentials
+ */
+const CREDENTIAL_PATTERNS = [
+	// GitHub tokens
+	/ghp_[A-Za-z0-9_]{36}/g,
+	/gho_[A-Za-z0-9_]{36}/g,
+	/ghu_[A-Za-z0-9_]{36}/g,
+	/ghs_[A-Za-z0-9_]{36}/g,
+	/ghr_[A-Za-z0-9_]{76}/g,
+	
+	// OpenAI API keys
+	/sk-[A-Za-z0-9]{48}/g,
+	
+	// Generic Bearer tokens
+	/Bearer\s+[A-Za-z0-9._\-~+=\/]+/gi,
+	
+	// Basic auth credentials in URLs
+	/https?:\/\/[^:\/\s]*:[^@\/\s]*@[^\s\/]*/g,
+	
+	// x-oauth-basic patterns (GitHub HTTPS clone URLs with tokens)
+	/x-oauth-basic:[A-Za-z0-9_]+@/g,
+	
+	// JWT tokens (basic pattern)
+	/eyJ[A-Za-z0-9_\-]+\.eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+/g,
+	
+	// Cloudflare API tokens
+	/[A-Za-z0-9_\-]{40}(?=\s|$|&|"|\||,|;)/g, // 40-char tokens with word boundaries
+];
+
+/**
+ * Efficient credential scrubbing with safe handling
+ */
+function scrubCredentials(data: unknown): unknown {
+	if (typeof data === 'string') {
+		// Early return if no potential credentials detected
+		if (!data.includes('ghp_') && !data.includes('sk-') && !data.includes('Bearer') && 
+			!data.includes('://') && !data.includes('eyJ') && !data.includes('x-oauth-basic')) {
+			return data;
+		}
+		
+		let scrubbed = data;
+		for (const pattern of CREDENTIAL_PATTERNS) {
+			scrubbed = scrubbed.replace(pattern, '[REDACTED]');
+		}
+		return scrubbed;
+	}
+	
+	if (Array.isArray(data)) {
+		return data.map(scrubCredentials);
+	}
+	
+	if (data && typeof data === 'object' && data !== null && !(data instanceof Error) && !(data instanceof Date)) {
+		try {
+			const scrubbed: Record<string, unknown> = {};
+			for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+				// Always redact known sensitive field names
+				if (/^(token|password|secret|key|auth|credential|bearer)$/i.test(key)) {
+					scrubbed[key] = '[REDACTED]';
+				} else {
+					scrubbed[key] = scrubCredentials(value);
+				}
+			}
+			return scrubbed;
+		} catch {
+			// If object processing fails, return a safe representation
+			return '[OBJECT_SCRUB_FAILED]';
+		}
+	}
+	
+	return data;
+}
+
 export class StructuredLogger {
 	private readonly component: string;
 	private objectContext?: ObjectContext;
@@ -111,7 +184,7 @@ export class StructuredLogger {
 			level,
 			time: new Date().toISOString(),
 			component: this.component,
-			msg: message,
+			msg: scrubCredentials(message) as string,
 		};
 
 		// Add object context if available
@@ -119,22 +192,31 @@ export class StructuredLogger {
 			logEntry.object = { ...this.objectContext };
 		}
 
-		// Add additional fields
+		// Add additional fields with credential scrubbing
 		if (Object.keys(this.additionalFields).length > 0) {
-			Object.assign(logEntry, this.additionalFields);
+			const scrubbedAdditionalFields = scrubCredentials(this.additionalFields) as Record<string, unknown>;
+			Object.assign(logEntry, scrubbedAdditionalFields);
 		}
 
-		// Add structured data
-		if (data && typeof data === 'object' && !Array.isArray(data)) {
-			Object.assign(logEntry, data);
+		// Add structured data with credential scrubbing
+		if (data) {
+			try {
+				const scrubbedData = scrubCredentials(data);
+				if (scrubbedData && typeof scrubbedData === 'object' && !Array.isArray(scrubbedData)) {
+					Object.assign(logEntry, scrubbedData as Record<string, unknown>);
+				}
+			} catch {
+				// If scrubbing fails, add a safe placeholder
+				logEntry.data = '[DATA_SCRUB_FAILED]';
+			}
 		}
 
-		// Add error details
+		// Add error details with credential scrubbing
 		if (error instanceof Error) {
 			logEntry.error = {
 				name: error.name,
-				message: error.message,
-				stack: error.stack,
+				message: scrubCredentials(error.message) as string,
+				stack: scrubCredentials(error.stack) as string | undefined,
 			};
 		}
 
@@ -341,6 +423,7 @@ function getObjectType(obj: unknown): string | undefined {
 		return undefined;
 	}
 }
+
 
 /**
  * Logger factory for global configuration

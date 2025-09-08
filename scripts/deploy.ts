@@ -737,14 +737,7 @@ class CloudflareDeploymentManager {
 		zoneName: string | null;
 		zoneId: string | null;
 	}> {
-		// If the custom domain is the same as the original, don't need zone detection
-		if (customDomain === originalDomain) {
-			console.log(`ℹ️  CUSTOM_DOMAIN matches original domain, no zone detection needed`);
-			return { zoneName: null, zoneId: null };
-		}
-
-		console.log(`🔍 Detecting zone for custom domain: ${customDomain}`);
-		console.log(`   Original domain was: ${originalDomain}`);
+		console.log(`🔍 Detecting zone for custom domain: ${customDomain}, Original domain was: ${originalDomain}`);
 
 		// Extract possible zone names by progressively removing subdomains
 		const domainParts = customDomain.split('.');
