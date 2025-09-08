@@ -2,7 +2,6 @@
  * Base Controller Types
  */
 
-import { AuthUser } from "../../types/auth-types";
 
 /**
  * Typed response wrapper for controller methods
@@ -23,8 +22,3 @@ export interface ApiResponse<T = unknown> {
     error?: string;
 }
 
-export interface AuthResult {
-    success: boolean;
-    user?: AuthUser;
-    response?: Response;
-}

@@ -12,11 +12,12 @@ import { SessionService } from './SessionService';
 import { PasswordService } from '../../utils/passwordService';
 import { GoogleOAuthProvider } from '../../services/oauth/google';
 import { GitHubOAuthProvider } from '../../services/oauth/github';
-import { BaseOAuthProvider, OAuthUserInfo } from '../../services/oauth/base';
+import { BaseOAuthProvider } from '../../services/oauth/base';
 import { 
     SecurityError, 
     SecurityErrorType 
 } from '../../types/security';
+import { AuthResult, OAuthUserInfo } from '../../types/auth-types';
 import { generateId } from '../../utils/idGenerator';
 import {
     AuthUser, 
@@ -47,16 +48,6 @@ export interface RegistrationData {
     name?: string;
 }
 
-/**
- * Auth result
- */
-export interface AuthResult {
-    user: AuthUser;
-    accessToken: string;
-    refreshToken: string;
-    expiresIn: number;
-    redirectUrl?: string;
-}
 
 /**
  * Main Authentication Service
