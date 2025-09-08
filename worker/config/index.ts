@@ -5,6 +5,9 @@ const logger = createLogger('GlobalConfigurableSettings');
 
 let cachedConfig: GlobalConfigurableSettings | null = null;
 
+// Per-invocation cache to avoid multiple KV calls within single worker invocation
+const invocationUserCache = new Map<string, GlobalConfigurableSettings>();
+
 /**
  *  deep merge utility for configuration objects
  * 
@@ -121,7 +124,11 @@ export async function getUserConfigurableSettings(env: Env, userId: string, glob
     if (!userId) {
         return globalConfig;
     }
-    
+
+    if (invocationUserCache.has(userId)) {
+        logger.info(`Using cached configuration for user ${userId}`);
+        return invocationUserCache.get(userId)!;
+    }
     try {
         // Try to fetch override config from KV
         const storedConfigJson = await env.VibecoderStore.get(`user_config:${userId}`);
@@ -138,6 +145,7 @@ export async function getUserConfigurableSettings(env: Env, userId: string, glob
         const mergedConfig = deepMerge<GlobalConfigurableSettings>(globalConfig, storedConfig);
         
         logger.info(`Loaded configuration with overrides from KV for user ${userId}`, { globalConfig, storedConfig, mergedConfig });
+        invocationUserCache.set(userId, mergedConfig);
         return mergedConfig;
         
     } catch (error) {

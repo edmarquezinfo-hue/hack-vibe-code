@@ -1,6 +1,7 @@
 export enum RateLimitStore {
 	KV = 'kv',
 	RATE_LIMITER = 'rate_limiter',
+	DURABLE_OBJECT = 'durable_object',
 }
 
 export interface RateLimitConfigBase {
@@ -22,6 +23,15 @@ export interface RLRateLimitConfig extends RateLimitConfigBase {
 	bindingName: string;
 	// Rate limits via bindings are configurable only via wrangler configs
 }
+
+export interface DORateLimitConfig extends RateLimitConfigBase {
+	store: RateLimitStore.DURABLE_OBJECT;
+	limit: number;
+	period: number; // in seconds
+	burst?: number; // optional burst limit
+	burstWindow?: number; // burst window in seconds (default: 60)
+	bucketSize?: number; // time bucket size in seconds (default: 10)
+}
 export interface LLMCallsRateLimitConfig extends KVRateLimitConfig {
 	excludeBYOKUsers: boolean;
 }
@@ -29,6 +39,7 @@ export interface LLMCallsRateLimitConfig extends KVRateLimitConfig {
 export type RateLimitConfig =
 	| RLRateLimitConfig
 	| KVRateLimitConfig
+	| DORateLimitConfig
 	| LLMCallsRateLimitConfig;
 
 export enum RateLimitType {
@@ -39,10 +50,10 @@ export enum RateLimitType {
 }
 
 export interface RateLimitSettings {
-	[RateLimitType.API_RATE_LIMIT]: RLRateLimitConfig;
-	[RateLimitType.AUTH_RATE_LIMIT]: RLRateLimitConfig;
-	[RateLimitType.APP_CREATION]: KVRateLimitConfig;
-	[RateLimitType.LLM_CALLS]: LLMCallsRateLimitConfig;
+	[RateLimitType.API_RATE_LIMIT]: RLRateLimitConfig | DORateLimitConfig;
+	[RateLimitType.AUTH_RATE_LIMIT]: RLRateLimitConfig | DORateLimitConfig;
+	[RateLimitType.APP_CREATION]: KVRateLimitConfig | DORateLimitConfig;
+	[RateLimitType.LLM_CALLS]: LLMCallsRateLimitConfig | DORateLimitConfig;
 }
 
 export const DEFAULT_RATE_LIMIT_SETTINGS: RateLimitSettings = {
