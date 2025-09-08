@@ -3,9 +3,9 @@
  * Handles CRUD operations for user model configurations
  */
 
-import { BaseController } from '../BaseController';
+import { BaseController } from '../baseController';
 import { RouteContext } from '../../types/route-context';
-import { ApiResponse, ControllerResponse } from '../BaseController.types';
+import { ApiResponse, ControllerResponse } from '../types';
 import { ModelConfigService } from '../../../database/services/ModelConfigService';
 import { SecretsService } from '../../../database/services/SecretsService';
 import { ModelTestService } from '../../../database/services/ModelTestService';

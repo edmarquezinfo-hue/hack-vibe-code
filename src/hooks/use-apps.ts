@@ -22,8 +22,6 @@ export function useApps(): AppHookState<AppWithFavoriteStatus> {
   };
 }
 
-export const useUserApps = useApps;
-
 export function useRecentApps() {
   const { recentApps, moreRecentAvailable, loading, error, refetchAllApps } = useAppsData();
   

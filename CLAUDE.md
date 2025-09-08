@@ -109,10 +109,7 @@ Required in `.dev.vars` for local development:
 
 ## Important Notes
 - Focus on core AI generation functionality when making changes
-- Auth/user management code is temporary and will be rewritten
 - Prioritize Cloudflare-native solutions (D1, Durable Objects, R2)
-- All database schemas are subject to change
-- Test files should be ignored - they're AI-generated placeholders
 - Always **strictly** follow DRY principles
 - Keep code quality high and maintainability in mind
 - Always research and understand the codebase before making changes

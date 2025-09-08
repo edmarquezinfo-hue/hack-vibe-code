@@ -36,7 +36,7 @@ export function createRateLimitErrorResponse(
 ): RateLimitErrorResponse {
 	const suggestions: string[] = [];
 	
-	if (limitType === 'llm_calls') {
+	if (limitType === RateLimitType.LLM_CALLS) {
 		suggestions.push('You have reached maximum allowed LLM calls in an hour. Please wait and try again later.');
 	} else {
 		suggestions.push('Try again in an hour when the limit resets');

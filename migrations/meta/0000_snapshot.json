@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "048e3cf9-33fc-4717-9c50-9da63ab05343",
+  "id": "c41950c7-1162-4690-ae3f-072e69e53375",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "api_keys": {
@@ -140,75 +140,6 @@
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "app_categories": {
-      "name": "app_categories",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "app_id": {
-          "name": "app_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "category_name": {
-          "name": "category_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        }
-      },
-      "indexes": {
-        "app_categories_app_category_idx": {
-          "name": "app_categories_app_category_idx",
-          "columns": [
-            "app_id",
-            "category_name"
-          ],
-          "isUnique": true
-        },
-        "app_categories_category_name_idx": {
-          "name": "app_categories_category_name_idx",
-          "columns": [
-            "category_name"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "app_categories_app_id_apps_id_fk": {
-          "name": "app_categories_app_id_apps_id_fk",
-          "tableFrom": "app_categories",
-          "tableTo": "apps",
-          "columnsFrom": [
-            "app_id"
           ],
           "columnsTo": [
             "id"
@@ -437,75 +368,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "app_tags": {
-      "name": "app_tags",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "app_id": {
-          "name": "app_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tag_name": {
-          "name": "tag_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        }
-      },
-      "indexes": {
-        "app_tags_app_tag_idx": {
-          "name": "app_tags_app_tag_idx",
-          "columns": [
-            "app_id",
-            "tag_name"
-          ],
-          "isUnique": true
-        },
-        "app_tags_tag_name_idx": {
-          "name": "app_tags_tag_name_idx",
-          "columns": [
-            "tag_name"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "app_tags_app_id_apps_id_fk": {
-          "name": "app_tags_app_id_apps_id_fk",
-          "tableFrom": "app_tags",
-          "tableTo": "apps",
-          "columnsFrom": [
-            "app_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "app_views": {
       "name": "app_views",
       "columns": {
@@ -660,13 +522,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "slug": {
-          "name": "slug",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "icon_url": {
           "name": "icon_url",
           "type": "text",
@@ -695,20 +550,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "generated_files": {
-          "name": "generated_files",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "template_id": {
-          "name": "template_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "framework": {
           "name": "framework",
           "type": "text",
@@ -718,13 +559,6 @@
         },
         "user_id": {
           "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "team_id": {
-          "name": "team_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -745,28 +579,13 @@
           "autoincrement": false,
           "default": "'private'"
         },
-        "board_id": {
-          "name": "board_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "status": {
           "name": "status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'draft'"
-        },
-        "generation_status": {
-          "name": "generation_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'{}'"
+          "default": "'generating'"
         },
         "deployment_url": {
           "name": "deployment_url",
@@ -775,28 +594,19 @@
           "notNull": false,
           "autoincrement": false
         },
-        "cloudflare_account_id": {
-          "name": "cloudflare_account_id",
+        "github_repository_url": {
+          "name": "github_repository_url",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "deployment_status": {
-          "name": "deployment_status",
+        "github_repository_visibility": {
+          "name": "github_repository_visibility",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false,
-          "default": "'none'"
-        },
-        "deployment_metadata": {
-          "name": "deployment_metadata",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'{}'"
+          "autoincrement": false
         },
         "is_archived": {
           "name": "is_archived",
@@ -825,6 +635,20 @@
         "parent_app_id": {
           "name": "parent_app_id",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "screenshot_url": {
+          "name": "screenshot_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "screenshot_captured_at": {
+          "name": "screenshot_captured_at",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -861,20 +685,6 @@
           ],
           "isUnique": false
         },
-        "apps_team_idx": {
-          "name": "apps_team_idx",
-          "columns": [
-            "team_id"
-          ],
-          "isUnique": false
-        },
-        "apps_board_idx": {
-          "name": "apps_board_idx",
-          "columns": [
-            "board_id"
-          ],
-          "isUnique": false
-        },
         "apps_status_idx": {
           "name": "apps_status_idx",
           "columns": [
@@ -886,13 +696,6 @@
           "name": "apps_visibility_idx",
           "columns": [
             "visibility"
-          ],
-          "isUnique": false
-        },
-        "apps_slug_idx": {
-          "name": "apps_slug_idx",
-          "columns": [
-            "slug"
           ],
           "isUnique": false
         },
@@ -961,32 +764,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "apps_team_id_teams_id_fk": {
-          "name": "apps_team_id_teams_id_fk",
-          "tableFrom": "apps",
-          "tableTo": "teams",
-          "columnsFrom": [
-            "team_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "apps_board_id_boards_id_fk": {
-          "name": "apps_board_id_boards_id_fk",
-          "tableFrom": "apps",
-          "tableTo": "boards",
-          "columnsFrom": [
-            "board_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -1201,689 +978,6 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "board_members": {
-      "name": "board_members",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "board_id": {
-          "name": "board_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'member'"
-        },
-        "permissions": {
-          "name": "permissions",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "is_banned": {
-          "name": "is_banned",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": false
-        },
-        "banned_at": {
-          "name": "banned_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "banned_reason": {
-          "name": "banned_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "joined_at": {
-          "name": "joined_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        }
-      },
-      "indexes": {
-        "board_members_board_user_idx": {
-          "name": "board_members_board_user_idx",
-          "columns": [
-            "board_id",
-            "user_id"
-          ],
-          "isUnique": true
-        },
-        "board_members_user_idx": {
-          "name": "board_members_user_idx",
-          "columns": [
-            "user_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "board_members_board_id_boards_id_fk": {
-          "name": "board_members_board_id_boards_id_fk",
-          "tableFrom": "board_members",
-          "tableTo": "boards",
-          "columnsFrom": [
-            "board_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "board_members_user_id_users_id_fk": {
-          "name": "board_members_user_id_users_id_fk",
-          "tableFrom": "board_members",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "boards": {
-      "name": "boards",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "slug": {
-          "name": "slug",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "icon_url": {
-          "name": "icon_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "banner_url": {
-          "name": "banner_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "visibility": {
-          "name": "visibility",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'public'"
-        },
-        "allow_submissions": {
-          "name": "allow_submissions",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": true
-        },
-        "require_approval": {
-          "name": "require_approval",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": false
-        },
-        "rules": {
-          "name": "rules",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "guidelines": {
-          "name": "guidelines",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "owner_id": {
-          "name": "owner_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "team_id": {
-          "name": "team_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        }
-      },
-      "indexes": {
-        "boards_slug_unique": {
-          "name": "boards_slug_unique",
-          "columns": [
-            "slug"
-          ],
-          "isUnique": true
-        },
-        "boards_slug_idx": {
-          "name": "boards_slug_idx",
-          "columns": [
-            "slug"
-          ],
-          "isUnique": true
-        },
-        "boards_owner_idx": {
-          "name": "boards_owner_idx",
-          "columns": [
-            "owner_id"
-          ],
-          "isUnique": false
-        },
-        "boards_team_idx": {
-          "name": "boards_team_idx",
-          "columns": [
-            "team_id"
-          ],
-          "isUnique": false
-        },
-        "boards_visibility_idx": {
-          "name": "boards_visibility_idx",
-          "columns": [
-            "visibility"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "boards_owner_id_users_id_fk": {
-          "name": "boards_owner_id_users_id_fk",
-          "tableFrom": "boards",
-          "tableTo": "users",
-          "columnsFrom": [
-            "owner_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "boards_team_id_teams_id_fk": {
-          "name": "boards_team_id_teams_id_fk",
-          "tableFrom": "boards",
-          "tableTo": "teams",
-          "columnsFrom": [
-            "team_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "cloudflare_accounts": {
-      "name": "cloudflare_accounts",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "api_token_hash": {
-          "name": "api_token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "team_id": {
-          "name": "team_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "is_default": {
-          "name": "is_default",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": false
-        },
-        "is_active": {
-          "name": "is_active",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": true
-        },
-        "capabilities": {
-          "name": "capabilities",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "last_validated": {
-          "name": "last_validated",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "validation_status": {
-          "name": "validation_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'pending'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        }
-      },
-      "indexes": {
-        "cf_accounts_user_idx": {
-          "name": "cf_accounts_user_idx",
-          "columns": [
-            "user_id"
-          ],
-          "isUnique": false
-        },
-        "cf_accounts_team_idx": {
-          "name": "cf_accounts_team_idx",
-          "columns": [
-            "team_id"
-          ],
-          "isUnique": false
-        },
-        "cf_accounts_account_id_idx": {
-          "name": "cf_accounts_account_id_idx",
-          "columns": [
-            "account_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "cloudflare_accounts_user_id_users_id_fk": {
-          "name": "cloudflare_accounts_user_id_users_id_fk",
-          "tableFrom": "cloudflare_accounts",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "cloudflare_accounts_team_id_teams_id_fk": {
-          "name": "cloudflare_accounts_team_id_teams_id_fk",
-          "tableFrom": "cloudflare_accounts",
-          "tableTo": "teams",
-          "columnsFrom": [
-            "team_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "code_gen_instances": {
-      "name": "code_gen_instances",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "app_id": {
-          "name": "app_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "session_token": {
-          "name": "session_token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "websocket_connection_id": {
-          "name": "websocket_connection_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "current_phase": {
-          "name": "current_phase",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "phases": {
-          "name": "phases",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "is_generating": {
-          "name": "is_generating",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": false
-        },
-        "is_paused": {
-          "name": "is_paused",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": false
-        },
-        "blueprint": {
-          "name": "blueprint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "generated_files": {
-          "name": "generated_files",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'{}'"
-        },
-        "runtime_errors": {
-          "name": "runtime_errors",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "deployment_info": {
-          "name": "deployment_info",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'{}'"
-        },
-        "agent_messages": {
-          "name": "agent_messages",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "command_history": {
-          "name": "command_history",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'active'"
-        },
-        "error_info": {
-          "name": "error_info",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_activity_at": {
-          "name": "last_activity_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        }
-      },
-      "indexes": {
-        "codegen_instances_app_idx": {
-          "name": "codegen_instances_app_idx",
-          "columns": [
-            "app_id"
-          ],
-          "isUnique": false
-        },
-        "codegen_instances_user_idx": {
-          "name": "codegen_instances_user_idx",
-          "columns": [
-            "user_id"
-          ],
-          "isUnique": false
-        },
-        "codegen_instances_session_token_idx": {
-          "name": "codegen_instances_session_token_idx",
-          "columns": [
-            "session_token"
-          ],
-          "isUnique": false
-        },
-        "codegen_instances_status_idx": {
-          "name": "codegen_instances_status_idx",
-          "columns": [
-            "status"
-          ],
-          "isUnique": false
-        },
-        "codegen_instances_websocket_idx": {
-          "name": "codegen_instances_websocket_idx",
-          "columns": [
-            "websocket_connection_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "code_gen_instances_app_id_apps_id_fk": {
-          "name": "code_gen_instances_app_id_apps_id_fk",
-          "tableFrom": "code_gen_instances",
-          "tableTo": "apps",
-          "columnsFrom": [
-            "app_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "code_gen_instances_user_id_users_id_fk": {
-          "name": "code_gen_instances_user_id_users_id_fk",
-          "tableFrom": "code_gen_instances",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -2159,160 +1253,6 @@
           "tableTo": "apps",
           "columnsFrom": [
             "app_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "github_integrations": {
-      "name": "github_integrations",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "github_user_id": {
-          "name": "github_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "github_username": {
-          "name": "github_username",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "access_token_hash": {
-          "name": "access_token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "refresh_token_hash": {
-          "name": "refresh_token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "team_id": {
-          "name": "team_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "default_organization": {
-          "name": "default_organization",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "is_active": {
-          "name": "is_active",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": true
-        },
-        "scopes": {
-          "name": "scopes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "last_validated": {
-          "name": "last_validated",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        }
-      },
-      "indexes": {
-        "github_integrations_user_idx": {
-          "name": "github_integrations_user_idx",
-          "columns": [
-            "user_id"
-          ],
-          "isUnique": false
-        },
-        "github_integrations_team_idx": {
-          "name": "github_integrations_team_idx",
-          "columns": [
-            "team_id"
-          ],
-          "isUnique": false
-        },
-        "github_integrations_github_user_idx": {
-          "name": "github_integrations_github_user_idx",
-          "columns": [
-            "github_user_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "github_integrations_user_id_users_id_fk": {
-          "name": "github_integrations_user_id_users_id_fk",
-          "tableFrom": "github_integrations",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "github_integrations_team_id_teams_id_fk": {
-          "name": "github_integrations_team_id_teams_id_fk",
-          "tableFrom": "github_integrations",
-          "tableTo": "teams",
-          "columnsFrom": [
-            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -2872,20 +1812,13 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "team_members": {
-      "name": "team_members",
+    "user_model_configs": {
+      "name": "user_model_configs",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "team_id": {
-          "name": "team_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
@@ -2896,50 +1829,62 @@
           "notNull": true,
           "autoincrement": false
         },
-        "role": {
-          "name": "role",
+        "agent_action_name": {
+          "name": "agent_action_name",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'member'"
+          "autoincrement": false
         },
-        "permissions": {
-          "name": "permissions",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "invited_by": {
-          "name": "invited_by",
+        "model_name": {
+          "name": "model_name",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "invited_at": {
-          "name": "invited_at",
+        "max_tokens": {
+          "name": "max_tokens",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "joined_at": {
-          "name": "joined_at",
-          "type": "integer",
+        "temperature": {
+          "name": "temperature",
+          "type": "real",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "status": {
-          "name": "status",
+        "reasoning_effort": {
+          "name": "reasoning_effort",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "provider_override": {
+          "name": "provider_override",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "fallback_model": {
+          "name": "fallback_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false,
-          "default": "'active'"
+          "default": true
         },
         "created_at": {
           "name": "created_at",
@@ -2959,53 +1904,33 @@
         }
       },
       "indexes": {
-        "team_members_team_user_idx": {
-          "name": "team_members_team_user_idx",
+        "user_model_configs_user_agent_idx": {
+          "name": "user_model_configs_user_agent_idx",
           "columns": [
-            "team_id",
-            "user_id"
+            "user_id",
+            "agent_action_name"
           ],
           "isUnique": true
         },
-        "team_members_user_idx": {
-          "name": "team_members_user_idx",
+        "user_model_configs_user_idx": {
+          "name": "user_model_configs_user_idx",
           "columns": [
             "user_id"
           ],
           "isUnique": false
         },
-        "team_members_role_idx": {
-          "name": "team_members_role_idx",
+        "user_model_configs_is_active_idx": {
+          "name": "user_model_configs_is_active_idx",
           "columns": [
-            "role"
-          ],
-          "isUnique": false
-        },
-        "team_members_status_idx": {
-          "name": "team_members_status_idx",
-          "columns": [
-            "status"
+            "is_active"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "team_members_team_id_teams_id_fk": {
-          "name": "team_members_team_id_teams_id_fk",
-          "tableFrom": "team_members",
-          "tableTo": "teams",
-          "columnsFrom": [
-            "team_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "team_members_user_id_users_id_fk": {
-          "name": "team_members_user_id_users_id_fk",
-          "tableFrom": "team_members",
+        "user_model_configs_user_id_users_id_fk": {
+          "name": "user_model_configs_user_id_users_id_fk",
+          "tableFrom": "user_model_configs",
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
@@ -3014,19 +1939,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "team_members_invited_by_users_id_fk": {
-          "name": "team_members_invited_by_users_id_fk",
-          "tableFrom": "team_members",
-          "tableTo": "users",
-          "columnsFrom": [
-            "invited_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -3034,13 +1946,20 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "teams": {
-      "name": "teams",
+    "user_model_providers": {
+      "name": "user_model_providers",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
@@ -3051,73 +1970,27 @@
           "notNull": true,
           "autoincrement": false
         },
-        "slug": {
-          "name": "slug",
+        "base_url": {
+          "name": "base_url",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "description": {
-          "name": "description",
+        "secret_id": {
+          "name": "secret_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "avatar_url": {
-          "name": "avatar_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "visibility": {
-          "name": "visibility",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'private'"
-        },
-        "allow_member_invites": {
-          "name": "allow_member_invites",
+        "is_active": {
+          "name": "is_active",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": false
-        },
-        "plan": {
-          "name": "plan",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'free'"
-        },
-        "max_members": {
-          "name": "max_members",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": 5
-        },
-        "max_apps": {
-          "name": "max_apps",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": 10
-        },
-        "owner_id": {
-          "name": "owner_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "default": true
         },
         "created_at": {
           "name": "created_at",
@@ -3134,57 +2007,57 @@
           "notNull": false,
           "autoincrement": false,
           "default": "CURRENT_TIMESTAMP"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         }
       },
       "indexes": {
-        "teams_slug_unique": {
-          "name": "teams_slug_unique",
+        "user_model_providers_user_name_idx": {
+          "name": "user_model_providers_user_name_idx",
           "columns": [
-            "slug"
+            "user_id",
+            "name"
           ],
           "isUnique": true
         },
-        "teams_slug_idx": {
-          "name": "teams_slug_idx",
+        "user_model_providers_user_idx": {
+          "name": "user_model_providers_user_idx",
           "columns": [
-            "slug"
-          ],
-          "isUnique": true
-        },
-        "teams_owner_idx": {
-          "name": "teams_owner_idx",
-          "columns": [
-            "owner_id"
+            "user_id"
           ],
           "isUnique": false
         },
-        "teams_visibility_idx": {
-          "name": "teams_visibility_idx",
+        "user_model_providers_is_active_idx": {
+          "name": "user_model_providers_is_active_idx",
           "columns": [
-            "visibility"
+            "is_active"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "teams_owner_id_users_id_fk": {
-          "name": "teams_owner_id_users_id_fk",
-          "tableFrom": "teams",
+        "user_model_providers_user_id_users_id_fk": {
+          "name": "user_model_providers_user_id_users_id_fk",
+          "tableFrom": "user_model_providers",
           "tableTo": "users",
           "columnsFrom": [
-            "owner_id"
+            "user_id"
           ],
           "columnsTo": [
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_model_providers_secret_id_user_secrets_id_fk": {
+          "name": "user_model_providers_secret_id_user_secrets_id_fk",
+          "tableFrom": "user_model_providers",
+          "tableTo": "user_secrets",
+          "columnsFrom": [
+            "secret_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -3243,14 +2116,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "environment": {
-          "name": "environment",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'production'"
         },
         "description": {
           "name": "description",
@@ -3586,6 +2451,89 @@
           "name": "users_last_active_at_idx",
           "columns": [
             "last_active_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "verification_otps": {
+      "name": "verification_otps",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "otp": {
+          "name": "otp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "used": {
+          "name": "used",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": false
+        },
+        "used_at": {
+          "name": "used_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "verification_otps_email_idx": {
+          "name": "verification_otps_email_idx",
+          "columns": [
+            "email"
+          ],
+          "isUnique": false
+        },
+        "verification_otps_expires_at_idx": {
+          "name": "verification_otps_expires_at_idx",
+          "columns": [
+            "expires_at"
+          ],
+          "isUnique": false
+        },
+        "verification_otps_used_idx": {
+          "name": "verification_otps_used_idx",
+          "columns": [
+            "used"
           ],
           "isUnique": false
         }

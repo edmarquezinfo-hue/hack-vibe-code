@@ -22,7 +22,6 @@ import {
     StaticAnalysisResponse,
     
     // Deployment types
-    DeploymentCredentials,
     DeploymentResult,
     BootstrapResponse,
     
@@ -31,7 +30,9 @@ import {
     SaveInstanceResponse,
     ResumeInstanceResponse,
     GitHubPushRequest,
-    GitHubPushResponse
+    GitHubPushResponse,
+    GitHubExportRequest,
+    GitHubExportResponse
   } from './sandboxTypes';
   
   import { createObjectLogger, StructuredLogger } from '../../logger';
@@ -215,12 +216,17 @@ import {
      * Deploy instance to Cloudflare Workers
      * Returns: { success: boolean, message: string, deployedUrl?: string, deploymentId?: string, error?: string }
      */
-    abstract deployToCloudflareWorkers(instanceId: string, credentials?: DeploymentCredentials): Promise<DeploymentResult>;
+    abstract deployToCloudflareWorkers(instanceId: string): Promise<DeploymentResult>;
   
     // ==========================================
     // GITHUB INTEGRATION (Required)
     // ==========================================
   
+    /**
+     * Export generated app to GitHub (creates repository if needed, then pushes files)
+     */
+    abstract exportToGitHub(instanceId: string, request: GitHubExportRequest): Promise<GitHubExportResponse>
+
     /**
      * Push instance files to existing GitHub repository
      */

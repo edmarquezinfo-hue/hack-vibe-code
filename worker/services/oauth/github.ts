@@ -3,10 +3,11 @@
  * Implements GitHub OAuth 2.0 authentication
  */
 
-import { BaseOAuthProvider, OAuthUserInfo } from './base';
+import { BaseOAuthProvider } from './base';
+import type { OAuthUserInfo } from '../../types/auth-types';
 import { OAuthProvider } from '../../types/auth-types';
 import { createLogger } from '../../logger';
-import { createGitHubHeaders, extractGitHubErrorText } from '../../utils/authUtils';
+import { createGitHubHeaders, extractGitHubErrorText } from '../../utils/githubUtils';
 
 const logger = createLogger('GitHubOAuth');
 

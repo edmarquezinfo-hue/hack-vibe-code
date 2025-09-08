@@ -11,7 +11,6 @@ import {
     RuntimeErrorResponse,
     ClearErrorsResponse,
     StaticAnalysisResponse,
-    DeploymentCredentials,
     DeploymentResult,
     GetLogsResponse,
     ListInstancesResponse,
@@ -33,6 +32,8 @@ import {
     StaticAnalysisResponseSchema,
     GitHubPushRequest,
     GitHubPushResponse,
+    GitHubExportRequest,
+    GitHubExportResponse,
     GitHubPushResponseSchema,
 } from './sandboxTypes';
 import { BaseSandboxService } from "./BaseSandboxService";
@@ -204,9 +205,8 @@ export class RemoteSandboxServiceClient extends BaseSandboxService{
      * @param instanceId The ID of the runner instance to deploy
      * @param credentials Optional Cloudflare deployment credentials
      */
-    async deployToCloudflareWorkers(instanceId: string, credentials?: DeploymentCredentials): Promise<DeploymentResult> {
-        const requestBody = credentials || {};
-        return this.makeRequest(`/instances/${instanceId}/deploy`, 'POST', DeploymentResultSchema, requestBody);
+    async deployToCloudflareWorkers(instanceId: string): Promise<DeploymentResult> {
+        return this.makeRequest(`/instances/${instanceId}/deploy`, 'POST', DeploymentResultSchema);
     }
 
     /**
@@ -214,6 +214,13 @@ export class RemoteSandboxServiceClient extends BaseSandboxService{
      */
     async shutdownInstance(instanceId: string): Promise<ShutdownResponse> {
         return this.makeRequest(`/instances/${instanceId}`, 'DELETE', ShutdownResponseSchema);
+    }
+
+    /**
+     * Export generated app to GitHub (creates repository if needed, then pushes files)
+     */
+    async exportToGitHub(instanceId: string, request: GitHubExportRequest): Promise<GitHubExportResponse> {
+        return this.makeRequest(`/instances/${instanceId}/github/export`, 'POST', undefined, request);
     }
 
     /**

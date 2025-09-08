@@ -1,13 +1,13 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { csrf } from 'hono/csrf';
 import { secureHeaders } from 'hono/secure-headers';
-import { getCORSConfig } from './config/security';
-import { getGlobalConfig } from './config';
+import { getCORSConfig, getSecureHeadersConfig } from './config/security';
 import { RateLimitService } from './services/rate-limit/rateLimits';
-import { authMiddleware } from './middleware/auth/auth';
 import { AppEnv } from './types/appenv';
 import { setupRoutes } from './api/routes';
+import { CsrfService } from './services/csrf/CsrfService';
+import { SecurityError, SecurityErrorType } from './types/security';
+import { getGlobalConfigurableSettings } from './config';
 
 export function createApp(env: Env): Hono<AppEnv> {
     const app = new Hono<AppEnv>();
@@ -19,29 +19,61 @@ export function createApp(env: Env): Hono<AppEnv> {
         if (upgradeHeader?.toLowerCase() === 'websocket') {
             return next();
         }
-        // Apply secure headers for non-WebSocket requests
-        return secureHeaders()(c, next);
+        // Apply secure headers
+        return secureHeaders(getSecureHeadersConfig(env))(c, next);
     });
+    
+    // CORS configuration
     app.use('/api/*', cors(getCORSConfig(env)));
-    app.use('*', csrf({
-        origin: ['http://localhost:5173', `https://${env.CUSTOM_DOMAIN}`],
-    }));
+    
+    // CSRF protection using double-submit cookie pattern with proper GET handling
+    app.use('*', async (c, next) => {
+        const method = c.req.method.toUpperCase();
+        
+        // Skip for WebSocket upgrades
+        const upgradeHeader = c.req.header('upgrade');
+        if (upgradeHeader?.toLowerCase() === 'websocket') {
+            return next();
+        }
+        
+        try {
+            // Handle GET requests - establish CSRF token if needed
+            if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+                await next();
+                
+                // Only set CSRF token for successful API responses
+                if (c.req.url.includes('/api/') && c.res.status < 400) {
+                    await CsrfService.enforce(c.req.raw, c.res);
+                }
+                
+                return;
+            }
+            
+            // Validate CSRF token for state-changing requests
+            await CsrfService.enforce(c.req.raw, undefined);
+            await next();
+        } catch (error) {
+            if (error instanceof SecurityError && error.type === SecurityErrorType.CSRF_VIOLATION) {
+                return new Response(JSON.stringify({ 
+                    error: 'CSRF validation failed',
+                    code: 'CSRF_VIOLATION'
+                }), {
+                    status: 403,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+            throw error;
+        }
+    });
 
     // Apply global config middleware
     app.use('/api/*', async (c, next) => {
-        const config = await getGlobalConfig(env);
+        const config = await getGlobalConfigurableSettings(env);
         c.set('config', config);
         await next();
     })
 
-    // Apply global auth middleware
-    app.use('/api/*', async (c, next) => {
-        const user = await authMiddleware(c.req.raw, env);
-        c.set('user', user);
-        await next();
-    })
-
-    // Apply global rate limit middleware
+    // Apply global rate limit middleware. Should this be moved after setupRoutes so that maybe 'user' is available?
     app.use('/api/*', async (c, next) => {
         await RateLimitService.enforceGlobalApiRateLimit(env, c.get('config').security.rateLimit, c.get('user'), c.req.raw)
         await next();
@@ -52,5 +84,10 @@ export function createApp(env: Env): Hono<AppEnv> {
 
     // Now setup all the routes
     setupRoutes(env, app);
+
+    // Add not found route to redirect to ASSETS
+    app.notFound((c) => {
+        return c.env.ASSETS.fetch(c.req.raw);
+    });
     return app;
 }

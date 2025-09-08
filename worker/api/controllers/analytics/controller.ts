@@ -3,9 +3,9 @@
  * Handles AI Gateway analytics API endpoints
  */
 
-import { BaseController } from '../BaseController';
+import { BaseController } from '../baseController';
 import { RouteContext } from '../../types/route-context';
-import { ApiResponse, ControllerResponse } from '../BaseController.types';
+import { ApiResponse, ControllerResponse } from '../types';
 import { AiGatewayAnalyticsService } from '../../../services/analytics/AiGatewayAnalyticsService';
 
 import { UserAnalyticsResponseData, AgentAnalyticsResponseData } from './types';

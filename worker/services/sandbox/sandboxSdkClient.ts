@@ -22,7 +22,7 @@ import {
     LintSeverity,
     TemplateInfo,
     TemplateDetails,
-    GitHubPushRequest, GitHubPushResponse,
+    GitHubPushRequest, GitHubPushResponse, GitHubExportRequest, GitHubExportResponse,
     GetLogsResponse,
     ListInstancesResponse,
     SaveInstanceResponse,
@@ -47,6 +47,7 @@ import { generateId } from '../../utils/idGenerator';
 import { ResourceProvisioner } from './resourceProvisioner';
 import { TemplateParser } from './templateParser';
 import { ResourceProvisioningResult } from './types';
+import { GitHubService } from '../github/GitHubService';
 // Export the Sandbox class in your Worker
 export { Sandbox as UserAppSandboxService, Sandbox as DeployerService} from "@cloudflare/sandbox";
 
@@ -116,6 +117,7 @@ export class SandboxSdkClient extends BaseSandboxService {
         this.hostname = hostname;
         this.envVars = envVars;
         // Set environment variables FIRST, before any other operations
+        // SHOULD NEVER SEND SECRETS TO SANDBOX!
         if (this.envVars && Object.keys(this.envVars).length > 0) {
             this.logger.info('Configuring environment variables', { envVars: Object.keys(this.envVars) });
             this.sandbox.setEnvVars(this.envVars);
@@ -378,7 +380,35 @@ export class SandboxSdkClient extends BaseSandboxService {
 
     private async buildFileTree(instanceId: string): Promise<FileTreeNode | undefined> {
         try {
-            const buildTreeCmd = `echo "===FILES==="; find . -type d \\( -name "node_modules" -o -name ".git" -o -name "dist" -o -name ".wrangler" -o -name ".vscode" -o -name ".next" -o -name ".cache" -o -name ".idea" -o -name ".DS_Store" \\) -prune -o \\( -type f -not -name "*.jpg" -not -name "*.jpeg" -not -name "*.png" -not -name "*.gif" -not -name "*.svg" -not -name "*.ico" -not -name "*.webp" -not -name "*.bmp" \\) -print; echo "===DIRS==="; find . -type d \\( -name "node_modules" -o -name ".git" -o -name "dist" -o -name ".wrangler" -o -name ".vscode" -o -name ".next" -o -name ".cache" -o -name ".idea" -o -name ".DS_Store" \\) -prune -o -type d -print`;
+            // Directories to exclude from file tree
+            const EXCLUDED_DIRS = [
+                ".github",
+                "node_modules",
+                ".git",
+                "dist",
+                ".wrangler",
+                ".vscode",
+                ".next",
+                ".cache",
+                ".idea",
+                ".DS_Store"
+            ];
+            // Build exclusion string for find command
+            const excludedDirsFind = EXCLUDED_DIRS.map(dir => `-name "${dir}"`).join(" -o ");
+            // File type exclusions
+            const excludedFileTypes = [
+                "*.jpg",
+                "*.jpeg",
+                "*.png",
+                "*.gif",
+                "*.svg",
+                "*.ico",
+                "*.webp",
+                "*.bmp"
+            ];
+            const excludedFilesFind = excludedFileTypes.map(ext => `-not -name "${ext}"`).join(" ");
+            // Build the command dynamically
+            const buildTreeCmd = `echo "===FILES==="; find . -type d \\( ${excludedDirsFind} \\) -prune -o \\( -type f ${excludedFilesFind} \\) -print; echo "===DIRS==="; find . -type d \\( ${excludedDirsFind} \\) -prune -o -type d -print`;
 
             const filesResult = await this.executeCommand(instanceId, buildTreeCmd);
             if (filesResult.exitCode === 0) {
@@ -557,13 +587,6 @@ export class SandboxSdkClient extends BaseSandboxService {
                         if (pattern.test(logs)) {
                             const elapsedTime = Date.now() - startTime;
                             this.logger.info('Development server ready', { instanceId, elapsedTimeMs: elapsedTime, attempts: `${attempt}/${maxAttempts}` });
-                            
-                            // Log what pattern matched for debugging
-                            const matchedLines = logs.split('\n').filter(line => pattern.test(line));
-                            if (matchedLines.length > 0) {
-                                this.logger.info('Server readiness confirmed', { logLine: matchedLines[matchedLines.length - 1].trim() });
-                            }
-                            
                             return true;
                         }
                     }
@@ -1225,7 +1248,7 @@ export class SandboxSdkClient extends BaseSandboxService {
                     if (result && result.success) {
                         files.push({
                             filePath: filePath,
-                            fileContents: applyFilter && donttouchPaths.includes(filePath) ? '[REDACTED]' : result.content
+                            fileContents: (applyFilter && donttouchPaths.includes(filePath)) ? '[REDACTED]' : result.content
                         });
                         
                         this.logger.info('File read successfully', { filePath });
@@ -1755,9 +1778,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             
             const config = parseWranglerConfig(wranglerConfigContent);
             
-            // Override script name for dispatch deployment
-            const scriptName = `${config.name}-dispatch`;
-            this.logger.info('Worker configuration', { scriptName });
+            this.logger.info('Worker configuration', { scriptName: config.name });
             this.logger.info('Worker compatibility', { compatibilityDate: config.compatibility_date });
             
             // Step 3: Read worker script from dist
@@ -1791,7 +1812,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             // Step 5: Override config for dispatch deployment
             const dispatchConfig = {
                 ...config,
-                name: scriptName
+                name: config.name
             };
             
             // Step 6: Build deployment config using pure function
@@ -1937,8 +1958,90 @@ export class SandboxSdkClient extends BaseSandboxService {
     }
 
     /**
-     * Push instance files to existing GitHub repository (NEW - separated concerns)
-     * Only handles git operations - repository must already exist
+     * Export generated app to GitHub (creates repository if needed, then pushes files)
+     */
+    async exportToGitHub(instanceId: string, request: GitHubExportRequest): Promise<GitHubExportResponse> {
+        try {
+            this.logger.info(`Starting GitHub export for instance ${instanceId}`);
+
+            // If repository URLs are provided, use existing repository
+            if (request.cloneUrl && request.repositoryHtmlUrl) {
+                this.logger.info('Using existing repository URLs');
+                
+                const pushRequest: GitHubPushRequest = {
+                    cloneUrl: request.cloneUrl,
+                    repositoryHtmlUrl: request.repositoryHtmlUrl,
+                    token: request.token,
+                    email: request.email,
+                    username: request.username,
+                    isPrivate: request.isPrivate
+                };
+
+                const pushResult = await this.pushToGitHub(instanceId, pushRequest);
+                
+                return {
+                    success: pushResult.success,
+                    repositoryUrl: request.repositoryHtmlUrl,
+                    cloneUrl: request.cloneUrl,
+                    commitSha: pushResult.commitSha,
+                    error: pushResult.error
+                };
+            }
+
+            // Create new repository via GitHubService
+            this.logger.info(`Creating repository: ${request.repositoryName}`);
+            
+            const createResult = await GitHubService.createUserRepository({
+                name: request.repositoryName,
+                description: request.description || `Generated app: ${request.repositoryName}`,
+                private: request.isPrivate,
+                token: request.token
+            });
+
+            if (!createResult.success || !createResult.repository) {
+                this.logger.error('Repository creation failed', createResult.error);
+                return {
+                    success: false,
+                    error: createResult.error || 'Failed to create repository'
+                };
+            }
+
+            this.logger.info(`Repository created: ${createResult.repository.html_url}`);
+
+            // Now push files to the newly created repository
+            const pushRequest: GitHubPushRequest = {
+                cloneUrl: createResult.repository.clone_url,
+                repositoryHtmlUrl: createResult.repository.html_url,
+                token: request.token,
+                email: request.email,
+                username: request.username,
+                isPrivate: request.isPrivate
+            };
+
+            const pushResult = await this.pushToGitHub(instanceId, pushRequest);
+
+            return {
+                success: pushResult.success,
+                repositoryUrl: createResult.repository.html_url,
+                cloneUrl: createResult.repository.clone_url,
+                commitSha: pushResult.commitSha,
+                error: pushResult.error
+            };
+
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            this.logger.error('GitHub export failed', { instanceId, error: errorMessage });
+            
+            return {
+                success: false,
+                error: `GitHub export failed: ${errorMessage}`
+            };
+        }
+    }
+
+    /**
+     * Push files to GitHub using secure API-based approach
+     * Extracts git context from sandbox and delegates to GitHubService
      */
     async pushToGitHub(instanceId: string, request: GitHubPushRequest): Promise<GitHubPushResponse> {
         // Validate required parameters
@@ -1970,162 +2073,225 @@ export class SandboxSdkClient extends BaseSandboxService {
             };
         }
 
-        // Validate clone URL format
-        if (!request.cloneUrl.startsWith('https://github.com/') && !request.cloneUrl.startsWith('https://x-access-token:')) {
-            return {
-                success: false,
-                error: 'Invalid GitHub clone URL format'
-            };
-        }
-
         try {
-            this.logger.info(`Starting git push for instance ${instanceId} to ${request.cloneUrl}`);
+            this.logger.info(`Starting GitHub push for instance ${instanceId}`);
 
-            // Step 1: Check if git repository exists, initialize if needed
-            const gitCheckResult = await this.executeCommand(instanceId, `test -d .git && echo "exists" || echo "missing"`);
-            const isGitRepo = gitCheckResult.exitCode === 0 && gitCheckResult.stdout.trim() === "exists";
+            // Extract git context from local repository
+            const gitContext = await this.extractGitContext(instanceId);
+            
+            if (!gitContext.isGitRepo) {
+                this.logger.error('No git repository found in sandbox');
+                return {
+                    success: false,
+                    error: 'No git repository found in sandbox instance'
+                };
+            }
 
-            if (!isGitRepo) {
-                this.logger.info(`Initializing git repository for instance ${instanceId}`);
-                const initResult = await this.executeCommand(instanceId, `git init`);
-                if (initResult.exitCode !== 0) {
-                    throw new Error(`Git init failed: ${initResult.stderr}`);
+            // Auto-commit any uncommitted or untracked changes before push
+            let finalGitContext = gitContext;
+            if (gitContext.hasUncommittedChanges || gitContext.hasUntrackedFiles) {
+                this.logger.info('Auto-committing changes before GitHub push', {
+                    hasUncommittedChanges: gitContext.hasUncommittedChanges,
+                    hasUntrackedFiles: gitContext.hasUntrackedFiles,
+                    untrackedFileCount: gitContext.untrackedFiles.length
+                });
+                
+                try {
+                    // Auto-commit all changes
+                    await this.createLatestCommit(instanceId, 'Auto-commit before GitHub push');
+                    
+                    // Re-extract git context after commit
+                    finalGitContext = await this.extractGitContext(instanceId);
+                    this.logger.info('Auto-commit successful', {
+                        newCommitCount: finalGitContext.localCommits.length
+                    });
+                } catch (error) {
+                    this.logger.error('Auto-commit failed', error);
+                    return {
+                        success: false,
+                        error: `Failed to auto-commit changes: ${error instanceof Error ? error.message : 'Unknown error'}`
+                    };
                 }
             }
 
-            // Step 2: Configure git user (required for commits)
-            await this.executeCommand(instanceId, `git config user.name "${request.username}"`);
-            await this.executeCommand(instanceId, `git config user.email "${request.email}"`);
-
-            // Step 3: Add all files and create/update commit
-            const commitMessage = request.commitMessage || 'Update from Orange Build';
-            let commitSha: string = '';
-
-            try {
-                // Check if there are any commits
-                const logCheck = await this.executeCommand(instanceId, `git log --oneline -1`);
-                if (logCheck.exitCode !== 0) {
-                    // No commits exist, create an empty initial commit
-                    const emptyCommitResult = await this.executeCommand(instanceId, `git commit --allow-empty -m "${commitMessage.replace(/"/g, '\\"')}"`);
-                    if (emptyCommitResult.exitCode !== 0) {
-                        throw new Error(`Git empty commit failed: ${emptyCommitResult.stderr}`);
-                    }
-                    this.logger.info(`Created initial empty commit for instance ${instanceId}`);
-                } else {
-                    // Repository already has commits, get the current commit hash
-                    const hashResult = await this.executeCommand(instanceId, `git rev-parse HEAD`);
-                    if (hashResult.exitCode === 0) {
-                        commitSha = hashResult.stdout.trim();
-                    }
-                    this.logger.info('Using existing commit', { instanceId, commitSha });
-                }
-            } catch (error) {
-                this.logger.warn(`Git commit check failed, proceeding anyway: ${error}`);
+            // Use broader file selection - all files if we have any, otherwise tracked files
+            const filesToUse = finalGitContext.allFiles.length > 0 ? finalGitContext.allFiles : finalGitContext.trackedFiles;
+            const files = await this.getGitTrackedFiles(instanceId, filesToUse);
+            
+            if (files.length === 0) {
+                this.logger.warn('No files found to push');
+                return {
+                    success: true,
+                    commitSha: undefined
+                };
             }
 
-            // Step 4: Add all files and commit changes
-            const addResult = await this.executeCommand(instanceId, `git add .`);
-            if (addResult.exitCode !== 0) {
-                throw new Error(`Git add failed: ${addResult.stderr}`);
-            }
+            // Delegate to secure GitHub service
+            const result = await GitHubService.pushFilesToRepository(files, request, {
+                localCommits: finalGitContext.localCommits,
+                hasUncommittedChanges: finalGitContext.hasUncommittedChanges
+            });
+            
+            this.logger.info('GitHub push completed', { 
+                instanceId, 
+                success: result.success, 
+                commitSha: result.commitSha,
+                localCommitCount: finalGitContext.localCommits.length,
+                fileCount: files.length
+            });
 
-            const commitResult = await this.executeCommand(instanceId, `git commit -m "${commitMessage.replace(/"/g, '\\"')}"`);
-            if (commitResult.exitCode !== 0) {
-                // Check if it's just "nothing to commit"
-                if (commitResult.stderr.includes('nothing to commit')) {
-                    this.logger.info('No changes to commit, using existing commit');
-                    // Get current commit hash if we don't have it
-                    if (!commitSha) {
-                        const hashResult = await this.executeCommand(instanceId, `git rev-parse HEAD`);
-                        if (hashResult.exitCode === 0) {
-                            commitSha = hashResult.stdout.trim();
-                        }
-                    }
-                } else {
-                    throw new Error(`Git commit failed: ${commitResult.stderr}`);
-                }
-            } else {
-                // Get the new commit hash
-                const hashResult = await this.executeCommand(instanceId, `git rev-parse HEAD`);
-                if (hashResult.exitCode === 0) {
-                    commitSha = hashResult.stdout.trim();
-                }
-            }
-
-            // Step 5: Setup remote origin with token authentication
-            const remoteUrl = request.cloneUrl.replace('https://', `https://x-access-token:${request.token}@`);
-
-            // Check if remote origin already exists
-            const remoteCheckResult = await this.executeCommand(instanceId, `git remote get-url origin`);
-            const remoteExists = remoteCheckResult.exitCode === 0;
-
-            if (!remoteExists) {
-                // Add remote origin
-                const remoteAddResult = await this.executeCommand(instanceId, `git remote add origin "${remoteUrl}"`);
-                if (remoteAddResult.exitCode !== 0) {
-                    throw new Error(`Git remote add failed: ${remoteAddResult.stderr}`);
-                }
-                this.logger.info(`Added remote origin for instance ${instanceId}`);
-            } else {
-                // Update existing remote to use the new URL with token
-                const remoteSetResult = await this.executeCommand(instanceId, `git remote set-url origin "${remoteUrl}"`);
-                if (remoteSetResult.exitCode !== 0) {
-                    throw new Error(`Git remote set-url failed: ${remoteSetResult.stderr}`);
-                }
-                this.logger.info(`Updated remote origin for instance ${instanceId}`);
-            }
-
-            // Step 6: Set main as default branch and push
-            await this.executeCommand(instanceId, `git branch -M main`);
-
-            // Get current branch for push
-            const finalBranchResult = await this.executeCommand(instanceId, `git branch --show-current`);
-            const pushBranch = finalBranchResult.stdout.trim() || 'main';
-
-            const pushResult = await this.executeCommand(instanceId, `git push -f -u origin ${pushBranch}`);
-            if (pushResult.exitCode !== 0) {
-                throw new Error(`Git push failed: ${pushResult.stderr}`);
-            }
-
-            this.logger.info(`Successfully pushed to GitHub repository for instance ${instanceId}`);
-
-            return {
-                success: true,
-                commitSha: commitSha
-            };
+            return result;
 
         } catch (error) {
-            this.logger.error('pushToGitHub failed', error, { instanceId, cloneUrl: request.cloneUrl });
+            this.logger.error('pushToGitHub failed', error, { instanceId, repositoryUrl: request.repositoryHtmlUrl });
             
-            // Provide detailed error information for debugging
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            const details: {
-                operation: string;
-                exitCode?: number;
-                stderr?: string;
-            } = {
-                operation: 'unknown'
-            };
-
-            // Extract operation details from error message
-            if (errorMessage.includes('Git init failed')) {
-                details.operation = 'git_init';
-            } else if (errorMessage.includes('Git add failed')) {
-                details.operation = 'git_add';
-            } else if (errorMessage.includes('Git commit failed')) {
-                details.operation = 'git_commit';
-            } else if (errorMessage.includes('Git remote')) {
-                details.operation = 'git_remote';
-            } else if (errorMessage.includes('Git push failed')) {
-                details.operation = 'git_push';
-            }
-
+            
             return {
                 success: false,
-                error: `Git push operation failed: ${errorMessage}`,
-                details
+                error: `Secure GitHub push failed: ${errorMessage}`,
+                details: {
+                    operation: 'secure_api_push',
+                    stderr: errorMessage
+                }
             };
         }
+    }
+
+    /**
+     * Extract git history and file tracking information from local repository
+     */
+    private async extractGitContext(instanceId: string): Promise<{
+        localCommits: Array<{
+            hash: string;
+            message: string;
+            timestamp: string;
+        }>;
+        trackedFiles: string[];
+        untrackedFiles: string[];
+        allFiles: string[];
+        hasUncommittedChanges: boolean;
+        hasUntrackedFiles: boolean;
+        isGitRepo: boolean;
+    }> {
+        try {
+            // First check if this is even a git repository
+            const gitCheckResult = await this.executeCommand(instanceId, 'git status');
+            if (gitCheckResult.exitCode !== 0) {
+                this.logger.warn('Not a git repository or git not initialized', { instanceId });
+                return {
+                    localCommits: [],
+                    trackedFiles: [],
+                    untrackedFiles: [],
+                    allFiles: [],
+                    hasUncommittedChanges: false,
+                    hasUntrackedFiles: false,
+                    isGitRepo: false
+                };
+            }
+
+            // Get full commit history (oldest first to preserve order for GitHub)
+            const logResult = await this.executeCommand(instanceId, 'git log --oneline --reverse --pretty=format:"%H|%s|%cI"');
+            const localCommits: Array<{hash: string; message: string; timestamp: string}> = [];
+            
+            if (logResult.exitCode === 0 && logResult.stdout.trim()) {
+                const commitLines = logResult.stdout.trim().split('\n');
+                for (const line of commitLines) {
+                    const [hash, message, timestamp] = line.split('|');
+                    if (hash && message) {
+                        localCommits.push({
+                            hash: hash.trim(),
+                            message: message.trim(),
+                            timestamp: timestamp?.trim() || new Date().toISOString()
+                        });
+                    }
+                }
+            }
+
+            // Get git-tracked files (respects .gitignore)
+            const lsFilesResult = await this.executeCommand(instanceId, 'git ls-files');
+            const trackedFiles = lsFilesResult.exitCode === 0 
+                ? lsFilesResult.stdout.trim().split('\n').filter(f => f.trim())
+                : [];
+
+            // Get untracked files (respects .gitignore)
+            const untrackedResult = await this.executeCommand(instanceId, 'git ls-files --others --exclude-standard');
+            const untrackedFiles = untrackedResult.exitCode === 0
+                ? untrackedResult.stdout.trim().split('\n').filter(f => f.trim())
+                : [];
+
+            // Combine all files
+            const allFiles = [...trackedFiles, ...untrackedFiles];
+
+            // Check if there are uncommitted changes (staged or modified)
+            const statusResult = await this.executeCommand(instanceId, 'git status --porcelain');
+            const hasUncommittedChanges = statusResult.exitCode === 0 && statusResult.stdout.trim().length > 0;
+            const hasUntrackedFiles = untrackedFiles.length > 0;
+
+            this.logger.info('Full git context extracted', {
+                instanceId,
+                localCommitCount: localCommits.length,
+                trackedFileCount: trackedFiles.length,
+                untrackedFileCount: untrackedFiles.length,
+                totalFileCount: allFiles.length,
+                hasUncommittedChanges,
+                hasUntrackedFiles,
+                latestCommit: localCommits[localCommits.length - 1]?.message
+            });
+
+            return { 
+                localCommits, 
+                trackedFiles,
+                untrackedFiles,
+                allFiles,
+                hasUncommittedChanges,
+                hasUntrackedFiles,
+                isGitRepo: true 
+            };
+        } catch (error) {
+            this.logger.warn('Failed to extract git context, using defaults', error);
+            return {
+                localCommits: [],
+                trackedFiles: [],
+                untrackedFiles: [],
+                allFiles: [],
+                hasUncommittedChanges: false,
+                hasUntrackedFiles: false,
+                isGitRepo: false
+            };
+        }
+    }
+
+    /**
+     * Read contents of git files (both tracked and untracked)
+     */
+    private async getGitTrackedFiles(instanceId: string, filePaths: string[]): Promise<{
+        filePath: string;
+        fileContents: string;
+    }[]> {
+        const files: { filePath: string; fileContents: string; }[] = [];
+        
+        this.logger.info(`Reading ${filePaths.length} files for GitHub push`, { instanceId });
+        
+        for (const filePath of filePaths) {
+            try {
+                const readResult = await this.getSandbox().readFile(`${instanceId}/${filePath}`);
+                if (readResult.success && readResult.content) {
+                    files.push({
+                        filePath,
+                        fileContents: readResult.content
+                    });
+                    this.logger.debug(`Successfully read file: ${filePath}`, { sizeBytes: readResult.content.length });
+                } else {
+                    this.logger.warn(`File read failed or empty: ${filePath}`);
+                }
+            } catch (error) {
+                this.logger.warn(`Failed to read file ${filePath}`, error);
+            }
+        }
+
+        this.logger.info(`Successfully read ${files.length}/${filePaths.length} files for GitHub push`);
+        return files;
     }
 
     // ==========================================

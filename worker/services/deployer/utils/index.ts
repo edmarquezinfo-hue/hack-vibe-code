@@ -71,19 +71,6 @@ export function getMimeType(filePath: string): string {
 }
 
 /**
- * Parse JSONC (JSON with comments) content
- */
-export function parseJsonc(content: string): any {
-	// Simple JSONC parser - removes comments and parses JSON
-	// For production use, you might want to use a more robust parser
-	const cleanedContent = content
-		.replace(/\/\*[\s\S]*?\*\//g, '') // Remove block comments
-		.replace(/\/\/.*$/gm, ''); // Remove line comments
-
-	return JSON.parse(cleanedContent);
-}
-
-/**
  * Validate required configuration fields
  */
 export function validateConfig(config: any): void {
@@ -113,23 +100,6 @@ export async function createAssetManifest(
 	}
 
 	return manifest;
-}
-
-/**
- * Convert Buffer to ArrayBuffer (for Node.js compatibility)
- */
-export function bufferToArrayBuffer(buffer: Buffer): ArrayBuffer {
-	return buffer.buffer.slice(
-		buffer.byteOffset,
-		buffer.byteOffset + buffer.byteLength,
-	);
-}
-
-/**
- * Convert ArrayBuffer to Buffer (for Node.js compatibility)
- */
-export function arrayBufferToBuffer(arrayBuffer: ArrayBuffer): Buffer {
-	return Buffer.from(arrayBuffer);
 }
 
 /**

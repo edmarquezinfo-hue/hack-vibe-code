@@ -4,7 +4,7 @@
  */
 
 import type { UserModelProvider } from '../../../database/schema';
-import type { ApiResponse } from '../BaseController.types';
+import type { ApiResponse } from '../types';
 
 // Response data types
 export interface ModelProvidersListData {

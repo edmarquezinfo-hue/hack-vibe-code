@@ -1,7 +1,12 @@
-import { ConfigurableSecuritySettings, getDefaultSecuritySettings } from "./security";
+import { ConfigurableSecuritySettings, getConfigurableSecurityDefaults } from "./security";
 import { createLogger } from "../logger";
 
-const logger = createLogger('GlobalConfig');
+const logger = createLogger('GlobalConfigurableSettings');
+
+let cachedConfig: GlobalConfigurableSettings | null = null;
+
+// Per-invocation cache to avoid multiple KV calls within single worker invocation
+const invocationUserCache = new Map<string, GlobalConfigurableSettings>();
 
 /**
  *  deep merge utility for configuration objects
@@ -72,18 +77,21 @@ function deepMerge<T>(
     
     return result as T;
 }
-export interface GlobalConfig {
+export interface GlobalConfigurableSettings {
     security: ConfigurableSecuritySettings;
 }
 
-type StoredConfig = DeepPartial<GlobalConfig>;
+type StoredConfig = DeepPartial<GlobalConfigurableSettings>;
 
 const CONFIG_KEY = 'platform_configs';
 
-export async function getGlobalConfig(env: Env): Promise<GlobalConfig> {
+export async function getGlobalConfigurableSettings(env: Env): Promise<GlobalConfigurableSettings> {
+    if (cachedConfig) {
+        return cachedConfig;
+    }
     // Get default configuration
-    const defaultConfig: GlobalConfig = {
-        security: getDefaultSecuritySettings()
+    const defaultConfig: GlobalConfigurableSettings = {
+        security: getConfigurableSecurityDefaults()
     };
     
     try {
@@ -99,9 +107,10 @@ export async function getGlobalConfig(env: Env): Promise<GlobalConfig> {
         const storedConfig: StoredConfig = JSON.parse(storedConfigJson);
         
         // Deep merge configurations (stored config overrides defaults)
-        const mergedConfig = deepMerge<GlobalConfig>(defaultConfig, storedConfig);
+        const mergedConfig = deepMerge<GlobalConfigurableSettings>(defaultConfig, storedConfig);
         
-        logger.debug('Loaded configuration with overrides from KV');
+        logger.info('Loaded configuration with overrides from KV', { storedConfig, mergedConfig });
+        cachedConfig = mergedConfig;
         return mergedConfig;
         
     } catch (error) {
@@ -110,3 +119,39 @@ export async function getGlobalConfig(env: Env): Promise<GlobalConfig> {
         return defaultConfig;
     }
 }
+
+export async function getUserConfigurableSettings(env: Env, userId: string, globalConfig: GlobalConfigurableSettings): Promise<GlobalConfigurableSettings> {
+    if (!userId) {
+        return globalConfig;
+    }
+
+    if (invocationUserCache.has(userId)) {
+        logger.info(`Using cached configuration for user ${userId}`);
+        return invocationUserCache.get(userId)!;
+    }
+    try {
+        // Try to fetch override config from KV
+        const storedConfigJson = await env.VibecoderStore.get(`user_config:${userId}`);
+        
+        if (!storedConfigJson) {
+            // No stored config, use defaults
+            return globalConfig;
+        }
+        
+        // Parse stored configuration
+        const storedConfig: StoredConfig = JSON.parse(storedConfigJson);
+        
+        // Deep merge configurations (stored config overrides defaults)
+        const mergedConfig = deepMerge<GlobalConfigurableSettings>(globalConfig, storedConfig);
+        
+        logger.info(`Loaded configuration with overrides from KV for user ${userId}`, { globalConfig, storedConfig, mergedConfig });
+        invocationUserCache.set(userId, mergedConfig);
+        return mergedConfig;
+        
+    } catch (error) {
+        logger.error(`Failed to load configuration from KV for user ${userId}, using defaults`, error);
+        // On error, fallback to default configuration
+        return globalConfig;
+    }
+}
+    

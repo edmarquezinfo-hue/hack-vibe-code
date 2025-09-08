@@ -6,6 +6,7 @@ import { createApp } from './app';
 
 export class CodeGeneratorAgent extends SmartCodeGeneratorAgent {}
 export { UserAppSandboxService, DeployerService } from './services/sandbox/sandboxSdkClient';
+export { DORateLimitStore } from './services/rate-limit/DORateLimitStore';
 
 // Logger for the main application
 const logger = createLogger('App');
@@ -65,7 +66,6 @@ export default {
 
         // Create hono app
         const app = createApp(env);
-        
         const response = await app.fetch(request, env, ctx);
         return response;
     },
