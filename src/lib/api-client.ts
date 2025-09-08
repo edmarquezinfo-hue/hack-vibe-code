@@ -134,10 +134,15 @@ interface PublicAppsParams extends PaginationParams {
 /**
  * Unified API Client class
  */
+interface CSRFTokenInfo {
+	token: string;
+	expiresAt: number;
+}
+
 class ApiClient {
 	private baseUrl: string;
 	private defaultHeaders: Record<string, string>;
-	private csrfToken: string | null = null;
+	private csrfTokenInfo: CSRFTokenInfo | null = null;
 
 	constructor(config: ApiClientConfig = {}) {
 		this.baseUrl = config.baseUrl || '';
@@ -161,15 +166,15 @@ class ApiClient {
 		}
 
 		// Add CSRF token for state-changing requests
-		if (this.csrfToken) {
-			headers['X-CSRF-Token'] = this.csrfToken;
+		if (this.csrfTokenInfo && !this.isCSRFTokenExpired()) {
+			headers['X-CSRF-Token'] = this.csrfTokenInfo.token;
 		}
 
 		return headers;
 	}
 
 	/**
-	 * Fetch CSRF token from server
+	 * Fetch CSRF token from server with expiration handling
 	 */
 	private async fetchCsrfToken(): Promise<boolean> {
 		try {
@@ -180,8 +185,14 @@ class ApiClient {
 			
 			if (response.ok) {
 				const data: ApiResponse<CsrfTokenResponseData> = await response.json();
-				this.csrfToken = data.data?.token;
-				return !!this.csrfToken;
+				if (data.data?.token) {
+					const expiresIn = data.data.expiresIn || 7200; // Default 2 hours
+					this.csrfTokenInfo = {
+						token: data.data.token,
+						expiresAt: Date.now() + (expiresIn * 1000)
+					};
+					return true;
+				}
 			}
 			return false;
 		} catch (error) {
@@ -192,14 +203,23 @@ class ApiClient {
 
 
 	/**
-	 * Ensure CSRF token exists for state-changing requests
+	 * Check if CSRF token is expired
+	 */
+	private isCSRFTokenExpired(): boolean {
+		if (!this.csrfTokenInfo) return true;
+		return Date.now() >= this.csrfTokenInfo.expiresAt;
+	}
+
+	/**
+	 * Ensure CSRF token exists and is valid for state-changing requests
 	 */
 	private async ensureCsrfToken(method: string): Promise<boolean> {
 		if (!['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase())) {
 			return true;
 		}
 		
-		if (!this.csrfToken) {
+		// Fetch new token if none exists or current one is expired
+		if (!this.csrfTokenInfo || this.isCSRFTokenExpired()) {
 			return await this.fetchCsrfToken();
 		}
 		
@@ -296,9 +316,10 @@ class ApiClient {
 			if (!response.ok) {
 				// Handle CSRF failures with retry
 				if (response.status === 403 && 
-					(data.error?.includes('CSRF') || data.error?.includes('csrf')) && 
+					(data.error?.includes('CSRF') || data.error?.includes('csrf') || data.code === 'CSRF_VIOLATION') && 
 					!isRetry) {
-					this.csrfToken = null;
+					// Clear expired token and retry with fresh one
+					this.csrfTokenInfo = null;
 					return this.requestWithCsrfRetry(endpoint, options, true);
 				}
 
@@ -537,9 +558,10 @@ class ApiClient {
 					
 					// Handle CSRF failures with retry
 					if (response.status === 403 && 
-						errorMessage.toLowerCase().includes('csrf') && 
+						(errorMessage.toLowerCase().includes('csrf') || errorData.code === 'CSRF_VIOLATION') && 
 						!isRetry) {
-						this.csrfToken = null;
+						// Clear expired token and retry with fresh one
+						this.csrfTokenInfo = null;
 						return this.createAgentSessionWithRetry(data, true);
 					}
 				} catch {

@@ -7,7 +7,7 @@ import { DEFAULT_RATE_LIMIT_SETTINGS, RateLimitSettings } from "../services/rate
 import { Context } from "hono";
 
 // Type definitions for security configurations
-interface CORSConfig {
+export interface CORSConfig {
     origin: string | string[] | ((origin: string, c: Context) => string | undefined | null);
     allowMethods?: string[];
     allowHeaders?: string[];
@@ -16,8 +16,12 @@ interface CORSConfig {
     exposeHeaders?: string[];
 }
 
-interface CSRFConfig {
+export interface CSRFConfig {
     origin: string | string[] | ((origin: string, c: Context) => boolean);
+    tokenTTL: number; // Token Time-To-Live in milliseconds
+    rotateOnAuth: boolean; // Rotate token on authentication state changes
+    cookieName: string;
+    headerName: string;
 }
 
 // These settings can be altered dynamically via e.g, admin panel
@@ -25,7 +29,7 @@ export interface ConfigurableSecuritySettings {
     rateLimit: RateLimitSettings;
 }
 
-export function getDefaultSecuritySettings(): ConfigurableSecuritySettings {
+export function getConfigurableSecurityDefaults(): ConfigurableSecuritySettings {
     
     return {
         rateLimit: DEFAULT_RATE_LIMIT_SETTINGS,
@@ -94,7 +98,11 @@ export function getCSRFConfig(env: Env): CSRFConfig {
             
             // Check against allowed origins
             return allowedOrigins.includes(origin);
-        }
+        },
+        tokenTTL: 2 * 60 * 60 * 1000, // 2 hours
+        rotateOnAuth: true,
+        cookieName: 'csrf-token',
+        headerName: 'X-CSRF-Token'
     };
 }
 
