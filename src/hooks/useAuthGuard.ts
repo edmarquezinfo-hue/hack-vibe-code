@@ -5,6 +5,7 @@
 
 import React, { useCallback } from 'react';
 import { useAuth } from '../contexts/auth-context';
+import type { User } from '../contexts/auth-context';
 import { useAuthModal } from '../components/auth/AuthModalProvider';
 
 export interface AuthGuardOptions {
@@ -16,7 +17,7 @@ export interface AuthGuardOptions {
 
 export interface AuthGuardReturn {
   isAuthenticated: boolean;
-  user: any;
+  user: User | null;
   requireAuth: (options?: AuthGuardOptions) => boolean;
 }
 
