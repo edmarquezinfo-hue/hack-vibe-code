@@ -26,6 +26,7 @@ export function setupAuthRoutes(env: Env, app: Hono<AppEnv>): void {
     });
     
     // Public authentication routes
+    authRouter.get('/csrf-token', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.getCsrfToken));
     authRouter.get('/providers', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.getAuthProviders));
     authRouter.post('/register', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.register));
     authRouter.post('/login', routeAuthMiddleware(AuthConfig.public), adaptController(authController, authController.login));

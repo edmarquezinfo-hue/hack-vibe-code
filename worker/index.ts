@@ -65,7 +65,6 @@ export default {
 
         // Create hono app
         const app = createApp(env);
-        
         const response = await app.fetch(request, env, ctx);
         return response;
     },

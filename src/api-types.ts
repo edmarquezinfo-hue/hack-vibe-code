@@ -7,7 +7,7 @@ import { SessionResponse, UserResponse } from 'worker/utils/authUtils';
 export type { SecretTemplate } from 'worker/types/secretsTemplates';
 
 // Base API Response Types
-export type { ControllerResponse, ApiResponse } from 'worker/api/controllers/BaseController.types';
+export type { ControllerResponse, ApiResponse } from 'worker/api/controllers/types';
 
 // Database Types
 export type {
@@ -225,6 +225,14 @@ export interface AuthProvidersResponseData {
   };
   hasOAuth: boolean;
   requiresEmailAuth: boolean;
+  csrfToken?: string;
+  csrfExpiresIn?: number;
+}
+
+export interface CsrfTokenResponseData {
+  token: string;
+  headerName: string;
+  expiresIn?: number;
 }
 
 // Active Sessions Response - matches getUserSessions + isCurrent from controller

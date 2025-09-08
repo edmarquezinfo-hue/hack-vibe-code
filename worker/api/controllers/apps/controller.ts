@@ -2,8 +2,8 @@ import { AnalyticsService } from '../../../database/services/AnalyticsService';
 import { AppService } from '../../../database/services/AppService';
 import type { BatchAppStats, AppSortOption, SortOrder, TimePeriod, Visibility } from '../../../database/types';
 import { formatRelativeTime } from '../../../utils/timeFormatter';
-import { BaseController } from '../BaseController';
-import { ApiResponse, ControllerResponse } from '../BaseController.types';
+import { BaseController } from '../baseController';
+import { ApiResponse, ControllerResponse } from '../types';
 import type { RouteContext } from '../../types/route-context';
 import { 
     AppsListData,

@@ -4,7 +4,7 @@
 
 import { CacheService } from './CacheService';
 import type { RouteContext } from '../../api/types/route-context';
-import type { BaseController } from '../../api/controllers/BaseController';
+import type { BaseController } from '../../api/controllers/baseController';
 
 interface CacheOptions {
 	ttlSeconds: number;
