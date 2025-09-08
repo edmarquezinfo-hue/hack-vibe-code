@@ -3,21 +3,11 @@
  * Abstract base class for OAuth provider implementations
  */
 
-import { OAuthProvider } from '../../types/auth-types';
+import { OAuthProvider, OAuthUserInfo } from '../../types/auth-types';
 import { createLogger } from '../../logger';
 
 const logger = createLogger('OAuthProvider');
 
-/**
- * OAuth user info returned from providers
- */
-export interface OAuthUserInfo {
-    id: string;
-    email: string;
-    name?: string;
-    picture?: string;
-    emailVerified?: boolean;
-}
 
 /**
  * OAuth tokens returned from providers

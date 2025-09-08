@@ -6,6 +6,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { apiClient, ApiError } from '@/lib/api-client';
+import type { AuthSession } from '../api-types';
 
 export interface User {
   id: string;
@@ -23,10 +24,6 @@ export interface User {
   timezone?: string;
 }
 
-interface AuthSession {
-  id: string;
-  expiresAt: Date;
-}
 
 interface AuthContextType {
   user: User | null;
@@ -137,7 +134,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser({ ...response.data.user, isAnonymous: false } as User);
         setToken(null); // Profile endpoint doesn't return token, cookies are used
         setSession({
-          id: response.data.sessionId || response.data.user.id,
+          userId: response.data.user.id,
+          email: response.data.user.email,
+          sessionId: response.data.sessionId || response.data.user.id,
           expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours expiry
         });
         
@@ -227,7 +226,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser({ ...response.data.user, isAnonymous: false } as User);
         setToken(null); // Using cookies for authentication
         setSession({
-          id: response.data.session?.id || response.data.user.id,
+          userId: response.data.user.id,
+          email: response.data.user.email,
+          sessionId: response.data.session?.id || response.data.user.id,
           expiresAt: new Date(Date.now() + (response.data.expiresIn || 24 * 60 * 60) * 1000),
         });
         setupTokenRefresh();
@@ -263,7 +264,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser({ ...response.data.user, isAnonymous: false } as User);
         setToken(null); // Using cookies for authentication
         setSession({
-          id: response.data.session?.id || response.data.user.id,
+          userId: response.data.user.id,
+          email: response.data.user.email,
+          sessionId: response.data.session?.id || response.data.user.id,
           expiresAt: new Date(Date.now() + (response.data.expiresIn || 24 * 60 * 60) * 1000),
         });
         setupTokenRefresh();
