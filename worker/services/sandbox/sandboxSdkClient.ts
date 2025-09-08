@@ -1785,9 +1785,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             
             const config = parseWranglerConfig(wranglerConfigContent);
             
-            // Override script name for dispatch deployment
-            const scriptName = `${config.name}-dispatch`;
-            this.logger.info('Worker configuration', { scriptName });
+            this.logger.info('Worker configuration', { scriptName: config.name });
             this.logger.info('Worker compatibility', { compatibilityDate: config.compatibility_date });
             
             // Step 3: Read worker script from dist
@@ -1821,7 +1819,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             // Step 5: Override config for dispatch deployment
             const dispatchConfig = {
                 ...config,
-                name: scriptName
+                name: config.name
             };
             
             // Step 6: Build deployment config using pure function
