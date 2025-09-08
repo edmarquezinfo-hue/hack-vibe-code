@@ -62,6 +62,7 @@ export interface AuthResult {
 	sessionId?: string;
 	isNewUser?: boolean;
 	requiresEmailVerification?: boolean;
+	redirectUrl?: string;
 };
 
 /**
@@ -161,74 +162,3 @@ export interface SecurityContext {
 export type AuditLogEntry = AuditLog & {
 	securityContext?: Partial<SecurityContext>;
 };
-
-/**
- * Session cleanup configuration and statistics
- */
-export interface SessionCleanupConfig {
-	// Cleanup intervals
-	expiredSessionCleanupInterval: number; // How often to clean expired sessions
-	inactiveSessionTimeout: number; // How long before inactive sessions are removed
-	maxSessionsPerUser: number; // Maximum concurrent sessions per user
-
-	// Security policies
-	forceLogoutOnSuspiciousActivity: boolean;
-	sessionHijackingDetection: boolean;
-
-	// Cleanup statistics
-	lastCleanupRun?: Date;
-	sessionsCleanedUp?: number;
-	errorsEncountered?: number;
-}
-
-/**
- * User profile update request
- */
-export interface UserProfileUpdate {
-	displayName?: string | null;
-	username?: string | null;
-	bio?: string | null;
-	avatarUrl?: string | null;
-	theme?: 'light' | 'dark' | 'system' | null;
-	timezone?: string | null;
-	preferences?: string | null;
-	newEmail?: string;
-	emailChangeToken?: string;
-}
-
-/**
- * Password change request with security validation
- */
-export interface PasswordChangeRequest {
-	currentPassword: string;
-	newPassword: string;
-	confirmPassword: string;
-
-	// Security context
-	logoutOtherSessions?: boolean;
-
-	// MFA verification (future)
-	mfaToken?: string;
-}
-
-/**
- * Account recovery request
- */
-export interface AccountRecoveryRequest {
-	email: string;
-
-	// Recovery method
-	method: 'email' | 'sms' | 'backup_codes';
-
-	// Context for security
-	userAgent?: string;
-	ipAddress?: string;
-
-	// Rate limiting
-	requestedAt: Date;
-	expiresAt: Date;
-
-	// Security verification
-	verificationCode?: string;
-	isUsed: boolean;
-}

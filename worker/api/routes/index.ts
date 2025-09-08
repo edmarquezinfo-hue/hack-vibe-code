@@ -16,11 +16,12 @@ export function setupRoutes(env: Env, app: Hono<AppEnv>): void {
     app.get('/api/health', (c) => {
         return c.json({ status: 'ok' });
     });
-    // Codegen routes
-    setupCodegenRoutes(env, app);
 
     // Authentication and user management routes
     setupAuthRoutes(env, app);
+    
+    // Codegen routes
+    setupCodegenRoutes(env, app);
     
     // User dashboard and profile routes
     setupUserRoutes(env, app);

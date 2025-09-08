@@ -56,9 +56,6 @@ export type {
 export type {
   UserAnalyticsResponseData,
   AgentAnalyticsResponseData,
-  AnalyticsQueryParams,
-  UserAnalyticsParams,
-  AgentAnalyticsParams
 } from 'worker/api/controllers/analytics/types';
 
 // Model Config API Types
@@ -108,7 +105,6 @@ export type {
 
 // Agent/CodeGen API Types  
 export type {
-  AgentStateData,
   AgentConnectionData,
 } from 'worker/api/controllers/agent/types';
 
