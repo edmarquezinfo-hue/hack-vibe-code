@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
-// import { cors } from 'hono/cors';
-// import { csrf } from 'hono/csrf';
+import { cors } from 'hono/cors';
+import { csrf } from 'hono/csrf';
 import { secureHeaders } from 'hono/secure-headers';
-// import { getCORSConfig } from './config/security';
+import { getCORSConfig } from './config/security';
 import { getGlobalConfig } from './config';
 import { RateLimitService } from './services/rate-limit/rateLimits';
 import { authMiddleware } from './middleware/auth/auth';
@@ -12,12 +12,20 @@ import { setupRoutes } from './api/routes';
 export function createApp(env: Env): Hono<AppEnv> {
     const app = new Hono<AppEnv>();
 
-    // Apply global security middlewares
-    app.use('*', secureHeaders());
-    // app.use('/api/*', cors(getCORSConfig(env)));
-    // app.use('*', csrf({
-    //     origin: ['http://localhost:5173', `https://${env.CUSTOM_DOMAIN}`],
-    // }));
+    // Apply global security middlewares (skip for WebSocket upgrades)
+    app.use('*', async (c, next) => {
+        // Skip secure headers for WebSocket upgrade requests
+        const upgradeHeader = c.req.header('upgrade');
+        if (upgradeHeader?.toLowerCase() === 'websocket') {
+            return next();
+        }
+        // Apply secure headers for non-WebSocket requests
+        return secureHeaders()(c, next);
+    });
+    app.use('/api/*', cors(getCORSConfig(env)));
+    app.use('*', csrf({
+        origin: ['http://localhost:5173', `https://${env.CUSTOM_DOMAIN}`],
+    }));
 
     // Apply global config middleware
     app.use('/api/*', async (c, next) => {

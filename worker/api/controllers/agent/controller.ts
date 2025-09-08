@@ -234,41 +234,6 @@ export class CodingAgentController extends BaseController {
                 return this.createErrorResponse('Missing user', 401);
             }
 
-            // Enforce WebSocket upgrade rate limiting
-            try {
-                await RateLimitService.enforceWebSocketUpgradeRateLimit(env, context.config.security.rateLimit, user, request);
-            } catch (error) {
-                this.logger.warn('WebSocket upgrade rate limited', { chatId, userId: user?.id, error });
-                // Return WebSocket error response for rate limiting
-                const { 0: client, 1: server } = new WebSocketPair();
-                server.accept();
-                
-                if (error instanceof RateLimitExceededError) {
-                    const errorResponse = createRateLimitErrorResponse(
-                        error.limitType,
-                        error.message,
-                        error.limit,
-                        error.period,
-                    );
-                    server.send(JSON.stringify({
-                        type: WebSocketMessageResponses.ERROR,
-                        error: errorResponse.error,
-                        details: errorResponse.details
-                    }));
-                } else {
-                    server.send(JSON.stringify({
-                        type: WebSocketMessageResponses.ERROR,
-                        error: error instanceof Error ? error.message : 'Rate limit exceeded'
-                    }));
-                }
-                
-                server.close(1013, 'Rate limit exceeded');
-                return new Response(null, {
-                    status: 101,
-                    webSocket: client
-                });
-            }
-
             this.logger.info(`WebSocket connection request for chat: ${chatId}`);
             
             // Log request details for debugging
