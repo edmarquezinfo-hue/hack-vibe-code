@@ -20,7 +20,7 @@ import { AIModels, InferenceMetadata } from './config.types';
 import { DatabaseService, SecretsService } from '../../database';
 import { RateLimitService } from '../../services/rate-limit/rateLimits';
 import { AuthUser } from '../../types/auth-types';
-import { getGlobalConfig } from '../../config';
+import { getGlobalConfigurableSettings } from '../../config';
 
 function optimizeInputs(messages: Message[]): Message[] {
 	return messages.map((message) => ({
@@ -313,7 +313,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 			avatarUrl: undefined
 		};
 
-        const globalConfig = await getGlobalConfig(env) // Its powered by KV so it be fast enough. 
+        const globalConfig = await getGlobalConfigurableSettings(env) // Its powered by KV so it be fast enough. 
         // Maybe in the future can expand using config object for other stuff like global model configs?
 		await RateLimitService.enforceLLMCallsRateLimit(env, globalConfig.security.rateLimit, authUser)
 

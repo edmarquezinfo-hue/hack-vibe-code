@@ -29,7 +29,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useUserStats, useUserActivity } from '@/hooks/use-stats';
 import { apiClient } from '@/lib/api-client';
-import { useUserApps } from '@/hooks/use-apps';
+import { useApps } from '@/hooks/use-apps';
 
 export default function Profile() {
   const { user, refreshUser } = useAuth();
@@ -57,7 +57,7 @@ export default function Profile() {
 
   const { stats, loading: statsLoading } = useUserStats();
   const { activities = [], loading: activityLoading } = useUserActivity();
-  const { apps: recentApps, loading: appsLoading } = useUserApps();
+  const { apps: recentApps, loading: appsLoading } = useApps();
 
   // Transform achievements from stats
   const achievements = stats?.achievements || [];

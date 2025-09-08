@@ -1,9 +1,11 @@
 import { SecurityError } from '../../types/security';
-import { RateLimitType, RateLimitConfig, RateLimitStore, RateLimitSettings, KVRateLimitConfig } from './config';
+import { RateLimitType, RateLimitStore, RateLimitSettings, DORateLimitConfig } from './config';
 import { createObjectLogger } from '../../logger';
 import { AuthUser } from '../../types/auth-types';
 import { extractTokenWithMetadata, extractRequestMetadata } from '../../utils/authUtils';
 import { RateLimitExceededError } from './errors';
+import { getUserConfigurableSettings } from '../../config';
+import { KVRateLimitStore } from './KVRateLimitStore';
 
 export class RateLimitService {
     static logger = createObjectLogger(this, 'RateLimitService');
@@ -42,115 +44,73 @@ export class RateLimitService {
     }
 
     /**
-     * KV-based rate limiting using bucketed sliding window algorithm
-     * Distributes writes across time-bucketed keys to avoid KV write limits
+     * Durable Object-based rate limiting using bucketed sliding window algorithm
+     * Provides better consistency and performance compared to KV
      */
-    private static async enforceKVRateLimit(
+    private static async enforceDORateLimit(
         env: Env,
         key: string,
-        config: KVRateLimitConfig
+        config: DORateLimitConfig
     ): Promise<boolean> {
-        const kv = env.VibecoderStore;
-        const now = Date.now();
-        
-        const bucketSize = (config.bucketSize || 10) * 1000; // Convert to milliseconds
-        const burstWindow = (config.burstWindow || 60) * 1000; // Convert to milliseconds
-        const mainWindow = config.period * 1000; // Convert to milliseconds
-        
-        const currentBucket = Math.floor(now / bucketSize) * bucketSize;
-        
         try {
-            // Generate bucket keys for main window
-            const mainBuckets = this.generateBucketKeys(key, now, mainWindow, bucketSize);
-            const burstBuckets = config.burst ? this.generateBucketKeys(key, now, burstWindow, bucketSize) : [];
-            
-            // Read all buckets in parallel
-            const allBucketKeys = [...new Set([...mainBuckets, ...burstBuckets])];
-            const bucketPromises = allBucketKeys.map(async bucketKey => {
-                const value = await kv.get(bucketKey);
-                return { key: bucketKey, count: value ? parseInt(value, 10) || 0 : 0 };
+            const stub = env.DORateLimitStore.getByName(key);
+
+            const result = await stub.increment(key, {
+                limit: config.limit,
+                period: config.period,
+                burst: config.burst,
+                burstWindow: config.burstWindow,
+                bucketSize: config.bucketSize
             });
-            
-            const bucketResults = await Promise.all(bucketPromises);
-            const bucketMap = new Map(bucketResults.map(r => [r.key, r.count]));
-            
-            // Calculate current counts
-            const mainCount = mainBuckets.reduce((sum, bucketKey) => sum + (bucketMap.get(bucketKey) || 0), 0);
-            const burstCount = burstBuckets.reduce((sum, bucketKey) => sum + (bucketMap.get(bucketKey) || 0), 0);
-            
-            // Check limits
-            if (mainCount >= config.limit) {
-                return false;
-            }
-            
-            if (config.burst && burstCount >= config.burst) {
-                return false;
-            }
-            
-            // Increment current bucket with retry logic
-            const currentBucketKey = `ratelimit:${key}:${currentBucket}`;
-            const maxTtl = Math.max(config.period, config.burstWindow || 60) + (config.bucketSize || 10);
-            
-            await this.incrementBucketWithRetry(kv, currentBucketKey, maxTtl);
-            
-            return true;
-            
+
+            return result.success;
         } catch (error) {
-            this.logger.error('Failed to enforce KV rate limit', {
+            this.logger.error('Failed to enforce DO rate limit', {
                 key,
                 error: error instanceof Error ? error.message : 'Unknown error'
             });
             return true; // Fail open
         }
     }
-    
-    private static generateBucketKeys(key: string, now: number, windowMs: number, bucketSizeMs: number): string[] {
-        const buckets: string[] = [];
-        const windowStart = now - windowMs;
-        
-        for (let time = Math.floor(windowStart / bucketSizeMs) * bucketSizeMs; time <= now; time += bucketSizeMs) {
-            buckets.push(`ratelimit:${key}:${time}`);
+
+    static async applyUserConfigs(
+        env: Env,
+        config: RateLimitSettings,
+        user: AuthUser | null,
+        limitType: RateLimitType
+    ) : Promise<RateLimitSettings> {
+        if (config[limitType].store !== RateLimitStore.RATE_LIMITER && user) {
+            // Only fetch user configurable settings IF user is available and limit type is configurable
+            const userConfigs = await getUserConfigurableSettings(env, user.id, {security: {rateLimit: config}});
+            config = userConfigs.security.rateLimit;
         }
-        
-        return buckets;
-    }
-    
-    private static async incrementBucketWithRetry(
-        kv: KVNamespace,
-        bucketKey: string,
-        ttl: number,
-        maxRetries: number = 3
-    ): Promise<void> {
-        for (let attempt = 0; attempt < maxRetries; attempt++) {
-            try {
-                const current = await kv.get(bucketKey);
-                const newCount = (current ? parseInt(current, 10) : 0) + 1;
-                
-                await kv.put(bucketKey, newCount.toString(), { expirationTtl: ttl });
-                return;
-                
-            } catch (error) {
-                if (error instanceof Error && error.message.includes('429') && attempt < maxRetries - 1) {
-                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
-                    continue;
-                }
-                throw error;
-            }
-        }
+        return config;
     }
 
     static async enforce(
         env: Env,
         key: string,
-        config: RateLimitConfig
+        user: AuthUser | null,
+        config: RateLimitSettings,
+        limitType: RateLimitType
     ) : Promise<boolean> {
-        if (config.store === RateLimitStore.RATE_LIMITER) {
-            const { success } = await ( env[config.bindingName as keyof Env] as RateLimit).limit({ key });
-            return success;
-        } else if (config.store === RateLimitStore.KV) {
-            return this.enforceKVRateLimit(env, key, config as KVRateLimitConfig);
+        config = await this.applyUserConfigs(env, config, user, limitType);
+        const rateLimitConfig = config[limitType];
+        
+        switch (rateLimitConfig.store) {
+            case RateLimitStore.RATE_LIMITER: {
+                const { success } = await (env[rateLimitConfig.bindingName as keyof Env] as RateLimit).limit({ key });
+                return success;
+            }
+            case RateLimitStore.KV: {
+                const { success } = await KVRateLimitStore.increment(env.VibecoderStore, key, rateLimitConfig);
+                return success;
+            }
+            case RateLimitStore.DURABLE_OBJECT:
+                return this.enforceDORateLimit(env, key, rateLimitConfig as DORateLimitConfig);
+            default:
+                return false;
         }
-        return false;
     }
 
     static async enforceGlobalApiRateLimit(
@@ -159,7 +119,7 @@ export class RateLimitService {
         user: AuthUser | null,
         request: Request
     ): Promise<void> {
-        if (!config.apiRateLimit.enabled) {
+        if (!config[RateLimitType.API_RATE_LIMIT].enabled) {
             return;
         }
         const identifier = await this.getUniversalIdentifier(user, request);
@@ -167,7 +127,7 @@ export class RateLimitService {
         const key = this.buildRateLimitKey(RateLimitType.API_RATE_LIMIT, identifier);
         
         try {
-            const success = await this.enforce(env, key, config.apiRateLimit);
+            const success = await this.enforce(env, key, user, config, RateLimitType.API_RATE_LIMIT);
             if (!success) {
                 this.logger.warn('Global API rate limit exceeded', {
                     identifier,
@@ -192,7 +152,7 @@ export class RateLimitService {
         request: Request
     ) {
         
-        if (!config.authRateLimit.enabled) {
+        if (!config[RateLimitType.AUTH_RATE_LIMIT].enabled) {
             return;
         }
         const identifier = await this.getUniversalIdentifier(user, request);
@@ -200,7 +160,7 @@ export class RateLimitService {
         const key = this.buildRateLimitKey(RateLimitType.AUTH_RATE_LIMIT, identifier);
         
         try {
-            const success = await this.enforce(env, key, config.authRateLimit);
+            const success = await this.enforce(env, key, user, config, RateLimitType.AUTH_RATE_LIMIT);
             if (!success) {
                 this.logger.warn('Auth rate limit exceeded', {
                     identifier,
@@ -224,7 +184,7 @@ export class RateLimitService {
 		user: AuthUser,
 		request: Request
 	): Promise<void> {
-		if (!config.appCreation.enabled) {
+		if (!config[RateLimitType.APP_CREATION].enabled) {
 			return;
 		}
 		const identifier = await this.getUserIdentifier(user);
@@ -232,7 +192,7 @@ export class RateLimitService {
 		const key = this.buildRateLimitKey(RateLimitType.APP_CREATION, identifier);
 		
 		try {
-            const success = await this.enforce(env, key, config.appCreation);
+            const success = await this.enforce(env, key, user, config, RateLimitType.APP_CREATION);
 			if (!success) {
 				this.logger.warn('App creation rate limit exceeded', {
 					identifier,
@@ -261,7 +221,7 @@ export class RateLimitService {
 		user: AuthUser,
 	): Promise<void> {
 		
-		if (!config.llmCalls.enabled) {
+		if (!config[RateLimitType.LLM_CALLS].enabled) {
 			return;
 		}
 
@@ -270,7 +230,7 @@ export class RateLimitService {
 		const key = this.buildRateLimitKey(RateLimitType.LLM_CALLS, identifier);
 		
 		try {
-			const success = await this.enforce(env, key, config.llmCalls);
+			const success = await this.enforce(env, key, user, config, RateLimitType.LLM_CALLS);
 			if (!success) {
 				this.logger.warn('LLM calls rate limit exceeded', {
 					identifier,
