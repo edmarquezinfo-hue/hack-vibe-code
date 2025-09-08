@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
 import type { EnhancedAppData, AppWithUserAndStats, PaginationInfo, TimePeriod, AppSortOption } from '@/api-types';
 import { appEvents } from '@/lib/app-events';
@@ -25,8 +25,13 @@ interface FilterState {
   period: TimePeriod;
 }
 
+interface PaginationState {
+  currentPage: number;
+  totalCount: number;
+  hasMore: boolean;
+}
+
 interface UsePaginatedAppsResult extends FilterState {
-  // Data state
   apps: AppListData[];
   loading: boolean;
   loadingMore: boolean;
@@ -35,7 +40,6 @@ interface UsePaginatedAppsResult extends FilterState {
   hasMore: boolean;
   totalCount: number;
   
-  // Form handlers
   setSearchQuery: (query: string) => void;
   handleSearchSubmit: (e: React.FormEvent) => void;
   handleSortChange: (sort: string) => void;
@@ -43,14 +47,15 @@ interface UsePaginatedAppsResult extends FilterState {
   handleFrameworkChange: (framework: string) => void;
   handleVisibilityChange: (visibility: string) => void;
   
-  // Pagination handlers
   refetch: () => Promise<void>;
   loadMore: () => Promise<void>;
   removeApp: (appId: string) => void;
 }
 
 export function usePaginatedApps(options: UsePaginatedAppsOptions): UsePaginatedAppsResult {
-  // Initialize filter state with provided defaults
+  const hasInitialized = useRef(false);
+  const currentPageRef = useRef(1);
+  
   const [filterState, setFilterState] = useState<FilterState>({
     searchQuery: '',
     filterFramework: options.defaultFramework || 'all',
@@ -59,32 +64,28 @@ export function usePaginatedApps(options: UsePaginatedAppsOptions): UsePaginated
     period: options.defaultPeriod || 'all'
   });
 
-  // Debounced search query to prevent API calls on every keystroke
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-
-  // API state
   const [apps, setApps] = useState<AppListData[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<PaginationInfo>({
-    limit: options.limit || 20,
-    offset: 0,
-    total: 0,
+  
+  const [paginationState, setPaginationState] = useState<PaginationState>({
+    currentPage: 1,
+    totalCount: 0,
     hasMore: false
   });
 
-  // Debounce search query with 500ms delay
+  const limit = options.limit || 20;
+
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       setDebouncedSearchQuery(filterState.searchQuery);
     }, 500);
-
     return () => clearTimeout(timeoutId);
   }, [filterState.searchQuery]);
 
-  // Stable fetch function that doesn't change unless API params change
-  const fetchApps = useCallback(async (append = false) => {
+  const fetchApps = useCallback(async (append = false, targetPage?: number) => {
     try {
       if (!append) {
         setLoading(true);
@@ -93,12 +94,11 @@ export function usePaginatedApps(options: UsePaginatedAppsOptions): UsePaginated
         setLoadingMore(true);
       }
 
-      const currentOffset = append ? pagination.offset + pagination.limit : 0;
-      const page = Math.floor(currentOffset / (pagination.limit || 20)) + 1;
+      const page = targetPage ?? (append ? currentPageRef.current + 1 : 1);
 
       const params = {
         page,
-        limit: pagination.limit,
+        limit,
         sort: filterState.sortBy,
         period: filterState.period,
         framework: filterState.filterFramework === 'all' ? undefined : filterState.filterFramework,
@@ -110,29 +110,27 @@ export function usePaginatedApps(options: UsePaginatedAppsOptions): UsePaginated
         Object.entries(params).filter(([, value]) => value !== undefined)
       );
 
-      let response;
-      if (options.type === 'user') {
-        response = await apiClient.getUserAppsWithPagination(cleanParams);
-      } else {
-        response = await apiClient.getPublicApps(cleanParams);
-      }
+      const response = options.type === 'user' 
+        ? await apiClient.getUserAppsWithPagination(cleanParams)
+        : await apiClient.getPublicApps(cleanParams);
 
       if (response.success && response.data) {
-        const newApps = options.type === 'user' 
-          ? (response.data as { apps: AppListData[]; pagination: PaginationInfo }).apps 
-          : response.data.apps;
-        
-        const newPagination = options.type === 'user'
-          ? (response.data as { apps: AppListData[]; pagination: PaginationInfo }).pagination
-          : response.data.pagination;
+        const responseData = response.data as { apps: AppListData[]; pagination: PaginationInfo };
+        const newApps = responseData.apps;
+        const newPagination = responseData.pagination;
 
         if (append) {
           setApps(prev => [...prev, ...newApps]);
-          setPagination(newPagination);
         } else {
           setApps(newApps);
-          setPagination(newPagination);
         }
+
+        currentPageRef.current = page;
+        setPaginationState({
+          currentPage: page,
+          totalCount: newPagination.total,
+          hasMore: newPagination.hasMore
+        });
       } else {
         throw new Error(response.error || 'Failed to fetch apps');
       }
@@ -151,8 +149,7 @@ export function usePaginatedApps(options: UsePaginatedAppsOptions): UsePaginated
   }, [
     options.type, 
     options.includeVisibility,
-    pagination.limit,
-    pagination.offset,
+    limit,
     filterState.sortBy,
     filterState.period,
     filterState.filterFramework,
@@ -160,29 +157,29 @@ export function usePaginatedApps(options: UsePaginatedAppsOptions): UsePaginated
     debouncedSearchQuery
   ]);
 
-  // Load more function
   const loadMore = useCallback(async () => {
-    if (pagination.hasMore && !loadingMore) {
+    if (paginationState.hasMore && !loadingMore) {
       await fetchApps(true);
     }
-  }, [pagination.hasMore, loadingMore, fetchApps]);
+  }, [paginationState.hasMore, loadingMore, fetchApps]);
 
-  // Refetch function
   const refetch = useCallback(async () => {
-    setPagination(prev => ({ ...prev, offset: 0, total: 0, hasMore: false }));
-    await fetchApps(false);
+    await fetchApps(false, 1);
   }, [fetchApps]);
 
-  // Remove app function
   const removeApp = useCallback((appId: string) => {
     setApps(prev => prev.filter(app => app.id !== appId));
-    setPagination(prev => ({ 
+    setPaginationState(prev => ({ 
       ...prev, 
-      total: Math.max(0, prev.total - 1) 
+      totalCount: Math.max(0, prev.totalCount - 1) 
     }));
   }, []);
 
-  // Form handlers that update state and trigger refetch
+  const resetPaginationAndRefetch = useCallback(async () => {
+    hasInitialized.current = true;
+    await fetchApps(false, 1);
+  }, [fetchApps]);
+
   const setSearchQuery = useCallback((query: string) => {
     setFilterState(prev => ({ ...prev, searchQuery: query }));
   }, []);
@@ -192,46 +189,34 @@ export function usePaginatedApps(options: UsePaginatedAppsOptions): UsePaginated
     refetch();
   }, [refetch]);
 
-  const handleSortChange = useCallback((newSort: string) => {
+  const handleSortChange = useCallback(async (newSort: string) => {
     const sort = newSort as AppSortOption;
     setFilterState(prev => ({ ...prev, sortBy: sort }));
-    // Reset pagination and refetch
-    setPagination(prev => ({ ...prev, offset: 0, total: 0, hasMore: false }));
-    // Refetch will be triggered by useEffect
-  }, []);
+    await resetPaginationAndRefetch();
+  }, [resetPaginationAndRefetch]);
 
-  const handlePeriodChange = useCallback((newPeriod: TimePeriod) => {
+  const handlePeriodChange = useCallback(async (newPeriod: TimePeriod) => {
     setFilterState(prev => ({ ...prev, period: newPeriod }));
-    // Reset pagination and refetch
-    setPagination(prev => ({ ...prev, offset: 0, total: 0, hasMore: false }));
-    // Refetch will be triggered by useEffect
-  }, []);
+    await resetPaginationAndRefetch();
+  }, [resetPaginationAndRefetch]);
 
-  const handleFrameworkChange = useCallback((framework: string) => {
+  const handleFrameworkChange = useCallback(async (framework: string) => {
     setFilterState(prev => ({ ...prev, filterFramework: framework }));
-    // Reset pagination and refetch
-    setPagination(prev => ({ ...prev, offset: 0, total: 0, hasMore: false }));
-    // Refetch will be triggered by useEffect
-  }, []);
+    await resetPaginationAndRefetch();
+  }, [resetPaginationAndRefetch]);
 
-  const handleVisibilityChange = useCallback((visibility: string) => {
+  const handleVisibilityChange = useCallback(async (visibility: string) => {
     setFilterState(prev => ({ ...prev, filterVisibility: visibility }));
-    // Reset pagination and refetch
-    setPagination(prev => ({ ...prev, offset: 0, total: 0, hasMore: false }));
-    // Refetch will be triggered by useEffect
-  }, []);
+    await resetPaginationAndRefetch();
+  }, [resetPaginationAndRefetch]);
 
-  // Effect to fetch on filter changes - clean dependencies
   useEffect(() => {
-    if (options.autoFetch !== false) {
-      fetchApps(false);
+    if (options.autoFetch !== false && !hasInitialized.current) {
+      hasInitialized.current = true;
+      fetchApps(false, 1);
     }
-  }, [
-    fetchApps,
-    options.autoFetch
-  ]);
+  }, [fetchApps, options.autoFetch]);
 
-  // Listen for app deletion events
   useEffect(() => {
     const unsubscribe = appEvents.on('app-deleted', (event) => {
       removeApp(event.appId);
@@ -239,24 +224,28 @@ export function usePaginatedApps(options: UsePaginatedAppsOptions): UsePaginated
     return unsubscribe;
   }, [removeApp]);
 
+  const pagination: PaginationInfo = {
+    limit,
+    offset: (paginationState.currentPage - 1) * limit,
+    total: paginationState.totalCount,
+    hasMore: paginationState.hasMore
+  };
+
   return {
-    // Filter state
     searchQuery: filterState.searchQuery,
     filterFramework: filterState.filterFramework,
     filterVisibility: options.includeVisibility ? filterState.filterVisibility : 'all',
     sortBy: filterState.sortBy,
     period: filterState.period,
     
-    // Data state
     apps,
     loading,
     loadingMore,
     error,
     pagination,
-    hasMore: pagination.hasMore,
-    totalCount: pagination.total,
+    hasMore: paginationState.hasMore,
+    totalCount: paginationState.totalCount,
     
-    // Form handlers
     setSearchQuery,
     handleSearchSubmit,
     handleSortChange,
@@ -264,7 +253,6 @@ export function usePaginatedApps(options: UsePaginatedAppsOptions): UsePaginated
     handleFrameworkChange,
     handleVisibilityChange,
     
-    // Pagination handlers
     refetch,
     loadMore,
     removeApp,

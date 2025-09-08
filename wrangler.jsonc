@@ -31,7 +31,7 @@
             "name": "AUTH_RATE_LIMITER",
             "type": "ratelimit",
             "namespace_id": "2102",
-            "simple": { "limit": 20, "period": 60 }
+            "simple": { "limit": 60, "period": 60 }
         }
     ]
   },
@@ -88,13 +88,13 @@
 				"class_name": "CodeGeneratorAgent",
 				"name": "CodeGenObject"
 			},
-			// {
-			// 	"class_name": "SmartCodeGeneratorAgent",
-			// 	"name": "CodeGenObject"
-			// },
             {
                 "class_name": "UserAppSandboxService",
                 "name": "Sandbox"
+            },
+            {
+                "class_name": "DORateLimitStore",
+                "name": "DORateLimitStore"
             }
 		]
 	},
@@ -119,7 +119,13 @@
 				"UserAppSandboxService"
 			],
 			"tag": "v1"
-		}
+		},
+        {
+            "new_sqlite_classes": [
+                "DORateLimitStore"
+            ],
+            "tag": "v2"
+        }
 	],
 	"routes": [
         {
