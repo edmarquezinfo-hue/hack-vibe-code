@@ -5,6 +5,9 @@ const logger = createLogger('GlobalConfigurableSettings');
 
 let cachedConfig: GlobalConfigurableSettings | null = null;
 
+// Per-invocation cache to avoid multiple KV calls within single worker invocation
+const invocationUserCache = new Map<string, GlobalConfigurableSettings>();
+
 /**
  *  deep merge utility for configuration objects
  * 
@@ -106,7 +109,7 @@ export async function getGlobalConfigurableSettings(env: Env): Promise<GlobalCon
         // Deep merge configurations (stored config overrides defaults)
         const mergedConfig = deepMerge<GlobalConfigurableSettings>(defaultConfig, storedConfig);
         
-        logger.debug('Loaded configuration with overrides from KV');
+        logger.info('Loaded configuration with overrides from KV', { storedConfig, mergedConfig });
         cachedConfig = mergedConfig;
         return mergedConfig;
         
@@ -116,3 +119,39 @@ export async function getGlobalConfigurableSettings(env: Env): Promise<GlobalCon
         return defaultConfig;
     }
 }
+
+export async function getUserConfigurableSettings(env: Env, userId: string, globalConfig: GlobalConfigurableSettings): Promise<GlobalConfigurableSettings> {
+    if (!userId) {
+        return globalConfig;
+    }
+
+    if (invocationUserCache.has(userId)) {
+        logger.info(`Using cached configuration for user ${userId}`);
+        return invocationUserCache.get(userId)!;
+    }
+    try {
+        // Try to fetch override config from KV
+        const storedConfigJson = await env.VibecoderStore.get(`user_config:${userId}`);
+        
+        if (!storedConfigJson) {
+            // No stored config, use defaults
+            return globalConfig;
+        }
+        
+        // Parse stored configuration
+        const storedConfig: StoredConfig = JSON.parse(storedConfigJson);
+        
+        // Deep merge configurations (stored config overrides defaults)
+        const mergedConfig = deepMerge<GlobalConfigurableSettings>(globalConfig, storedConfig);
+        
+        logger.info(`Loaded configuration with overrides from KV for user ${userId}`, { globalConfig, storedConfig, mergedConfig });
+        invocationUserCache.set(userId, mergedConfig);
+        return mergedConfig;
+        
+    } catch (error) {
+        logger.error(`Failed to load configuration from KV for user ${userId}, using defaults`, error);
+        // On error, fallback to default configuration
+        return globalConfig;
+    }
+}
+    
