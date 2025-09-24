@@ -11,6 +11,9 @@ import { AiGatewayAnalyticsService } from '../../../services/analytics/AiGateway
 import { UserAnalyticsResponseData, AgentAnalyticsResponseData } from './types';
 import { AnalyticsError } from '../../../services/analytics/types';
 import { createLogger } from '../../../logger';
+import { createDatabaseService } from '../../../database/database';
+import { apps } from '../../../database/schema';
+import { eq } from 'drizzle-orm';
 
 export class AnalyticsController extends BaseController {
     static logger = createLogger('AnalyticsController');
@@ -38,9 +41,13 @@ export class AnalyticsController extends BaseController {
 				);
 			}
 
-			// TODO: Add ownership verification - users should only see their own analytics
-			// For now, allow authenticated users to query any user analytics
-			// Later: if (authUser.id !== userId && !authUser.isAdmin) { return 403; }
+			// Verify that the user is requesting their own analytics
+			if (authUser.id !== userId) {
+				return AnalyticsController.createErrorResponse<UserAnalyticsResponseData>(
+					'Forbidden: You can only access your own analytics',
+					403,
+				);
+			}
 
 			// Parse query parameters
 			const url = new URL(request.url);
@@ -114,9 +121,25 @@ export class AnalyticsController extends BaseController {
 				);
 			}
 
-			// TODO: Add ownership verification - users should only see analytics for their own agents
-			// This would require checking if the agent/chat belongs to the authenticated user
-			// For now, allow authenticated users to query any agent analytics
+			// Verify ownership of the agent
+			const dbService = createDatabaseService(env);
+			const app = await dbService.db.query.apps.findFirst({
+				where: eq(apps.id, agentId),
+			});
+
+			if (!app) {
+				return AnalyticsController.createErrorResponse<AgentAnalyticsResponseData>(
+					'Agent not found',
+					404,
+				);
+			}
+
+			if (app.userId !== authUser.id) {
+				return AnalyticsController.createErrorResponse<AgentAnalyticsResponseData>(
+					'Forbidden: You can only access analytics for your own agents',
+					403,
+				);
+			}
 
 			// Parse query parameters
 			const url = new URL(request.url);

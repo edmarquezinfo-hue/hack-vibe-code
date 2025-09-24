@@ -34,8 +34,10 @@ export type {
  * Provides database connection, shared utilities, and core operations.
  * Domain-specific operations are handled by dedicated service classes.
  */
+export type DB = ReturnType<typeof drizzle<typeof schema>>;
+
 export class DatabaseService {
-    public readonly db: ReturnType<typeof drizzle>;
+    public readonly db: DB;
 
     constructor(env: DatabaseEnv) {
         const instrumented = Sentry.instrumentD1WithSentry(env.DB);
