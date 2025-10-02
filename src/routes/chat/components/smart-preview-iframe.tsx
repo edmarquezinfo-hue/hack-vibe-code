@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, forwardRef } from 'react';
+import clsx from 'clsx';
 import { RotateCcw, RefreshCw } from 'lucide-react';
 import { WebSocket } from 'partysocket';
 
@@ -34,11 +35,11 @@ interface RetryState {
 
 export const SmartPreviewIframe = forwardRef<HTMLIFrameElement, SmartPreviewIframeProps>(
 	({ src, className = '', title = 'Preview',  shouldRefreshPreview = false, webSocket = null, manualRefreshTrigger, devMode = false }, ref) => {
-		const [retryState, setRetryState] = useState<RetryState>({
-			attempt: 0,
-			isRetrying: false,
-			lastError: null,
-			hasSucceeded: false,
+	const [retryState, setRetryState] = useState<RetryState>({
+		attempt: 0,
+		isRetrying: false,
+		lastError: null,
+		hasSucceeded: false,
 			reactError: null,
 			showErrorHandling: false,
 			consecutiveReactErrors: 0,
@@ -46,6 +47,7 @@ export const SmartPreviewIframe = forwardRef<HTMLIFrameElement, SmartPreviewIfra
 		});
 		
 		const [currentSrc, setCurrentSrc] = useState<string>('');
+		const [lastSuccessfulSrc, setLastSuccessfulSrc] = useState<string>('');
 		const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 		const maxRetries = 16; // Will try for ~8 minutes total
 		
@@ -160,6 +162,7 @@ export const SmartPreviewIframe = forwardRef<HTMLIFrameElement, SmartPreviewIfra
 					if (isAccessible) {
 						// URL is accessible, load it in iframe
 						setCurrentSrc(url);
+						setLastSuccessfulSrc(url);
 						setRetryState(prev => ({
 							...prev,
 							isRetrying: false,
@@ -325,140 +328,155 @@ export const SmartPreviewIframe = forwardRef<HTMLIFrameElement, SmartPreviewIfra
 				}
 			};
 		}, []);
-		
-		// If we have a working URL, show the iframe
-		if (retryState.hasSucceeded && currentSrc) {
+
+		const displayedSrc = currentSrc || lastSuccessfulSrc;
+		const isRefreshing = Boolean(lastSuccessfulSrc) && !currentSrc;
+		const shouldShowOverlay =
+			!retryState.hasSucceeded ||
+			retryState.isRetrying ||
+			retryState.showErrorHandling ||
+			isRefreshing;
+
+		const overlayContent = () => {
+			if (retryState.showErrorHandling) {
+				return (
+					<>
+						<RefreshCw className="size-8 text-brand animate-spin mx-auto mb-4" />
+						<h3 className="text-lg font-medium text-text-primary mb-2">Application Issues Detected</h3>
+						<p className="text-text-primary/70 text-sm mb-6">
+							The Application may not be working yet, I will fix it for you. Please wait...
+						</p>
+						<button
+							onClick={() => {
+								setRetryState(prev => ({
+									...prev,
+									showErrorHandling: false,
+									attempt: 0,
+									lastError: null,
+									reactError: null
+								}));
+								handleManualRetry();
+							}}
+							className="flex items-center justify-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm mx-auto font-medium"
+						>
+							<RotateCcw className="size-4" />
+							Nah, I would try turning things off and on again
+						</button>
+					</>
+				);
+			}
+
+			if (retryState.isRetrying || isRefreshing) {
+				return (
+					<>
+						<RefreshCw className="size-8 text-accent animate-spin mx-auto mb-4" />
+						<h3 className="text-lg font-medium text-text-primary mb-2">
+							{isRefreshing ? 'Refreshing Preview' : 'Loading Preview'}
+						</h3>
+						<p className="text-text-primary/70 text-sm mb-4">
+							{retryState.lastError ||
+								(isRefreshing
+									? 'Refreshing preview with your latest changes...'
+									: 'Checking if your deployed preview is ready...')}
+						</p>
+						<div className="text-xs text-text-primary/50">
+							Preview URLs may take a moment to become available after deployment
+						</div>
+					</>
+				);
+			}
+
 			return (
-				<iframe
-					ref={ref}
-					src={currentSrc}
-					className={className}
-					title={title}
-					onLoad={() => {
-						// Try to detect React errors after iframe loads
-						setTimeout(() => {
-							try {
+				<>
+					<RefreshCw className="size-8 text-brand animate-spin mx-auto mb-4" />
+					<h3 className="text-lg font-medium text-text-primary mb-2">Preparing Preview</h3>
+					<p className="text-text-primary/70 text-sm">
+						Setting up your project preview...
+					</p>
+				</>
+			);
+		};
+
+		return (
+			<div className={clsx('relative w-full h-full', className)}>
+				{displayedSrc ? (
+					<iframe
+						ref={ref}
+						src={displayedSrc}
+						className="w-full h-full border-0"
+						title={title}
+						onLoad={() => {
+							// Try to detect React errors after iframe loads
+							setTimeout(() => {
+								try {
 									// No error detected - reset consecutive error count
 									setRetryState(prev => ({
 										...prev,
 										consecutiveReactErrors: 0,
 										lastReactErrorBody: null
 									}));
-										
+
 									// Trigger server-side screenshot capture in dev mode
 									if (devMode && webSocket && webSocket.readyState === WebSocket.OPEN) {
 										// Wait a bit to ensure the page is fully rendered
 										setTimeout(() => {
 											try {
 												console.log('📸 Requesting server-side screenshot of preview');
-												
+
 												// Send screenshot capture request to backend (server will handle the actual capture)
 												webSocket.send(JSON.stringify({
 													type: 'screenshot_captured',
 													data: {
-														url: currentSrc,
+														url: displayedSrc,
 														timestamp: Date.now(),
-														viewport: { 
-															width: 1280, 
-															height: 720 
+														viewport: {
+															width: 1280,
+															height: 720
 														}
 													}
 												}));
-												
+
 												console.log('✅ Screenshot request sent to backend');
 											} catch (screenshotError) {
 												console.error('❌ Failed to send screenshot request:', screenshotError);
 											}
 										}, 2000); // Wait 2 seconds for full page render
 									}
-							} catch (error) {
-								// Cross-origin restrictions prevent access - that's okay
-								console.log('Cannot access iframe content due to CORS - assuming app is working');
-								// Reset consecutive errors since we can't detect them
-								setRetryState(prev => ({
-									...prev,
-									consecutiveReactErrors: 0,
-									lastReactErrorBody: null
-								}));
-							}
-						}, 800); // Quick 800ms check for React errors - fast but thorough
-					}}
-					onError={() => {
-						// If iframe fails to load, retry
-						console.log('Iframe failed to load, retrying...');
-						setRetryState(prev => ({ ...prev, hasSucceeded: false }));
-						loadWithRetry(src, retryState.attempt);
-					}}
-				/>
-			);
-		}
-		
-		// Show loading/retry state
-		return (
-			<div className={`${className} flex flex-col items-center justify-center bg-bg-3 border border-text/10 rounded-lg`}>
-				<div className="text-center p-8 max-w-md">
-					{retryState.isRetrying ? (
-						<>
-							<RefreshCw className="size-8 text-accent animate-spin mx-auto mb-4" />
-							<h3 className="text-lg font-medium text-text-primary mb-2">Loading Preview</h3>
-							<p className="text-text-primary/70 text-sm mb-4">
-								{retryState.lastError || 'Checking if your deployed preview is ready...'}
-							</p>
-							<div className="text-xs text-text-primary/50">
-								Preview URLs may take a moment to become available after deployment
-							</div>
-						</>
-					) : retryState.showErrorHandling ? (
-						<>
-							<RefreshCw className="size-8 text-brand animate-spin mx-auto mb-4" />
-							<h3 className="text-lg font-medium text-text-primary mb-2">Application Issues Detected</h3>
-							<p className="text-text-primary/70 text-sm mb-6">
-								The Application may not be working yet, I will fix it for you. Please wait...
-							</p>
-							<button
-								onClick={() => {
+								} catch (error) {
+									// Cross-origin restrictions prevent access - that's okay
+									console.log('Cannot access iframe content due to CORS - assuming app is working');
+									// Reset consecutive errors since we can't detect them
 									setRetryState(prev => ({
 										...prev,
-										showErrorHandling: false,
-										attempt: 0,
-										lastError: null,
-										reactError: null
+										consecutiveReactErrors: 0,
+										lastReactErrorBody: null
 									}));
-									handleManualRetry();
-								}}
-								className="flex items-center justify-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm mx-auto font-medium"
-							>
-								<RotateCcw className="size-4" />
-								Nah, I would try turning things off and on again
-							</button>
-						</>
-					) :
-					//  retryState.lastError ? (
-					// 	<>
-					// 		<AlertCircle className="size-8 text-orange-500 mx-auto mb-4" />
-					// 		<h3 className="text-lg font-medium text-text-primary mb-2">Preview Not Ready</h3>
-					// 		<p className="text-text-primary/70 text-sm mb-4">
-					// 			{retryState.lastError}
-					// 		</p>
-					// 		<button
-					// 			onClick={handleManualRetry}
-					// 			className="flex items-center justify-center gap-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand/90 transition-colors text-sm mx-auto"
-					// 		>
-					// 			<RotateCcw className="size-4" />
-					// 			Try Again
-					// 		</button>
-					// 	</>
-					// ) : 
-					(
-						<>
-							<RefreshCw className="size-8 text-brand animate-spin mx-auto mb-4" />
-							<h3 className="text-lg font-medium text-text-primary mb-2">Preparing Preview</h3>
-							<p className="text-text-primary/70 text-sm">
-								Setting up your project preview...
-							</p>
-						</>
-					)}
-				</div>
+								}
+							}, 800); // Quick 800ms check for React errors - fast but thorough
+						}}
+						onError={() => {
+							// If iframe fails to load, retry
+							console.log('Iframe failed to load, retrying...');
+							setRetryState(prev => ({ ...prev, hasSucceeded: false }));
+							loadWithRetry(src, retryState.attempt);
+						}}
+					/>
+				) : (
+					<div className="w-full h-full" />
+				)}
+
+				{shouldShowOverlay && (
+					<div
+						className={clsx(
+							'absolute inset-0 flex items-center justify-center',
+							lastSuccessfulSrc ? 'bg-bg-3/80 backdrop-blur-sm' : 'bg-bg-3'
+						)}
+					>
+						<div className="text-center p-8 max-w-md">
+							{overlayContent()}
+						</div>
+					</div>
+				)}
 			</div>
 		);
 	}

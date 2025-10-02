@@ -64,6 +64,35 @@ export class NDJSONStreamParser {
 export function createRepairingJSONParser() {
     let buffer = '';
 
+    function normalizeInput(src: string) {
+        let txt = src.replace(/\r\n/g, '\n').trim();
+
+        // Remove leading markdown code fences like ```json or ```JSON
+        txt = txt.replace(/^```(?:json)?\s*/i, '');
+        // Remove trailing code fence if present
+        txt = txt.replace(/\s*```$/i, '');
+        // Strip any stray triple backticks that might remain
+        txt = txt.replace(/```/g, '');
+
+        // Trim non-JSON preamble before first { or [
+        const firstCurly = txt.indexOf('{');
+        const firstBracket = txt.indexOf('[');
+        const firstCandidate = [firstCurly, firstBracket].filter(i => i >= 0).sort((a, b) => a - b)[0];
+        if (firstCandidate !== undefined && firstCandidate > 0) {
+            txt = txt.slice(firstCandidate);
+        }
+
+        // Trim anything after the last } or ]
+        const lastCurly = txt.lastIndexOf('}');
+        const lastBracket = txt.lastIndexOf(']');
+        const lastCandidate = Math.max(lastCurly, lastBracket);
+        if (lastCandidate >= 0 && lastCandidate < txt.length) {
+            txt = txt.slice(0, lastCandidate + 1);
+        }
+
+        return txt.trim();
+    }
+
     /* util – try JSON.parse without crashing -------------------------- */
     const parse = (str: string) => { try { return JSON.parse(str); } catch { 
         // pass
@@ -148,7 +177,8 @@ export function createRepairingJSONParser() {
         feed(chunk: string) { buffer += chunk; },
 
         finalize() {
-            let txt = buffer, obj = parse(txt);
+            let txt = normalizeInput(buffer);
+            let obj = parse(txt);
 
             if (obj) return obj;
 
@@ -169,4 +199,3 @@ export function createRepairingJSONParser() {
         }
     };
 }
-

@@ -68,9 +68,9 @@ export const DEFAULT_RATE_LIMIT_SETTINGS: RateLimitSettings = {
 		bindingName: 'AUTH_RATE_LIMITER',
 	},
 	appCreation: {
-		enabled: true,
+		enabled: false, // Disabled for development
 		store: RateLimitStore.DURABLE_OBJECT,
-		limit: 10,
+		limit: 1000,
 		period: 3600, // 1 hour
 	},
 	llmCalls: {

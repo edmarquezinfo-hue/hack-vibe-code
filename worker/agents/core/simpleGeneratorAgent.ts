@@ -1608,11 +1608,11 @@ export class SimpleCodeGeneratorAgent extends Agent<Env, CodeGenState> {
         this.currentDeploymentPromise = this.executeDeployment(files, redeploy, commitMessage);
         
         try {
-            // Add 60-second timeout to the deployment promise
+            // Add 180-second timeout to the deployment promise
             const timeoutPromise = new Promise<never>((_, reject) => {
                 setTimeout(() => {
-                    reject(new Error('Deployment timed out after 60 seconds'));
-                }, 60000);
+                    reject(new Error('Deployment timed out after 180 seconds'));
+                }, 180000);
             });
             
             const result = await Promise.race([

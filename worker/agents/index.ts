@@ -77,7 +77,7 @@ export async function getTemplateForQuery(
     logger: StructuredLogger,
 ) : Promise<{sandboxSessionId: string, templateDetails: TemplateDetails, selection: TemplateSelection}> {
     // Fetch available templates
-    const templatesResponse = await SandboxSdkClient.listTemplates();
+    const templatesResponse = await SandboxSdkClient.listTemplates(env);
     if (!templatesResponse || !templatesResponse.success) {
         throw new Error('Failed to fetch templates from sandbox service');
     }

@@ -32,9 +32,8 @@ import {
     GitHubExportRequest,
     GitHubExportResponse
   } from './sandboxTypes';
-  
+
   import { createObjectLogger, StructuredLogger } from '../../logger';
-  import { env } from 'cloudflare:workers'
   /**
    * Streaming event for enhanced command execution
    */
@@ -80,17 +79,38 @@ import {
      * List all available templates
      * Returns: { success: boolean, templates: [...], count: number, error?: string }
      */
-    static async listTemplates(): Promise<TemplateListResponse> {
+    static async listTemplates(env: Env): Promise<TemplateListResponse> {
         try {
+            console.log('Attempting to fetch template_catalog.json from R2 bucket');
             const response = await env.TEMPLATES_BUCKET.get('template_catalog.json');
+            console.log('R2 response:', response === null ? 'null' : 'data received');
             if (response === null) {
-                throw new Error(`Failed to fetch template catalog: Template catalog not found`);
+                console.warn('Template catalog not found in R2, using default template');
+                // Fallback to default template when R2 bucket is not available (for local development)
+                const defaultTemplates: TemplateInfo[] = [
+                    {
+                        name: 'c-code-react-runner',
+                        language: 'typescript',
+                        frameworks: ['react', 'vite', 'tailwind', 'typescript'],
+                        description: {
+                            selection: 'Modern React SPA starter. Use for client-heavy apps with little/no backend.',
+                            usage: 'Built with React Router 6, ShadCN UI, Tailwind, Lucide Icons, ESLint, Vite'
+                        }
+                    }
+                ];
+
+                return {
+                    success: true,
+                    templates: defaultTemplates,
+                    count: defaultTemplates.length
+                };
             }
-            
-            const templates = await response.json() as TemplateInfo[];
+
+            const catalogData = await response.json() as { templates: TemplateInfo[] };
+            console.log('Parsed catalog data:', catalogData);
 
             // For now, just filter out *next* templates
-            const filteredTemplates = templates.filter(t => !t.name.includes('next'));
+            const filteredTemplates = catalogData.templates.filter(t => !t.name.includes('next'));
 
             return {
                 success: true,
@@ -103,6 +123,7 @@ import {
                 count: filteredTemplates.length
             };
         } catch (error) {
+            console.error('Error in listTemplates:', error);
             return {
                 success: false,
                 templates: [],

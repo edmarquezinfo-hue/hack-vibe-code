@@ -19,7 +19,7 @@ import { AgentActionKey, AIModels, InferenceMetadata } from './config.types';
 // import { SecretsService } from '../../database';
 import { RateLimitService } from '../../services/rate-limit/rateLimits';
 import { AuthUser } from '../../types/auth-types';
-import { getUserConfigurableSettings } from '../../config';
+import { getUserConfigurableSettings, getGlobalConfigurableSettings } from '../../config';
 import { SecurityError, RateLimitExceededError } from 'shared/types/errors';
 import { executeToolWithDefinition } from '../tools/customTools';
 import { RateLimitType } from 'worker/services/rate-limit/config';
@@ -188,17 +188,15 @@ function optimizeTextContent(content: string): string {
 
 export async function buildGatewayUrl(env: Env, providerOverride?: AIGatewayProviders): Promise<string> {
     // If CLOUDFLARE_AI_GATEWAY_URL is set and is a valid URL, use it directly
-    if (env.CLOUDFLARE_AI_GATEWAY_URL && 
-        env.CLOUDFLARE_AI_GATEWAY_URL !== 'none' && 
+    if (env.CLOUDFLARE_AI_GATEWAY_URL &&
+        env.CLOUDFLARE_AI_GATEWAY_URL !== 'none' &&
         env.CLOUDFLARE_AI_GATEWAY_URL.trim() !== '') {
-        
+
         try {
             const url = new URL(env.CLOUDFLARE_AI_GATEWAY_URL);
             // Validate it's actually an HTTP/HTTPS URL
             if (url.protocol === 'http:' || url.protocol === 'https:') {
-                // Add 'providerOverride' as a segment to the URL
-                const cleanPathname = url.pathname.replace(/\/$/, ''); // Remove trailing slash
-                url.pathname = providerOverride ? `${cleanPathname}/${providerOverride}` : `${cleanPathname}/compat`;
+                // Use the URL as-is, already includes provider path
                 return url.toString();
             }
         } catch (error) {
@@ -206,7 +204,7 @@ export async function buildGatewayUrl(env: Env, providerOverride?: AIGatewayProv
             console.warn(`Invalid CLOUDFLARE_AI_GATEWAY_URL provided: ${env.CLOUDFLARE_AI_GATEWAY_URL}. Falling back to AI bindings.`);
         }
     }
-    
+
     // Build the url via bindings
     const gateway = env.AI.gateway(env.CLOUDFLARE_AI_GATEWAY);
     const baseUrl = providerOverride ? await gateway.getUrl(providerOverride) : `${await gateway.getUrl()}compat`;
@@ -253,8 +251,8 @@ async function getApiKey(provider: string, env: Env, _userId: string): Promise<s
 }
 
 export async function getConfigurationForModel(
-    model: AIModels | string, 
-    env: Env, 
+    model: AIModels | string,
+    env: Env,
     userId: string,
 ): Promise<{
     baseURL: string,
@@ -271,7 +269,7 @@ export async function getConfigurationForModel(
                 baseURL: 'https://openrouter.ai/api/v1',
                 apiKey: env.OPENROUTER_API_KEY,
             };
-        } else if (provider === 'gemini') {
+        } else if (provider === 'gemini' || provider === 'google-ai-studio') {
             return {
                 baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
                 apiKey: env.GOOGLE_AI_STUDIO_API_KEY,
@@ -440,7 +438,8 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
             avatarUrl: undefined
         };
 
-        const userConfig = await getUserConfigurableSettings(env, metadata.userId)
+        const globalConfig = await getGlobalConfigurableSettings(env);
+        const userConfig = await getUserConfigurableSettings(env, metadata.userId, globalConfig)
         // Maybe in the future can expand using config object for other stuff like global model configs?
         await RateLimitService.enforceLLMCallsRateLimit(env, userConfig.security.rateLimit, authUser)
 
@@ -451,11 +450,14 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
         modelName = modelName.replace(/\[.*?\]/, '');
 
         const client = new OpenAI({ apiKey, baseURL: baseURL, defaultHeaders });
+
+        // Anthropic models don't support response_format, only OpenAI models do
+        const isAnthropicModel = modelName.includes('claude') || modelName.includes('anthropic');
         const schemaObj =
-            schema && schemaName && !format
+            schema && schemaName && !isAnthropicModel
                 ? { response_format: zodResponseFormat(schema, schemaName) }
                 : {};
-        const extraBody = modelName.includes('claude')? {
+        const extraBody = isAnthropicModel ? {
                     extra_body: {
                         thinking: {
                             type: 'enabled',
@@ -474,13 +476,18 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
             messagesToPass.push(...newMessages);
         }
 
-        if (format) {
+        // For Anthropic models with schema, always use JSON format instructions
+        // For OpenAI models with response_format, skip prompt-based instructions
+        const usePromptBasedFormat = isAnthropicModel && schema && schemaName;
+        const actualFormat = usePromptBasedFormat ? 'json' : format;
+
+        if (actualFormat) {
             if (!schema || !schemaName) {
                 throw new Error('Schema and schemaName are required when using a custom format');
             }
             const formatInstructions = generateTemplateForSchema(
                 schema,
-                format,
+                actualFormat,
                 formatOptions,
             );
             const lastMessage = messagesToPass[messagesToPass.length - 1];
@@ -516,7 +523,11 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
             }
         }
 
-        console.log(`Running inference with ${modelName} using structured output with ${format} format, reasoning effort: ${reasoning_effort}, max tokens: ${maxTokens}, temperature: ${temperature}, baseURL: ${baseURL}`);
+        console.log(`Running inference with ${modelName} using structured output with ${actualFormat || 'native response_format'} format, reasoning effort: ${reasoning_effort}, max tokens: ${maxTokens}, temperature: ${temperature}, baseURL: ${baseURL}`);
+
+        // Strip provider prefix for API call (e.g., "anthropic/claude-3-5-sonnet" -> "claude-3-5-sonnet")
+        const modelNameForAPI = modelName.includes('/') ? modelName.split('/')[1] : modelName;
+        console.log(`Model name for API: ${modelNameForAPI}`);
 
         const toolsOpts = tools ? { tools, tool_choice: 'auto' as const } : {};
         let response: OpenAI.ChatCompletion | OpenAI.ChatCompletionChunk | Stream<OpenAI.ChatCompletionChunk>;
@@ -526,7 +537,7 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
                 ...schemaObj,
                 ...extraBody,
                 ...toolsOpts,
-                model: modelName,
+                model: modelNameForAPI,
                 messages: messagesToPass as OpenAI.ChatCompletionMessageParam[],
                 max_completion_tokens: maxTokens || 150000,
                 stream: stream ? true : false,
@@ -703,9 +714,24 @@ export async function infer<OutputSchema extends z.AnyZodObject>({
 
         try {
             // Parse the response
-            const parsedContent = format
-                ? parseContentForSchema(content, format, schema, formatOptions)
-                : JSON.parse(content);
+            let parsedContent;
+            if (actualFormat) {
+                parsedContent = parseContentForSchema(content, actualFormat, schema, formatOptions);
+            } else {
+                // Strip markdown code blocks if present (for models that wrap JSON in markdown)
+                let cleanedContent = content.trim();
+                if (cleanedContent.startsWith('```json')) {
+                    cleanedContent = cleanedContent.slice(7);
+                } else if (cleanedContent.startsWith('```')) {
+                    cleanedContent = cleanedContent.slice(3);
+                }
+                if (cleanedContent.endsWith('```')) {
+                    cleanedContent = cleanedContent.slice(0, -3);
+                }
+                cleanedContent = cleanedContent.trim();
+
+                parsedContent = JSON.parse(cleanedContent);
+            }
 
             // Use Zod's safeParse for proper error handling
             const result = schema.safeParse(parsedContent);

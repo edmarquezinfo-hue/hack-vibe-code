@@ -11,7 +11,7 @@ import type {
 import { createLogger, StructuredLogger } from '../../logger';
 
 // --- Existing Types and Logger Setup ---
-export type SchemaFormat = 'markdown';
+export type SchemaFormat = 'markdown' | 'json';
 export type FormatterOptions = {
     rootTagName?: string;
     headingLevel?: number;
@@ -43,6 +43,93 @@ function singularize(word: string): string {
     return singularBase.charAt(0).toUpperCase() + singularBase.slice(1);
 }
 
+
+function unwrapZodType(schema: z.ZodTypeAny): z.ZodTypeAny {
+    if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable || schema instanceof z.ZodDefault) {
+        return unwrapZodType(schema._def.innerType);
+    }
+    if (schema instanceof z.ZodBranded) {
+        return unwrapZodType(schema.unwrap());
+    }
+    if (schema instanceof z.ZodEffects) {
+        return unwrapZodType(schema.innerType());
+    }
+    if (schema instanceof z.ZodPipeline) {
+        return unwrapZodType(schema._def.out);
+    }
+    return schema;
+}
+
+function buildJsonTemplate(schema: z.ZodTypeAny): any {
+    const unwrapped = unwrapZodType(schema);
+    if (unwrapped instanceof z.ZodString) {
+        return '<string>';
+    }
+    if (unwrapped instanceof z.ZodNumber) {
+        return 0;
+    }
+    if (unwrapped instanceof z.ZodBoolean) {
+        return true;
+    }
+    if (unwrapped instanceof z.ZodEnum) {
+        return `<${unwrapped.options.join(' | ')}>`;
+    }
+    if (unwrapped instanceof z.ZodLiteral) {
+        return unwrapped._def.value;
+    }
+    if (unwrapped instanceof z.ZodUnion) {
+        const [firstOption] = unwrapped._def.options;
+        return buildJsonTemplate(firstOption);
+    }
+    if (unwrapped instanceof z.ZodDiscriminatedUnion) {
+        const firstOption = unwrapped.options.values().next().value as z.ZodTypeAny | undefined;
+        return firstOption ? buildJsonTemplate(firstOption) : {};
+    }
+    if (unwrapped instanceof z.ZodArray) {
+        return [buildJsonTemplate(unwrapped._def.type)];
+    }
+    if (unwrapped instanceof z.ZodTuple) {
+        return unwrapped.items.map((item: z.ZodTypeAny) => buildJsonTemplate(item));
+    }
+    if (unwrapped instanceof z.ZodRecord) {
+        return {
+            '<string>': buildJsonTemplate(unwrapped._def.valueType),
+        };
+    }
+    if (unwrapped instanceof z.ZodObject) {
+        const shape = unwrapped.shape;
+        const template: Record<string, any> = {};
+        for (const key of Object.keys(shape)) {
+            template[key] = buildJsonTemplate(shape[key]);
+        }
+        return template;
+    }
+    if (unwrapped instanceof z.ZodMap) {
+        return [[buildJsonTemplate(unwrapped._def.keyType), buildJsonTemplate(unwrapped._def.valueType)]];
+    }
+    if (unwrapped instanceof z.ZodSet) {
+        return [buildJsonTemplate(unwrapped._def.valueType)];
+    }
+    if (unwrapped instanceof z.ZodDate) {
+        return '<ISO8601 date string>';
+    }
+    if (unwrapped instanceof z.ZodBigInt) {
+        return '<bigint>';
+    }
+    if (unwrapped instanceof z.ZodAny || unwrapped instanceof z.ZodUnknown) {
+        return '<any>';
+    }
+    if (unwrapped instanceof z.ZodNullable) {
+        return buildJsonTemplate(unwrapped.unwrap());
+    }
+    // Fallback placeholder for unhandled schema types
+    return '<value>';
+}
+
+function formatSchemaAsJsonTemplate(schema: z.AnyZodObject): string {
+    const template = buildJsonTemplate(schema);
+    return JSON.stringify(template, null, 2);
+}
 
 // --- UPDATED Markdown Formatter ---
 export function formatSchemaAsMarkdown<T extends z.ZodRawShape>(schema: z.ZodObject<T>, options: FormatterOptions = {}): string {
@@ -1283,12 +1370,53 @@ ${template}
 
 </OUTPUT FORMAT>
 `;
+const jsonPrompt = (template: string) => `
+<OUTPUT FORMAT>
+Output format: JSON
+
+Please respond with a valid JSON object that matches the following schema structure:
+
+${template}
+
+Requirements:
+- Return ONLY valid JSON, no markdown code blocks, no additional text
+- All required fields must be included
+- Follow the exact property names and types specified
+- Do not add any explanatory text before or after the JSON
+
+</OUTPUT FORMAT>
+`;
+
 export const TemplateRegistry: Record<SchemaFormat, TemplateRegistryEntry> = {
     markdown: {
         template: formatSchemaAsMarkdown,
         serialize: formatDataAsMarkdown,
         prompt: markdownPrompt,
         parser: parseMarkdownContent,
+    },
+    json: {
+        template: (schema: z.AnyZodObject) => formatSchemaAsJsonTemplate(schema),
+        serialize: (data: any) => JSON.stringify(data, null, 2),
+        prompt: jsonPrompt,
+        parser: <OutputSchema extends z.AnyZodObject>(content: string, schema: OutputSchema) => {
+            try {
+                let cleanedContent = content.trim();
+                if (cleanedContent.startsWith('```json')) {
+                    cleanedContent = cleanedContent.slice(7);
+                } else if (cleanedContent.startsWith('```')) {
+                    cleanedContent = cleanedContent.slice(3);
+                }
+                if (cleanedContent.endsWith('```')) {
+                    cleanedContent = cleanedContent.slice(0, -3);
+                }
+                cleanedContent = cleanedContent.trim();
+
+                const parsed = JSON.parse(cleanedContent);
+                return schema.parse(parsed);
+            } catch (error) {
+                throw new Error(`Failed to parse JSON: ${error}`);
+            }
+        },
     },
 };
 

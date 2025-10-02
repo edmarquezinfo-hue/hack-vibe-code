@@ -115,7 +115,7 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 actionKey: agentActionName,
                 format,
                 maxTokens,
-                modelName: useCheaperModel ? AIModels.GEMINI_2_5_FLASH : modelName,
+                modelName: useCheaperModel ? (finalConf.fallbackModel || modelName) : modelName,
                 formatOptions: {
                     debug: false,
                 },
@@ -128,7 +128,7 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 metadata: context,
                 messages,
                 maxTokens,
-                modelName: useCheaperModel ? AIModels.GEMINI_2_5_FLASH: modelName,
+                modelName: useCheaperModel ? (finalConf.fallbackModel || modelName) : modelName,
                 tools,
                 stream,
                 actionKey: agentActionName,

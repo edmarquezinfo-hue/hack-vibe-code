@@ -344,7 +344,7 @@ export class SandboxSdkClient extends BaseSandboxService {
 
     private async getTemplateFromCatalog(templateName: string): Promise<TemplateInfo | null> {
         try {
-            const templatesResponse = await SandboxSdkClient.listTemplates();
+            const templatesResponse = await SandboxSdkClient.listTemplates(env);
             if (templatesResponse.success) {
                 return templatesResponse.templates.find(t => t.name === templateName) || null;
             }
@@ -533,7 +533,7 @@ export class SandboxSdkClient extends BaseSandboxService {
     /**
      * Waits for the development server to be ready by monitoring logs for readiness indicators
      */
-    private async waitForServerReady(instanceId: string, processId: string, maxWaitTimeMs: number = 10000): Promise<boolean> {
+    private async waitForServerReady(instanceId: string, processId: string, maxWaitTimeMs: number = 30000): Promise<boolean> {
         const startTime = Date.now();
         const pollIntervalMs = 500;
         const maxAttempts = Math.ceil(maxWaitTimeMs / pollIntervalMs);
@@ -591,14 +591,14 @@ export class SandboxSdkClient extends BaseSandboxService {
         try {
             // Use CLI tools for enhanced monitoring instead of direct process start
             const process = await this.getSandbox().startProcess(
-                `VITE_LOGGER_TYPE=json monitor-cli process start --instance-id ${instanceId} --port ${port} -- bun run dev`, 
+                `PORT=${port} VITE_LOGGER_TYPE=json monitor-cli process start --instance-id ${instanceId} --port ${port} -- bun run dev`,
                 { cwd: instanceId }
             );
-            this.logger.info('Development server started', { instanceId, processId: process.id });
+            this.logger.info('Development server started', { instanceId, processId: process.id, port });
             
             // Wait for the server to be ready (non-blocking - always returns the process ID)
             try {
-                const isReady = await this.waitForServerReady(instanceId, process.id, 10000);
+                const isReady = await this.waitForServerReady(instanceId, process.id, 30000);
                 if (isReady) {
                     this.logger.info('Development server is ready', { instanceId });
                 } else {
