@@ -1,10 +1,10 @@
-import { RuntimeError, RuntimeErrorSchema, StaticAnalysisResponse, TemplateDetails, TemplateFileSchema } from "../services/sandbox/sandboxTypes";
+import { FileTreeNode, RuntimeError, StaticAnalysisResponse, TemplateDetails } from "../services/sandbox/sandboxTypes";
 import { TemplateRegistry } from "./inferutils/schemaFormatters";
 import z from 'zod';
 import { Blueprint, BlueprintSchema, ClientReportedErrorSchema, ClientReportedErrorType, FileOutputType, PhaseConceptSchema, PhaseConceptType, TemplateSelection } from "./schemas";
 import { IssueReport } from "./domain/values/IssueReport";
-import { SCOFFormat } from "./streaming-formats/scof";
-import { MAX_PHASES } from "./core/state";
+import { FileState, MAX_PHASES } from "./core/state";
+import { CODE_SERIALIZERS, CodeSerializerType } from "./utils/codeSerializers";
 
 export const PROMPT_UTILS = {
     /**
@@ -23,13 +23,38 @@ export const PROMPT_UTILS = {
         return result;
     },
 
-    serializeTemplate(template?: TemplateDetails, forCodegen: boolean = true): string {
+    serializeTreeNodes(node: FileTreeNode): string {
+        // The output starts with the root node's name.
+        const outputParts: string[] = [node.path.split('/').pop() || node.path];
+    
+        function processChildren(children: FileTreeNode[], prefix: string) {
+            children.forEach((child, index) => {
+                const isLast = index === children.length - 1;
+                const connector = isLast ? '└── ' : '├── ';
+                const displayName = child.path.split('/').pop() || child.path;
+    
+                outputParts.push(prefix + connector + displayName);
+    
+                // If the child is a directory with its own children, recurse deeper.
+                if (child.type === 'directory' && child.children && child.children.length > 0) {
+                    // The prefix for the next level depends on whether the current node
+                    // is the last in its list. This determines if we use a vertical line or a space.
+                    const childPrefix = prefix + (isLast ? '    ' : '│   ');
+                    processChildren(child.children, childPrefix);
+                }
+            });
+        }
+    
+        // Start the process if the root node has children.
+        if (node.children && node.children.length > 0) {
+            processChildren(node.children, '');
+        }
+    
+        return outputParts.join('\n');
+    },
+
+    serializeTemplate(template?: TemplateDetails): string {
         if (template) {
-            // const filesText = JSON.stringify(tpl.files, null, 2);
-            const filesText = TemplateRegistry.markdown.serialize(
-                { files: template.files.filter(f => !f.filePath.includes('package.json')) },
-                z.object({ files: z.array(TemplateFileSchema) })
-            );
             // const indentedFilesText = filesText.replace(/^(?=.)/gm, '\t\t\t\t'); // Indent each line with 4 spaces
             return `
 <TEMPLATE DETAILS>
@@ -37,17 +62,6 @@ The following are the details (structures and files) of the starting boilerplate
 
 Name: ${template.name}
 Frameworks: ${template.frameworks?.join(', ')}
-
-${forCodegen ? `` : `
-<TEMPLATE_CORE_FILES>
-**SHADCN COMPONENTS, Error boundary components and use-toast hook ARE PRESENT AND INSTALLED BUT EXCLUDED FROM THESE FILES DUE TO CONTEXT SPAM**
-${filesText}
-</TEMPLATE_CORE_FILES>`}
-
-<TEMPLATE_FILE_TREE>
-**Use these files as a reference for the file structure, components and hooks that are present**
-${JSON.stringify(template.fileTree, null, 2)}
-</TEMPLATE_FILE_TREE>
 
 Apart from these files, All SHADCN Components are present in ./src/components/ui/* and can be imported from there, example: import { Button } from "@/components/ui/button";
 **Please do not rewrite these components, just import them and use them**
@@ -57,12 +71,12 @@ ${template.description.usage}
 
 <DO NOT TOUCH FILES>
 These files are forbidden to be modified. Do not touch them under any circumstances.
-${template.dontTouchFiles.join('\n')}
+${(template.dontTouchFiles ?? []).join('\n')}
 </DO NOT TOUCH FILES>
 
 <REDACTED FILES>
 These files are redacted. They exist but their contents are hidden for security reasons. Do not touch them under any circumstances.
-${template.redactedFiles.join('\n')}
+${(template.redactedFiles ?? []).join('\n')}
 </REDACTED FILES>
 
 **Websockets and dynamic imports are not supported, so please avoid using them.**
@@ -93,9 +107,13 @@ and provide a preview url for the application.
         if (errors && errors.length > 0) {
             const errorsSerialized = errors.map(e => {
                 // Use rawOutput if available, otherwise serialize using schema
-                const errorText = e.rawOutput || TemplateRegistry.markdown.serialize(e, RuntimeErrorSchema);
+                const errorText = e.message;
+                // Remove any trace lines with no 'tsx' or 'ts' extension in them
+                const cleanedText = errorText.split('\n')
+                                    .map(line => line.includes('deps/chunk') && !(line.includes('.tsx') || line.includes('.ts')) ? '...' : line)
+                                    .join('\n');
                 // Truncate to 1000 characters to prevent context overflow
-                return errorText.slice(0, 1000);
+                return `<error>${cleanedText.slice(0, 1000)}</error>`;
             });
             return errorsSerialized.join('\n\n');
         } else {
@@ -134,18 +152,9 @@ ${typecheckOutput}`;
         return prompt;
     },
 
-    serializeFiles(files: FileOutputType[]): string {
-        // TemplateRegistry.markdown.serialize({ files: files }, z.object({ files: z.array(FileOutputSchema) }))
-        // return files.map(file => {
-        //     return `File: ${file.filePath}\nPurpose: ${file.filePurpose}\nContents: ${file.fileContents}`;
-        // }).join('\n');
+    serializeFiles(files: FileOutputType[], serializerType: CodeSerializerType): string {
         // Use scof format
-        return new SCOFFormat().serialize(files.map(file => {
-            return {
-                ...file,
-                format: 'full_content'
-            }
-        }));
+        return CODE_SERIALIZERS[serializerType](files);
     },
 
     REACT_RENDER_LOOP_PREVENTION: `<REACT_RENDER_LOOP_PREVENTION>
@@ -521,6 +530,7 @@ COMMON_PITFALLS: `<AVOID COMMON PITFALLS>
 
     ### **IMPORT VALIDATION EXAMPLES**
     **CRITICAL**: Verify ALL imports before using. Wrong imports = runtime crashes.
+    **When suggesting to import packages, make sure to check if the package actually exists and is correct. If installing it fails multiple times, it is not a valid package.**
 
     **BAD IMPORTS** (cause runtime errors):
     \`\`\`tsx
@@ -585,6 +595,7 @@ COMMON_PITFALLS: `<AVOID COMMON PITFALLS>
         - Always suggest a known recent compatible stable major version. If unsure which version might be available, don't specify any version.
         - Example: \`npm install react@18 react-dom@18\`
         - List commands to add dependencies separately, one command per dependency for clarity.
+        - Make sure the packages actually exist and are correct.
     • **Format:** Provide ONLY the raw command(s) without comments, explanations, or step numbers, in the form of a list
     • **Execution:** These run *before* code generation begins.
 
@@ -754,29 +765,43 @@ bun add @geist-ui/react@1
     - ✅ **Performance Smooth:** 60fps animations and instant perceived load times`,
     PROJECT_CONTEXT: `Here is everything you will need for the project:
 
-<PROJECT CONTEXT>
+<PROJECT_CONTEXT>
 
-<COMPLETED PHASES>
+<COMPLETED_PHASES>
 
 The following phases have been completed and implemented:
 
 {{phases}}
 
-</COMPLETED PHASES>
+</COMPLETED_PHASES>
+
+<LAST_DIFFS>
+These are the changes that have been made to the codebase since the last phase:
+
+{{lastDiffs}}
+
+</LAST_DIFFS>
 
 <CODEBASE>
 
-Here are all the relevant files in the current codebase:
+Here are all the latest relevant files in the current codebase:
 
 {{files}}
 
 **THESE DO NOT INCLUDE PREINSTALLED SHADCN COMPONENTS, REDACTED FOR SIMPLICITY. BUT THEY DO EXIST AND YOU CAN USE THEM.**
 
+<FILE_TREE>
+**Use these files as a reference for the file structure, components and hooks that are present**
+
+{{fileTree}}
+
+</FILE_TREE>
+
 </CODEBASE>
 
 {{commandsHistory}}
 
-</PROJECT CONTEXT>
+</PROJECT_CONTEXT>
 `,
 }
 
@@ -876,6 +901,13 @@ export const STRATEGIES_UTILS = {
             * Building any themed 2048 game: Has a single page, simple logic -> **Simple Project** - 1 phase and 2 files max. Initial phase should yield a perfectly working game.
             * Building a full chess platform: Has multiple pages -> **Complex Project** - 3-5 phases and 5-15 files, with initial phase having around 5-11 files and should have the primary homepage working with mockups for all other views.
             * Building a full e-commerce platform: Has multiple pages -> **Complex Project** - 3-5 phases and 5-15 files max, with initial phase having around 5-11 files and should have the primary homepage working with mockups for all other views.
+    
+
+        <TRUST & SAFETY POLICIES>
+        • **NEVER** provide any code that can be used to perform nefarious/malicious or against Cloudflare's policies.
+        • **If a user asks to build a clone or look-alike of a popular product or service, alter the name and description, and explicitly add a visible disclaimer that it is a clone or look-alike.**
+        • **NEVER** Let users build applications for phishing or malicious purposes.
+        </TRUST & SAFETY POLICIES>
     </PHASE GENERATION CONSTRAINTS>`,
 }
 
@@ -923,7 +955,6 @@ export interface GeneralSystemPromptBuilderParams {
     query: string,
     templateDetails: TemplateDetails,
     dependencies: Record<string, string>,
-    forCodegen: boolean,
     blueprint?: Blueprint,
     language?: string,
     frameworks?: string[],
@@ -937,14 +968,14 @@ export function generalSystemPromptBuilder(
     // Base variables always present
     const variables: Record<string, string> = {
         query: params.query,
-        template: PROMPT_UTILS.serializeTemplate(params.templateDetails, params.forCodegen),
-        dependencies: JSON.stringify(params.dependencies || [])
+        template: PROMPT_UTILS.serializeTemplate(params.templateDetails),
+        dependencies: JSON.stringify(params.dependencies ?? {})
     };
 
     // Optional blueprint variables
     if (params.blueprint) {
         variables.blueprint = TemplateRegistry.markdown.serialize(params.blueprint, BlueprintSchema);
-        variables.blueprintDependencies = params.blueprint.frameworks.join(', ');
+        variables.blueprintDependencies = params.blueprint.frameworks?.join(', ') ?? '';
     }
 
     // Optional language and frameworks
@@ -963,7 +994,7 @@ export function generalSystemPromptBuilder(
 }
 
 export function issuesPromptFormatter(issues: IssueReport): string {
-    const runtimeErrorsText = issues.runtimeErrors.map((error) => `<error>${error.rawOutput}</error>`).join('\n');
+    const runtimeErrorsText = PROMPT_UTILS.serializeErrors(issues.runtimeErrors);
     const staticAnalysisText = PROMPT_UTILS.serializeStaticAnalysis(issues.staticAnalysis);
     
     return `## ERROR ANALYSIS PRIORITY MATRIX
@@ -989,10 +1020,35 @@ ${staticAnalysisText}
 
 
 export const USER_PROMPT_FORMATTER = {
-    PROJECT_CONTEXT: (phases: PhaseConceptType[], files: FileOutputType[], commandsHistory: string[]) => {
+    PROJECT_CONTEXT: (phases: PhaseConceptType[], files: FileState[], fileTree: FileTreeNode, commandsHistory: string[], serializerType: CodeSerializerType = CodeSerializerType.SIMPLE) => {
+        let lastPhaseFilesDiff = '';
+        try {
+            if (phases.length > 1) {
+                const lastPhase = phases[phases.length - 1];
+                if (lastPhase && lastPhase.files) {
+                    // Get last phase files diff only
+                    const fileMap = new Map<string, FileState>();
+                    files.forEach((file) => fileMap.set(file.filePath, file));
+                    const lastPhaseFiles = lastPhase.files.map((file) => fileMap.get(file.path)).filter((file) => file !== undefined);
+                    lastPhaseFilesDiff = lastPhaseFiles.map((file) => file.lastDiff).join('\n');
+        
+                    // Set lastPhase = false for all phases but the last
+                    phases.forEach((phase) => {
+                        if (phase !== lastPhase) {
+                            phase.lastPhase = false;
+                        }
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error processing project context:', error);
+        }
+
         const variables: Record<string, string> = {
             phases: TemplateRegistry.markdown.serialize({ phases: phases }, z.object({ phases: z.array(PhaseConceptSchema) })),
-            files: PROMPT_UTILS.serializeFiles(files),
+            files: PROMPT_UTILS.serializeFiles(files, serializerType),
+            fileTree: PROMPT_UTILS.serializeTreeNodes(fileTree),
+            lastDiffs: lastPhaseFilesDiff,
             commandsHistory: commandsHistory.length > 0 ? `<COMMANDS HISTORY>
 
 The following commands have been executed successfully in the project environment so far (These may not include the ones that are currently pending):

@@ -12,6 +12,9 @@ import { RateLimitExceededError, SecurityError } from 'shared/types/errors';
 import { toolWebSearchDefinition } from "../tools/toolkit/web-search";
 import { toolWeatherDefinition } from "../tools/toolkit/weather";
 import { ToolDefinition } from "../tools/types";
+import { PROMPT_UTILS } from "../prompts";
+import { RuntimeError } from "worker/services/sandbox/sandboxTypes";
+import { CodeSerializerType } from "../utils/codeSerializers";
 
 // Constants
 const CHUNK_SIZE = 64;
@@ -25,6 +28,7 @@ export interface UserConversationInputs {
         isStreaming: boolean,
         tool?: { name: string; status: 'start' | 'success' | 'error'; args?: Record<string, unknown> }
     ) => void;
+    errors: RuntimeError[];
 }
 
 export interface UserConversationOutputs {
@@ -68,7 +72,7 @@ const SYSTEM_PROMPT = `You are Orange, an AI assistant for Cloudflare's AI power
     - REQUEST: Download all files of the codebase
         - RESPONSE: You can export the codebase yourself by clicking on 'Export to github' button on top-right of the preview panel
         - NOTE: **Never write down the whole codebase for them!**
-    - REQUEST: **Something nefarious/malicious or against Cloudflare's policies**
+    - REQUEST: **Something nefarious/malicious, possible phishing or against Cloudflare's policies**
         - RESPONSE: I'm sorry, but I can't assist with that. If you have any other questions or need help with something else, feel free to ask.
     - REQUEST: Add API keys
         - RESPONSE: I'm sorry, but I can't assist with that. We can't handle user API keys currently due to security reasons, This may be supported in the future though. But you can export the codebase and deploy it with your keys yourself.
@@ -121,12 +125,17 @@ I hope this description of the system is enough for you to understand your own r
 - You would know if you have correctly queued the request via the \`queue_request\` tool if you get the response of kind \`Modification request queued successfully...\`. If you don't get this response, then you have not queued the request correctly.
 - Only declare "Modification request queued successfully..." **after** you receive a tool result message from \`queue_request\` (role=tool) in **this turn** of the conversation. **Do not** mistake previous tool results for the current turn.
 - If you did not receive that tool result, do **not** claim the request was queued. Instead say: "I'm preparing that now—one moment." and then call the tool.
-- For multiple modificiation requests, instead of making several \`queue_request\` calls, make a single \`queue_request\` call with all the requests in it in markdown in a single string.
+- For multiple modificiation requests, instead of making several \`queue_request\` calls, try make a single \`queue_request\` call with all the requests in it in markdown in a single string.
+- Sometimes your request might be lost. If the user suggests so, Please try again, and specifiy in your request that you are trying again.
+- Always be concise, direct, to the point and brief to the user. You are a man of few words. Dont talk more than what's necessary to the user.
 
 You can also execute multiple tools in a sequence, for example, to search the web for a image, and then sending the image url to the queue_request tool to queue up the changes.
 
 ## Original Project query:
 {{query}}
+
+## Project runtime errors (if any):
+{{errors}}
 
 Remember: You're here to help users build great applications through natural conversation and the tools at your disposal. Communicate with the AI coding team transparently and clearly. For big changes, request them (via queue_request tool) to implement changes in multiple phases.`;
 
@@ -167,13 +176,14 @@ export function buildEditAppTool(stateMutator: (modificationRequest: string) => 
 export class UserConversationProcessor extends AgentOperation<UserConversationInputs, UserConversationOutputs> {
     async execute(inputs: UserConversationInputs, options: OperationOptions): Promise<UserConversationOutputs> {
         const { env, logger, context } = options;
-        const { userMessage, pastMessages } = inputs;
+        const { userMessage, pastMessages, errors } = inputs;
         logger.info("Processing user message", { 
             messageLength: inputs.userMessage.length,
         });
 
         try {
-            const systemPrompts = getSystemPromptWithProjectContext(SYSTEM_PROMPT, context, false);
+            const systemPrompt = SYSTEM_PROMPT.replace("{{errors}}", PROMPT_UTILS.serializeErrors(errors));
+            const systemPromptMessages = getSystemPromptWithProjectContext(systemPrompt, context, CodeSerializerType.SIMPLE);
             const messages = [...pastMessages, {...createUserMessage(userMessage), conversationId: IdGenerator.generateConversationId()}];
 
             let extractedUserResponse = "";
@@ -217,7 +227,7 @@ export class UserConversationProcessor extends AgentOperation<UserConversationIn
             // Don't save the system prompts so that every time new initial prompts can be generated with latest project context
             const result = await executeInference({
                 env: env,
-                messages: [...systemPrompts, ...messages],
+                messages: [...systemPromptMessages, ...messages],
                 agentActionName: "conversationalResponse",
                 context: options.inferenceContext,
                 tools, // Enable tools for the conversational AI

@@ -3,20 +3,22 @@ import { IssueReport } from '../domain/values/IssueReport';
 import { createUserMessage } from '../inferutils/common';
 import { executeInference } from '../inferutils/infer';
 import { issuesPromptFormatter, PROMPT_UTILS, STRATEGIES } from '../prompts';
-import { CodeGenerationStreamingState } from '../streaming-formats/base';
+import { CodeGenerationStreamingState } from '../output-formats/streaming-formats/base';
 import { FileProcessing } from '../domain/pure/FileProcessing';
 // import { RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
 import { AgentOperation, getSystemPromptWithProjectContext, OperationOptions } from '../operations/common';
-import { SCOFFormat, SCOFParsingState } from '../streaming-formats/scof';
+import { SCOFFormat, SCOFParsingState } from '../output-formats/streaming-formats/scof';
 import { TemplateRegistry } from '../inferutils/schemaFormatters';
 import { IsRealtimeCodeFixerEnabled, RealtimeCodeFixer } from '../assistants/realtimeCodeFixer';
 import { AGENT_CONFIG } from '../inferutils/config';
+import { CodeSerializerType } from '../utils/codeSerializers';
 
 export interface PhaseImplementationInputs {
     phase: PhaseConceptType
     issues: IssueReport
     isFirstPhase: boolean
     shouldAutoFix: boolean
+    userSuggestions?: string[];
     fileGeneratingCallback: (filePath: string, filePurpose: string) => void
     fileChunkGeneratedCallback: (filePath: string, chunk: string, format: 'full_content' | 'unified_diff') => void
     fileClosedCallback: (file: FileOutputType, message: string) => void
@@ -94,10 +96,7 @@ ${STRATEGIES.FRONTEND_FIRST_CODING}
 
 {{template}}`;
 
-const USER_PROMPT = `**IMPLEMENT THE FOLLOWING PROJECT PHASE**
-<CURRENT_PHASE>
-{{phaseText}}
-</CURRENT_PHASE>
+const USER_PROMPT = `**Phase Implementation**
 
 <INSTRUCTIONS & CODE QUALITY STANDARDS>
 These are the instructions and quality standards that must be followed to implement this phase.
@@ -216,9 +215,15 @@ Every single file listed in <CURRENT_PHASE> needs to be implemented in this phas
 
 ${PROMPT_UTILS.COMMON_DEP_DOCUMENTATION}
 
+**IMPLEMENT THE FOLLOWING PROJECT PHASE**
+<CURRENT_PHASE>
+{{phaseText}}
+
 {{issues}}
 
-{{technicalInstructions}}`;
+{{userSuggestions}}
+
+</CURRENT_PHASE>`;
 
 const LAST_PHASE_PROMPT = `Finalization and Review phase. 
 Goal: Thoroughly review the entire codebase generated in previous phases. Identify and fix any remaining critical issues (runtime errors, logic flaws, rendering bugs) before deployment.
@@ -304,11 +309,29 @@ Do not provide any additional text or explanation.
 All your output will be directly saved in the README.md file. 
 Do not provide and markdown fence \`\`\` \`\`\` around the content either! Just pure raw markdown content!`;
 
+const formatUserSuggestions = (suggestions?: string[] | null): string => {
+    if (!suggestions || suggestions.length === 0) {
+        return '';
+    }
+    
+    return `
+<USER SUGGESTIONS>
+The following client suggestions and feedback have been provided, relayed by our client conversation agent.
+Please incorporate these suggestions **on priority** in the implementation of this phase.
+
+**Client Feedback & Suggestions**:
+${suggestions.map((suggestion, index) => `${index + 1}. ${suggestion}`).join('\n')}
+
+**IMPORTANT**: Give the above suggestions higher precedance and make sure they are accounted for properly, elegantly and in a non-hackish way. 
+Try to make small targeted, isolated changes to the codebase to address the user's suggestions unless a complete rework is required.
+</USER SUGGESTIONS>`;
+};
+
 const specialPhasePromptOverrides: Record<string, string> = {
     "Finalization and Review": LAST_PHASE_PROMPT,
 }
 
-const userPropmtFormatter = (phaseConcept: PhaseConceptType, issues: IssueReport) => {
+const userPromptFormatter = (phaseConcept: PhaseConceptType, issues: IssueReport, userSuggestions?: string[]) => {
     const phaseText = TemplateRegistry.markdown.serialize(
         phaseConcept,
         PhaseConceptSchema
@@ -316,7 +339,8 @@ const userPropmtFormatter = (phaseConcept: PhaseConceptType, issues: IssueReport
     
     const prompt = PROMPT_UTILS.replaceTemplateVariables(specialPhasePromptOverrides[phaseConcept.name] || USER_PROMPT, {
         phaseText,
-        issues: issuesPromptFormatter(issues)
+        issues: issuesPromptFormatter(issues),
+        userSuggestions: formatUserSuggestions(userSuggestions)
     });
     return PROMPT_UTILS.verifyPrompt(prompt);
 }
@@ -326,7 +350,7 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
         inputs: PhaseImplementationInputs,
         options: OperationOptions
     ): Promise<PhaseImplementationOutputs> {
-        const { phase, issues } = inputs;
+        const { phase, issues, userSuggestions } = inputs;
         const { env, logger, context } = options;
         
         logger.info(`Generating files for phase: ${phase.name}`, phase.description, "files:", phase.files.map(f => f.path));
@@ -334,8 +358,8 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
         // Notify phase start
         const codeGenerationFormat = new SCOFFormat();
         // Build messages for generation
-        const messages = getSystemPromptWithProjectContext(SYSTEM_PROMPT, context, true);
-        messages.push(createUserMessage(userPropmtFormatter(phase, issues) + codeGenerationFormat.formatInstructions()));
+        const messages = getSystemPromptWithProjectContext(SYSTEM_PROMPT, context, CodeSerializerType.SCOF);
+        messages.push(createUserMessage(userPromptFormatter(phase, issues, userSuggestions) + codeGenerationFormat.formatInstructions()));
     
         // Initialize streaming state
         const streamingState: CodeGenerationStreamingState = {
@@ -433,7 +457,6 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
     
         // Return generated files for validation and deployment
         return {
-            // rawFiles: generatedFilesInPhase,
             fixedFilePromises,
             deploymentNeeded: fixedFilePromises.length > 0,
             commands,
@@ -446,7 +469,7 @@ export class PhaseImplementationOperation extends AgentOperation<PhaseImplementa
 
         try {
             let readmePrompt = README_GENERATION_PROMPT;
-            const messages = [...getSystemPromptWithProjectContext(SYSTEM_PROMPT, context, true), createUserMessage(readmePrompt)];
+            const messages = [...getSystemPromptWithProjectContext(SYSTEM_PROMPT, context, CodeSerializerType.SCOF), createUserMessage(readmePrompt)];
 
             const results = await executeInference({
                 env: env,
