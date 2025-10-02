@@ -127,15 +127,17 @@ ${error}`);
                 context: this.inferenceContext,
                 modelName: error? AIModels.GEMINI_2_5_FLASH : undefined,
             });
-            if (!results || typeof results !== 'string') {
-                this.logger.info(`Failed to generate setup commands, results: `, { results });
+            const output = typeof results === 'string' ? results : results?.string ?? '';
+
+            if (!output.trim()) {
+                this.logger.info(`Failed to generate setup commands, results empty`, { results });
                 return { commands: [] };
             }
 
-            this.logger.info(`Generated setup commands: ${results}`);
+            this.logger.info(`Generated setup commands: ${output}`);
 
-            this.save([createAssistantMessage(results)]);
-            return { commands: extractCommands(results) };
+            this.save([createAssistantMessage(output)]);
+            return { commands: extractCommands(output) };
         } catch (error) {
             this.logger.error("Error generating setup commands:", error);
             throw error;
