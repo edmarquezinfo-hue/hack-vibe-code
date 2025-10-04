@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 import svgr from 'vite-plugin-svgr';
 import path from 'path';
 
-import { cloudflare } from '@cloudflare/vite-plugin';
+
 import tailwindcss from '@tailwindcss/vite';
 // import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
@@ -28,15 +28,11 @@ export default defineConfig({
 	plugins: [
 		react(),
 		svgr(),
-		cloudflare({
-			configPath: 'wrangler.jsonc',
-			experimental: { remoteBindings: true },
-		}), // Add the node polyfills plugin here
+		// Cloudflare plugin disabled for local dev due to Node/version issues
 		// nodePolyfills({
 		//     exclude: [
 		//       'tty', // Exclude 'tty' module
 		//     ],
-		//     // We recommend leaving this as `true` to polyfill `global`.
 		//     globals: {
 		//         global: true,
 		//     },
@@ -78,6 +74,13 @@ export default defineConfig({
 
 	server: {
 		allowedHosts: true,
+		proxy: {
+			'/api': {
+				target: 'http://localhost:8787',
+				changeOrigin: true,
+				ws: true,
+			},
+		},
 	},
 
 	// Clear cache more aggressively
